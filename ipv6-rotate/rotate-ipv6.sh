@@ -98,6 +98,8 @@ load_conf() {
   SUBNET="${SUBNET:-}"
   ROUTE_METRIC="${ROUTE_METRIC:-50}"
   ROUTE_PROTO="${ROUTE_PROTO:-162}"
+  EXTRA_PREFIX_LEN="${EXTRA_PREFIX_LEN:-128}"
+  ADDR_OPTIONS="${ADDR_OPTIONS:-nodad noprefixroute}"
   PING_CHECK="${PING_CHECK:-1}"
   PING_TARGET="${PING_TARGET:-2001:4860:4860::8888}"
   PING_COUNT="${PING_COUNT:-3}"
@@ -204,11 +206,8 @@ prefix_len_of() {
   echo "${plen:-64}"
 }
 
-primary_prefix_len() {
-  local iface="$1"
-  local plen
-  plen="$(ip -6 addr show dev "$iface" scope global | awk '/inet6/ {split($2,a,"/"); print a[2]; exit}')"
-  echo "${plen:-64}"
+extra_prefix_len() {
+  echo "${EXTRA_PREFIX_LEN:-128}"
 }
 
 detect_subnet() {
@@ -241,7 +240,7 @@ flush_our_routes() {
 add_src_route() {
   local iface="$1" gw="$2" src="$3"
   flush_our_routes "$iface"
-  ip -6 route add default via "$gw" dev "$iface" src "$src" metric "$ROUTE_METRIC" proto "$ROUTE_PROTO"
+  ip -6 route add default via "$gw" dev "$iface" src "$src" metric "$ROUTE_METRIC" proto "$ROUTE_PROTO" onlink
 }
 
 add_address() {
@@ -249,8 +248,10 @@ add_address() {
   if iface_has_ip "$iface" "$ip"; then
     return 0
   fi
-  ip -6 addr add "${ip}/${plen}" dev "$iface" noprefixroute
-  wait_dad "$iface" "$ip" || die "DAD failed for $ip"
+  # Routed extra /64 is not on-link with the VPS native prefix; skip DAD.
+  # shellcheck disable=SC2086
+  ip -6 addr add "${ip}/${plen}" dev "$iface" ${ADDR_OPTIONS:-nodad noprefixroute}
+  wait_dad "$iface" "$ip" || die "failed to assign $ip"
 }
 
 del_address() {
@@ -424,7 +425,7 @@ main_restore() {
   protected="$(load_protected "$iface")"
   current="$(read_state || true)"
   [[ -n "$current" ]] || { log "nothing to restore"; exit 0; }
-  plen="$(primary_prefix_len "$iface")"
+  plen="$(extra_prefix_len)"
   log "restoring rotated IPv6 $current on $iface"
   apply_ip "$iface" "$gw" "$current" "" "$protected" "$plen" "restore"
 }
@@ -465,7 +466,7 @@ main_rollback() {
   if is_protected "$prev" "$protected"; then
     die "previous IPv6 $prev is the protected primary address"
   fi
-  plen="$(primary_prefix_len "$iface")"
+  plen="$(extra_prefix_len)"
   apply_ip "$iface" "$gw" "$prev" "${current:-}" "$protected" "$plen" "rollback"
 }
 
@@ -487,7 +488,7 @@ main_set() {
     python3 "$PICK_PY" belongs "$new_ip" "$MODE" "${SUBNET:-}" "${POOL_FILE:-}" >/dev/null \
       || die "$new_ip is outside SUBNET/pool; pass --force to override"
   fi
-  plen="$(primary_prefix_len "$iface")"
+  plen="$(extra_prefix_len)"
   apply_ip "$iface" "$gw" "$new_ip" "${current:-}" "$protected" "$plen" "manual"
 }
 
@@ -516,7 +517,7 @@ main_rotate() {
   protected="$(load_protected "$iface")"
   [[ -n "$protected" ]] || die "protected IPv6 list is empty; re-run install.sh so the primary address is snapshotted"
   current="$(read_state || true)"
-  plen="$(primary_prefix_len "$iface")"
+  plen="$(extra_prefix_len)"
 
   case "$MODE" in
     subnet)

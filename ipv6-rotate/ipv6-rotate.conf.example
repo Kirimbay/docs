@@ -28,6 +28,10 @@ ROUTE_METRIC=50
 # Протокол маршрута, чтобы отличать «наш» default от системного
 ROUTE_PROTO=162
 
+# Routed /64 с другой сети, чем основной IPv6 VPS: вешаем /128 без DAD
+EXTRA_PREFIX_LEN=128
+ADDR_OPTIONS="nodad noprefixroute"
+
 # Проверка после ротации: ping6 с нового адреса
 PING_CHECK=1
 PING_TARGET=2001:4860:4860::8888
