@@ -116,7 +116,18 @@ detect_iface() {
     return
   fi
   local iface
-  iface="$(ip -6 route show default 2>/dev/null | awk '/default/ {print $5; exit}')"
+  iface="$(ip -6 route get 2001:4860:4860::8888 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}')"
+  if [[ -z "$iface" ]]; then
+    iface="$(ip -6 route show default 2>/dev/null | awk '
+      /via/ {
+        gw=""; dev="";
+        for (i=1;i<=NF;i++) {
+          if ($i=="via") gw=$(i+1)
+          if ($i=="dev") dev=$(i+1)
+        }
+        if (gw != "" && gw !~ /^fe80:/ && dev != "") { print dev; exit }
+      }')"
+  fi
   [[ -n "$iface" ]] || die "cannot detect IPv6 interface; set INTERFACE in config"
   echo "$iface"
 }
@@ -127,7 +138,15 @@ detect_gateway() {
     return
   fi
   local gw
-  gw="$(ip -6 route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
+  gw="$(ip -6 route get 2001:4860:4860::8888 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="via") {print $(i+1); exit}}')"
+  if [[ -z "$gw" || "$gw" == fe80:* ]]; then
+    gw="$(ip -6 route show default 2>/dev/null | awk '
+      /via/ {
+        for (i=1;i<=NF;i++) if ($i=="via") {
+          if ($(i+1) !~ /^fe80:/) { print $(i+1); exit }
+        }
+      }')"
+  fi
   [[ -n "$gw" ]] || die "cannot detect IPv6 gateway; set GATEWAY in config"
   echo "$gw"
 }
@@ -151,6 +170,13 @@ load_protected() {
   local iface="$1"
   local -a items=()
   local ip
+  if [[ ! -s "$PROTECTED_FILE" ]]; then
+    mkdir -p "$(dirname "$PROTECTED_FILE")" 2>/dev/null || true
+    ip -6 addr show ${iface:+dev "$iface"} scope global 2>/dev/null \
+      | awk '/inet6/ && !/temporary/ {split($2,a,"/"); print a[1]}' \
+      >"$PROTECTED_FILE" || true
+    log "wrote protected IPv6 snapshot to $PROTECTED_FILE"
+  fi
   if [[ -n "$PROTECTED_IPV6" ]]; then
     IFS=',' read -r -a items <<<"$PROTECTED_IPV6"
   fi
