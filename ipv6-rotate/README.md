@@ -70,7 +70,45 @@ sudo rotate-ipv6.sh --status
 systemctl list-timers ipv6-rotate.timer
 ```
 
-Лог: `/var/log/ipv6-rotate.log`.
+## Откат, логи, ручная смена
+
+Все команды на сервере. Основной IPv6 и Hiddify при откате не трогаются.
+
+```bash
+# журнал смен: история + /var/log/ipv6-rotate.log + journalctl
+sudo rotate-ipv6.sh --log
+sudo tail -f /var/log/ipv6-rotate.log
+
+# текущий и предыдущий extra-IPv6
+sudo rotate-ipv6.sh --status
+
+# сменить адрес прямо сейчас (как в 03:00)
+sudo rotate-ipv6.sh
+
+# поставить конкретный адрес из пула
+sudo rotate-ipv6.sh --set 2a03:xxxx:xxxx:xxxx::abcd
+
+# вернуть предыдущий extra-IPv6
+sudo rotate-ipv6.sh --rollback
+
+# снять extra-IPv6, остаётся только основной (если ротация мешает)
+sudo rotate-ipv6.sh --off
+
+# остановить ночную смену, текущий extra-IP не трогать
+sudo rotate-ipv6.sh --pause
+sudo rotate-ipv6.sh --resume
+
+# полное снятие таймера и extra-IP
+sudo bash ipv6-rotate/uninstall.sh
+```
+
+Формат истории (`/var/lib/ipv6-rotate/history`):
+
+```
+2026-08-20T03:00:01+03:00 rotate 2a03:...::a -> 2a03:...::b ok
+```
+
+При неудачном ping новая смена сама откатывается, в истории будет `fail-ping`.
 
 ## Что не сломается
 
@@ -93,11 +131,3 @@ systemctl list-timers ipv6-rotate.timer
 4. В Hiddify этот поддомен должен резолвиться в крутящийся адрес (через DNS, без «Force IP» на статический IPv6).
 
 Пример хука: `hooks/cloudflare-aaaa.sh`.
-
-## Откат
-
-```bash
-sudo bash ipv6-rotate/uninstall.sh
-```
-
-Конфиг в `/etc/ipv6-rotate` остаётся. Лишний IPv6 при необходимости снимите вручную: `ip -6 addr del ...`.

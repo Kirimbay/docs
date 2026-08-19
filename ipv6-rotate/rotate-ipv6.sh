@@ -9,15 +9,30 @@ PICK_PY="${PICK_PY:-/usr/local/lib/ipv6-rotate/pick.py}"
 DRY_RUN=0
 RESTORE=0
 SHOW_STATUS=0
+SHOW_LOG=0
+DO_ROLLBACK=0
+DO_OFF=0
+DO_PAUSE=0
+DO_RESUME=0
+SET_IP=""
+FORCE=0
 
 usage() {
   cat <<'EOF'
-Usage: rotate-ipv6.sh [--dry-run] [--restore] [--status] [--conf FILE]
+Usage: rotate-ipv6.sh [command]
 
-  --dry-run   Show what would change, do not apply
-  --restore   Re-apply last rotated address (boot)
-  --status    Print current state
-  --conf FILE Config path (default: /etc/ipv6-rotate/ipv6-rotate.conf)
+  (no args)          Rotate now (same as the 03:00 job)
+  --set ADDR         Set this IPv6 manually
+  --rollback         Return to the previous rotated IPv6
+  --off              Remove extra IPv6, keep only the primary address
+  --log              Show change history and log file
+  --status           Show current IP, routes, next timer
+  --pause            Stop the 03:00 timer (keep current extra IP)
+  --resume           Enable the 03:00 timer again
+  --restore          Re-apply last IP after reboot
+  --dry-run          Print actions, do not apply
+  --force            With --set: skip subnet/pool membership check
+  --conf FILE        Config path
 EOF
 }
 
@@ -26,6 +41,13 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift ;;
     --restore) RESTORE=1; shift ;;
     --status) SHOW_STATUS=1; shift ;;
+    --log|--history) SHOW_LOG=1; shift ;;
+    --rollback) DO_ROLLBACK=1; shift ;;
+    --off|--disable-ip) DO_OFF=1; shift ;;
+    --pause) DO_PAUSE=1; shift ;;
+    --resume) DO_RESUME=1; shift ;;
+    --set) SET_IP="$2"; shift 2 ;;
+    --force) FORCE=1; shift ;;
     --conf) CONF_FILE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
@@ -82,6 +104,7 @@ load_conf() {
   POST_ROTATE_HOOK="${POST_ROTATE_HOOK:-}"
   LOG_FILE="${LOG_FILE:-/var/log/ipv6-rotate.log}"
   STATE_DIR="${STATE_DIR:-/var/lib/ipv6-rotate}"
+  HISTORY_FILE="${HISTORY_FILE:-${STATE_DIR}/history}"
   mkdir -p "$STATE_DIR" 2>/dev/null || true
 }
 
@@ -250,7 +273,19 @@ ping_from() {
 
 save_state() {
   local ip="$1"
-  echo "$ip" >"${STATE_DIR}/current"
+  local reason="${2:-rotate}"
+  local old=""
+  old="$(read_state || true)"
+  if [[ -n "$old" && "$old" != "$ip" ]]; then
+    echo "$old" >"${STATE_DIR}/previous"
+  fi
+  if [[ -n "$ip" ]]; then
+    echo "$ip" >"${STATE_DIR}/current"
+    rm -f "${STATE_DIR}/disabled"
+  else
+    rm -f "${STATE_DIR}/current"
+  fi
+  append_history "$reason" "${old:-none}" "${ip:-none}" "ok"
 }
 
 read_state() {
@@ -261,18 +296,36 @@ read_state() {
   fi
 }
 
+read_previous() {
+  if [[ -f "${STATE_DIR}/previous" ]]; then
+    local ip
+    ip="$(tr -d ' \t\n' <"${STATE_DIR}/previous")"
+    [[ -n "$ip" ]] && normalize_ip "$ip"
+  fi
+}
+
+append_history() {
+  local reason="$1" old="$2" new="$3" result="$4"
+  local msg="${reason} ${old} -> ${new} ${result}"
+  mkdir -p "$(dirname "$HISTORY_FILE")" 2>/dev/null || true
+  echo "$(date -Is) ${msg}" >>"${HISTORY_FILE}" 2>/dev/null || true
+  log "$msg"
+}
+
 print_status() {
   load_conf
   python_ok
-  local iface gw current
+  local iface gw current prev
   iface="$(detect_iface)"
   gw="$(detect_gateway)"
   current="$(read_state || true)"
+  prev="$(read_previous || true)"
   echo "interface:     $iface"
   echo "gateway:       $gw"
   echo "mode:          $MODE"
   echo "subnet:        ${SUBNET:-auto}"
   echo "rotated_ip:    ${current:-none}"
+  echo "previous_ip:   ${prev:-none}"
   echo "protected:"
   load_protected "$iface" | sed 's/^/  /'
   echo "global addresses on $iface:"
@@ -283,14 +336,41 @@ print_status() {
   ip -6 route show default || true
   if command -v systemctl >/dev/null; then
     echo
+    echo "timer:"
+    systemctl is-enabled ipv6-rotate.timer 2>/dev/null || true
     systemctl list-timers ipv6-rotate.timer --no-pager 2>/dev/null || true
   fi
+  if [[ -f "${STATE_DIR}/disabled" ]]; then
+    echo
+    echo "note: extra IPv6 is OFF (--off). Nightly restore will not re-add it."
+  fi
+}
+
+print_log() {
+  load_conf
+  echo "=== history (${HISTORY_FILE}) ==="
+  if [[ -f "$HISTORY_FILE" ]]; then
+    tail -n 50 "$HISTORY_FILE"
+  else
+    echo "(empty)"
+  fi
+  echo
+  echo "=== log (${LOG_FILE}) ==="
+  if [[ -f "$LOG_FILE" ]]; then
+    tail -n 80 "$LOG_FILE"
+  else
+    echo "(empty)"
+  fi
+  echo
+  echo "=== journalctl -t ipv6-rotate ==="
+  journalctl -t ipv6-rotate -n 40 --no-pager 2>/dev/null || true
 }
 
 apply_ip() {
   local iface="$1" gw="$2" new_ip="$3" old_ip="$4" protected="$5" plen="$6"
+  local reason="${7:-rotate}"
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    log "DRY-RUN add ${new_ip}/${plen} on $iface, src route via $gw, remove $old_ip"
+    log "DRY-RUN ${reason}: add ${new_ip}/${plen} on $iface, src route via $gw, remove ${old_ip:-none}"
     return 0
   fi
 
@@ -300,6 +380,7 @@ apply_ip() {
   if [[ "$PING_CHECK" == "1" ]]; then
     if ! ping_from "$new_ip"; then
       log "ping6 via $new_ip failed, rolling back"
+      append_history "$reason" "${old_ip:-none}" "$new_ip" "fail-ping"
       if [[ -n "$old_ip" ]] && ! is_protected "$old_ip" "$protected"; then
         add_address "$iface" "$old_ip" "$plen" || true
         add_src_route "$iface" "$gw" "$old_ip" || true
@@ -316,8 +397,12 @@ apply_ip() {
   if [[ -n "$old_ip" && "$old_ip" != "$new_ip" ]]; then
     del_address "$iface" "$old_ip" "$protected"
   fi
-  save_state "$new_ip"
-  log "IPv6 rotated: ${old_ip:-none} -> $new_ip (iface=$iface)"
+  if [[ "$reason" == "restore" ]]; then
+    echo "$new_ip" >"${STATE_DIR}/current"
+    log "restore ${new_ip} on ${iface}"
+  else
+    save_state "$new_ip" "$reason"
+  fi
 
   if [[ -n "$POST_ROTATE_HOOK" && -x "$POST_ROTATE_HOOK" ]]; then
     log "running hook $POST_ROTATE_HOOK"
@@ -329,6 +414,10 @@ main_restore() {
   [[ "$DRY_RUN" -eq 1 ]] || require_root
   load_conf
   python_ok
+  if [[ -f "${STATE_DIR}/disabled" ]]; then
+    log "extra IPv6 is OFF; skip restore"
+    exit 0
+  fi
   local iface gw current protected plen
   iface="$(detect_iface)"
   gw="$(detect_gateway)"
@@ -337,7 +426,84 @@ main_restore() {
   [[ -n "$current" ]] || { log "nothing to restore"; exit 0; }
   plen="$(primary_prefix_len "$iface")"
   log "restoring rotated IPv6 $current on $iface"
-  apply_ip "$iface" "$gw" "$current" "" "$protected" "$plen"
+  apply_ip "$iface" "$gw" "$current" "" "$protected" "$plen" "restore"
+}
+
+main_off() {
+  [[ "$DRY_RUN" -eq 1 ]] || require_root
+  load_conf
+  python_ok
+  local iface protected current
+  iface="$(detect_iface)"
+  protected="$(load_protected "$iface")"
+  current="$(read_state || true)"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    log "DRY-RUN --off: remove ${current:-none} and our IPv6 src route"
+    return 0
+  fi
+  flush_our_routes "$iface"
+  if [[ -n "$current" ]]; then
+    del_address "$iface" "$current" "$protected"
+  fi
+  mkdir -p "$STATE_DIR"
+  touch "${STATE_DIR}/disabled"
+  save_state "" "off"
+  log "extra IPv6 removed; primary address unchanged. Nightly job will not re-add until you rotate or --set."
+}
+
+main_rollback() {
+  [[ "$DRY_RUN" -eq 1 ]] || require_root
+  load_conf
+  python_ok
+  local iface gw protected current prev plen
+  iface="$(detect_iface)"
+  gw="$(detect_gateway)"
+  protected="$(load_protected "$iface")"
+  current="$(read_state || true)"
+  prev="$(read_previous || true)"
+  [[ -n "$prev" ]] || die "no previous IPv6 stored; cannot rollback (use --off to drop the extra address)"
+  if is_protected "$prev" "$protected"; then
+    die "previous IPv6 $prev is the protected primary address"
+  fi
+  plen="$(primary_prefix_len "$iface")"
+  apply_ip "$iface" "$gw" "$prev" "${current:-}" "$protected" "$plen" "rollback"
+}
+
+main_set() {
+  [[ "$DRY_RUN" -eq 1 ]] || require_root
+  load_conf
+  python_ok
+  local iface gw protected current new_ip plen
+  iface="$(detect_iface)"
+  gw="$(detect_gateway)"
+  protected="$(load_protected "$iface")"
+  [[ -n "$protected" ]] || die "protected IPv6 list is empty; re-run install.sh"
+  current="$(read_state || true)"
+  new_ip="$(normalize_ip "$SET_IP")"
+  if is_protected "$new_ip" "$protected"; then
+    die "$new_ip is protected (primary); choose another address"
+  fi
+  if [[ "$FORCE" -ne 1 ]]; then
+    python3 "$PICK_PY" belongs "$new_ip" "$MODE" "${SUBNET:-}" "${POOL_FILE:-}" >/dev/null \
+      || die "$new_ip is outside SUBNET/pool; pass --force to override"
+  fi
+  plen="$(primary_prefix_len "$iface")"
+  apply_ip "$iface" "$gw" "$new_ip" "${current:-}" "$protected" "$plen" "manual"
+}
+
+main_pause() {
+  require_root
+  load_conf
+  systemctl disable --now ipv6-rotate.timer
+  log "03:00 timer paused. Current extra IPv6 is unchanged. Resume with: rotate-ipv6.sh --resume"
+}
+
+main_resume() {
+  require_root
+  load_conf
+  systemctl enable --now ipv6-rotate.timer
+  log "03:00 timer resumed"
+  systemctl list-timers ipv6-rotate.timer --no-pager || true
 }
 
 main_rotate() {
@@ -372,15 +538,39 @@ main_rotate() {
   fi
   if [[ -n "$current" && "$new_ip" == "$current" ]]; then
     log "pool has a single usable address ($new_ip); nothing to rotate"
-    apply_ip "$iface" "$gw" "$new_ip" "$current" "$protected" "$plen"
+    apply_ip "$iface" "$gw" "$new_ip" "$current" "$protected" "$plen" "rotate"
     exit 0
   fi
 
-  apply_ip "$iface" "$gw" "$new_ip" "${current:-}" "$protected" "$plen"
+  apply_ip "$iface" "$gw" "$new_ip" "${current:-}" "$protected" "$plen" "rotate"
 }
 
 if [[ "$SHOW_STATUS" -eq 1 ]]; then
   print_status
+  exit 0
+fi
+if [[ "$SHOW_LOG" -eq 1 ]]; then
+  print_log
+  exit 0
+fi
+if [[ "$DO_PAUSE" -eq 1 ]]; then
+  main_pause
+  exit 0
+fi
+if [[ "$DO_RESUME" -eq 1 ]]; then
+  main_resume
+  exit 0
+fi
+if [[ "$DO_OFF" -eq 1 ]]; then
+  main_off
+  exit 0
+fi
+if [[ "$DO_ROLLBACK" -eq 1 ]]; then
+  main_rollback
+  exit 0
+fi
+if [[ -n "$SET_IP" ]]; then
+  main_set
   exit 0
 fi
 if [[ "$RESTORE" -eq 1 ]]; then

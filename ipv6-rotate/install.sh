@@ -15,6 +15,7 @@ install -m 0755 "$ROOT/hooks/cloudflare-aaaa.sh" "$CONF_DIR/hooks/cloudflare-aaa
 install -m 0644 "$ROOT/ipv6-rotate.service" /etc/systemd/system/ipv6-rotate.service
 install -m 0644 "$ROOT/ipv6-rotate.timer" /etc/systemd/system/ipv6-rotate.timer
 install -m 0644 "$ROOT/ipv6-rotate-restore.service" /etc/systemd/system/ipv6-rotate-restore.service
+install -m 0644 "$ROOT/ipv6-rotate.logrotate" /etc/logrotate.d/ipv6-rotate
 
 if [[ ! -f "$CONF_DIR/pool.txt" ]]; then
   install -m 0644 "$ROOT/pool.txt.example" "$CONF_DIR/pool.txt"
@@ -68,8 +69,11 @@ echo "Installed."
 echo "  1. Check config:  nano $CONF_DIR/ipv6-rotate.conf"
 echo "  2. Dry-run:       $BIN --dry-run"
 echo "  3. First rotate:  $BIN"
-echo "  4. Status:        $BIN --status"
-echo "  5. Next run:      systemctl list-timers ipv6-rotate.timer"
+echo "  4. Status/logs:   $BIN --status && $BIN --log"
+echo "  5. Manual set:    $BIN --set <ipv6>"
+echo "  6. Rollback:      $BIN --rollback     (previous extra IP)"
+echo "                     $BIN --off          (drop extra IP, primary only)"
+echo "  7. Next run:      systemctl list-timers ipv6-rotate.timer"
 echo
 echo "Hiddify Manager is not restarted and its configs are not modified."
 echo "Timezone for 03:00 is the system local time: timedatectl"

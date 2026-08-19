@@ -37,6 +37,20 @@ class PickTests(unittest.TestCase):
             third = pick.pick_pool(str(path), protected, second)
             self.assertEqual(third, "2001:db8::10")
 
+    def test_belongs_subnet_and_pool(self):
+        self.assertEqual(
+            pick.belongs("2001:db8:1:2::aa", "subnet", "2001:db8:1:2::/64", ""),
+            "2001:db8:1:2::aa",
+        )
+        with self.assertRaises(SystemExit):
+            pick.belongs("2001:db8:9::1", "subnet", "2001:db8:1:2::/64", "")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pool.txt"
+            path.write_text("2001:db8::10\n2001:db8::12\n")
+            self.assertEqual(pick.belongs("2001:db8::12", "pool", "", str(path)), "2001:db8::12")
+            with self.assertRaises(SystemExit):
+                pick.belongs("2001:db8::99", "pool", "", str(path))
+
     def test_pool_empty_after_protect(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "pool.txt"

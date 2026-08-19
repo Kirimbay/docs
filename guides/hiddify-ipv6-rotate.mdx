@@ -26,6 +26,16 @@ sudo nano /etc/ipv6-rotate/ipv6-rotate.conf
 sudo rotate-ipv6.sh --dry-run
 sudo rotate-ipv6.sh
 sudo rotate-ipv6.sh --status
+sudo rotate-ipv6.sh --log
+```
+
+Откат и ручная смена:
+
+```bash
+sudo rotate-ipv6.sh              # сменить сейчас
+sudo rotate-ipv6.sh --set 2a03:...::abcd
+sudo rotate-ipv6.sh --rollback   # предыдущий extra-IPv6
+sudo rotate-ipv6.sh --off        # только основной IPv6
 ```
 
 Если хостер дал не `/64`, а список адресов — заполните `/etc/ipv6-rotate/pool.txt` и поставьте `MODE=pool`.

@@ -63,6 +63,36 @@ def network_of(addr: str) -> str:
     return str(ipaddress.IPv6Interface(addr).network)
 
 
+def _pool_addrs(pool_file: str):
+    addrs = []
+    path = Path(pool_file)
+    if not path.exists():
+        return addrs
+    for line in path.read_text().splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        addrs.append(str(ipaddress.IPv6Address(line)))
+    return addrs
+
+
+def belongs(ip: str, mode: str, subnet: str, pool_file: str) -> str:
+    addr = ipaddress.IPv6Address(ip)
+    if mode == "pool":
+        allowed = _pool_addrs(pool_file)
+        if str(addr) not in allowed:
+            raise SystemExit("%s is not in %s" % (addr, pool_file))
+        return str(addr)
+    if not subnet:
+        raise SystemExit("SUBNET is empty")
+    net = ipaddress.IPv6Network(subnet, strict=False)
+    if addr not in net:
+        raise SystemExit("%s is not in %s" % (addr, net))
+    if addr == net.network_address:
+        raise SystemExit("%s is the network address" % addr)
+    return str(addr)
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -82,6 +112,12 @@ def main() -> None:
     pool.add_argument("protected")
     pool.add_argument("current", nargs="?", default="")
 
+    b = sub.add_parser("belongs")
+    b.add_argument("ip")
+    b.add_argument("mode")
+    b.add_argument("subnet")
+    b.add_argument("pool_file")
+
     args = p.parse_args()
     if args.cmd == "normalize":
         print(normalize(args.ip))
@@ -91,6 +127,8 @@ def main() -> None:
         print(pick_subnet(args.subnet, args.protected))
     elif args.cmd == "pool":
         print(pick_pool(args.pool_file, args.protected, args.current))
+    elif args.cmd == "belongs":
+        print(belongs(args.ip, args.mode, args.subnet, args.pool_file))
     else:
         raise SystemExit(2)
 
