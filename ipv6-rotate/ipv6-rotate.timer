@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily IPv6 rotation at 03:00 local time
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+AccuracySec=1min
+Persistent=false
+Unit=ipv6-rotate.service
+
+[Install]
+WantedBy=timers.target
