@@ -530,24 +530,37 @@ button {
 }
 
 .emoji-panel {
-  display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  gap: 0.25rem;
-  padding: 0.15rem 0 0.2rem;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.1rem 0.1rem 0.15rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
 
 .emoji-panel[hidden] {
   display: none !important;
 }
 
+.emoji-panel::-webkit-scrollbar {
+  display: none;
+}
+
 .emoji-btn-item {
-  display: grid;
-  place-items: center;
-  min-height: 2.35rem;
-  padding: 0.2rem 0;
-  border-radius: 10px;
-  font-size: 1.25rem;
-  line-height: 1.3;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 1.15rem;
+  line-height: 1.2;
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -896,10 +909,6 @@ button {
   .topbar-actions .ghost.compact {
     padding: 0.4rem 0.55rem;
     font-size: 0.8rem;
-  }
-
-  .emoji-panel {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 

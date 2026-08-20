@@ -45,10 +45,7 @@
 
   const socket = io({ autoConnect: true });
   const NAME_KEY = "komnata_name";
-  const EMOJIS = [
-    "😀", "😂", "🥹", "😍", "😎", "🤔", "😢", "😡", "👍", "👎",
-    "❤️", "🔥", "🎉", "🙏", "👏", "💯", "✅", "❌", "👀", "🤝",
-  ];
+  const EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😢", "👍", "❤️", "🔥", "🎉"];
   const REACTIONS = [
     { emoji: "😊", title: "смайл" },
     { emoji: "❤️", title: "любовь" },
@@ -493,9 +490,24 @@
     const value = messageInput.value;
     messageInput.value = value.slice(0, start) + emoji + value.slice(end);
     const pos = start + emoji.length;
-    messageInput.focus();
     messageInput.setSelectionRange(pos, pos);
     autoSize();
+  }
+
+  function closeEmojiPanel() {
+    emojiPanel.hidden = true;
+    emojiBtn.classList.remove("active");
+  }
+
+  function openEmojiPanel() {
+    // Close keyboard first so the strip is not buried under iOS keyboard.
+    messageInput.blur();
+    emojiPanel.hidden = false;
+    emojiBtn.classList.add("active");
+    setTimeout(() => {
+      lockPageScroll();
+      syncViewportHeight();
+    }, 50);
   }
 
   function buildEmojiPanel() {
@@ -505,7 +517,12 @@
       btn.type = "button";
       btn.className = "emoji-btn-item";
       btn.textContent = emoji;
-      btn.addEventListener("click", () => insertEmoji(emoji));
+      btn.addEventListener("click", () => {
+        insertEmoji(emoji);
+        closeEmojiPanel();
+        messageInput.focus();
+        autoSize();
+      });
       emojiPanel.append(btn);
     }
   }
@@ -561,8 +578,7 @@
       autoSize();
       clearPreview();
       clearReply();
-      emojiPanel.hidden = true;
-      emojiBtn.classList.remove("active");
+      closeEmojiPanel();
       composerHint.textContent = "";
     });
   }
@@ -584,9 +600,11 @@
   sendBtn.addEventListener("click", send);
   replyCancelBtn.addEventListener("click", clearReply);
   emojiBtn.addEventListener("click", () => {
-    const open = emojiPanel.hidden;
-    emojiPanel.hidden = !open;
-    emojiBtn.classList.toggle("active", open);
+    if (emojiPanel.hidden) openEmojiPanel();
+    else {
+      closeEmojiPanel();
+      messageInput.focus();
+    }
   });
   buildEmojiPanel();
 

@@ -14,7 +14,7 @@
       href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=14" />
+    <link rel="stylesheet" href="/styles.css?v=15" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -79,7 +79,6 @@
             <img id="preview-img" alt="Превью фото" />
             <button type="button" id="preview-clear" class="ghost compact" aria-label="Убрать фото">×</button>
           </div>
-          <div id="emoji-panel" class="emoji-panel" hidden></div>
           <div class="composer-row">
             <label class="attach" title="Прикрепить фото">
               <input id="photo-input" type="file" accept="image/*" hidden />
@@ -95,6 +94,7 @@
             ></textarea>
             <button type="button" id="send-btn" class="primary compact" aria-label="Отправить">↑</button>
           </div>
+          <div id="emoji-panel" class="emoji-panel" hidden></div>
         </div>
         <p id="composer-hint" class="hint"></p>
       </footer>
@@ -136,6 +136,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=14"></script>
+    <script src="/app.js?v=15"></script>
   </body>
 </html>
