@@ -755,14 +755,16 @@ button {
   align-items: center;
   justify-content: center;
   gap: 0;
-  padding: 0.05rem 0.28rem;
+  box-sizing: border-box;
+  height: 1.55rem;
+  min-height: 1.55rem;
+  padding: 0 0.32rem;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
   color: var(--ink-soft);
   font-size: 0.78rem;
-  line-height: 1.15;
-  min-height: 0;
+  line-height: 1;
   flex: 0 0 auto;
 }
 
