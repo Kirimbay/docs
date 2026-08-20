@@ -34,7 +34,6 @@
   const renameCancelBtn = $("#rename-cancel-btn");
   const renameApplyBtn = $("#rename-apply-btn");
   const meBtn = $("#me-btn");
-  const themeBtn = $("#theme-btn");
   const dmBtn = $("#dm-btn");
   const dmBar = $("#dm-bar");
   const dmBarCode = $("#dm-bar-code");
@@ -73,7 +72,6 @@
   const MAX_DM_ROOMS = 24;
   const ADMIN_TOKEN_KEY = "sarafan_admin_token";
   const PREV_NAME_KEY = "sarafan_prev_name";
-  const THEME_KEY = "sarafan_theme";
   const LIKE_EMOJI = "❤️";
   const REACTIONS = [
     { emoji: "😊", title: "смайл" },
@@ -82,62 +80,6 @@
     { emoji: "💩", title: "говно" },
     { emoji: "🔥", title: "огонь" },
   ];
-
-  function systemTheme() {
-    try {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    } catch {
-      return "dark";
-    }
-  }
-
-  function loadStoredTheme() {
-    try {
-      const t = localStorage.getItem(THEME_KEY);
-      return t === "light" || t === "dark" ? t : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function saveTheme(theme) {
-    try {
-      localStorage.setItem(THEME_KEY, theme);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  function effectiveTheme() {
-    return loadStoredTheme() || systemTheme();
-  }
-
-  function applyTheme(theme, { persist = false } = {}) {
-    const next = theme === "light" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = next === "light" ? "#f2f1ee" : "#121314";
-    if (themeBtn) {
-      themeBtn.title = next === "light" ? "Тёмная тема" : "Светлая тема";
-      themeBtn.setAttribute("aria-label", themeBtn.title);
-    }
-    if (persist) saveTheme(next);
-  }
-
-  function toggleTheme() {
-    const next = effectiveTheme() === "light" ? "dark" : "light";
-    applyTheme(next, { persist: true });
-  }
-
-  applyTheme(effectiveTheme());
-  try {
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-      if (loadStoredTheme()) return;
-      applyTheme(systemTheme());
-    });
-  } catch {
-    /* ignore */
-  }
 
   let myName = "";
   let isAdmin = false;
@@ -523,7 +465,7 @@
   }
 
   function invitePerson(person) {
-    if (!person?.id || person.name === myName) return;
+    if (!person?.id || person.id === socket.id) return;
     closeOnlineList();
     socket.emit("dm:invite", { toId: person.id }, (res) => {
       if (!res?.ok) {
@@ -537,23 +479,29 @@
 
   function renderOnlineList() {
     if (!onlineList) return;
-    const others = lastPeople.filter((p) => p.name && p.name !== myName);
+    const people = lastPeople.filter((p) => p.name);
     const prevFocus = onlineList.querySelector(":focus")?.dataset?.id || "";
     onlineList.replaceChildren();
-    if (!others.length) {
+    if (!people.length) {
       const empty = document.createElement("p");
       empty.className = "user-list-empty";
-      empty.textContent = lastPresenceCount <= 1 ? "Вы одни онлайн" : "Никого кроме вас";
+      empty.textContent = "Пока никого онлайн";
       onlineList.append(empty);
       return;
     }
-    others
+    people
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name, "ru"))
+      .sort((a, b) => {
+        const aSelf = a.id === socket.id ? 0 : 1;
+        const bSelf = b.id === socket.id ? 0 : 1;
+        if (aSelf !== bSelf) return aSelf - bSelf;
+        return a.name.localeCompare(b.name, "ru");
+      })
       .forEach((person) => {
-        const row = document.createElement("button");
-        row.type = "button";
-        row.className = "online-row";
+        const isSelf = person.id === socket.id;
+        const row = document.createElement(isSelf ? "div" : "button");
+        if (!isSelf) row.type = "button";
+        row.className = "online-row" + (isSelf ? " is-self" : "");
         row.setAttribute("role", "option");
         row.dataset.id = person.id;
         const name = document.createElement("span");
@@ -561,11 +509,11 @@
         name.textContent = person.name;
         const action = document.createElement("span");
         action.className = "online-row-action";
-        action.textContent = "пригласить";
+        action.textContent = isSelf ? "это вы" : "пригласить";
         row.append(name, action);
-        row.addEventListener("click", () => invitePerson(person));
+        if (!isSelf) row.addEventListener("click", () => invitePerson(person));
         onlineList.append(row);
-        if (person.id === prevFocus) row.focus({ preventScroll: true });
+        if (person.id === prevFocus && !isSelf) row.focus({ preventScroll: true });
       });
   }
 
@@ -1379,11 +1327,6 @@
     let timer = null;
     let start = null;
     let opened = false;
-    let lastTapAt = 0;
-    let lastTapX = 0;
-    let lastTapY = 0;
-    const DBL_MS = 300;
-    const DBL_MOVE_PX = 18;
 
     const interactive = (target) =>
       Boolean(
@@ -1402,7 +1345,6 @@
 
     const openAt = (x, y) => {
       opened = true;
-      lastTapAt = 0;
       clear();
       try {
         navigator.vibrate?.(12);
@@ -1412,15 +1354,12 @@
       openMsgActionMenu(msg, el, x, y);
     };
 
+    // Touch long-press opens the same action menu (no right-click on phones).
+    // Skip text body so native selection / double-tap copy still works.
     el.addEventListener("pointerdown", (e) => {
-      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (e.pointerType === "mouse") return;
       if (interactive(e.target)) return;
-      // Allow native text selection / copy on message body.
-      if (e.target.closest(".msg-text, .msg-quote-text")) {
-        opened = false;
-        clear();
-        return;
-      }
+      if (e.target.closest(".msg-text, .msg-quote-text")) return;
       opened = false;
       clear();
       start = { x: e.clientX, y: e.clientY };
@@ -1439,44 +1378,13 @@
       if (dx > MSG_HOLD_MOVE_PX || dy > MSG_HOLD_MOVE_PX) clear();
     });
 
-    el.addEventListener("pointerup", (e) => {
-      const wasTiming = Boolean(timer);
-      clear();
-      if (opened) return;
-      if (interactive(e.target)) return;
-      const onText = Boolean(e.target.closest(".msg-text, .msg-quote-text"));
-      // Short bubble taps and text taps both count toward double-tap like.
-      if (!wasTiming && !onText) return;
-
-      const now = Date.now();
-      const dx = Math.abs(e.clientX - lastTapX);
-      const dy = Math.abs(e.clientY - lastTapY);
-      if (now - lastTapAt < DBL_MS && dx < DBL_MOVE_PX && dy < DBL_MOVE_PX) {
-        lastTapAt = 0;
-        e.preventDefault();
-        el.dataset.suppressPhoto = "1";
-        setTimeout(() => {
-          delete el.dataset.suppressPhoto;
-        }, 400);
-        try {
-          navigator.vibrate?.(8);
-        } catch {
-          /* ignore */
-        }
-        toggleLike(msg.id, el, e.clientX, e.clientY);
-        return;
-      }
-      lastTapAt = now;
-      lastTapX = e.clientX;
-      lastTapY = e.clientY;
-    });
+    el.addEventListener("pointerup", clear);
     el.addEventListener("pointercancel", clear);
     el.addEventListener("lostpointercapture", clear);
 
     el.addEventListener("contextmenu", (e) => {
-      if (interactive(e.target)) return;
-      if (e.target.closest(".msg-text, .msg-quote-text")) return;
       e.preventDefault();
+      e.stopPropagation();
       openAt(e.clientX, e.clientY);
     });
 
@@ -1565,125 +1473,42 @@
   function applyReaction(msgId, emoji) {
     closeAllReactMenus();
     socket.emit("chat:react", { id: msgId, emoji }, (res) => {
-      if (!res?.ok) composerHint.textContent = res?.error || "Ошибка реакции";
-    });
-  }
-
-  function findMessage(msgId) {
-    return (
-      (lastState.messages || []).find((m) => m.id === msgId) ||
-      (lastState.pinned || []).find((m) => m.id === msgId) ||
-      null
-    );
-  }
-
-  function likeChipEl(msgEl) {
-    if (!msgEl) return null;
-    return (
-      [...msgEl.querySelectorAll(".msg-react-chip")].find((c) => (c.textContent || "").includes("❤")) ||
-      null
-    );
-  }
-
-  function likeFlightTarget(msgEl) {
-    const chip = likeChipEl(msgEl);
-    if (chip) return chip.getBoundingClientRect();
-    const actions = msgEl.querySelector(".msg-actions");
-    if (actions) {
-      const r = actions.getBoundingClientRect();
-      return { left: r.left + 10, top: r.top + r.height / 2, width: 0, height: 0 };
-    }
-    const r = msgEl.getBoundingClientRect();
-    return { left: r.left + 18, top: r.bottom - 14, width: 0, height: 0 };
-  }
-
-  function playLikeFlight(msgEl, msgId, clientX, clientY, { removing = false } = {}) {
-    const reduceMotion =
-      typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduceMotion || !msgEl) return;
-
-    const liveEl = () => feed.querySelector(`[data-id="${CSS.escape(msgId)}"]`) || msgEl;
-    const chip = likeChipEl(msgEl);
-    const msgBox = msgEl.getBoundingClientRect();
-    let startX;
-    let startY;
-
-    if (removing && chip) {
-      const c = chip.getBoundingClientRect();
-      startX = c.left + c.width / 2;
-      startY = c.top + c.height / 2;
-    } else {
-      startX = typeof clientX === "number" ? clientX : msgBox.left + msgBox.width / 2;
-      startY = typeof clientY === "number" ? clientY : msgBox.top + msgBox.height * 0.42;
-    }
-
-    const endPoint = () => {
-      const el = liveEl();
-      if (removing) {
-        const box = el.getBoundingClientRect();
-        return { x: box.left + box.width / 2, y: box.top + box.height * 0.32 };
+      if (!res?.ok) {
+        composerHint.textContent = res?.error || "Ошибка реакции";
+        return;
       }
-      const target = likeFlightTarget(el);
-      return {
-        x: target.left + (target.width || 0) / 2,
-        y: target.top + (target.height || 0) / 2,
-      };
-    };
-
-    const heart = document.createElement("span");
-    heart.className = "like-fly" + (removing ? " like-fly--out" : "");
-    heart.textContent = "❤️";
-    heart.setAttribute("aria-hidden", "true");
-    heart.style.left = `${Math.round(startX)}px`;
-    heart.style.top = `${Math.round(startY)}px`;
-    heart.style.setProperty("--dx", "0px");
-    heart.style.setProperty("--dy", "0px");
-    document.body.appendChild(heart);
-
-    const setEnd = () => {
-      if (!heart.isConnected) return;
-      const { x, y } = endPoint();
-      heart.style.setProperty("--dx", `${Math.round(x - startX)}px`);
-      heart.style.setProperty("--dy", `${Math.round(y - startY)}px`);
-    };
-
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      heart.remove();
-      if (!removing) {
-        const landed = likeChipEl(liveEl());
-        if (landed) {
-          landed.classList.remove("like-land");
-          void landed.offsetWidth;
-          landed.classList.add("like-land");
-          setTimeout(() => landed.classList.remove("like-land"), 360);
-        }
-      }
-    };
-
-    requestAnimationFrame(() => {
+      // Bubble-pop at the reaction chip once the update lands.
       requestAnimationFrame(() => {
-        setEnd();
-        heart.classList.add("is-moving");
+        setTimeout(() => popReactionBubble(msgId, emoji), 40);
+        setTimeout(() => popReactionBubble(msgId, emoji), 160);
       });
     });
-    // Retarget as the reaction chip mounts from the server update.
-    setTimeout(setEnd, 90);
-    setTimeout(setEnd, 180);
-    setTimeout(setEnd, 280);
-
-    heart.addEventListener("transitionend", finish, { once: true });
-    setTimeout(finish, 560);
   }
 
-  function toggleLike(msgId, msgEl, clientX, clientY) {
-    const msg = findMessage(msgId);
-    const reactors = Array.isArray(msg?.reactions?.[LIKE_EMOJI]) ? msg.reactions[LIKE_EMOJI] : [];
-    const removing = reactors.includes(myName);
-    playLikeFlight(msgEl, msgId, clientX, clientY, { removing });
-    applyReaction(msgId, LIKE_EMOJI);
+  function popReactionBubble(msgId, emoji) {
+    const msgEl = feed.querySelector(`[data-id="${CSS.escape(msgId)}"]`);
+    if (!msgEl) return;
+    const chip =
+      [...msgEl.querySelectorAll(".msg-react-chip")].find((c) => (c.textContent || "").includes(emoji)) ||
+      null;
+    if (chip) {
+      chip.classList.remove("react-pop");
+      void chip.offsetWidth;
+      chip.classList.add("react-pop");
+      setTimeout(() => chip.classList.remove("react-pop"), 420);
+      return;
+    }
+    const actions = msgEl.querySelector(".msg-actions") || msgEl;
+    const box = actions.getBoundingClientRect();
+    const bubble = document.createElement("span");
+    bubble.className = "react-bubble";
+    bubble.textContent = emoji;
+    bubble.setAttribute("aria-hidden", "true");
+    bubble.style.left = `${Math.round(box.left + 14)}px`;
+    bubble.style.top = `${Math.round(box.top + box.height / 2)}px`;
+    document.body.appendChild(bubble);
+    requestAnimationFrame(() => bubble.classList.add("is-on"));
+    setTimeout(() => bubble.remove(), 480);
   }
 
   function renderMessage(msg) {
@@ -1703,11 +1528,12 @@
     nameBtn.textContent = msg.name;
     nameBtn.title = "Пригласить вдвоём";
     nameBtn.addEventListener("click", () => {
-      const match = lastPeople.find((p) => p.name === msg.name && p.name !== myName);
+      const match = lastPeople.find((p) => p.name === msg.name && p.id !== socket.id);
       if (match) invitePerson(match);
       else {
         openOnlineList();
-        composerHint.textContent = `${msg.name} сейчас не онлайн`;
+        composerHint.textContent =
+          msg.name === myName ? "Это вы" : `${msg.name} сейчас не онлайн`;
       }
     });
     const time = document.createElement("span");
@@ -2329,11 +2155,6 @@
   const ME_TAP_NEED = 10;
   const ME_TAP_WINDOW_MS = 2000;
   const ME_RENAME_DELAY_MS = 320;
-
-  themeBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    toggleTheme();
-  });
 
   meBtn?.addEventListener("click", () => {
     // Ignore stray taps while the admin sheet is already open.

@@ -24,28 +24,13 @@
       href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap"
       rel="stylesheet"
     />
-    <meta name="theme-color" content="#121314" id="theme-color-meta" />
+    <meta name="theme-color" content="#121314" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <script>
-      (() => {
-        try {
-          const stored = localStorage.getItem("sarafan_theme");
-          const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-          const theme =
-            stored === "light" || stored === "dark" ? stored : systemDark ? "dark" : "light";
-          document.documentElement.setAttribute("data-theme", theme);
-          const meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.content = theme === "light" ? "#f2f1ee" : "#121314";
-        } catch {
-          document.documentElement.setAttribute("data-theme", "dark");
-        }
-      })();
-    </script>
-    <link rel="stylesheet" href="/styles.css?v=72" />
+    <link rel="stylesheet" href="/styles.css?v=73" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -75,19 +60,6 @@
         </div>
         <div class="topbar-actions">
           <button type="button" id="dm-btn" class="ghost compact" title="Чат вдвоём по коду">Вдвоём</button>
-          <button type="button" id="theme-btn" class="ghost compact theme-btn" title="Тема" aria-label="Переключить тему">
-            <span class="theme-icon theme-icon-sun" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2.5v2.2M12 19.3v2.2M4.5 12H2.3M21.7 12h-2.2M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6" />
-              </svg>
-            </span>
-            <span class="theme-icon theme-icon-moon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                <path d="M16.4 2.2a9.6 9.6 0 1 0 5.4 17.1A8.2 8.2 0 0 1 9.8 5.7a9.5 9.5 0 0 0 6.6-3.5Z" />
-              </svg>
-            </span>
-          </button>
           <button type="button" id="me-btn" class="ghost compact me-btn" title="Ваше имя">…</button>
         </div>
       </header>
@@ -259,6 +231,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=72"></script>
+    <script src="/app.js?v=73"></script>
   </body>
 </html>

@@ -1,5 +1,4 @@
-:root,
-html[data-theme="dark"] {
+:root {
   color-scheme: dark;
   --bg: #121314;
   --bg-elev: #1a1b1d;
@@ -42,37 +41,6 @@ html[data-theme="dark"] {
   --motion-fast: 180ms;
   --motion: 300ms;
   --motion-slow: 420ms;
-}
-
-html[data-theme="light"] {
-  color-scheme: light;
-  --bg: #f2f1ee;
-  --bg-elev: #ffffff;
-  --ink: #1f2225;
-  --ink-soft: #5a5f66;
-  --muted: #8b9098;
-  --line: #ddd9d2;
-  --accent: #6b7076;
-  --accent-fill: #1f2225;
-  --accent-on: #f7f6f3;
-  --ok: #2f9e5f;
-  --danger: #d35545;
-  --mine: #e7e4de;
-  --mine-line: #cfcabe;
-  --mine-accent: #6b7076;
-  --hover: #ebe8e2;
-  --surface-2: #ebe9e4;
-  --surface-3: #e4e1db;
-  --name: #2f6f9e;
-  --name-hover: #1f5a82;
-  --dm-bg: #e4efe8;
-  --dm-ink: #1f4d36;
-  --dm-accent: #1f7a4d;
-  --dm-line: rgba(47, 158, 95, 0.28);
-  --scrim: rgba(28, 30, 32, 0.45);
-  --lightbox-bg: #f2f1ee;
-  --primary-hover: #3a3d42;
-  --shadow-strong: 0 18px 50px rgba(40, 42, 45, 0.18);
 }
 
 *,
@@ -715,10 +683,24 @@ body.admin-on #me-btn {
   transition: background var(--motion-fast) var(--ease-soft);
 }
 
+.online-row.is-self {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.online-row.is-self .online-row-action {
+  color: var(--muted);
+}
+
 .online-row:hover,
 .online-row:focus-visible {
   background: var(--hover);
   outline: none;
+}
+
+.online-row.is-self:hover,
+.online-row.is-self:focus-visible {
+  background: transparent;
 }
 
 .online-row-name {
@@ -735,64 +717,57 @@ body.admin-on #me-btn {
   color: var(--dm-accent);
 }
 
-.msg.msg-liked {
-  position: relative;
-}
-
-.like-fly {
+.react-bubble {
   position: fixed;
   z-index: 90;
   left: 0;
   top: 0;
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.5rem;
+  height: 1.5rem;
   margin: 0;
   padding: 0;
   display: grid;
   place-items: center;
-  font-size: 1.45rem;
+  font-size: 1.05rem;
   line-height: 1;
   pointer-events: none;
-  will-change: transform, opacity;
+  transform: translate(-50%, -50%) scale(0.35);
+  opacity: 0;
+  transition:
+    transform 0.34s var(--ease-out),
+    opacity 0.34s var(--ease-soft);
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.22));
+}
+
+.react-bubble.is-on {
   transform: translate(-50%, -50%) scale(1);
   opacity: 1;
-  transition:
-    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.45s var(--ease-soft);
-  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.28));
 }
 
-.like-fly.is-moving {
-  transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(0.55);
-  opacity: 0.92;
+.msg-react-chip.react-pop {
+  animation: react-chip-pop 0.36s var(--ease-out) both;
 }
 
-.like-fly.like-fly--out.is-moving {
-  transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(0.35);
-  opacity: 0;
-}
-
-.msg-react-chip.like-land {
-  animation: like-chip-pop 0.32s var(--ease-out) both;
-}
-
-@keyframes like-chip-pop {
+@keyframes react-chip-pop {
   0% {
-    transform: scale(0.72);
+    transform: scale(0.55);
+    opacity: 0.35;
   }
   55% {
-    transform: scale(1.14);
+    transform: scale(1.16);
+    opacity: 1;
   }
   100% {
     transform: scale(1);
+    opacity: 1;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .like-fly {
+  .react-bubble {
     transition: none;
   }
-  .msg-react-chip.like-land {
+  .msg-react-chip.react-pop {
     animation: none;
   }
 }
@@ -2170,31 +2145,6 @@ body.keyboard-open .pins-dialog.dialog {
   border: 1px solid var(--line);
   color: var(--ink);
   border-radius: 999px;
-}
-
-.theme-btn {
-  width: 2.35rem;
-  min-width: 2.35rem;
-  padding: 0;
-  display: inline-grid;
-  place-items: center;
-}
-
-.theme-btn .theme-icon {
-  display: none;
-  line-height: 0;
-}
-
-html[data-theme="dark"] .theme-btn .theme-icon-sun {
-  display: inline-grid;
-}
-
-html[data-theme="light"] .theme-btn .theme-icon-moon {
-  display: inline-grid;
-}
-
-.theme-btn svg {
-  display: block;
 }
 
 .me-btn {
