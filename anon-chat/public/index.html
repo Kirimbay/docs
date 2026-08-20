@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=63" />
+    <link rel="stylesheet" href="/styles.css?v=64" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -51,15 +51,14 @@
           <button type="button" id="dm-btn" class="ghost compact" title="Чат вдвоём по коду">Вдвоём</button>
           <button type="button" id="filter-btn" class="ghost compact" title="Фильтр по участникам">Фильтр</button>
           <button type="button" id="rename-btn" class="ghost compact" title="Сменить имя">Имя</button>
-          <button type="button" id="admin-btn" class="ghost compact" title="Админ">Админ</button>
+          <button type="button" id="me-btn" class="ghost compact me-btn" title="Ваше имя">…</button>
         </div>
       </header>
 
       <div id="dm-bar" class="dm-bar" hidden>
-        <span class="dm-bar-text">Вдвоём · код <strong id="dm-bar-code"></strong></span>
+        <span class="dm-bar-text">код <strong id="dm-bar-code"></strong></span>
         <span id="dm-bar-presence" class="dm-bar-presence">1/2</span>
-        <button type="button" id="dm-copy-btn" class="ghost compact" title="Скопировать код">Код</button>
-        <button type="button" id="dm-leave-btn" class="ghost compact">В общий</button>
+        <button type="button" id="dm-copy-btn" class="ghost compact" title="Скопировать код комнаты">Скопировать код</button>
       </div>
 
       <div id="filter-bar" class="filter-bar" hidden>
@@ -222,6 +221,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=62"></script>
+    <script src="/app.js?v=63"></script>
   </body>
 </html>

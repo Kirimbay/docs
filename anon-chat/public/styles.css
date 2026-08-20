@@ -1911,7 +1911,26 @@ body.keyboard-open .pins-dialog.dialog {
   z-index: 2;
 }
 
-.admin-on #admin-btn {
+.me-btn {
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.me-btn.is-admin {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.dm-bar #dm-copy-btn {
+  font-size: 0.78rem;
+  padding: 0.4rem 0.55rem;
+  white-space: nowrap;
+}
+
+.admin-on #me-btn {
   border-color: var(--ok);
   color: var(--ok);
 }

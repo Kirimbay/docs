@@ -34,13 +34,12 @@
   const renameRandomBtn = $("#rename-random-btn");
   const renameCancelBtn = $("#rename-cancel-btn");
   const renameApplyBtn = $("#rename-apply-btn");
-  const adminBtn = $("#admin-btn");
+  const meBtn = $("#me-btn");
   const dmBtn = $("#dm-btn");
   const dmBar = $("#dm-bar");
   const dmBarCode = $("#dm-bar-code");
   const dmBarPresence = $("#dm-bar-presence");
   const dmCopyBtn = $("#dm-copy-btn");
-  const dmLeaveBtn = $("#dm-leave-btn");
   const dmDialog = $("#dm-dialog");
   const dmCreateBtn = $("#dm-create-btn");
   const dmJoinBtn = $("#dm-join-btn");
@@ -386,6 +385,7 @@
     updateDmPresence(res);
     if (messageInput) messageInput.placeholder = "Сообщение вдвоём…";
     composerHint.textContent = `Комната ${res.code} · передайте код второму`;
+    syncDmBtn();
   }
 
   function leaveDmMode() {
@@ -400,6 +400,7 @@
     socket.emit("dm:leave", {}, () => {
       /* chat:state follows from server */
     });
+    syncDmBtn();
     if (prev) {
       rememberDmRoom(prev);
       composerHint.textContent = `Снова общий чат · комната ${prev} в меню «Вдвоём»`;
@@ -734,16 +735,23 @@
     window.visualViewport.addEventListener("scroll", syncViewportHeight);
   }
 
+  function syncMeBtn() {
+    if (!meBtn) return;
+    const label = myName || "…";
+    meBtn.textContent = label;
+    meBtn.title = myName ? `Вы: ${myName}` : "Ваше имя";
+    meBtn.classList.toggle("is-admin", isAdmin);
+  }
+
   function setAdminUi(on, name) {
     isAdmin = on;
     document.body.classList.toggle("admin-on", on);
-    adminBtn.textContent = on ? "Выйти" : "Админ";
-    adminBtn.title = on ? "Выйти из режима админа" : "Админ";
     if (name) {
       myName = name;
       saveName(name);
       renameBtn.title = `Сейчас: ${myName}`;
     }
+    syncMeBtn();
     renderAll(lastState);
   }
 
@@ -1572,6 +1580,7 @@
     renameBtn.title = `Сейчас: ${myName}`;
     if (admin) setAdminUi(true, name);
     else if (isAdmin) setAdminUi(false);
+    else syncMeBtn();
     syncViewportHeight();
     messageInput.focus();
     const savedDm = loadDmCode();
@@ -1720,6 +1729,7 @@
       myName = res.name;
       saveName(myName);
       renameBtn.title = `Сейчас: ${myName}`;
+      syncMeBtn();
       renameDialog?.close();
       renderAll(lastState);
     });
@@ -1864,19 +1874,13 @@
     }
   });
 
-  adminBtn.addEventListener("click", () => {
-    if (isAdmin) {
-      logoutAdmin();
-      return;
-    }
+  function openAdminDialog() {
     if (adminError) adminError.hidden = true;
     if (adminPassword) adminPassword.value = "";
     adminDialog.showModal();
     adminPassword?.focus();
     keepDialogAboveKeyboard(adminDialog, adminPassword);
-  });
-
-  adminPassword?.addEventListener("focus", () => keepDialogAboveKeyboard(adminDialog, adminPassword));
+  }
 
   function submitAdminLogin() {
     if (adminError) adminError.hidden = true;
@@ -1903,6 +1907,26 @@
     });
   }
 
+  let meTapCount = 0;
+  let meTapTimer = null;
+  const ME_TAP_NEED = 10;
+  const ME_TAP_WINDOW_MS = 1600;
+
+  meBtn?.addEventListener("click", () => {
+    meTapCount += 1;
+    if (meTapTimer) clearTimeout(meTapTimer);
+    if (meTapCount >= ME_TAP_NEED) {
+      meTapCount = 0;
+      if (isAdmin) logoutAdmin();
+      else openAdminDialog();
+      return;
+    }
+    meTapTimer = setTimeout(() => {
+      meTapCount = 0;
+    }, ME_TAP_WINDOW_MS);
+  });
+
+  adminPassword?.addEventListener("focus", () => keepDialogAboveKeyboard(adminDialog, adminPassword));
   adminCancelBtn?.addEventListener("click", () => adminDialog?.close());
   adminSubmit?.addEventListener("click", (e) => {
     e.preventDefault();
@@ -1919,9 +1943,23 @@
     joinDmByCode(dmCodeInput?.value || "");
   }
 
+  function syncDmBtn() {
+    if (!dmBtn) return;
+    if (dmCode) {
+      dmBtn.textContent = "Вдвоём";
+      dmBtn.title = "Выйти в общий чат";
+      dmBtn.classList.add("active");
+    } else {
+      dmBtn.textContent = "Вдвоём";
+      dmBtn.title = "Чат вдвоём по коду";
+      dmBtn.classList.remove("active");
+    }
+  }
+
   dmBtn?.addEventListener("click", () => {
     if (dmCode) {
-      composerHint.textContent = `Вы уже в комнате ${dmCode}`;
+      leaveDmMode();
+      syncDmBtn();
       return;
     }
     openDmDialog();
@@ -1961,7 +1999,6 @@
     dmDialog.style.transform = "";
   });
   dmCodeInput?.addEventListener("focus", () => keepDialogAboveKeyboard(dmDialog, dmCodeInput));
-  dmLeaveBtn?.addEventListener("click", () => leaveDmMode());
   dmCopyBtn?.addEventListener("click", async () => {
     if (!dmCode) return;
     try {
