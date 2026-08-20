@@ -1302,6 +1302,41 @@
       setReplyTarget(msg);
     });
 
+    menu.append(replyBtn);
+
+    if (msg.imageUrl) {
+      const photoBtn = document.createElement("button");
+      photoBtn.type = "button";
+      photoBtn.className = "msg-action-reply";
+      photoBtn.setAttribute("role", "menuitem");
+      photoBtn.textContent = "Открыть фото";
+      photoBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMsgActionMenu();
+        if (lightboxImg && lightbox) {
+          lightboxImg.src = msg.imageUrl;
+          lightbox.showModal();
+        }
+      });
+      menu.append(photoBtn);
+    }
+
+    if (msg.text) {
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "msg-action-reply";
+      copyBtn.setAttribute("role", "menuitem");
+      copyBtn.textContent = "Копировать";
+      copyBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMsgActionMenu();
+        copyBubbleText(msg);
+      });
+      menu.append(copyBtn);
+    }
+
     const reacts = document.createElement("div");
     reacts.className = "msg-action-reacts";
     reacts.setAttribute("role", "group");
@@ -1323,15 +1358,56 @@
       reacts.append(opt);
     }
 
-    menu.append(replyBtn, reacts);
+    menu.append(reacts);
     document.body.appendChild(menu);
     requestAnimationFrame(() => positionFixedMenu(menu, msgEl, clientX, clientY));
   }
 
+  async function copyBubbleText(msg) {
+    const text = (msg?.text || "").trim();
+    if (!text) {
+      composerHint.textContent = "В сообщении нет текста";
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      composerHint.textContent = "Текст скопирован";
+      try {
+        navigator.vibrate?.(10);
+      } catch {
+        /* ignore */
+      }
+      return;
+    } catch {
+      /* fallback below */
+    }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+      composerHint.textContent = "Текст скопирован";
+    } catch {
+      composerHint.textContent = "Не удалось скопировать";
+    }
+  }
+
   function bindMessageHold(el, msg) {
-    let timer = null;
+    const DBL_WAIT_MS = 280;
+    const LONG_MS = 480;
+    const MOVE_PX = 12;
+
+    let longTimer = null;
+    let singleTimer = null;
     let start = null;
-    let opened = false;
+    let longPressed = false;
+    let tapCount = 0;
+    let menuOpened = false;
 
     const interactive = (target) =>
       Boolean(
@@ -1340,17 +1416,25 @@
         )
       );
 
-    const clear = () => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
+    const clearLong = () => {
+      if (longTimer) {
+        clearTimeout(longTimer);
+        longTimer = null;
       }
-      start = null;
+    };
+
+    const clearSingle = () => {
+      if (singleTimer) {
+        clearTimeout(singleTimer);
+        singleTimer = null;
+      }
     };
 
     const openAt = (x, y) => {
-      opened = true;
-      clear();
+      menuOpened = true;
+      tapCount = 0;
+      clearSingle();
+      clearLong();
       try {
         navigator.vibrate?.(12);
       } catch {
@@ -1359,47 +1443,88 @@
       openMsgActionMenu(msg, el, x, y);
     };
 
-    // Touch long-press opens the same action menu (no right-click on phones).
-    // Skip text body so native selection / double-tap copy still works.
     el.addEventListener("pointerdown", (e) => {
-      if (e.pointerType === "mouse") return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       if (interactive(e.target)) return;
-      if (e.target.closest(".msg-text, .msg-quote-text")) return;
-      opened = false;
-      clear();
+      longPressed = false;
+      menuOpened = false;
       start = { x: e.clientX, y: e.clientY };
-      const x = e.clientX;
-      const y = e.clientY;
-      timer = setTimeout(() => {
-        timer = null;
-        openAt(x, y);
-      }, MSG_HOLD_MS);
+      clearLong();
+      longTimer = setTimeout(() => {
+        longTimer = null;
+        longPressed = true;
+        tapCount = 0;
+        clearSingle();
+        el.classList.add("msg-selecting");
+        try {
+          navigator.vibrate?.(8);
+        } catch {
+          /* ignore */
+        }
+      }, LONG_MS);
     });
 
     el.addEventListener("pointermove", (e) => {
-      if (!start || !timer) return;
+      if (!start) return;
       const dx = Math.abs(e.clientX - start.x);
       const dy = Math.abs(e.clientY - start.y);
-      if (dx > MSG_HOLD_MOVE_PX || dy > MSG_HOLD_MOVE_PX) clear();
+      if (dx > MOVE_PX || dy > MOVE_PX) {
+        clearLong();
+        start = null;
+      }
     });
 
-    el.addEventListener("pointerup", clear);
-    el.addEventListener("pointercancel", clear);
-    el.addEventListener("lostpointercapture", clear);
+    el.addEventListener("pointerup", (e) => {
+      const wasLong = longPressed;
+      const hadStart = Boolean(start);
+      const x = e.clientX;
+      const y = e.clientY;
+      clearLong();
+      start = null;
+      if (interactive(e.target)) return;
+      if (wasLong) return;
+      if (!hadStart) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+
+      tapCount += 1;
+      if (tapCount === 1) {
+        singleTimer = setTimeout(() => {
+          singleTimer = null;
+          tapCount = 0;
+          openAt(x, y);
+        }, DBL_WAIT_MS);
+      } else {
+        clearSingle();
+        tapCount = 0;
+        void copyBubbleText(msg);
+      }
+    });
+
+    el.addEventListener("pointercancel", () => {
+      clearLong();
+      start = null;
+    });
 
     el.addEventListener("contextmenu", (e) => {
+      // Long-press selection: keep the native callout / selection handles.
+      if (longPressed || el.classList.contains("msg-selecting")) return;
       e.preventDefault();
       e.stopPropagation();
+      clearSingle();
+      tapCount = 0;
       openAt(e.clientX, e.clientY);
     });
 
     el.addEventListener(
       "click",
       (e) => {
-        if (!opened) return;
-        e.preventDefault();
-        e.stopPropagation();
-        opened = false;
+        if (interactive(e.target)) return;
+        // Swallow the delayed click after we already handled taps / opened menu.
+        if (menuOpened || singleTimer || tapCount > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        if (menuOpened) menuOpened = false;
       },
       true
     );
@@ -1570,12 +1695,28 @@
       qText.className = "msg-quote-text";
       qText.textContent = msg.reply.text || "Сообщение";
       quote.append(qLabel, qName, qText);
-      quote.addEventListener("click", () => {
-        const target = feed.querySelector(`[data-id="${msg.reply.id}"]`);
-        if (!target) return;
+
+      const goToReply = (e) => {
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        const target = feed.querySelector(`[data-id="${CSS.escape(msg.reply.id)}"]`);
+        if (!target) {
+          composerHint.textContent = "Оригинал не в ленте";
+          return;
+        }
         target.classList.add("pin-flash");
         target.scrollIntoView({ behavior: "smooth", block: "center" });
         setTimeout(() => target.classList.remove("pin-flash"), 1200);
+      };
+
+      // Isolate from outer bubble tap/menu logic.
+      quote.addEventListener("pointerdown", (e) => e.stopPropagation());
+      quote.addEventListener("pointerup", (e) => e.stopPropagation());
+      quote.addEventListener("click", goToReply);
+      quote.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        goToReply(e);
       });
       el.append(quote);
     }

@@ -1005,9 +1005,18 @@ body.admin-on #me-btn {
 
 .msg .msg-text,
 .msg .msg-quote-text {
-  -webkit-user-select: text;
-  user-select: text;
-  -webkit-touch-callout: default;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  cursor: inherit;
+}
+
+.msg.msg-selecting,
+.msg.msg-selecting .msg-text,
+.msg.msg-selecting .msg-quote-text {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
   cursor: text;
 }
 
@@ -2132,7 +2141,7 @@ body.keyboard-open .pins-dialog.dialog {
 }
 
 .lightbox-close {
-  position: fixed;
+  position: absolute;
   top: max(0.75rem, env(safe-area-inset-top));
   right: max(0.75rem, env(safe-area-inset-right));
   width: 2.5rem;
@@ -2145,6 +2154,11 @@ body.keyboard-open .pins-dialog.dialog {
   border: 1px solid var(--line);
   color: var(--ink);
   border-radius: 999px;
+}
+
+/* iOS can leak position:fixed dialog children; keep the close button locked inside. */
+#lightbox:not([open]) {
+  display: none !important;
 }
 
 .me-btn {
