@@ -383,6 +383,15 @@ button {
   padding-left: 0.25rem;
 }
 
+.feed-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .feed {
   flex: 1 1 auto;
   min-height: 0;
@@ -395,12 +404,84 @@ button {
   flex-direction: column;
   gap: 0.65rem;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #3a3d42 transparent;
+}
+
+.feed::-webkit-scrollbar {
+  width: 8px;
+}
+
+.feed::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 0.4rem 0;
+}
+
+.feed::-webkit-scrollbar-thumb {
+  background: #34373b;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.feed::-webkit-scrollbar-thumb:hover {
+  background: #4a4e53;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.user-list,
+.pins-list,
+.emoji-panel {
+  scrollbar-width: thin;
+  scrollbar-color: #3a3d42 transparent;
+}
+
+.user-list::-webkit-scrollbar,
+.emoji-panel::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.user-list::-webkit-scrollbar-thumb,
+.emoji-panel::-webkit-scrollbar-thumb {
+  background: #34373b;
+  border-radius: 999px;
+}
+
+.jump-bottom {
+  position: absolute;
+  right: max(0.85rem, env(safe-area-inset-right));
+  bottom: 0.85rem;
+  z-index: 5;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 999px;
+  border: 1px solid #3a3d42;
+  background: rgba(26, 27, 29, 0.92);
+  color: #d2d5d9;
+  font-size: 1.15rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.jump-bottom[hidden] {
+  display: none !important;
+}
+
+.jump-bottom:hover {
+  background: #222426;
+  border-color: #4a6478;
+  color: #fff;
 }
 
 .msg {
   display: grid;
-  gap: 0.3rem;
-  padding: 0.65rem 0.8rem;
+  gap: 0.22rem;
+  padding: 0.55rem 0.75rem;
   border-radius: var(--radius);
   background: var(--bg-elev);
   border: 1px solid var(--line);
@@ -452,14 +533,15 @@ button {
 }
 
 .msg-name {
-  font-weight: 600;
-  font-size: 0.9rem;
+  font-weight: 500;
+  font-size: 0.74rem;
   color: #6ea8d9;
   background: none;
   padding: 0;
   border: 0;
   cursor: pointer;
   text-align: left;
+  line-height: 1.2;
 }
 
 .msg-name:hover {
@@ -604,9 +686,12 @@ button {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
-  line-height: 1.45;
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 1.32;
+  letter-spacing: 0.005em;
   min-width: 0;
-  color: #d2d5d9;
+  color: #d8dbdf;
 }
 
 .msg-photo {

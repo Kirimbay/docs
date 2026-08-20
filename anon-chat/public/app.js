@@ -8,6 +8,7 @@
   const joinBtn = $("#join-btn");
   const gateError = $("#gate-error");
   const feed = $("#feed");
+  const jumpBottomBtn = $("#jump-bottom");
   const pins = $("#pins");
   const pinBarLabel = $("#pin-bar-label");
   const pinBarPreview = $("#pin-bar-preview");
@@ -101,6 +102,22 @@
     } catch {
       return "";
     }
+  }
+
+  function isNearBottom(threshold = 120) {
+    return feed.scrollHeight - feed.scrollTop - feed.clientHeight < threshold;
+  }
+
+  function updateJumpBottom() {
+    jumpBottomBtn.hidden = isNearBottom(180);
+  }
+
+  function scrollFeedToBottom(smooth = true) {
+    feed.scrollTo({
+      top: feed.scrollHeight,
+      behavior: smooth ? "smooth" : "auto",
+    });
+    jumpBottomBtn.hidden = true;
   }
 
   function lockPageScroll() {
@@ -467,8 +484,7 @@
 
     updatePinBar();
 
-    const nearBottom =
-      feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
+    const nearBottom = isNearBottom(80);
 
     feed.replaceChildren();
     knownIds.clear();
@@ -479,7 +495,9 @@
     }
 
     if (nearBottom) {
-      feed.scrollTop = feed.scrollHeight;
+      scrollFeedToBottom(false);
+    } else {
+      updateJumpBottom();
     }
     updateFilterChrome();
   }
@@ -501,11 +519,12 @@
     knownIds.add(msg.id);
     lastState.messages = [...(lastState.messages || []), msg];
     if (!passesFilter(msg)) return;
-    const nearBottom =
-      feed.scrollHeight - feed.scrollTop - feed.clientHeight < 120;
+    const nearBottom = isNearBottom(120);
     feed.append(renderMessage(msg));
     if (nearBottom || msg.name === myName) {
-      feed.scrollTop = feed.scrollHeight;
+      scrollFeedToBottom(false);
+    } else {
+      updateJumpBottom();
     }
   }
 
@@ -679,7 +698,8 @@
     setTimeout(() => {
       lockPageScroll();
       syncViewportHeight();
-      feed.scrollTop = feed.scrollHeight;
+      if (isNearBottom(160)) scrollFeedToBottom(false);
+      else updateJumpBottom();
     }, 50);
     setTimeout(() => {
       lockPageScroll();
@@ -708,6 +728,17 @@
     }
     uploadPhoto(file);
   });
+
+  jumpBottomBtn.addEventListener("click", () => {
+    scrollFeedToBottom(true);
+  });
+  feed.addEventListener(
+    "scroll",
+    () => {
+      updateJumpBottom();
+    },
+    { passive: true }
+  );
 
   previewClear.addEventListener("click", clearPreview);
 
