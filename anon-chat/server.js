@@ -13,7 +13,7 @@ const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 5;
 const DATA_DIR = path.join(__dirname, "data");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
-const MAX_MESSAGES = 500;
+const MAX_MESSAGES = 5000;
 const MAX_NAME_LEN = 24;
 const MAX_TEXT_LEN = 2000;
 
