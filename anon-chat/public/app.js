@@ -382,7 +382,7 @@
       chip.type = "button";
       chip.className = "msg-react-chip" + (mine ? " mine" : "");
       chip.title = title;
-      chip.textContent = `${emoji} ${reactors.length}`;
+      chip.textContent = reactors.length > 1 ? `${emoji}${reactors.length}` : emoji;
       chip.addEventListener("click", () => {
         socket.emit("chat:react", { id: msg.id, emoji }, (res) => {
           if (!res?.ok) composerHint.textContent = res?.error || "Ошибка реакции";
@@ -392,16 +392,14 @@
     }
     if (activeWrap.childElementCount) actions.append(activeWrap);
 
-    const controls = document.createElement("div");
-    controls.className = "msg-actions-controls";
-
     const reactWrap = document.createElement("div");
     reactWrap.className = "msg-react-wrap";
 
     const reactToggle = document.createElement("button");
     reactToggle.type = "button";
     reactToggle.className = "msg-reply msg-react-toggle";
-    reactToggle.textContent = "реакция";
+    const compactActions = window.matchMedia("(max-width: 640px)").matches;
+    reactToggle.textContent = compactActions ? "реакц." : "реакция";
     reactToggle.title = "Добавить реакцию";
 
     const reactMenu = document.createElement("div");
@@ -443,14 +441,14 @@
     });
 
     reactWrap.append(reactToggle, reactMenu);
+    actions.append(reactWrap);
 
     const replyBtn = document.createElement("button");
     replyBtn.type = "button";
     replyBtn.className = "msg-reply";
-    replyBtn.textContent = "ответить";
+    replyBtn.textContent = compactActions ? "ответ" : "ответить";
     replyBtn.addEventListener("click", () => setReplyTarget(msg));
-
-    controls.append(reactWrap, replyBtn);
+    actions.append(replyBtn);
 
     if (isAdmin) {
       const pinBtn = document.createElement("button");
@@ -477,10 +475,9 @@
         });
       });
 
-      controls.append(pinBtn, delBtn);
+      actions.append(pinBtn, delBtn);
     }
 
-    actions.append(controls);
     el.append(actions);
     return el;
   }
