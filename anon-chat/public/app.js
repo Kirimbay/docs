@@ -122,19 +122,42 @@
 
   function appendLinkedText(container, raw) {
     const text = String(raw || "");
-    const re = /\b((?:https?:\/\/|www\.)[^\s]+)/gi;
+    if (!text) return;
+
+    // Collect every http(s)/www start, then take each run until whitespace
+    // or the next URL start (so multiple links in one message all become <a>).
+    const starts = [];
+    const startRe = /https?:\/\/|www\./gi;
+    let sm;
+    while ((sm = startRe.exec(text)) !== null) {
+      starts.push(sm.index);
+    }
+    if (!starts.length) {
+      container.append(document.createTextNode(text));
+      return;
+    }
+
     let last = 0;
-    let match;
-    while ((match = re.exec(text)) !== null) {
-      if (match.index > last) {
-        container.append(document.createTextNode(text.slice(last, match.index)));
+    for (let i = 0; i < starts.length; i += 1) {
+      const start = starts[i];
+      if (start < last) continue;
+      if (start > last) {
+        container.append(document.createTextNode(text.slice(last, start)));
       }
-      let url = match[1];
+
+      const limit = i + 1 < starts.length ? starts[i + 1] : text.length;
+      let end = start;
+      while (end < limit && !/[\s<>"']/.test(text.charAt(end))) {
+        end += 1;
+      }
+
+      let url = text.slice(start, end);
       let trailing = "";
-      while (url.length > 1 && /[.,;:!?)"'\]]$/.test(url)) {
+      while (url.length > 1 && /[.,;:!?)"'\]»]/u.test(url)) {
         trailing = url.slice(-1) + trailing;
         url = url.slice(0, -1);
       }
+
       const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
       let linked = false;
       try {
@@ -152,10 +175,14 @@
       } catch {
         /* fall through */
       }
-      if (!linked) container.append(document.createTextNode(match[1]));
+      if (!linked) container.append(document.createTextNode(text.slice(start, end)));
       else if (trailing) container.append(document.createTextNode(trailing));
-      last = match.index + match[1].length;
+
+      last = linked ? start + url.length + trailing.length : end;
+      // Prefer advancing to the scanned end so we never stall.
+      if (last < end) last = end;
     }
+
     if (last < text.length) {
       container.append(document.createTextNode(text.slice(last)));
     }

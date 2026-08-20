@@ -828,7 +828,12 @@ button {
   color: #d8dbdf;
 }
 
-.msg-text a.msg-link {
+.msg-text a.msg-link,
+.msg-text a.msg-link:link,
+.msg-text a.msg-link:visited,
+.msg.mine .msg-text a.msg-link,
+.msg.admin .msg-text a.msg-link,
+.msg.mine.admin .msg-text a.msg-link {
   color: #6ea8d9;
   text-decoration: underline;
   text-underline-offset: 0.12em;
@@ -838,11 +843,6 @@ button {
 
 .msg-text a.msg-link:hover {
   color: #8cbcE3;
-}
-
-.msg.admin .msg-text a.msg-link,
-.msg.mine.admin .msg-text a.msg-link {
-  color: #6ea8d9;
 }
 
 .msg-photo {
