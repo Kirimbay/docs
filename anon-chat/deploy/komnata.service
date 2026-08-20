@@ -1,0 +1,18 @@
+[Unit]
+Description=Komnata anonymous chat
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_DIR__
+Environment=NODE_ENV=production
+Environment=PORT=__APP_PORT__
+Environment=ADMIN_PASSWORD=__ADMIN_PASSWORD__
+Environment=MAX_UPLOAD_MB=8
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
