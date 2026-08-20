@@ -115,7 +115,6 @@
       btn.classList.remove("armed");
       btn.title = "Нажмите дважды, чтобы удалить";
     });
-    if (composerHint.textContent.includes("✕")) composerHint.textContent = "";
   }
 
   function clearUnpinArm() {
@@ -128,7 +127,6 @@
       btn.classList.remove("armed");
       btn.title = "Нажмите дважды, чтобы открепить";
     });
-    if (composerHint.textContent.includes("📌")) composerHint.textContent = "";
   }
 
   function loadSavedName() {
@@ -678,7 +676,6 @@
               if (visiblePins().length) openPinsList();
               else closePinsList();
               renderAll(lastState);
-              composerHint.textContent = "Сообщение откреплено";
             });
             return;
           }
@@ -687,7 +684,6 @@
           unpinArmedId = msg.id;
           unpinBtn.classList.add("armed");
           unpinBtn.title = "Ещё раз — открепить";
-          composerHint.textContent = "Нажмите 📌 ещё раз в течение 1 с";
           unpinArmedTimer = setTimeout(() => {
             if (unpinArmedId !== msg.id) return;
             clearUnpinArm();
@@ -970,7 +966,6 @@
         deleteArmedId = msg.id;
         delBtn.classList.add("armed");
         delBtn.title = "Ещё раз — удалить";
-        composerHint.textContent = "Нажмите ✕ ещё раз в течение 1 с";
         deleteArmedTimer = setTimeout(() => {
           if (deleteArmedId !== msg.id) return;
           clearDeleteArm();
