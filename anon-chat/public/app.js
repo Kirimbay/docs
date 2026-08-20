@@ -98,6 +98,20 @@
   const PIN_HOLD_MOVE_PX = 12;
   let deleteArmedId = null;
   let deleteArmedTimer = null;
+  const DELETE_ARM_MS = 1000;
+
+  function clearDeleteArm() {
+    if (deleteArmedTimer) {
+      clearTimeout(deleteArmedTimer);
+      deleteArmedTimer = null;
+    }
+    deleteArmedId = null;
+    document.querySelectorAll(".msg-delete.armed").forEach((btn) => {
+      btn.classList.remove("armed");
+      btn.title = "Нажмите дважды, чтобы удалить";
+    });
+    if (composerHint.textContent.includes("✕")) composerHint.textContent = "";
+  }
 
   function loadSavedName() {
     try {
@@ -1318,22 +1332,6 @@
     } catch {
       composerHint.textContent = `Код: ${dmCode}`;
     }
-  });
-
-  adminForm.addEventListener("submit", (e) => {
-    const submitter = e.submitter;
-    if (submitter?.value === "cancel") return;
-    e.preventDefault();
-    socket.emit("admin:login", { password: adminPassword.value }, (res) => {
-      if (!res?.ok) {
-        adminError.hidden = false;
-        adminError.textContent = res?.error || "Ошибка";
-        return;
-      }
-      setAdminUi(true, res.name || "АДМИН");
-      adminDialog.close();
-      composerHint.textContent = "Режим админа · ник АДМИН";
-    });
   });
 
   socket.on("chat:state", (state) => {
