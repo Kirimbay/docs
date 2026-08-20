@@ -57,9 +57,23 @@
     }
   }
 
+  function syncViewportHeight() {
+    const vv = window.visualViewport;
+    const h = vv ? vv.height : window.innerHeight;
+    document.documentElement.style.setProperty("--vvh", `${Math.round(h)}px`);
+  }
+
   function autoSize() {
     messageInput.style.height = "auto";
-    messageInput.style.height = `${Math.min(messageInput.scrollHeight, 128)}px`;
+    const cap = Math.min(120, Math.round(window.innerHeight * 0.24));
+    messageInput.style.height = `${Math.min(messageInput.scrollHeight, cap)}px`;
+  }
+
+  syncViewportHeight();
+  window.addEventListener("resize", syncViewportHeight);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncViewportHeight);
+    window.visualViewport.addEventListener("scroll", syncViewportHeight);
   }
 
   function setAdminUi(on) {
@@ -270,6 +284,13 @@
 
   sendBtn.addEventListener("click", send);
   messageInput.addEventListener("input", autoSize);
+  messageInput.addEventListener("focus", () => {
+    syncViewportHeight();
+    setTimeout(() => {
+      feed.scrollTop = feed.scrollHeight;
+      messageInput.scrollIntoView({ block: "nearest" });
+    }, 50);
+  });
   messageInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
