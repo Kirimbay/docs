@@ -534,14 +534,14 @@ button {
 
 .msg-name {
   font-weight: 500;
-  font-size: 0.74rem;
+  font-size: 0.64rem;
   color: #6ea8d9;
   background: none;
   padding: 0;
   border: 0;
   cursor: pointer;
   text-align: left;
-  line-height: 1.2;
+  line-height: 1.15;
   min-width: 0;
   max-width: 70%;
   overflow: hidden;
@@ -555,19 +555,25 @@ button {
 }
 
 .msg-time {
-  font-size: 0.7rem;
+  font-size: 0.64rem;
   color: var(--muted);
   flex: 0 0 auto;
   margin-left: auto;
-  line-height: 1.2;
+  line-height: 1.15;
   white-space: nowrap;
 }
 
 .msg-quote {
   display: grid;
-  gap: 0.12rem;
-  padding: 0.45rem 0.6rem;
-  margin: 0.15rem 0 0.2rem;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "label name"
+    "text text";
+  column-gap: 0.35rem;
+  row-gap: 0.1rem;
+  align-items: baseline;
+  padding: 0.38rem 0.55rem;
+  margin: 0.12rem 0 0.15rem;
   border-radius: 12px;
   border: 1px solid rgba(110, 168, 217, 0.35);
   border-left: 4px solid #6ea8d9;
@@ -584,21 +590,30 @@ button {
 }
 
 .msg-quote-label {
-  font-size: 0.68rem;
+  grid-area: label;
+  font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: #7eb4de;
+  line-height: 1.15;
 }
 
 .msg-quote-name {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #8cbcE3;
+  grid-area: name;
+  font-size: 0.64rem;
+  font-weight: 500;
+  color: #6ea8d9;
+  line-height: 1.15;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .msg-quote-text {
-  font-size: 0.84rem;
+  grid-area: text;
+  font-size: 0.82rem;
   color: var(--ink-soft);
   white-space: nowrap;
   overflow: hidden;
