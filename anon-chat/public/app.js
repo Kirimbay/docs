@@ -962,7 +962,7 @@
     const sidePad = 10;
     const bottomPad = 10;
     // Bottom sheet: leave most of the viewport free for the focused message above.
-    const maxSheet = Math.min(Math.round(vvH * 0.46), Math.max(200, Math.round(vvH * 0.4)));
+    const maxSheet = Math.round(vvH * 0.5);
     const bottomInset = Math.max(0, Math.round(window.innerHeight - vvBottom));
 
     pinsDialog.style.top = "auto";
