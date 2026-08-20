@@ -647,36 +647,20 @@
     const text = String(raw || "");
     if (!text) return;
 
-    // Collect every http(s)/www start, then take each run until whitespace
-    // or the next URL start (so multiple links in one message all become <a>).
-    const starts = [];
-    const startRe = /https?:\/\/|www\./gi;
-    let sm;
-    while ((sm = startRe.exec(text)) !== null) {
-      starts.push(sm.index);
-    }
-    if (!starts.length) {
-      container.append(document.createTextNode(text));
-      return;
-    }
-
+    // Match each URL; stop at whitespace / quotes / angle brackets / backticks.
+    const re = /(?:https?:\/\/|www\.)[^\s<>"'`]+/gi;
+    const TRAIL = ".,;:!?)]}\"'>»";
     let last = 0;
-    for (let i = 0; i < starts.length; i += 1) {
-      const start = starts[i];
-      if (start < last) continue;
+    let match;
+    while ((match = re.exec(text)) !== null) {
+      const start = match.index;
       if (start > last) {
         container.append(document.createTextNode(text.slice(last, start)));
       }
 
-      const limit = i + 1 < starts.length ? starts[i + 1] : text.length;
-      let end = start;
-      while (end < limit && !/[\s<>"']/.test(text.charAt(end))) {
-        end += 1;
-      }
-
-      let url = text.slice(start, end);
+      let url = match[0];
       let trailing = "";
-      while (url.length > 1 && /[.,;:!?)"'\]»]/u.test(url)) {
+      while (url.length > 1 && TRAIL.includes(url.slice(-1))) {
         trailing = url.slice(-1) + trailing;
         url = url.slice(0, -1);
       }
@@ -698,12 +682,14 @@
       } catch {
         /* fall through */
       }
-      if (!linked) container.append(document.createTextNode(text.slice(start, end)));
-      else if (trailing) container.append(document.createTextNode(trailing));
 
-      last = linked ? start + url.length + trailing.length : end;
-      // Prefer advancing to the scanned end so we never stall.
-      if (last < end) last = end;
+      if (!linked) {
+        container.append(document.createTextNode(match[0]));
+        last = start + match[0].length;
+      } else {
+        if (trailing) container.append(document.createTextNode(trailing));
+        last = start + url.length + trailing.length;
+      }
     }
 
     if (last < text.length) {
