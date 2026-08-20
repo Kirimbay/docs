@@ -564,8 +564,9 @@ body.dm-on .msg.mine {
   align-self: stretch;
 }
 
-body.admin-on #rename-btn {
-  display: none !important;
+body.admin-on #me-btn {
+  border-color: var(--ok);
+  color: var(--ok);
 }
 
 .filter-bar {

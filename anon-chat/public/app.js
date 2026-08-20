@@ -28,7 +28,6 @@
   const replyBarLabel = $("#reply-bar-label");
   const replyBarPreview = $("#reply-bar-preview");
   const replyCancelBtn = $("#reply-cancel-btn");
-  const renameBtn = $("#rename-btn");
   const renameDialog = $("#rename-dialog");
   const renameInput = $("#rename-input");
   const renameRandomBtn = $("#rename-random-btn");
@@ -739,7 +738,7 @@
     if (!meBtn) return;
     const label = myName || "…";
     meBtn.textContent = label;
-    meBtn.title = myName ? `Вы: ${myName}` : "Ваше имя";
+    meBtn.title = isAdmin ? `Вы: ${myName}` : myName ? `Вы: ${myName} · нажмите, чтобы сменить` : "Ваше имя";
     meBtn.classList.toggle("is-admin", isAdmin);
   }
 
@@ -749,7 +748,6 @@
     if (name) {
       myName = name;
       saveName(name);
-      renameBtn.title = `Сейчас: ${myName}`;
     }
     syncMeBtn();
     renderAll(lastState);
@@ -1577,7 +1575,6 @@
     saveName(name);
     gate.hidden = true;
     app.hidden = false;
-    renameBtn.title = `Сейчас: ${myName}`;
     if (admin) setAdminUi(true, name);
     else if (isAdmin) setAdminUi(false);
     else syncMeBtn();
@@ -1704,7 +1701,7 @@
 
   function openRenameDialog() {
     if (isAdmin) {
-      composerHint.textContent = "В админке имя всегда АДМИН — сначала нажмите «Выйти»";
+      composerHint.textContent = "В админке имя всегда АДМИН";
       return;
     }
     if (!renameDialog || !renameInput) return;
@@ -1728,7 +1725,6 @@
       }
       myName = res.name;
       saveName(myName);
-      renameBtn.title = `Сейчас: ${myName}`;
       syncMeBtn();
       renameDialog?.close();
       renderAll(lastState);
@@ -1857,7 +1853,6 @@
   });
   pins.addEventListener("click", onPinBarClick);
 
-  renameBtn.addEventListener("click", openRenameDialog);
   renameRandomBtn?.addEventListener("click", () => {
     fetchRandomName(renameInput).catch(() => {
       const fallback = ["Барс", "Лис", "Сокол", "Туман", "Искра", "Парус", "Неон"];
@@ -1909,21 +1904,36 @@
 
   let meTapCount = 0;
   let meTapTimer = null;
+  let meRenameTimer = null;
   const ME_TAP_NEED = 10;
-  const ME_TAP_WINDOW_MS = 1600;
+  const ME_TAP_WINDOW_MS = 2000;
+  const ME_RENAME_DELAY_MS = 320;
 
   meBtn?.addEventListener("click", () => {
     meTapCount += 1;
     if (meTapTimer) clearTimeout(meTapTimer);
+    if (meRenameTimer) clearTimeout(meRenameTimer);
+
     if (meTapCount >= ME_TAP_NEED) {
       meTapCount = 0;
       if (isAdmin) logoutAdmin();
       else openAdminDialog();
       return;
     }
+
     meTapTimer = setTimeout(() => {
       meTapCount = 0;
     }, ME_TAP_WINDOW_MS);
+
+    // Single (or short) tap → rename; multi-tap streak for admin cancels this.
+    if (!isAdmin) {
+      meRenameTimer = setTimeout(() => {
+        if (meTapCount === 1) {
+          meTapCount = 0;
+          openRenameDialog();
+        }
+      }, ME_RENAME_DELAY_MS);
+    }
   });
 
   adminPassword?.addEventListener("focus", () => keepDialogAboveKeyboard(adminDialog, adminPassword));
@@ -2076,19 +2086,21 @@
           } else {
             if (adminToken) clearAdminToken();
             if (isAdmin) setAdminUi(false, res.name);
-            else {
-              renameBtn.title = `Сейчас: ${myName}`;
-            }
+            else syncMeBtn();
           }
           if (dmCode) {
             socket.emit("dm:join", { code: dmCode }, (dmRes) => {
-              if (dmRes?.ok) enterDmMode(dmRes);
-              else {
+              if (dmRes?.ok) {
+                enterDmMode(dmRes);
+              } else {
                 dmCode = null;
                 document.body.classList.remove("dm-on");
                 if (dmBar) dmBar.hidden = true;
+                syncDmBtn();
               }
             });
+          } else {
+            syncDmBtn();
           }
         }
       );
