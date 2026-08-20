@@ -75,8 +75,11 @@ systemctl list-timers ipv6-rotate.timer
 Все команды на сервере. Основной IPv6 и Hiddify при откате не трогаются.
 
 ```bash
-# журнал смен: история + /var/log/ipv6-rotate.log + journalctl
-sudo rotate-ipv6.sh --log
+# полный лог смен: дата, время, с какого IP на какой
+rotate-ipv6.sh --history
+
+# то же + технический лог
+rotate-ipv6.sh --log
 sudo tail -f /var/log/ipv6-rotate.log
 
 # текущий и предыдущий extra-IPv6

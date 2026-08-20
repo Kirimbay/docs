@@ -10,6 +10,7 @@ DRY_RUN=0
 RESTORE=0
 SHOW_STATUS=0
 SHOW_LOG=0
+SHOW_HISTORY=0
 DO_ROLLBACK=0
 DO_OFF=0
 DO_PAUSE=0
@@ -25,7 +26,8 @@ Usage: rotate-ipv6.sh [command]
   --set ADDR         Set this IPv6 manually
   --rollback         Return to the previous rotated IPv6
   --off              Remove extra IPv6, keep only the primary address
-  --log              Show change history and log file
+  --history          Full IP change log: date, time, from, to
+  --log              History plus technical log / journal
   --status           Show current IP, routes, next timer
   --pause            Stop the 03:00 timer (keep current extra IP)
   --resume           Enable the 03:00 timer again
@@ -41,7 +43,8 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift ;;
     --restore) RESTORE=1; shift ;;
     --status) SHOW_STATUS=1; shift ;;
-    --log|--history) SHOW_LOG=1; shift ;;
+    --log) SHOW_LOG=1; shift ;;
+    --history) SHOW_HISTORY=1; shift ;;
     --rollback) DO_ROLLBACK=1; shift ;;
     --off|--disable-ip) DO_OFF=1; shift ;;
     --pause) DO_PAUSE=1; shift ;;
@@ -373,24 +376,83 @@ print_status() {
   fi
 }
 
-print_log() {
+print_history() {
   load_conf
-  echo "=== history (${HISTORY_FILE}) ==="
-  if [[ -f "$HISTORY_FILE" ]]; then
-    tail -n 50 "$HISTORY_FILE"
-  else
-    echo "(empty)"
-  fi
+  local file="${HISTORY_FILE:-${STATE_DIR}/history}"
+  echo "Полный лог смены extra-IPv6"
+  echo "Файл: ${file}"
   echo
-  echo "=== log (${LOG_FILE}) ==="
+  if [[ ! -s "$file" ]]; then
+    echo "Пока пусто: смен ещё не было."
+    return 0
+  fi
+  python3 - "$file" <<'PY'
+import sys
+from datetime import datetime
+
+reasons = {
+    "rotate": "смена",
+    "manual": "вручную",
+    "rollback": "откат",
+    "off": "выкл.",
+    "restore": "reboot",
+}
+
+path = sys.argv[1]
+rows = []
+with open(path, encoding="utf-8", errors="replace") as fh:
+    for raw in fh:
+        line = raw.strip()
+        if not line:
+            continue
+        parts = line.split()
+        if len(parts) < 5 or "->" not in parts:
+            rows.append(("?", "?", "?", line, "", ""))
+            continue
+        ts, reason = parts[0], parts[1]
+        arrow = parts.index("->")
+        old = " ".join(parts[2:arrow]) or "none"
+        rest = parts[arrow + 1 :]
+        new = rest[0] if rest else "none"
+        result = rest[1] if len(rest) > 1 else ""
+        try:
+            dt = datetime.fromisoformat(ts)
+            day = dt.strftime("%Y-%m-%d")
+            tm = dt.strftime("%H:%M:%S")
+        except ValueError:
+            day, tm = ts, ""
+        rows.append((day, tm, reasons.get(reason, reason), old, new, result))
+
+hdr = ("Дата", "Время", "Как", "Было (старый IP)", "Стало (новый IP)", "Итог")
+widths = [len(x) for x in hdr]
+for row in rows:
+    for i, col in enumerate(row):
+        widths[i] = max(widths[i], len(col))
+
+def fmt(row):
+    return "  ".join(col.ljust(widths[i]) for i, col in enumerate(row))
+
+print(fmt(hdr))
+print("  ".join("-" * w for w in widths))
+for row in rows:
+    print(fmt(row))
+print()
+print("Всего смен:", len(rows))
+PY
+}
+
+print_log() {
+  print_history
+  echo
+  echo "=== технический лог (${LOG_FILE}) ==="
   if [[ -f "$LOG_FILE" ]]; then
-    tail -n 80 "$LOG_FILE"
+    cat "$LOG_FILE"
   else
     echo "(empty)"
   fi
   echo
   echo "=== journalctl -t ipv6-rotate ==="
-  journalctl -t ipv6-rotate -n 40 --no-pager 2>/dev/null || true
+  journalctl -t ipv6-rotate --no-pager 2>/dev/null || true
 }
 
 apply_ip() {
@@ -574,6 +636,10 @@ main_rotate() {
 
 if [[ "$SHOW_STATUS" -eq 1 ]]; then
   print_status
+  exit 0
+fi
+if [[ "$SHOW_HISTORY" -eq 1 ]]; then
+  print_history
   exit 0
 fi
 if [[ "$SHOW_LOG" -eq 1 ]]; then
