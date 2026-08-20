@@ -343,8 +343,9 @@
       el.append(img);
     }
 
-    const reactionsRow = document.createElement("div");
-    reactionsRow.className = "msg-reactions";
+    const actions = document.createElement("div");
+    actions.className = "msg-actions";
+
     for (const { emoji, title } of REACTIONS) {
       const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
       const mine = reactors.includes(myName);
@@ -352,21 +353,14 @@
       btn.type = "button";
       btn.className = "msg-react" + (mine ? " mine" : "") + (reactors.length ? " on" : "");
       btn.title = title;
-      btn.dataset.emoji = emoji;
-      btn.innerHTML = reactors.length
-        ? `<span class="msg-react-emoji">${emoji}</span><span class="msg-react-count">${reactors.length}</span>`
-        : `<span class="msg-react-emoji">${emoji}</span>`;
+      btn.textContent = reactors.length ? `${emoji}${reactors.length}` : emoji;
       btn.addEventListener("click", () => {
         socket.emit("chat:react", { id: msg.id, emoji }, (res) => {
           if (!res?.ok) composerHint.textContent = res?.error || "Ошибка реакции";
         });
       });
-      reactionsRow.append(btn);
+      actions.append(btn);
     }
-    el.append(reactionsRow);
-
-    const actions = document.createElement("div");
-    actions.className = "msg-actions";
 
     const replyBtn = document.createElement("button");
     replyBtn.type = "button";
@@ -378,7 +372,9 @@
     if (isAdmin) {
       const pinBtn = document.createElement("button");
       pinBtn.type = "button";
-      pinBtn.textContent = msg.pinned ? "Открепить" : "Закрепить";
+      pinBtn.textContent = "📌";
+      pinBtn.title = msg.pinned ? "Открепить" : "Закрепить";
+      pinBtn.className = "msg-admin-icon";
       pinBtn.addEventListener("click", () => {
         const event = msg.pinned ? "admin:unpin" : "admin:pin";
         socket.emit(event, { id: msg.id }, (res) => {
@@ -388,8 +384,9 @@
 
       const delBtn = document.createElement("button");
       delBtn.type = "button";
-      delBtn.className = "danger";
-      delBtn.textContent = "Удалить";
+      delBtn.className = "msg-admin-icon danger";
+      delBtn.textContent = "✕";
+      delBtn.title = "Удалить";
       delBtn.addEventListener("click", () => {
         if (!confirm("Удалить сообщение?")) return;
         socket.emit("admin:delete", { id: msg.id }, (res) => {

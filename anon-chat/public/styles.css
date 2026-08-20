@@ -582,78 +582,82 @@ button {
   cursor: zoom-in;
 }
 
-.msg-reactions {
+.msg-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  margin-top: 0.2rem;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.2rem;
+  margin-top: 0.15rem;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.msg-actions::-webkit-scrollbar {
+  display: none;
 }
 
 .msg-react {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 0.15rem;
-  padding: 0.1rem 0.35rem;
-  min-height: 0;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--muted);
-  font-size: 0.85rem;
-  line-height: 1.2;
-  opacity: 0.55;
-}
-
-.msg-react.on {
-  opacity: 1;
-  border-color: var(--line);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--ink-soft);
-}
-
-.msg-react.mine {
-  opacity: 1;
-  border-color: #3a4a55;
-  background: rgba(110, 168, 217, 0.12);
-}
-
-.msg-react:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.msg-react-count {
-  font-size: 0.7rem;
-  color: var(--ink-soft);
-}
-
-.msg-reply {
-  font-size: 0.72rem;
-  font-weight: 500;
+  justify-content: center;
   padding: 0;
   min-height: 0;
-  line-height: 1.2;
+  min-width: 1.15rem;
   border: 0;
   border-radius: 0;
   background: none;
   color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1;
+  opacity: 0.45;
+}
+
+.msg-react.on,
+.msg-react.mine {
+  opacity: 1;
+}
+
+.msg-react.mine {
+  color: #8cbcE3;
+}
+
+.msg-react:hover {
+  opacity: 1;
+}
+
+.msg-reply {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0 0.15rem;
+  min-height: 0;
+  line-height: 1;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  margin-left: 0.15rem;
 }
 
 .msg-reply:hover {
   color: #6ea8d9;
 }
 
-.msg-actions button:not(.msg-reply) {
+.msg-admin-icon {
+  flex: 0 0 auto;
   font-size: 0.72rem;
-  padding: 0.2rem 0.5rem;
+  padding: 0 0.15rem;
   min-height: 0;
-  line-height: 1.2;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  color: var(--ink-soft);
-  background: transparent;
+  line-height: 1;
+  border: 0;
+  background: none;
+  color: var(--muted);
 }
 
+.msg-admin-icon.danger:hover,
 .msg-actions .danger:hover {
   color: var(--danger);
 }
