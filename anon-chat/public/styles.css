@@ -317,41 +317,70 @@ button {
   white-space: nowrap;
 }
 
-.pins {
-  flex: 0 1 auto;
-  max-height: 28%;
-  padding: 0.5rem var(--pad-x) 0.15rem;
+.pin-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  gap: 0.65rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.45rem var(--pad-x) 0.45rem 0.75rem;
+  border: 0;
   border-bottom: 1px solid var(--line);
   background: #161719;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
   min-width: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
-.pins[hidden] {
+.pin-bar[hidden] {
   display: none !important;
 }
 
-.pins h2 {
-  margin: 0 0 0.35rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  font-weight: 600;
-  flex: 0 0 auto;
+.pin-bar:hover {
+  background: #1a1c1e;
 }
 
-.pins-list {
-  display: grid;
-  gap: 0.45rem;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding-bottom: 0.4rem;
-  min-height: 0;
+.pin-bar-accent {
+  flex: 0 0 3px;
+  width: 3px;
+  border-radius: 999px;
+  background: #6ea8d9;
+  align-self: stretch;
+  min-height: 2.2rem;
+}
+
+.pin-bar-body {
+  flex: 1 1 auto;
   min-width: 0;
-  -webkit-overflow-scrolling: touch;
+  display: grid;
+  gap: 0.1rem;
+  align-content: center;
+}
+
+.pin-bar-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #6ea8d9;
+  line-height: 1.2;
+}
+
+.pin-bar-preview {
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.pin-bar-meta {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 0.72rem;
+  color: var(--muted);
+  padding-left: 0.25rem;
 }
 
 .feed {
@@ -390,7 +419,13 @@ button {
 }
 
 .msg.pinned-item {
-  border-color: #3a3d42;
+  border-color: #3a4a55;
+  box-shadow: inset 3px 0 0 #6ea8d9;
+}
+
+.msg.pin-flash {
+  outline: 1px solid #6ea8d9;
+  background: #1e2429;
 }
 
 .msg-meta {
@@ -696,10 +731,6 @@ button {
 }
 
 @media (max-height: 500px) {
-  .pins {
-    max-height: 20%;
-  }
-
   .presence {
     display: none;
   }

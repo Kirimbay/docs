@@ -14,7 +14,7 @@
       href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=6" />
+    <link rel="stylesheet" href="/styles.css?v=7" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -54,10 +54,14 @@
         <button type="button" id="filter-clear-btn" class="ghost compact">Сбросить</button>
       </div>
 
-      <section id="pins" class="pins" hidden>
-        <h2>Закреплено</h2>
-        <div id="pins-list" class="pins-list"></div>
-      </section>
+      <button type="button" id="pins" class="pin-bar" hidden>
+        <span class="pin-bar-accent" aria-hidden="true"></span>
+        <span class="pin-bar-body">
+          <span id="pin-bar-label" class="pin-bar-label">Закреплённое сообщение</span>
+          <span id="pin-bar-preview" class="pin-bar-preview"></span>
+        </span>
+        <span id="pin-bar-meta" class="pin-bar-meta" hidden></span>
+      </button>
 
       <main id="feed" class="feed" aria-live="polite"></main>
 
@@ -122,6 +126,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=6"></script>
+    <script src="/app.js?v=7"></script>
   </body>
 </html>

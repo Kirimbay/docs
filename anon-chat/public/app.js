@@ -9,7 +9,9 @@
   const gateError = $("#gate-error");
   const feed = $("#feed");
   const pins = $("#pins");
-  const pinsList = $("#pins-list");
+  const pinBarLabel = $("#pin-bar-label");
+  const pinBarPreview = $("#pin-bar-preview");
+  const pinBarMeta = $("#pin-bar-meta");
   const presence = $("#presence");
   const messageInput = $("#message-input");
   const sendBtn = $("#send-btn");
@@ -45,6 +47,7 @@
   /** @type {Set<string>} */
   let filterNames = new Set();
   let lastState = { messages: [], pinned: [] };
+  let pinCycleIndex = 0;
 
   async function fetchRandomName() {
     const res = await fetch("/api/random-name");
@@ -185,13 +188,68 @@
     renderAll(lastState);
   }
 
-  function renderMessage(msg, { inPins = false } = {}) {
+  function pinPreviewText(msg) {
+    if (msg.text && msg.text.trim()) {
+      return msg.text.replace(/\s+/g, " ").trim();
+    }
+    if (msg.imageUrl) return "📷 Фото";
+    return "Сообщение";
+  }
+
+  function visiblePins() {
+    return (lastState.pinned || []).filter(passesFilter);
+  }
+
+  function updatePinBar() {
+    const list = visiblePins();
+    if (!list.length) {
+      pins.hidden = true;
+      pinCycleIndex = 0;
+      return;
+    }
+    if (pinCycleIndex >= list.length) pinCycleIndex = 0;
+    const current = list[pinCycleIndex];
+    pins.hidden = false;
+    pinBarLabel.textContent =
+      list.length === 1 ? "Закреплённое сообщение" : `Закреплённые · ${pinCycleIndex + 1}/${list.length}`;
+    pinBarPreview.textContent = `${current.name}: ${pinPreviewText(current)}`;
+    if (list.length > 1) {
+      pinBarMeta.hidden = false;
+      pinBarMeta.textContent = "далее";
+    } else {
+      pinBarMeta.hidden = true;
+    }
+  }
+
+  function scrollToPinnedMessage(msg) {
+    const el = feed.querySelector(`[data-id="${msg.id}"]`);
+    if (!el) {
+      composerHint.textContent = "Сообщение не в текущей ленте (фильтр?)";
+      return;
+    }
+    el.classList.add("pin-flash");
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => el.classList.remove("pin-flash"), 1200);
+  }
+
+  function onPinBarClick() {
+    const list = visiblePins();
+    if (!list.length) return;
+    const current = list[pinCycleIndex];
+    scrollToPinnedMessage(current);
+    if (list.length > 1) {
+      pinCycleIndex = (pinCycleIndex + 1) % list.length;
+      updatePinBar();
+    }
+  }
+
+  function renderMessage(msg) {
     const el = document.createElement("article");
     el.className = "msg";
     el.dataset.id = msg.id;
     el.dataset.name = msg.name;
     if (msg.name === myName) el.classList.add("mine");
-    if (msg.pinned || inPins) el.classList.add("pinned-item");
+    if (msg.pinned) el.classList.add("pinned-item");
 
     const meta = document.createElement("div");
     meta.className = "msg-meta";
@@ -234,9 +292,9 @@
 
       const pinBtn = document.createElement("button");
       pinBtn.type = "button";
-      pinBtn.textContent = inPins || msg.pinned ? "Открепить" : "Закрепить";
+      pinBtn.textContent = msg.pinned ? "Открепить" : "Закрепить";
       pinBtn.addEventListener("click", () => {
-        const event = inPins || msg.pinned ? "admin:unpin" : "admin:pin";
+        const event = msg.pinned ? "admin:unpin" : "admin:pin";
         socket.emit(event, { id: msg.id }, (res) => {
           if (!res?.ok) composerHint.textContent = res?.error || "Ошибка";
         });
@@ -262,18 +320,9 @@
 
   function renderAll(state) {
     lastState = state || lastState;
-    const { messages = [], pinned = [] } = lastState;
+    const { messages = [] } = lastState;
 
-    pinsList.replaceChildren();
-    const pinnedVisible = pinned.filter(passesFilter);
-    if (pinnedVisible.length) {
-      pins.hidden = false;
-      for (const msg of pinnedVisible) {
-        pinsList.append(renderMessage(msg, { inPins: true }));
-      }
-    } else {
-      pins.hidden = true;
-    }
+    updatePinBar();
 
     const nearBottom =
       feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
@@ -431,6 +480,7 @@
   filterApplyBtn.addEventListener("click", applyFilterFromDialog);
   filterCancelBtn.addEventListener("click", () => filterDialog.close());
   filterClearBtn.addEventListener("click", clearFilter);
+  pins.addEventListener("click", onPinBarClick);
 
   renameBtn.addEventListener("click", () => {
     const next = prompt("Новое имя", myName);
