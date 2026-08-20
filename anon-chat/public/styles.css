@@ -1757,7 +1757,7 @@ body.pins-focus-mode .feed .msg.pin-focus {
 .composer {
   flex: 0 0 auto;
   z-index: 4;
-  padding: 0.28rem var(--pad-x) max(0.16rem, calc(0.1rem + var(--safe-bottom)));
+  padding: 0.45rem var(--pad-x) max(0.55rem, calc(0.45rem + var(--safe-bottom)));
   background: transparent;
   border-top: 0;
   min-width: 0;
@@ -2509,7 +2509,7 @@ body.keyboard-open .pins-dialog.dialog {
   }
 
   .composer {
-    padding: 0.1rem var(--pad-x) max(0.1rem, calc(0.06rem + var(--safe-bottom)));
+    padding: 0.4rem var(--pad-x) max(0.5rem, calc(0.4rem + var(--safe-bottom)));
   }
 
   .composer-shell {
