@@ -518,6 +518,37 @@ button {
   color: #e6e8ea;
 }
 
+.msg.admin {
+  border-color: rgba(111, 191, 138, 0.45);
+  box-shadow: inset 3px 0 0 var(--ok);
+}
+
+.msg.admin .msg-name {
+  color: var(--ok);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.msg.admin .msg-text {
+  color: #7dcea0;
+  font-weight: 500;
+}
+
+.msg.mine.admin {
+  background: linear-gradient(180deg, #2a3530, #222926);
+  border-color: rgba(111, 191, 138, 0.5);
+  box-shadow: inset 3px 0 0 var(--ok);
+}
+
+.msg.mine.admin .msg-text {
+  color: #8fd9ad;
+}
+
+.msg.admin.pinned-item {
+  box-shadow: inset 3px 0 0 var(--ok), inset 0 0 0 1px rgba(217, 106, 106, 0.28);
+}
+
 .msg.pinned-item {
   border-color: #6a3a3a;
   background: linear-gradient(180deg, rgba(217, 106, 106, 0.12), rgba(26, 27, 29, 0.2));
@@ -946,9 +977,29 @@ button {
   color: var(--muted);
 }
 
+.msg-admin-icon.msg-delete {
+  margin-left: auto;
+  font-size: 0.85rem;
+  min-width: 1.6rem;
+  min-height: 1.6rem;
+  padding: 0;
+  border-radius: 999px;
+  color: var(--muted);
+}
+
+.msg-admin-icon.msg-delete.armed,
+.msg-admin-icon.msg-delete.armed:hover {
+  color: #fff;
+  background: var(--danger);
+}
+
 .msg-admin-icon.danger:hover,
 .msg-actions .danger:hover {
   color: var(--danger);
+}
+
+.msg-admin-icon.msg-delete.armed:hover {
+  color: #fff;
 }
 
 .composer {

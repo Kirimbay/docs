@@ -149,6 +149,13 @@ function randomName() {
   return NAMES[Math.floor(Math.random() * NAMES.length)];
 }
 
+const ADMIN_DISPLAY_NAME = "АДМИН";
+
+function isReservedAdminName(name) {
+  if (typeof name !== "string") return false;
+  return name.replace(/\s+/g, "").toLocaleUpperCase("ru-RU") === ADMIN_DISPLAY_NAME;
+}
+
 function sanitizeName(raw) {
   if (typeof raw !== "string") return null;
   const name = raw.replace(/\s+/g, " ").trim().slice(0, MAX_NAME_LEN);
@@ -183,6 +190,7 @@ function publicMessage(msg) {
     imageUrl: msg.imageUrl || null,
     createdAt: msg.createdAt,
     pinned: store.pinnedIds.includes(msg.id),
+    admin: Boolean(msg.admin),
     reply: msg.reply
       ? {
           id: msg.reply.id,
@@ -337,7 +345,10 @@ io.on("connection", (socket) => {
   socket.emit("chat:state", snapshot());
 
   socket.on("chat:join", (payload = {}, ack) => {
-    const custom = sanitizeName(payload.name);
+    let custom = sanitizeName(payload.name);
+    if (custom && isReservedAdminName(custom)) {
+      custom = null;
+    }
     const name = custom || randomName();
     online.set(socket.id, { name, isAdmin: false });
     socket.data.name = name;
@@ -360,13 +371,18 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
       return;
     }
-    user.name = name;
-    socket.data.name = name;
+    if (isReservedAdminName(name) && !user.isAdmin && !socket.data.isAdmin) {
+      if (typeof ack === "function") ack({ ok: false, error: "Это имя зарезервировано" });
+      return;
+    }
+    const nextName = user.isAdmin || socket.data.isAdmin ? ADMIN_DISPLAY_NAME : name;
+    user.name = nextName;
+    socket.data.name = nextName;
     io.emit("chat:presence", {
       count: online.size,
       names: [...online.values()].map((u) => u.name),
     });
-    if (typeof ack === "function") ack({ ok: true, name });
+    if (typeof ack === "function") ack({ ok: true, name: nextName });
   });
 
   socket.on("admin:login", (payload = {}, ack) => {
@@ -382,7 +398,13 @@ io.on("connection", (socket) => {
     }
     user.isAdmin = true;
     socket.data.isAdmin = true;
-    if (typeof ack === "function") ack({ ok: true });
+    user.name = ADMIN_DISPLAY_NAME;
+    socket.data.name = ADMIN_DISPLAY_NAME;
+    io.emit("chat:presence", {
+      count: online.size,
+      names: [...online.values()].map((u) => u.name),
+    });
+    if (typeof ack === "function") ack({ ok: true, name: ADMIN_DISPLAY_NAME });
   });
 
   socket.on("chat:message", (payload = {}, ack) => {
@@ -419,11 +441,12 @@ io.on("connection", (socket) => {
 
     const msg = {
       id: randomUUID(),
-      name: user.name,
+      name: user.isAdmin || socket.data.isAdmin ? ADMIN_DISPLAY_NAME : user.name,
       text,
       imageUrl,
       reply,
       reactions: {},
+      admin: Boolean(user.isAdmin || socket.data.isAdmin),
       createdAt: new Date().toISOString(),
     };
     store.messages.push(msg);

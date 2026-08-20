@@ -78,6 +78,8 @@
   let pinHoldStart = null;
   const PIN_HOLD_MS = 420;
   const PIN_HOLD_MOVE_PX = 12;
+  let deleteArmedId = null;
+  let deleteArmedTimer = null;
 
   function loadSavedName() {
     try {
@@ -186,10 +188,15 @@
     window.visualViewport.addEventListener("scroll", syncViewportHeight);
   }
 
-  function setAdminUi(on) {
+  function setAdminUi(on, name) {
     isAdmin = on;
     document.body.classList.toggle("admin-on", on);
     adminBtn.textContent = on ? "Админ ✓" : "Админ";
+    if (on && name) {
+      myName = name;
+      saveName(name);
+      renameBtn.title = `Сейчас: ${myName}`;
+    }
     renderAll(lastState);
   }
 
@@ -425,6 +432,7 @@
     el.dataset.name = msg.name;
     if (msg.name === myName) el.classList.add("mine");
     if (msg.pinned) el.classList.add("pinned-item");
+    if (msg.admin || msg.name === "АДМИН") el.classList.add("admin");
 
     const meta = document.createElement("div");
     meta.className = "msg-meta";
@@ -573,20 +581,44 @@
           if (!res?.ok) composerHint.textContent = res?.error || "Ошибка";
         });
       });
+      actions.append(pinBtn);
 
       const delBtn = document.createElement("button");
       delBtn.type = "button";
-      delBtn.className = "msg-admin-icon danger";
+      delBtn.className = "msg-admin-icon danger msg-delete";
       delBtn.textContent = "✕";
-      delBtn.title = "Удалить";
-      delBtn.addEventListener("click", () => {
-        if (!confirm("Удалить сообщение?")) return;
-        socket.emit("admin:delete", { id: msg.id }, (res) => {
-          if (!res?.ok) composerHint.textContent = res?.error || "Ошибка";
-        });
+      delBtn.title = "Нажмите дважды, чтобы удалить";
+      delBtn.setAttribute("aria-label", "Удалить сообщение");
+      if (deleteArmedId === msg.id) delBtn.classList.add("armed");
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (deleteArmedId === msg.id) {
+          deleteArmedId = null;
+          if (deleteArmedTimer) {
+            clearTimeout(deleteArmedTimer);
+            deleteArmedTimer = null;
+          }
+          delBtn.classList.remove("armed");
+          socket.emit("admin:delete", { id: msg.id }, (res) => {
+            if (!res?.ok) composerHint.textContent = res?.error || "Ошибка";
+          });
+          return;
+        }
+        deleteArmedId = msg.id;
+        delBtn.classList.add("armed");
+        delBtn.title = "Ещё раз — удалить";
+        composerHint.textContent = "Нажмите ✕ ещё раз, чтобы удалить";
+        if (deleteArmedTimer) clearTimeout(deleteArmedTimer);
+        deleteArmedTimer = setTimeout(() => {
+          if (deleteArmedId !== msg.id) return;
+          deleteArmedId = null;
+          deleteArmedTimer = null;
+          delBtn.classList.remove("armed");
+          delBtn.title = "Нажмите дважды, чтобы удалить";
+          if (composerHint.textContent.includes("✕")) composerHint.textContent = "";
+        }, 2500);
       });
-
-      actions.append(pinBtn, delBtn);
+      actions.append(delBtn);
     }
 
     el.append(actions);
@@ -973,9 +1005,9 @@
         adminError.textContent = res?.error || "Ошибка";
         return;
       }
-      setAdminUi(true);
+      setAdminUi(true, res.name || "АДМИН");
       adminDialog.close();
-      composerHint.textContent = "Режим админа включён";
+      composerHint.textContent = "Режим админа · ник АДМИН";
     });
   });
 
