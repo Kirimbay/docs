@@ -16,9 +16,11 @@ const IMAGE_QUALITY = Number(process.env.IMAGE_QUALITY) || 68;
 const DATA_DIR = path.join(__dirname, "data");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
+const ADMIN_TOKENS_PATH = path.join(DATA_DIR, "admin-tokens.json");
 const MAX_MESSAGES = 5000;
 const MAX_NAME_LEN = 24;
 const MAX_TEXT_LEN = 2000;
+const MAX_ADMIN_TOKENS = 80;
 
 const NAMES = [
   "Барс",
@@ -125,6 +127,51 @@ const NAMES = [
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+function loadAdminTokens() {
+  try {
+    if (fs.existsSync(ADMIN_TOKENS_PATH)) {
+      const raw = JSON.parse(fs.readFileSync(ADMIN_TOKENS_PATH, "utf8"));
+      const list = Array.isArray(raw?.tokens) ? raw.tokens : Array.isArray(raw) ? raw : [];
+      return list.filter((t) => typeof t === "string" && t.length >= 20);
+    }
+  } catch (err) {
+    console.error("Failed to load admin tokens:", err.message);
+  }
+  return [];
+}
+
+function saveAdminTokens(tokens) {
+  const tmp = `${ADMIN_TOKENS_PATH}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify({ tokens }, null, 2));
+  fs.renameSync(tmp, ADMIN_TOKENS_PATH);
+}
+
+/** @type {string[]} */
+let adminTokens = loadAdminTokens();
+
+function issueAdminToken() {
+  const token = `${randomUUID()}${randomUUID()}`.replace(/-/g, "");
+  adminTokens.push(token);
+  if (adminTokens.length > MAX_ADMIN_TOKENS) {
+    adminTokens = adminTokens.slice(-MAX_ADMIN_TOKENS);
+  }
+  saveAdminTokens(adminTokens);
+  return token;
+}
+
+function isValidAdminToken(token) {
+  return typeof token === "string" && token.length >= 20 && adminTokens.includes(token);
+}
+
+function revokeAdminToken(token) {
+  if (typeof token !== "string" || !token) return;
+  const next = adminTokens.filter((t) => t !== token);
+  if (next.length !== adminTokens.length) {
+    adminTokens = next;
+    saveAdminTokens(adminTokens);
+  }
+}
 
 function loadStore() {
   try {
@@ -442,21 +489,40 @@ io.on("connection", (socket) => {
   socket.emit("chat:state", snapshot());
 
   socket.on("chat:join", (payload = {}, ack) => {
+    const adminToken =
+      typeof payload.adminToken === "string" ? payload.adminToken.trim() : "";
+    const asAdmin = Boolean(adminToken && isValidAdminToken(adminToken));
     let custom = sanitizeName(payload.name);
-    if (custom && isReservedAdminName(custom)) {
+    if (custom && isReservedAdminName(custom) && !asAdmin) {
       custom = null;
     }
-    const name = custom || randomName();
+    const prevFromClient = sanitizeName(payload.previousName);
+    const previousName =
+      prevFromClient && !isReservedAdminName(prevFromClient) ? prevFromClient : null;
+    const name = asAdmin ? ADMIN_DISPLAY_NAME : custom || randomName();
     leaveDmRoom(socket);
-    online.set(socket.id, { name, isAdmin: false, roomCode: null });
+    online.set(socket.id, {
+      name,
+      isAdmin: asAdmin,
+      roomCode: null,
+      previousName: asAdmin ? previousName : null,
+    });
     socket.data.name = name;
-    socket.data.isAdmin = false;
+    socket.data.isAdmin = asAdmin;
     socket.data.roomCode = null;
+    socket.data.previousName = asAdmin ? previousName : null;
     io.emit("chat:presence", {
       count: online.size,
       names: [...online.values()].map((u) => u.name),
     });
-    if (typeof ack === "function") ack({ ok: true, name });
+    if (typeof ack === "function") {
+      ack({
+        ok: true,
+        name,
+        admin: asAdmin,
+        previousName: asAdmin ? previousName : null,
+      });
+    }
   });
 
   socket.on("chat:rename", (payload = {}, ack) => {
@@ -470,19 +536,24 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
       return;
     }
-    if (isReservedAdminName(name) && !user.isAdmin && !socket.data.isAdmin) {
+    if (user.isAdmin || socket.data.isAdmin) {
+      if (typeof ack === "function") {
+        ack({ ok: false, error: "В режиме админа имя нельзя сменить — сначала выйдите" });
+      }
+      return;
+    }
+    if (isReservedAdminName(name)) {
       if (typeof ack === "function") ack({ ok: false, error: "Это имя зарезервировано" });
       return;
     }
-    const nextName = user.isAdmin || socket.data.isAdmin ? ADMIN_DISPLAY_NAME : name;
-    user.name = nextName;
-    socket.data.name = nextName;
+    user.name = name;
+    socket.data.name = name;
     io.emit("chat:presence", {
       count: online.size,
       names: [...online.values()].map((u) => u.name),
     });
     if (user.roomCode) emitDmPresence(user.roomCode);
-    if (typeof ack === "function") ack({ ok: true, name: nextName });
+    if (typeof ack === "function") ack({ ok: true, name });
   });
 
   socket.on("admin:login", (payload = {}, ack) => {
@@ -496,6 +567,49 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Неверный пароль" });
       return;
     }
+    if (!isReservedAdminName(user.name)) {
+      user.previousName = user.name;
+      socket.data.previousName = user.name;
+    }
+    user.isAdmin = true;
+    socket.data.isAdmin = true;
+    user.name = ADMIN_DISPLAY_NAME;
+    socket.data.name = ADMIN_DISPLAY_NAME;
+    const token = issueAdminToken();
+    io.emit("chat:presence", {
+      count: online.size,
+      names: [...online.values()].map((u) => u.name),
+    });
+    if (user.roomCode) emitDmPresence(user.roomCode);
+    if (typeof ack === "function") {
+      ack({
+        ok: true,
+        name: ADMIN_DISPLAY_NAME,
+        token,
+        previousName: user.previousName || null,
+      });
+    }
+  });
+
+  socket.on("admin:resume", (payload = {}, ack) => {
+    const user = online.get(socket.id);
+    if (!user) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите в чат" });
+      return;
+    }
+    const token = typeof payload.token === "string" ? payload.token.trim() : "";
+    if (!isValidAdminToken(token)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сессия админа устарела" });
+      return;
+    }
+    const prevFromClient = sanitizeName(payload.previousName);
+    if (prevFromClient && !isReservedAdminName(prevFromClient)) {
+      user.previousName = prevFromClient;
+      socket.data.previousName = prevFromClient;
+    } else if (!user.previousName && !isReservedAdminName(user.name)) {
+      user.previousName = user.name;
+      socket.data.previousName = user.name;
+    }
     user.isAdmin = true;
     socket.data.isAdmin = true;
     user.name = ADMIN_DISPLAY_NAME;
@@ -505,7 +619,45 @@ io.on("connection", (socket) => {
       names: [...online.values()].map((u) => u.name),
     });
     if (user.roomCode) emitDmPresence(user.roomCode);
-    if (typeof ack === "function") ack({ ok: true, name: ADMIN_DISPLAY_NAME });
+    if (typeof ack === "function") {
+      ack({
+        ok: true,
+        name: ADMIN_DISPLAY_NAME,
+        previousName: user.previousName || null,
+      });
+    }
+  });
+
+  socket.on("admin:logout", (payload = {}, ack) => {
+    const user = online.get(socket.id);
+    if (!user) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите в чат" });
+      return;
+    }
+    const token = typeof payload.token === "string" ? payload.token.trim() : "";
+    if (token) revokeAdminToken(token);
+
+    let restore = sanitizeName(payload.name);
+    if (!restore || isReservedAdminName(restore)) {
+      restore = user.previousName || socket.data.previousName || null;
+    }
+    if (!restore || isReservedAdminName(restore)) {
+      restore = randomName();
+    }
+
+    user.isAdmin = false;
+    socket.data.isAdmin = false;
+    user.name = restore;
+    socket.data.name = restore;
+    user.previousName = null;
+    socket.data.previousName = null;
+
+    io.emit("chat:presence", {
+      count: online.size,
+      names: [...online.values()].map((u) => u.name),
+    });
+    if (user.roomCode) emitDmPresence(user.roomCode);
+    if (typeof ack === "function") ack({ ok: true, name: restore, admin: false });
   });
 
   socket.on("dm:create", (_payload, ack) => {

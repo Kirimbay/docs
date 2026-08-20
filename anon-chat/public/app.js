@@ -70,6 +70,8 @@
   const socket = io({ autoConnect: true });
   const NAME_KEY = "komnata_name";
   const DM_CODE_KEY = "sarafan_dm_code";
+  const ADMIN_TOKEN_KEY = "sarafan_admin_token";
+  const PREV_NAME_KEY = "sarafan_prev_name";
   const EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😢", "👍", "❤️", "🔥", "🎉"];
   const REACTIONS = [
     { emoji: "😊", title: "смайл" },
@@ -141,6 +143,53 @@
     try {
       if (code) localStorage.setItem(DM_CODE_KEY, code);
       else localStorage.removeItem(DM_CODE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function loadAdminToken() {
+    try {
+      return (localStorage.getItem(ADMIN_TOKEN_KEY) || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function saveAdminToken(token) {
+    try {
+      if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+      else localStorage.removeItem(ADMIN_TOKEN_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function clearAdminToken() {
+    saveAdminToken("");
+  }
+
+  function loadPrevName() {
+    try {
+      return (localStorage.getItem(PREV_NAME_KEY) || "").trim().slice(0, 24);
+    } catch {
+      return "";
+    }
+  }
+
+  function savePrevName(name) {
+    const n = (name || "").trim().slice(0, 24);
+    if (!n || n === "АДМИН") return;
+    try {
+      localStorage.setItem(PREV_NAME_KEY, n);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function clearPrevName() {
+    try {
+      localStorage.removeItem(PREV_NAME_KEY);
     } catch {
       /* ignore */
     }
@@ -390,13 +439,37 @@
   function setAdminUi(on, name) {
     isAdmin = on;
     document.body.classList.toggle("admin-on", on);
-    adminBtn.textContent = on ? "Админ ✓" : "Админ";
-    if (on && name) {
+    adminBtn.textContent = on ? "Выйти" : "Админ";
+    adminBtn.title = on ? "Выйти из режима админа" : "Админ";
+    if (name) {
       myName = name;
       saveName(name);
       renameBtn.title = `Сейчас: ${myName}`;
     }
     renderAll(lastState);
+  }
+
+  function applyAdminSession(res) {
+    if (!res?.ok) return false;
+    if (res.previousName) savePrevName(res.previousName);
+    if (res.token) saveAdminToken(res.token);
+    setAdminUi(true, res.name || "АДМИН");
+    return true;
+  }
+
+  function logoutAdmin() {
+    const token = loadAdminToken();
+    const prev = loadPrevName();
+    socket.emit("admin:logout", { token, name: prev }, (res) => {
+      clearAdminToken();
+      if (!res?.ok) {
+        composerHint.textContent = res?.error || "Не удалось выйти из админки";
+        return;
+      }
+      clearPrevName();
+      setAdminUi(false, res.name);
+      composerHint.textContent = `Снова обычный участник · ${res.name}`;
+    });
   }
 
   function passesFilter(msg) {
@@ -611,13 +684,7 @@
     if (el) el.remove();
     // Orphan reaction menus were moved to <body> — drop them so they don't leave a hole.
     document.querySelectorAll("body > .msg-react-menu").forEach((m) => m.remove());
-    if (deleteArmedId === id) {
-      deleteArmedId = null;
-      if (deleteArmedTimer) {
-        clearTimeout(deleteArmedTimer);
-        deleteArmedTimer = null;
-      }
-    }
+    if (deleteArmedId === id) clearDeleteArm();
     updatePinBar();
     updateJumpBottom();
   }
@@ -819,35 +886,26 @@
       delBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         if (deleteArmedId === msg.id) {
-          deleteArmedId = null;
-          if (deleteArmedTimer) {
-            clearTimeout(deleteArmedTimer);
-            deleteArmedTimer = null;
-          }
-          delBtn.classList.remove("armed");
+          clearDeleteArm();
           socket.emit("admin:delete", { id: msg.id }, (res) => {
             if (!res?.ok) {
               composerHint.textContent = res?.error || "Ошибка";
               return;
             }
             removeMessageById(msg.id);
-            if (composerHint.textContent.includes("✕")) composerHint.textContent = "";
           });
           return;
         }
+        // Only one ✕ can be armed; clear others first.
+        clearDeleteArm();
         deleteArmedId = msg.id;
         delBtn.classList.add("armed");
         delBtn.title = "Ещё раз — удалить";
-        composerHint.textContent = "Нажмите ✕ ещё раз, чтобы удалить";
-        if (deleteArmedTimer) clearTimeout(deleteArmedTimer);
+        composerHint.textContent = "Нажмите ✕ ещё раз в течение 1 с";
         deleteArmedTimer = setTimeout(() => {
           if (deleteArmedId !== msg.id) return;
-          deleteArmedId = null;
-          deleteArmedTimer = null;
-          delBtn.classList.remove("armed");
-          delBtn.title = "Нажмите дважды, чтобы удалить";
-          if (composerHint.textContent.includes("✕")) composerHint.textContent = "";
-        }, 2500);
+          clearDeleteArm();
+        }, DELETE_ARM_MS);
       });
       actions.append(delBtn);
     }
@@ -908,12 +966,14 @@
     }
   }
 
-  function enterChat(name) {
+  function enterChat(name, { admin = false } = {}) {
     myName = name;
     saveName(name);
     gate.hidden = true;
     app.hidden = false;
     renameBtn.title = `Сейчас: ${myName}`;
+    if (admin) setAdminUi(true, name);
+    else if (isAdmin) setAdminUi(false);
     syncViewportHeight();
     messageInput.focus();
     const savedDm = loadDmCode();
@@ -928,13 +988,29 @@
   function join(nameOverride) {
     showGateError("");
     const name = (nameOverride ?? nameInput.value).trim();
-    socket.emit("chat:join", { name }, (res) => {
-      if (!res?.ok) {
-        showGateError(res?.error || "Не удалось войти");
-        return;
+    const adminToken = loadAdminToken();
+    const previousName = loadPrevName();
+    socket.emit(
+      "chat:join",
+      {
+        name,
+        adminToken: adminToken || undefined,
+        previousName: previousName || undefined,
+      },
+      (res) => {
+        if (!res?.ok) {
+          showGateError(res?.error || "Не удалось войти");
+          return;
+        }
+        if (res.admin) {
+          if (res.previousName) savePrevName(res.previousName);
+          enterChat(res.name, { admin: true });
+        } else {
+          if (adminToken) clearAdminToken();
+          enterChat(res.name, { admin: false });
+        }
       }
-      enterChat(res.name);
-    });
+    );
   }
 
   function setReplyTarget(msg) {
@@ -1075,6 +1151,10 @@
   });
 
   function openRenameDialog() {
+    if (isAdmin) {
+      composerHint.textContent = "В админке имя всегда АДМИН — сначала нажмите «Выйти»";
+      return;
+    }
     if (!renameDialog || !renameInput) return;
     renameInput.value = myName || "";
     renameDialog.showModal();
@@ -1228,7 +1308,7 @@
 
   adminBtn.addEventListener("click", () => {
     if (isAdmin) {
-      composerHint.textContent = "Вы уже админ в этой сессии";
+      logoutAdmin();
       return;
     }
     if (adminError) adminError.hidden = true;
@@ -1250,6 +1330,7 @@
       }
       return;
     }
+    if (myName && myName !== "АДМИН") savePrevName(myName);
     socket.emit("admin:login", { password }, (res) => {
       if (!res?.ok) {
         if (adminError) {
@@ -1258,7 +1339,7 @@
         }
         return;
       }
-      setAdminUi(true, res.name || "АДМИН");
+      applyAdminSession(res);
       adminDialog.close();
       composerHint.textContent = "Режим админа · ник АДМИН";
     });
@@ -1378,12 +1459,41 @@
 
   socket.on("connect", () => {
     if (myName) {
-      socket.emit("chat:join", { name: myName }, (res) => {
-        if (res?.ok) {
+      const adminToken = loadAdminToken();
+      const previousName = loadPrevName();
+      socket.emit(
+        "chat:join",
+        {
+          name: myName === "АДМИН" ? previousName || myName : myName,
+          adminToken: adminToken || undefined,
+          previousName: previousName || undefined,
+        },
+        (res) => {
+          if (!res?.ok) return;
           myName = res.name;
           saveName(myName);
+          if (res.admin) {
+            if (res.previousName) savePrevName(res.previousName);
+            setAdminUi(true, res.name);
+          } else {
+            if (adminToken) clearAdminToken();
+            if (isAdmin) setAdminUi(false, res.name);
+            else {
+              renameBtn.title = `Сейчас: ${myName}`;
+            }
+          }
+          if (dmCode) {
+            socket.emit("dm:join", { code: dmCode }, (dmRes) => {
+              if (dmRes?.ok) enterDmMode(dmRes);
+              else {
+                dmCode = null;
+                document.body.classList.remove("dm-on");
+                if (dmBar) dmBar.hidden = true;
+              }
+            });
+          }
         }
-      });
+      );
     }
   });
 

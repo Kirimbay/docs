@@ -368,6 +368,10 @@ body.dm-on #dm-btn {
   color: #8fd9ad;
 }
 
+body.admin-on #rename-btn {
+  display: none !important;
+}
+
 .filter-bar {
   flex: 0 0 auto;
   display: flex;
