@@ -1090,12 +1090,68 @@
     knownIds.delete(id);
     lastState.messages = (lastState.messages || []).filter((m) => m.id !== id);
     lastState.pinned = (lastState.pinned || []).filter((m) => m.id !== id);
-    const el = feed.querySelector(`[data-id="${CSS.escape(id)}"]`);
-    if (el) el.remove();
     document.querySelectorAll("body > .msg-react-menu, body > .msg-action-menu").forEach((m) => m.remove());
     if (deleteArmedId === id) clearDeleteArm();
-    updatePinBar();
-    updateJumpBottom();
+
+    const el = feed.querySelector(`[data-id="${CSS.escape(id)}"]`);
+    const finishChrome = () => {
+      updatePinBar();
+      updateJumpBottom();
+    };
+
+    if (!el) {
+      finishChrome();
+      return;
+    }
+
+    if (el.classList.contains("msg-leaving")) return;
+
+    const reduceMotion =
+      typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const finish = () => {
+      if (el.isConnected) el.remove();
+      finishChrome();
+    };
+
+    if (reduceMotion) {
+      finish();
+      return;
+    }
+
+    const gap = parseFloat(getComputedStyle(feed).rowGap || getComputedStyle(feed).gap) || 0;
+    const height = el.getBoundingClientRect().height;
+    el.classList.add("msg-leaving");
+    el.style.height = `${Math.max(0, height)}px`;
+    el.style.overflow = "hidden";
+    el.style.flexShrink = "0";
+    el.setAttribute("aria-hidden", "true");
+
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      el.removeEventListener("transitionend", onEnd);
+      finish();
+    };
+    const onEnd = (e) => {
+      if (e.target !== el) return;
+      if (e.propertyName && e.propertyName !== "height" && e.propertyName !== "margin-bottom") return;
+      settle();
+    };
+    el.addEventListener("transitionend", onEnd);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.style.height = "0px";
+        // Cancel the flex gap that would otherwise leave a hole until remove().
+        el.style.marginBottom = `-${gap}px`;
+        el.style.opacity = "0";
+        el.style.transform = "translateY(-6px) scale(0.985)";
+      });
+    });
+
+    setTimeout(settle, 420);
   }
 
   function applyReaction(msgId, emoji) {

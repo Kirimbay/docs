@@ -699,6 +699,16 @@ body.admin-on #rename-btn {
   will-change: transform, opacity;
 }
 
+.msg.msg-leaving {
+  pointer-events: none;
+  will-change: height, opacity, transform, margin-bottom;
+  transition:
+    height var(--motion) var(--ease-out),
+    margin-bottom var(--motion) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-soft),
+    transform var(--motion) var(--ease-out);
+}
+
 .msg.mine {
   background: linear-gradient(180deg, #323538, #26282b);
   border-color: var(--mine-line);
@@ -1921,11 +1931,13 @@ body.keyboard-open .pins-dialog.dialog {
   }
 
   .msg.msg-enter,
+  .msg.msg-leaving,
   .msg-action-menu,
   .dialog[open],
   .dialog[open]::backdrop,
   body.keyboard-open .dialog {
     animation: none !important;
+    transition: none !important;
   }
 
   .jump-bottom[hidden],
