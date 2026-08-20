@@ -669,9 +669,19 @@
     lockPageScroll();
   }
 
+  let adminSheetFrozen = false;
+
   function layoutFormDialog(dialog) {
     if (!dialog?.open) return;
     if (dialog.classList.contains("pins-dialog") || dialog.classList.contains("lightbox")) return;
+    // Keep the admin sheet still until the user focuses the password field.
+    if (
+      dialog === adminDialog &&
+      adminSheetFrozen &&
+      document.activeElement !== adminPassword
+    ) {
+      return;
+    }
     const vv = window.visualViewport;
     const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
     const active = document.activeElement;
@@ -1902,6 +1912,7 @@
     renameDialog.style.margin = "";
   });
   adminDialog?.addEventListener("close", () => {
+    adminSheetFrozen = false;
     adminDialog.style.top = "";
     adminDialog.style.bottom = "";
     adminDialog.style.maxHeight = "";
@@ -1947,8 +1958,12 @@
       /* ignore */
     }
     adminDialog.showModal();
+    adminSheetFrozen = false;
     layoutFormDialog(adminDialog);
-    requestAnimationFrame(() => layoutFormDialog(adminDialog));
+    requestAnimationFrame(() => {
+      layoutFormDialog(adminDialog);
+      adminSheetFrozen = true;
+    });
   }
 
   function submitAdminLogin() {
@@ -2014,12 +2029,16 @@
   });
 
   adminPassword?.addEventListener("focus", () => {
+    adminSheetFrozen = false;
     // Keyboard only after the user taps the password field.
     keepDialogAboveKeyboard(adminDialog, adminPassword);
   });
   adminPassword?.addEventListener("blur", () => {
     if (adminDialog?.open) {
-      requestAnimationFrame(() => layoutFormDialog(adminDialog));
+      requestAnimationFrame(() => {
+        layoutFormDialog(adminDialog);
+        adminSheetFrozen = true;
+      });
     }
   });
   adminCancelBtn?.addEventListener("click", () => adminDialog?.close());

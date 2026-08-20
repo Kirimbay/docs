@@ -1604,13 +1604,10 @@ body.pins-focus-mode .feed .msg.pin-focus {
   animation: dialog-in-top var(--motion) var(--ease-out) both;
 }
 
-body.keyboard-open .dialog.sheet-top,
-body.keyboard-open .dm-dialog.dialog,
-body.keyboard-open #admin-dialog.dialog {
-  top: calc(var(--vv-top, 0px) + 0.3rem);
-  transform: translateX(-50%);
-  max-height: calc(var(--app-height, 100dvh) - 0.6rem);
-  animation: none;
+#admin-dialog .dialog-body {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 body.keyboard-open .pins-dialog.dialog {
