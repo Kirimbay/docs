@@ -714,28 +714,38 @@
       const on = i === index;
       row.classList.toggle("current", on);
       row.setAttribute("aria-selected", on ? "true" : "false");
+      if (on) {
+        try {
+          row.scrollIntoView({ block: "nearest", inline: "nearest" });
+        } catch {
+          /* ignore */
+        }
+      }
     });
   }
 
-  function scrollMsgBelowPinsPanel(el) {
+  function scrollMsgAbovePinsPanel(el) {
     if (!el) return;
     const feedBox = feed.getBoundingClientRect();
     const dialogBox = pinsDialog.open
       ? pinsDialog.getBoundingClientRect()
-      : { top: feedBox.bottom, bottom: feedBox.top, height: 0 };
-    const margin = 14;
-    const dialogInUpper = dialogBox.height > 0 && dialogBox.top < feedBox.top + feedBox.height * 0.45;
-    const viewTop = dialogInUpper
-      ? Math.max(feedBox.top, dialogBox.bottom) + margin
-      : feedBox.top + margin;
-    const viewBottom = dialogInUpper
-      ? feedBox.bottom - margin
-      : Math.min(feedBox.bottom, dialogBox.top || feedBox.bottom) - margin;
-    const viewMid = (viewTop + viewBottom) / 2;
+      : { top: feedBox.bottom };
+    const margin = 12;
+    const viewTop = feedBox.top + margin;
+    const viewBottom = Math.min(feedBox.bottom, dialogBox.top || feedBox.bottom) - margin;
+    if (viewBottom <= viewTop + 40) return;
+
     const elBox = el.getBoundingClientRect();
-    const elMid = elBox.top + elBox.height / 2;
-    const delta = elMid - viewMid;
-    if (Math.abs(delta) < 2) return;
+    // Keep the pinned message at the top of the free band above the bottom sheet.
+    const targetTop = viewTop + 2;
+    let delta = elBox.top - targetTop;
+
+    // If the message is shorter than the band and would sit awkwardly, still pin to top.
+    // If taller than the band, still show its top edge.
+    if (Math.abs(delta) < 2) {
+      // Ensure bottom of free band isn't cutting mid-message awkwardly when short.
+      return;
+    }
     feedScroller.scrollTo(feed.scrollTop + delta, true);
   }
 
@@ -752,9 +762,12 @@
     el.classList.add("pin-focus");
     if (fromMenu || pinsDialog.open) {
       document.body.classList.add("pins-focus-mode");
-      scrollMsgBelowPinsPanel(el);
-      // Second pass after layout/smooth scroll settles a bit
-      setTimeout(() => scrollMsgBelowPinsPanel(el), 320);
+      layoutPinsDialog();
+      scrollMsgAbovePinsPanel(el);
+      setTimeout(() => {
+        layoutPinsDialog();
+        scrollMsgAbovePinsPanel(el);
+      }, 320);
     } else {
       el.classList.add("pin-flash");
       el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -769,26 +782,21 @@
     const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
     const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
     const vvBottom = vvTop + vvH;
-    const pinRect = pins.getBoundingClientRect();
     const sidePad = 10;
-    let top = Math.round(pinRect.bottom + 8);
-    // Keep inside the visible viewport (avoids Safari chrome overlap).
-    if (top < vvTop + 10) top = vvTop + Math.round(vvH * 0.1);
-    let maxH = Math.round(vvBottom - top - 14);
-    maxH = Math.min(maxH, Math.round(vvH * 0.52));
-    if (maxH < 150) {
-      maxH = Math.min(Math.round(vvH * 0.48), Math.max(140, vvH - 28));
-      top = Math.round(vvBottom - maxH - 12);
-      if (top < vvTop + 8) top = vvTop + 8;
-    }
-    pinsDialog.style.top = `${top}px`;
+    const bottomPad = 10;
+    // Bottom sheet: leave most of the viewport free for the focused message above.
+    const maxSheet = Math.min(Math.round(vvH * 0.46), Math.max(200, Math.round(vvH * 0.4)));
+    const bottomInset = Math.max(0, Math.round(window.innerHeight - vvBottom));
+
+    pinsDialog.style.top = "auto";
     pinsDialog.style.left = "50%";
     pinsDialog.style.right = "auto";
-    pinsDialog.style.bottom = "auto";
+    pinsDialog.style.bottom = `${bottomInset + bottomPad}px`;
     pinsDialog.style.transform = "translateX(-50%)";
     pinsDialog.style.width = `min(420px, calc(100vw - ${sidePad * 2}px))`;
     pinsDialog.style.maxWidth = `calc(100vw - ${sidePad * 2}px)`;
-    pinsDialog.style.maxHeight = `${Math.max(120, maxH)}px`;
+    pinsDialog.style.maxHeight = `${maxSheet}px`;
+    pinsDialog.style.height = "auto";
   }
 
   function closePinsList() {
@@ -1673,9 +1681,12 @@
     clearUnpinArm();
     clearPinFocus();
     pinsDialog.style.top = "";
+    pinsDialog.style.bottom = "";
+    pinsDialog.style.height = "";
     pinsDialog.style.maxHeight = "";
     pinsDialog.style.width = "";
     pinsDialog.style.maxWidth = "";
+    pinsDialog.style.transform = "";
   });
 
   const onPinsViewport = () => {
