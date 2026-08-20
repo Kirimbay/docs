@@ -1736,6 +1736,34 @@ body.pins-focus-mode .feed .msg.pin-focus {
   display: none;
 }
 
+.copy-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(5.5rem + var(--safe-bottom, 0px) + var(--kb-inset, 0px));
+  z-index: 80;
+  max-width: min(20rem, calc(100vw - 2rem));
+  padding: 0.65rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition:
+    opacity 160ms var(--ease-out, ease-out),
+    transform 160ms var(--ease-out, ease-out);
+}
+
+.copy-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .dialog {
   position: fixed;
   left: 50%;

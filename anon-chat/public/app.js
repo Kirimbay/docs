@@ -1363,15 +1363,46 @@
     requestAnimationFrame(() => positionFixedMenu(menu, msgEl, clientX, clientY));
   }
 
+  let copyToastTimer = null;
+  let hintClearTimer = null;
+
+  function showComposerNotice(text, { toast = false, clearMs = 2200 } = {}) {
+    if (!composerHint) return;
+    composerHint.textContent = text;
+    if (hintClearTimer) clearTimeout(hintClearTimer);
+    hintClearTimer = setTimeout(() => {
+      if (composerHint.textContent === text) composerHint.textContent = "";
+      hintClearTimer = null;
+    }, clearMs);
+
+    if (!toast) return;
+    let el = document.getElementById("copy-toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "copy-toast";
+      el.className = "copy-toast";
+      el.setAttribute("role", "status");
+      el.setAttribute("aria-live", "polite");
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.add("show");
+    if (copyToastTimer) clearTimeout(copyToastTimer);
+    copyToastTimer = setTimeout(() => {
+      el.classList.remove("show");
+      copyToastTimer = null;
+    }, clearMs);
+  }
+
   async function copyBubbleText(msg) {
     const text = (msg?.text || "").trim();
     if (!text) {
-      composerHint.textContent = "В сообщении нет текста";
+      showComposerNotice("В сообщении нет текста");
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      composerHint.textContent = "Текст скопирован";
+      showComposerNotice("Текст сообщения скопирован", { toast: true });
       try {
         navigator.vibrate?.(10);
       } catch {
@@ -1391,14 +1422,16 @@
       ta.select();
       document.execCommand("copy");
       ta.remove();
-      composerHint.textContent = "Текст скопирован";
+      showComposerNotice("Текст сообщения скопирован", { toast: true });
     } catch {
-      composerHint.textContent = "Не удалось скопировать";
+      showComposerNotice("Не удалось скопировать");
     }
   }
 
   function bindMessageHold(el, msg) {
-    const DBL_WAIT_MS = 280;
+    // Match typical OS double-click timing so the 2nd click copies
+    // before the 1st click opens the action menu.
+    const DBL_WAIT_MS = 450;
     const LONG_MS = 480;
     const MOVE_PX = 12;
 
@@ -1441,6 +1474,14 @@
         /* ignore */
       }
       openMsgActionMenu(msg, el, x, y);
+    };
+
+    const copyFromDouble = () => {
+      clearSingle();
+      clearLong();
+      tapCount = 0;
+      closeMsgActionMenu();
+      void copyBubbleText(msg);
     };
 
     el.addEventListener("pointerdown", (e) => {
@@ -1494,9 +1535,7 @@
           openAt(x, y);
         }, DBL_WAIT_MS);
       } else {
-        clearSingle();
-        tapCount = 0;
-        void copyBubbleText(msg);
+        copyFromDouble();
       }
     });
 
@@ -1505,9 +1544,21 @@
       start = null;
     });
 
+    el.addEventListener("dblclick", (e) => {
+      if (interactive(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      copyFromDouble();
+    });
+
     el.addEventListener("contextmenu", (e) => {
       // Long-press selection: keep the native callout / selection handles.
       if (longPressed || el.classList.contains("msg-selecting")) return;
+      // Quote / chips / links handle themselves — don't open the bubble menu.
+      if (interactive(e.target)) {
+        e.preventDefault();
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       clearSingle();
@@ -1734,15 +1785,7 @@
       img.src = msg.imageUrl;
       img.alt = `Фото от ${msg.name}`;
       img.loading = "lazy";
-      img.addEventListener("click", (e) => {
-        if (el.dataset.suppressPhoto) {
-          e.preventDefault();
-          e.stopPropagation();
-          return;
-        }
-        lightboxImg.src = msg.imageUrl;
-        lightbox.showModal();
-      });
+      img.draggable = false;
       el.append(img);
     }
 
@@ -2563,6 +2606,11 @@
   document.addEventListener("pointerdown", (e) => {
     if (e.target.closest(".msg-action-menu") || e.target.closest(".msg-react-menu")) return;
     closeAllReactMenus();
+    if (!e.target.closest(".msg.msg-selecting")) {
+      document.querySelectorAll(".msg.msg-selecting").forEach((node) => {
+        node.classList.remove("msg-selecting");
+      });
+    }
   });
   window.addEventListener("resize", closeAllReactMenus);
   feed.addEventListener("scroll", closeAllReactMenus, { passive: true });
