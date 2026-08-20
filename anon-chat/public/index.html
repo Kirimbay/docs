@@ -14,7 +14,7 @@
       href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=7" />
+    <link rel="stylesheet" href="/styles.css?v=9" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -67,15 +67,25 @@
 
       <footer class="composer">
         <div class="composer-shell">
+          <div id="reply-bar" class="reply-bar" hidden>
+            <span class="reply-bar-accent" aria-hidden="true"></span>
+            <span class="reply-bar-body">
+              <span id="reply-bar-label" class="reply-bar-label">Ответ</span>
+              <span id="reply-bar-preview" class="reply-bar-preview"></span>
+            </span>
+            <button type="button" id="reply-cancel-btn" class="ghost compact" aria-label="Отменить ответ">×</button>
+          </div>
           <div id="preview" class="preview" hidden>
             <img id="preview-img" alt="Превью фото" />
             <button type="button" id="preview-clear" class="ghost compact" aria-label="Убрать фото">×</button>
           </div>
+          <div id="emoji-panel" class="emoji-panel" hidden></div>
           <div class="composer-row">
             <label class="attach" title="Прикрепить фото">
               <input id="photo-input" type="file" accept="image/*" hidden />
               <span aria-hidden="true">＋</span>
             </label>
+            <button type="button" id="emoji-btn" class="attach" title="Смайлики" aria-label="Смайлики">☺</button>
             <textarea
               id="message-input"
               rows="1"
@@ -126,6 +136,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=7"></script>
+    <script src="/app.js?v=9"></script>
   </body>
 </html>

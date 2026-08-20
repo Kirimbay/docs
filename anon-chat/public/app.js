@@ -20,6 +20,12 @@
   const previewImg = $("#preview-img");
   const previewClear = $("#preview-clear");
   const composerHint = $("#composer-hint");
+  const replyBar = $("#reply-bar");
+  const replyBarLabel = $("#reply-bar-label");
+  const replyBarPreview = $("#reply-bar-preview");
+  const replyCancelBtn = $("#reply-cancel-btn");
+  const emojiBtn = $("#emoji-btn");
+  const emojiPanel = $("#emoji-panel");
   const renameBtn = $("#rename-btn");
   const adminBtn = $("#admin-btn");
   const filterBtn = $("#filter-btn");
@@ -38,16 +44,38 @@
   const lightboxImg = $("#lightbox-img");
 
   const socket = io({ autoConnect: true });
+  const NAME_KEY = "komnata_name";
+  const EMOJIS = [
+    "😀", "😂", "🥹", "😍", "😎", "🤔", "😢", "😡", "👍", "👎",
+    "❤️", "🔥", "🎉", "🙏", "👏", "💯", "✅", "❌", "👀", "🤝",
+  ];
 
   let myName = "";
   let isAdmin = false;
   let pendingImageUrl = null;
   let uploading = false;
+  let pendingReply = null;
   const knownIds = new Set();
   /** @type {Set<string>} */
   let filterNames = new Set();
   let lastState = { messages: [], pinned: [] };
   let pinCycleIndex = 0;
+
+  function loadSavedName() {
+    try {
+      return (localStorage.getItem(NAME_KEY) || "").trim().slice(0, 24);
+    } catch {
+      return "";
+    }
+  }
+
+  function saveName(name) {
+    try {
+      localStorage.setItem(NAME_KEY, name);
+    } catch {
+      /* ignore */
+    }
+  }
 
   async function fetchRandomName() {
     const res = await fetch("/api/random-name");
@@ -266,6 +294,28 @@
 
     el.append(meta);
 
+    if (msg.reply) {
+      const quote = document.createElement("button");
+      quote.type = "button";
+      quote.className = "msg-quote";
+      quote.title = "Перейти к сообщению";
+      const qName = document.createElement("span");
+      qName.className = "msg-quote-name";
+      qName.textContent = msg.reply.name;
+      const qText = document.createElement("span");
+      qText.className = "msg-quote-text";
+      qText.textContent = msg.reply.text || "Сообщение";
+      quote.append(qName, qText);
+      quote.addEventListener("click", () => {
+        const target = feed.querySelector(`[data-id="${msg.reply.id}"]`);
+        if (!target) return;
+        target.classList.add("pin-flash");
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => target.classList.remove("pin-flash"), 1200);
+      });
+      el.append(quote);
+    }
+
     if (msg.text) {
       const text = document.createElement("p");
       text.className = "msg-text";
@@ -286,10 +336,16 @@
       el.append(img);
     }
 
-    if (isAdmin) {
-      const actions = document.createElement("div");
-      actions.className = "msg-actions";
+    const actions = document.createElement("div");
+    actions.className = "msg-actions";
 
+    const replyBtn = document.createElement("button");
+    replyBtn.type = "button";
+    replyBtn.textContent = "Ответить";
+    replyBtn.addEventListener("click", () => setReplyTarget(msg));
+    actions.append(replyBtn);
+
+    if (isAdmin) {
       const pinBtn = document.createElement("button");
       pinBtn.type = "button";
       pinBtn.textContent = msg.pinned ? "Открепить" : "Закрепить";
@@ -312,9 +368,9 @@
       });
 
       actions.append(pinBtn, delBtn);
-      el.append(actions);
     }
 
+    el.append(actions);
     return el;
   }
 
@@ -356,15 +412,16 @@
 
   function enterChat(name) {
     myName = name;
+    saveName(name);
     gate.hidden = true;
     app.hidden = false;
     renameBtn.title = `Сейчас: ${myName}`;
     messageInput.focus();
   }
 
-  function join() {
+  function join(nameOverride) {
     showGateError("");
-    const name = nameInput.value.trim();
+    const name = (nameOverride ?? nameInput.value).trim();
     socket.emit("chat:join", { name }, (res) => {
       if (!res?.ok) {
         showGateError(res?.error || "Не удалось войти");
@@ -372,6 +429,46 @@
       }
       enterChat(res.name);
     });
+  }
+
+  function setReplyTarget(msg) {
+    pendingReply = {
+      id: msg.id,
+      name: msg.name,
+      text: (msg.text || (msg.imageUrl ? "📷 Фото" : "Сообщение")).replace(/\s+/g, " ").trim().slice(0, 120),
+    };
+    replyBar.hidden = false;
+    replyBarLabel.textContent = `Ответ · ${pendingReply.name}`;
+    replyBarPreview.textContent = pendingReply.text;
+    messageInput.focus();
+  }
+
+  function clearReply() {
+    pendingReply = null;
+    replyBar.hidden = true;
+  }
+
+  function insertEmoji(emoji) {
+    const start = messageInput.selectionStart ?? messageInput.value.length;
+    const end = messageInput.selectionEnd ?? messageInput.value.length;
+    const value = messageInput.value;
+    messageInput.value = value.slice(0, start) + emoji + value.slice(end);
+    const pos = start + emoji.length;
+    messageInput.focus();
+    messageInput.setSelectionRange(pos, pos);
+    autoSize();
+  }
+
+  function buildEmojiPanel() {
+    emojiPanel.replaceChildren();
+    for (const emoji of EMOJIS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "emoji-btn-item";
+      btn.textContent = emoji;
+      btn.addEventListener("click", () => insertEmoji(emoji));
+      emojiPanel.append(btn);
+    }
   }
 
   async function uploadPhoto(file) {
@@ -411,7 +508,11 @@
     const text = messageInput.value.trim();
     if (!text && !pendingImageUrl) return;
 
-    const payload = { text, imageUrl: pendingImageUrl };
+    const payload = {
+      text,
+      imageUrl: pendingImageUrl,
+      replyToId: pendingReply?.id || null,
+    };
     socket.emit("chat:message", payload, (res) => {
       if (!res?.ok) {
         composerHint.textContent = res?.error || "Не отправилось";
@@ -420,6 +521,9 @@
       messageInput.value = "";
       autoSize();
       clearPreview();
+      clearReply();
+      emojiPanel.hidden = true;
+      emojiBtn.classList.remove("active");
       composerHint.textContent = "";
     });
   }
@@ -430,7 +534,7 @@
     });
   });
 
-  joinBtn.addEventListener("click", join);
+  joinBtn.addEventListener("click", () => join());
   nameInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -439,6 +543,14 @@
   });
 
   sendBtn.addEventListener("click", send);
+  replyCancelBtn.addEventListener("click", clearReply);
+  emojiBtn.addEventListener("click", () => {
+    const open = emojiPanel.hidden;
+    emojiPanel.hidden = !open;
+    emojiBtn.classList.toggle("active", open);
+  });
+  buildEmojiPanel();
+
   messageInput.addEventListener("input", autoSize);
   messageInput.addEventListener("focus", () => {
     setTimeout(() => {
@@ -491,6 +603,7 @@
         return;
       }
       myName = res.name;
+      saveName(myName);
       renameBtn.title = `Сейчас: ${myName}`;
       renderAll(lastState);
     });
@@ -542,10 +655,25 @@
   socket.on("connect", () => {
     if (myName) {
       socket.emit("chat:join", { name: myName }, (res) => {
-        if (res?.ok) myName = res.name;
+        if (res?.ok) {
+          myName = res.name;
+          saveName(myName);
+        }
       });
     }
   });
 
-  fetchRandomName().catch(() => {});
+  const savedName = loadSavedName();
+  if (savedName) {
+    nameInput.value = savedName;
+    // Auto-enter with cached nick after socket is up.
+    const tryAutoJoin = () => {
+      if (myName) return;
+      join(savedName);
+    };
+    if (socket.connected) tryAutoJoin();
+    else socket.once("connect", tryAutoJoin);
+  } else {
+    fetchRandomName().catch(() => {});
+  }
 })();

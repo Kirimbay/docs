@@ -346,7 +346,7 @@ button {
   flex: 0 0 3px;
   width: 3px;
   border-radius: 999px;
-  background: #6ea8d9;
+  background: #5b9fd4;
   align-self: stretch;
   min-height: 2.2rem;
 }
@@ -362,7 +362,7 @@ button {
 .pin-bar-label {
   font-size: 0.78rem;
   font-weight: 600;
-  color: #6ea8d9;
+  color: #5b9fd4;
   line-height: 1.2;
 }
 
@@ -439,7 +439,7 @@ button {
 .msg-name {
   font-weight: 600;
   font-size: 0.9rem;
-  color: var(--ink);
+  color: #6ea8d9;
   background: none;
   padding: 0;
   border: 0;
@@ -448,7 +448,7 @@ button {
 }
 
 .msg-name:hover {
-  color: #e4e6e8;
+  color: #8cbcE3;
   text-decoration: underline;
 }
 
@@ -458,6 +458,109 @@ button {
   flex-shrink: 0;
 }
 
+.msg-quote {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.35rem 0.55rem;
+  margin: 0.1rem 0 0.15rem;
+  border-radius: 10px;
+  border-left: 3px solid #6ea8d9;
+  background: rgba(110, 168, 217, 0.08);
+  cursor: pointer;
+  min-width: 0;
+  text-align: left;
+  width: 100%;
+  color: inherit;
+}
+
+.msg-quote:hover {
+  background: rgba(110, 168, 217, 0.14);
+}
+
+.msg-quote-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #6ea8d9;
+}
+
+.msg-quote-text {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reply-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.reply-bar[hidden] {
+  display: none !important;
+}
+
+.reply-bar-accent {
+  flex: 0 0 3px;
+  border-radius: 999px;
+  background: #6ea8d9;
+}
+
+.reply-bar-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 0.05rem;
+}
+
+.reply-bar-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6ea8d9;
+}
+
+.reply-bar-preview {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.emoji-panel {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 0.25rem;
+  padding: 0.15rem 0 0.2rem;
+}
+
+.emoji-panel[hidden] {
+  display: none !important;
+}
+
+.emoji-btn-item {
+  display: grid;
+  place-items: center;
+  min-height: 2.1rem;
+  border-radius: 10px;
+  font-size: 1.2rem;
+  line-height: 1;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.emoji-btn-item:hover {
+  background: #222426;
+}
+
+.attach.active {
+  color: var(--accent-fill);
+  background: #222426;
+}
+
 .msg-text {
   margin: 0;
   white-space: pre-wrap;
@@ -465,7 +568,7 @@ button {
   word-break: break-word;
   line-height: 1.45;
   min-width: 0;
-  color: var(--ink);
+  color: #d2d5d9;
 }
 
 .msg-photo {
@@ -727,6 +830,10 @@ button {
   .topbar-actions .ghost.compact {
     padding: 0.4rem 0.55rem;
     font-size: 0.8rem;
+  }
+
+  .emoji-panel {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 

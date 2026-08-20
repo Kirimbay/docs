@@ -95,6 +95,13 @@ function publicMessage(msg) {
     imageUrl: msg.imageUrl || null,
     createdAt: msg.createdAt,
     pinned: store.pinnedIds.includes(msg.id),
+    reply: msg.reply
+      ? {
+          id: msg.reply.id,
+          name: msg.reply.name,
+          text: msg.reply.text || "",
+        }
+      : null,
   };
 }
 
@@ -253,11 +260,25 @@ io.on("connection", (socket) => {
       return;
     }
 
+    let reply = null;
+    const replyId = typeof payload.replyToId === "string" ? payload.replyToId : "";
+    if (replyId) {
+      const target = store.messages.find((m) => m.id === replyId);
+      if (target) {
+        const preview = (target.text || (target.imageUrl ? "📷 Фото" : "Сообщение"))
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 120);
+        reply = { id: target.id, name: target.name, text: preview };
+      }
+    }
+
     const msg = {
       id: randomUUID(),
       name: user.name,
       text,
       imageUrl,
+      reply,
       createdAt: new Date().toISOString(),
     };
     store.messages.push(msg);
