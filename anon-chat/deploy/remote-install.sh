@@ -19,8 +19,11 @@ SCP=(scp -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20)
 echo "==> packing app"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-mkdir -p "$TMP/anon-chat"
+mkdir -p "$TMP/anon-chat/deploy"
 cp -a "$ROOT/package.json" "$ROOT/package-lock.json" "$ROOT/server.js" "$ROOT/public" "$TMP/anon-chat/"
+cp -a "$ROOT/deploy/backup.sh" "$ROOT/deploy/restore.sh" "$ROOT/deploy/migrate-export.sh" \
+  "$ROOT/deploy/recompress-uploads.js" "$ROOT/deploy/sarafan-backup.service" \
+  "$ROOT/deploy/sarafan-backup.timer" "$ROOT/deploy/README.md" "$TMP/anon-chat/deploy/" 2>/dev/null || true
 cp -a "$ROOT/uploads/.gitkeep" "$TMP/anon-chat/" 2>/dev/null || true
 tar -C "$TMP" -czf "$TMP/anon-chat.tgz" anon-chat
 

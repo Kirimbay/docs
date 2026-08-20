@@ -31,6 +31,11 @@
   const emojiBtn = $("#emoji-btn");
   const emojiPanel = $("#emoji-panel");
   const renameBtn = $("#rename-btn");
+  const renameDialog = $("#rename-dialog");
+  const renameInput = $("#rename-input");
+  const renameRandomBtn = $("#rename-random-btn");
+  const renameCancelBtn = $("#rename-cancel-btn");
+  const renameApplyBtn = $("#rename-apply-btn");
   const adminBtn = $("#admin-btn");
   const pingAllBtn = $("#ping-all-btn");
   const filterBtn = $("#filter-btn");
@@ -457,10 +462,11 @@
     else await enableNotifications();
   }
 
-  async function fetchRandomName() {
+  async function fetchRandomName(targetInput = nameInput) {
     const res = await fetch("/api/random-name");
     const data = await res.json();
-    nameInput.value = data.name;
+    if (targetInput && data?.name) targetInput.value = data.name;
+    return data?.name || "";
   }
 
   function showGateError(text) {
@@ -1170,10 +1176,39 @@
   }
 
   randomBtn.addEventListener("click", () => {
-    fetchRandomName().catch(() => {
-      nameInput.value = `Гость${Math.floor(Math.random() * 90) + 10}`;
+    fetchRandomName(nameInput).catch(() => {
+      const fallback = ["Барс", "Лис", "Сокол", "Туман", "Искра", "Парус", "Неон"];
+      nameInput.value = fallback[Math.floor(Math.random() * fallback.length)];
     });
   });
+
+  function openRenameDialog() {
+    if (!renameDialog || !renameInput) return;
+    renameInput.value = myName || "";
+    renameDialog.showModal();
+    renameInput.focus();
+    renameInput.select();
+  }
+
+  function applyRename() {
+    const next = (renameInput?.value || "").trim();
+    if (!next) {
+      composerHint.textContent = "Введите имя";
+      return;
+    }
+    socket.emit("chat:rename", { name: next }, (res) => {
+      if (!res?.ok) {
+        composerHint.textContent = res?.error || "Не сменилось";
+        return;
+      }
+      myName = res.name;
+      saveName(myName);
+      renameBtn.title = `Сейчас: ${myName}`;
+      if (notifyEnabled) void syncPushSubscription();
+      renameDialog?.close();
+      renderAll(lastState);
+    });
+  }
 
   joinBtn.addEventListener("click", () => join());
   nameInput.addEventListener("keydown", (e) => {
@@ -1292,20 +1327,20 @@
   });
   pins.addEventListener("click", onPinBarClick);
 
-  renameBtn.addEventListener("click", () => {
-    const next = prompt("Новое имя", myName);
-    if (next == null) return;
-    socket.emit("chat:rename", { name: next }, (res) => {
-      if (!res?.ok) {
-        composerHint.textContent = res?.error || "Не сменилось";
-        return;
-      }
-      myName = res.name;
-      saveName(myName);
-      renameBtn.title = `Сейчас: ${myName}`;
-      if (notifyEnabled) void syncPushSubscription();
-      renderAll(lastState);
+  renameBtn.addEventListener("click", openRenameDialog);
+  renameRandomBtn?.addEventListener("click", () => {
+    fetchRandomName(renameInput).catch(() => {
+      const fallback = ["Барс", "Лис", "Сокол", "Туман", "Искра", "Парус", "Неон"];
+      renameInput.value = fallback[Math.floor(Math.random() * fallback.length)];
     });
+  });
+  renameCancelBtn?.addEventListener("click", () => renameDialog?.close());
+  renameApplyBtn?.addEventListener("click", applyRename);
+  renameInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      applyRename();
+    }
   });
 
   pingAllBtn?.addEventListener("click", () => {
