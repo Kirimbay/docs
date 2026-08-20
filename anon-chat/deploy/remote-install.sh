@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy «Комната» on a Hiddify VPS behind HAProxy (ports 80/443 already taken).
+# Deploy «Сарафан» on a Hiddify VPS behind HAProxy (ports 80/443 already taken).
 # Usage (from this repo, with SSH access):
 #   CHAT_DOMAIN=chat.one.vele.uk ./anon-chat/deploy/remote-install.sh root@138.124.242.142
 set -euo pipefail

@@ -9,6 +9,8 @@ Environment=NODE_ENV=production
 Environment=PORT=__APP_PORT__
 Environment=ADMIN_PASSWORD=__ADMIN_PASSWORD__
 Environment=MAX_UPLOAD_MB=8
+Environment=IMAGE_MAX_PX=1440
+Environment=IMAGE_QUALITY=68
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=3

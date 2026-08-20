@@ -7,10 +7,13 @@ const { Server } = require("socket.io");
 const { randomUUID } = require("crypto");
 const helmet = require("helmet");
 const webpush = require("web-push");
+const sharp = require("sharp");
 
 const PORT = Number(process.env.PORT) || 3847;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "change-me";
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 5;
+const IMAGE_MAX_PX = Number(process.env.IMAGE_MAX_PX) || 1440;
+const IMAGE_QUALITY = Number(process.env.IMAGE_QUALITY) || 68;
 const DATA_DIR = path.join(__dirname, "data");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
@@ -315,16 +318,7 @@ function snapshot() {
   return { messages, pinned };
 }
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname || "").toLowerCase();
-    const safeExt = [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext)
-      ? ext
-      : ".jpg";
-    cb(null, `${Date.now()}-${randomUUID()}${safeExt}`);
-  },
-});
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -336,6 +330,41 @@ const upload = multer({
     cb(null, true);
   },
 });
+
+async function compressImageBuffer(buffer) {
+  const base = sharp(buffer, { failOn: "none" })
+    .rotate()
+    .resize({
+      width: IMAGE_MAX_PX,
+      height: IMAGE_MAX_PX,
+      fit: "inside",
+      withoutEnlargement: true,
+    });
+
+  try {
+    const webp = await base
+      .clone()
+      .webp({ quality: IMAGE_QUALITY, effort: 4, smartSubsample: true })
+      .toBuffer({ resolveWithObject: true });
+    if (webp.info.size > 0) {
+      return { buffer: webp.data, ext: ".webp", mime: "image/webp" };
+    }
+  } catch (err) {
+    console.warn("webp compress failed, falling back to jpeg:", err.message);
+  }
+
+  const jpeg = await sharp(buffer, { failOn: "none" })
+    .rotate()
+    .resize({
+      width: IMAGE_MAX_PX,
+      height: IMAGE_MAX_PX,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: Math.min(82, IMAGE_QUALITY + 8), mozjpeg: true })
+    .toBuffer({ resolveWithObject: true });
+  return { buffer: jpeg.data, ext: ".jpg", mime: "image/jpeg" };
+}
 
 const app = express();
 app.use(
@@ -390,7 +419,7 @@ app.get("/api/random-name", (_req, res) => {
 });
 
 app.post("/api/upload", (req, res) => {
-  upload.single("photo")(req, res, (err) => {
+  upload.single("photo")(req, res, async (err) => {
     if (err) {
       const message =
         err.code === "LIMIT_FILE_SIZE"
@@ -398,10 +427,34 @@ app.post("/api/upload", (req, res) => {
           : err.message || "Ошибка загрузки";
       return res.status(400).json({ error: message });
     }
-    if (!req.file) {
+    if (!req.file?.buffer?.length) {
       return res.status(400).json({ error: "Файл не получен" });
     }
-    res.json({ imageUrl: `/uploads/${req.file.filename}` });
+    try {
+      const compressed = await compressImageBuffer(req.file.buffer);
+      // Keep original only if somehow much smaller (rare for phone photos).
+      let outBuf = compressed.buffer;
+      let ext = compressed.ext;
+      if (req.file.buffer.length + 2048 < outBuf.length) {
+        const origExt = path.extname(req.file.originalname || "").toLowerCase();
+        const safeExt = [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(origExt)
+          ? origExt
+          : ".jpg";
+        outBuf = req.file.buffer;
+        ext = safeExt === ".jpeg" ? ".jpg" : safeExt;
+      }
+      const filename = `${Date.now()}-${randomUUID()}${ext}`;
+      const dest = path.join(UPLOAD_DIR, filename);
+      await fs.promises.writeFile(dest, outBuf);
+      res.json({
+        imageUrl: `/uploads/${filename}`,
+        bytes: outBuf.length,
+        originalBytes: req.file.buffer.length,
+      });
+    } catch (compressErr) {
+      console.error("compress failed:", compressErr.message);
+      res.status(400).json({ error: "Не удалось обработать изображение" });
+    }
   });
 });
 
