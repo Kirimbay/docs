@@ -57,20 +57,36 @@
     }
   }
 
+  function lockPageScroll() {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
+
   function syncViewportHeight() {
     const vv = window.visualViewport;
-    const h = vv ? vv.height : window.innerHeight;
-    document.documentElement.style.setProperty("--vvh", `${Math.round(h)}px`);
+    let inset = 0;
+    if (vv) {
+      // Space covered below the visible viewport (keyboard + Safari chrome).
+      inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    }
+    document.documentElement.style.setProperty("--kb-inset", `${inset}px`);
+    document.body.classList.toggle("keyboard-open", inset > 80);
+    lockPageScroll();
   }
 
   function autoSize() {
     messageInput.style.height = "auto";
-    const cap = Math.min(120, Math.round(window.innerHeight * 0.24));
-    messageInput.style.height = `${Math.min(messageInput.scrollHeight, cap)}px`;
+    const visible = window.visualViewport?.height || window.innerHeight;
+    const cap = Math.min(88, Math.round(visible * 0.18));
+    messageInput.style.height = `${Math.min(messageInput.scrollHeight, Math.max(44, cap))}px`;
   }
 
   syncViewportHeight();
   window.addEventListener("resize", syncViewportHeight);
+  window.addEventListener("orientationchange", () => {
+    setTimeout(syncViewportHeight, 150);
+  });
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", syncViewportHeight);
     window.visualViewport.addEventListener("scroll", syncViewportHeight);
@@ -285,11 +301,22 @@
   sendBtn.addEventListener("click", send);
   messageInput.addEventListener("input", autoSize);
   messageInput.addEventListener("focus", () => {
-    syncViewportHeight();
+    // iOS Safari scrolls the focused field; fight that and re-fit to keyboard.
     setTimeout(() => {
+      lockPageScroll();
+      syncViewportHeight();
       feed.scrollTop = feed.scrollHeight;
-      messageInput.scrollIntoView({ block: "nearest" });
     }, 50);
+    setTimeout(() => {
+      lockPageScroll();
+      syncViewportHeight();
+    }, 300);
+  });
+  messageInput.addEventListener("blur", () => {
+    setTimeout(() => {
+      lockPageScroll();
+      syncViewportHeight();
+    }, 100);
   });
   messageInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {

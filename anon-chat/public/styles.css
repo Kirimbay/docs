@@ -6,7 +6,6 @@
   --mist: rgba(232, 240, 234, 0.08);
   --line: rgba(232, 240, 234, 0.14);
   --accent: #d9772f;
-  --accent-deep: #b85a18;
   --ok: #6fbf8a;
   --danger: #e26d5a;
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
@@ -15,8 +14,8 @@
   --font-body: "Instrument Sans", system-ui, sans-serif;
   --app-max: 760px;
   --pad-x: clamp(0.75rem, 3vw, 1rem);
-  --composer-h: auto;
-  --vvh: 100dvh;
+  --kb-inset: 0px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 *,
@@ -25,22 +24,33 @@
   box-sizing: border-box;
 }
 
-html {
+html,
+body {
   margin: 0;
+  width: 100%;
   height: 100%;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
 
+html {
+  overflow: hidden;
+}
+
 body {
-  margin: 0;
-  min-height: var(--vvh);
-  height: var(--vvh);
   font-family: var(--font-body);
   color: var(--paper);
   background: var(--ink);
   overflow: hidden;
   overscroll-behavior: none;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+body.keyboard-open {
+  --safe-bottom: 0px;
 }
 
 .atmosphere {
@@ -52,6 +62,7 @@ body {
     radial-gradient(ellipse 70% 50% at 100% 10%, rgba(72, 140, 110, 0.22), transparent 50%),
     radial-gradient(ellipse 60% 40% at 50% 100%, rgba(18, 40, 34, 0.9), transparent 60%),
     linear-gradient(165deg, #0d1714 0%, #15251f 45%, #0f1b17 100%);
+  pointer-events: none;
 }
 
 .atmosphere::after {
@@ -85,17 +96,11 @@ button {
   font-weight: 600;
   border-radius: 999px;
   padding: 0.85rem 1.4rem;
-  transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
   box-shadow: 0 10px 30px rgba(217, 119, 47, 0.25);
 }
 
 .primary:hover {
   background: #e8893d;
-  transform: translateY(-1px);
-}
-
-.primary:active {
-  transform: translateY(0);
 }
 
 .primary.compact {
@@ -106,7 +111,7 @@ button {
   min-height: 2.75rem;
   display: inline-grid;
   place-items: center;
-  flex-shrink: 0;
+  flex: 0 0 auto;
 }
 
 .ghost {
@@ -115,8 +120,7 @@ button {
   border-radius: 999px;
   padding: 0.7rem 1rem;
   color: var(--paper);
-  transition: background 0.18s ease, border-color 0.18s ease;
-  flex-shrink: 0;
+  flex: 0 0 auto;
 }
 
 .ghost:hover {
@@ -152,7 +156,6 @@ button {
   border-radius: 14px;
   padding: 0.85rem 1rem;
   outline: none;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .field input:focus,
@@ -177,13 +180,21 @@ button {
 
 /* Gate */
 .gate {
-  min-height: var(--vvh);
-  height: var(--vvh);
-  display: grid;
-  place-items: center;
-  padding: max(1rem, env(safe-area-inset-top)) var(--pad-x) max(1rem, env(safe-area-inset-bottom));
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--kb-inset);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) var(--pad-x) max(1rem, var(--safe-bottom));
   overflow: auto;
-  animation: rise 0.55s ease both;
+  z-index: 5;
+}
+
+.gate[hidden] {
+  display: none !important;
 }
 
 .gate-inner {
@@ -206,7 +217,6 @@ button {
 
 .gate h1 {
   margin: 0;
-  font-family: var(--font-body);
   font-size: clamp(1rem, 3.5vw, 1.15rem);
   font-weight: 500;
   color: var(--paper-dim);
@@ -222,7 +232,6 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.5rem;
-  align-items: stretch;
 }
 
 #join-btn {
@@ -230,18 +239,28 @@ button {
   width: 100%;
 }
 
-/* App shell — composer always visible */
+/*
+  App shell fills the layout viewport minus keyboard inset.
+  bottom: var(--kb-inset) lifts the whole UI above the iOS keyboard.
+*/
 .app {
-  width: min(100%, var(--app-max));
-  height: var(--vvh);
-  max-height: var(--vvh);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--kb-inset);
+  width: 100%;
+  max-width: var(--app-max);
   margin: 0 auto;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  min-height: 0;
   overflow: hidden;
-  animation: rise 0.4s ease both;
+  z-index: 1;
+}
+
+.app[hidden] {
+  display: none !important;
 }
 
 .topbar {
@@ -249,15 +268,11 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding:
-    max(0.65rem, env(safe-area-inset-top))
-    var(--pad-x)
-    0.65rem;
+  flex: 0 0 auto;
+  padding: max(0.55rem, env(safe-area-inset-top)) var(--pad-x) 0.55rem;
   border-bottom: 1px solid var(--line);
-  backdrop-filter: blur(10px);
-  background: rgba(13, 23, 20, 0.72);
+  background: rgba(13, 23, 20, 0.92);
   min-width: 0;
-  z-index: 3;
 }
 
 .topbar-brand {
@@ -270,7 +285,7 @@ button {
 }
 
 .brand-mark {
-  font-size: clamp(1.25rem, 4.5vw, 1.55rem);
+  font-size: clamp(1.2rem, 4.5vw, 1.5rem);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -282,7 +297,6 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
 }
 
 .topbar-actions {
@@ -292,57 +306,63 @@ button {
 }
 
 .pins {
-  padding: 0.55rem var(--pad-x) 0.2rem;
+  flex: 0 1 auto;
+  max-height: 28%;
+  padding: 0.5rem var(--pad-x) 0.15rem;
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(217, 119, 47, 0.12), transparent);
-  animation: fade-in 0.35s ease both;
   min-width: 0;
-  min-height: 0;
-  z-index: 2;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.pins[hidden] {
+  display: none !important;
 }
 
 .pins h2 {
-  margin: 0 0 0.4rem;
+  margin: 0 0 0.35rem;
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent);
   font-weight: 600;
+  flex: 0 0 auto;
 }
 
 .pins-list {
   display: grid;
-  gap: 0.5rem;
-  max-height: min(22vh, 180px);
+  gap: 0.45rem;
   overflow: auto;
   overscroll-behavior: contain;
-  padding-bottom: 0.45rem;
+  padding-bottom: 0.4rem;
+  min-height: 0;
   min-width: 0;
   -webkit-overflow-scrolling: touch;
 }
 
 .feed {
+  flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0.85rem var(--pad-x) 1rem;
+  padding: 0.75rem var(--pad-x);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  scroll-behavior: smooth;
+  gap: 0.65rem;
   -webkit-overflow-scrolling: touch;
 }
 
 .msg {
   display: grid;
-  gap: 0.35rem;
-  padding: 0.7rem 0.85rem;
+  gap: 0.3rem;
+  padding: 0.65rem 0.8rem;
   border-radius: var(--radius);
   background: rgba(232, 240, 234, 0.05);
   border: 1px solid transparent;
-  animation: msg-in 0.28s ease both;
   max-width: 100%;
   width: 100%;
   min-width: 0;
@@ -365,19 +385,18 @@ button {
 .msg-meta {
   display: flex;
   align-items: baseline;
-  gap: 0.55rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
   min-width: 0;
 }
 
 .msg-name {
   font-weight: 600;
-  font-size: 0.92rem;
-  overflow-wrap: anywhere;
+  font-size: 0.9rem;
 }
 
 .msg-time {
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   color: var(--paper-dim);
   flex-shrink: 0;
 }
@@ -388,7 +407,6 @@ button {
   overflow-wrap: anywhere;
   word-break: break-word;
   line-height: 1.45;
-  max-width: 100%;
   min-width: 0;
 }
 
@@ -396,12 +414,11 @@ button {
   display: block;
   max-width: 100%;
   width: min(100%, 360px);
-  max-height: min(40vh, 280px);
+  max-height: min(36vh, 260px);
   height: auto;
   object-fit: cover;
   border-radius: 12px;
   cursor: zoom-in;
-  margin-top: 0.25rem;
 }
 
 .msg-actions {
@@ -419,27 +436,16 @@ button {
   color: var(--paper-dim);
 }
 
-.msg-actions button:hover {
-  color: var(--paper);
-  border-color: rgba(232, 240, 234, 0.35);
-}
-
 .msg-actions .danger:hover {
   color: var(--danger);
-  border-color: rgba(226, 109, 90, 0.45);
 }
 
 .composer {
-  position: relative;
+  flex: 0 0 auto;
   z-index: 4;
-  flex-shrink: 0;
-  padding:
-    0.65rem
-    var(--pad-x)
-    calc(0.7rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.55rem var(--pad-x) calc(0.55rem + var(--safe-bottom));
   border-top: 1px solid var(--line);
-  background: rgba(13, 23, 20, 0.92);
-  backdrop-filter: blur(14px);
+  background: rgba(13, 23, 20, 0.98);
   min-width: 0;
 }
 
@@ -447,14 +453,13 @@ button {
   position: relative;
   width: fit-content;
   max-width: 100%;
-  margin-bottom: 0.55rem;
-  animation: fade-in 0.25s ease both;
+  margin-bottom: 0.45rem;
 }
 
 .preview img {
   display: block;
-  max-height: 96px;
-  max-width: min(160px, 40vw);
+  max-height: 88px;
+  max-width: min(150px, 40vw);
   border-radius: 12px;
   object-fit: cover;
 }
@@ -467,16 +472,14 @@ button {
   height: 1.75rem;
   min-width: 1.75rem;
   padding: 0;
-  line-height: 1;
   display: inline-grid;
   place-items: center;
 }
 
 .composer-row {
-  display: grid;
-  grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
-  gap: 0.45rem;
-  align-items: end;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
   min-width: 0;
 }
 
@@ -492,25 +495,19 @@ button {
   background: var(--mist);
   font-size: 1.25rem;
   line-height: 1;
-  transition: background 0.18s ease;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   user-select: none;
-}
-
-.attach:hover {
-  background: rgba(232, 240, 234, 0.14);
 }
 
 .composer textarea {
   resize: none;
-  min-height: 2.75rem;
-  max-height: min(7.5rem, 28vh);
-  line-height: 1.35;
-  padding: 0.7rem 0.85rem;
+  flex: 1 1 auto;
   min-width: 0;
-  width: 100%;
+  min-height: 2.75rem;
+  max-height: 5.5rem;
+  line-height: 1.35;
+  padding: 0.65rem 0.8rem;
   overflow-y: auto;
-  field-sizing: content;
 }
 
 .dialog {
@@ -520,27 +517,25 @@ button {
   background: var(--ink-soft);
   color: var(--paper);
   width: min(380px, calc(100vw - 2rem));
-  max-height: min(90dvh, 90vh);
+  max-height: 85vh;
   overflow: auto;
   box-shadow: var(--shadow);
 }
 
 .dialog::backdrop {
   background: rgba(4, 10, 8, 0.72);
-  backdrop-filter: blur(4px);
 }
 
 .dialog form {
   display: grid;
   gap: 0.85rem;
   padding: 1.25rem;
-  min-width: 0;
 }
 
 .dialog h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(1.35rem, 5vw, 1.6rem);
+  font-size: 1.45rem;
 }
 
 .dialog p {
@@ -560,9 +555,8 @@ button {
   border: 0;
   padding: 0;
   max-width: min(96vw, 960px);
-  max-height: 92dvh;
+  max-height: 90vh;
   background: transparent;
-  overflow: visible;
 }
 
 .lightbox::backdrop {
@@ -572,9 +566,7 @@ button {
 .lightbox img {
   display: block;
   max-width: min(96vw, 960px);
-  max-height: 85dvh;
-  width: auto;
-  height: auto;
+  max-height: 82vh;
   object-fit: contain;
   border-radius: 12px;
   margin: 0 auto;
@@ -586,11 +578,9 @@ button {
   right: max(0.75rem, env(safe-area-inset-right));
   width: 2.5rem;
   height: 2.5rem;
-  min-width: 2.5rem;
-  font-size: 1.4rem;
-  z-index: 2;
   display: inline-grid;
   place-items: center;
+  z-index: 2;
 }
 
 .admin-on #admin-btn {
@@ -598,38 +588,6 @@ button {
   color: var(--ok);
 }
 
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes msg-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-/* Phones / narrow */
 @media (max-width: 640px) {
   .name-row {
     grid-template-columns: 1fr;
@@ -638,44 +596,11 @@ button {
   .msg.mine {
     width: 100%;
   }
-
-  .pins-list {
-    max-height: min(18vh, 140px);
-  }
-
-  .topbar-actions .ghost.compact {
-    padding: 0.45rem 0.65rem;
-  }
-
-  .composer textarea {
-    max-height: min(6.5rem, 24vh);
-  }
 }
 
-/* Very small phones */
-@media (max-width: 380px) {
-  .brand-mark {
-    font-size: 1.2rem;
-  }
-
-  .topbar-actions .ghost.compact {
-    padding: 0.4rem 0.55rem;
-    font-size: 0.8rem;
-  }
-
-  .composer-row {
-    gap: 0.35rem;
-  }
-}
-
-/* Short landscape / keyboard open (small visual height) */
-@media (max-height: 520px) {
-  .pins-list {
-    max-height: 72px;
-  }
-
-  .brand-mark {
-    font-size: 1.15rem;
+@media (max-height: 500px) {
+  .pins {
+    max-height: 20%;
   }
 
   .presence {
@@ -683,20 +608,6 @@ button {
   }
 
   .composer textarea {
-    max-height: 4.5rem;
-  }
-
-  .gate {
-    place-items: start center;
-    padding-top: 1rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
+    max-height: 3.8rem;
   }
 }

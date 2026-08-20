@@ -138,7 +138,17 @@ app.use(
 );
 app.use(express.json({ limit: "32kb" }));
 app.use("/uploads", express.static(UPLOAD_DIR, { maxAge: "1d" }));
-app.use(express.static(path.join(__dirname, "public")));
+app.use(
+  express.static(path.join(__dirname, "public"), {
+    etag: false,
+    lastModified: false,
+    setHeaders(res, filePath) {
+      if (/\.(html|css|js)$/i.test(filePath)) {
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      }
+    },
+  })
+);
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
