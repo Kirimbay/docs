@@ -28,8 +28,6 @@
   const replyBarLabel = $("#reply-bar-label");
   const replyBarPreview = $("#reply-bar-preview");
   const replyCancelBtn = $("#reply-cancel-btn");
-  const emojiBtn = $("#emoji-btn");
-  const emojiPanel = $("#emoji-panel");
   const renameBtn = $("#rename-btn");
   const renameDialog = $("#rename-dialog");
   const renameInput = $("#rename-input");
@@ -76,7 +74,6 @@
   const MAX_DM_ROOMS = 24;
   const ADMIN_TOKEN_KEY = "sarafan_admin_token";
   const PREV_NAME_KEY = "sarafan_prev_name";
-  const EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😢", "👍", "❤️", "🔥", "🎉"];
   const REACTIONS = [
     { emoji: "😊", title: "смайл" },
     { emoji: "❤️", title: "любовь" },
@@ -414,17 +411,12 @@
     showDmDialogError("");
     if (dmCreatedBox) dmCreatedBox.hidden = true;
     renderDmRoomsList();
-    if (dmCodeInput) {
-      dmCodeInput.value = "";
-      keepDialogAboveKeyboard(dmDialog, dmCodeInput);
-    }
+    if (dmCodeInput) dmCodeInput.value = "";
     dmDialog.showModal();
+    layoutDmDialog();
+    keepDialogAboveKeyboard(dmDialog, dmCodeInput);
     const rooms = loadDmRooms();
-    if (rooms.length) {
-      /* focus stays on dialog; list is primary */
-    } else {
-      dmCodeInput?.focus();
-    }
+    if (!rooms.length) dmCodeInput?.focus();
   }
 
   async function fetchRandomName(targetInput = nameInput) {
@@ -678,6 +670,9 @@
     if (!dialog) return;
     const bump = () => {
       syncViewportHeight();
+      if (dialog.classList.contains("dm-dialog") && dialog.open) {
+        layoutDmDialog();
+      }
       if (focusEl && typeof focusEl.scrollIntoView === "function") {
         try {
           focusEl.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -691,6 +686,33 @@
     setTimeout(bump, 80);
     setTimeout(bump, 280);
     setTimeout(bump, 500);
+  }
+
+  function layoutDmDialog() {
+    if (!dmDialog?.open) return;
+    const vv = window.visualViewport;
+    const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
+    const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
+    const pad = 8;
+    dmDialog.style.top = `${vvTop + pad}px`;
+    dmDialog.style.left = "50%";
+    dmDialog.style.right = "auto";
+    dmDialog.style.bottom = "auto";
+    dmDialog.style.transform = "translateX(-50%)";
+    dmDialog.style.maxHeight = `${Math.max(160, vvH - pad * 2)}px`;
+    dmDialog.style.width = `min(400px, calc(100vw - 1.2rem))`;
+    // Keep the pin row visible above the keyboard.
+    const body = dmDialog.querySelector(".dialog-body");
+    if (body && dmCodeInput) {
+      const inputRect = dmCodeInput.getBoundingClientRect();
+      const dialogRect = dmDialog.getBoundingClientRect();
+      const limit = vvTop + vvH - 12;
+      if (inputRect.bottom > limit) {
+        body.scrollTop += inputRect.bottom - limit + 10;
+      } else if (inputRect.top < dialogRect.top + 8) {
+        body.scrollTop = Math.max(0, body.scrollTop - (dialogRect.top + 8 - inputRect.top));
+      }
+    }
   }
 
   function autoSize() {
@@ -1556,7 +1578,10 @@
     if (savedDm && !dmCode) {
       socket.emit("dm:join", { code: savedDm }, (res) => {
         if (res?.ok) enterDmMode(res);
-        else saveDmCode("");
+        else {
+          saveDmCode("");
+          if (/не найдена|проверьте код/i.test(res?.error || "")) forgetDmRoom(savedDm);
+        }
       });
     }
   }
@@ -1604,63 +1629,6 @@
   function clearReply() {
     pendingReply = null;
     replyBar.hidden = true;
-  }
-
-  function insertEmoji(emoji) {
-    const start = messageInput.selectionStart ?? messageInput.value.length;
-    const end = messageInput.selectionEnd ?? messageInput.value.length;
-    const value = messageInput.value;
-    messageInput.value = value.slice(0, start) + emoji + value.slice(end);
-    const pos = start + emoji.length;
-    // Keep selection for the next emoji without focusing (no iOS keyboard).
-    try {
-      messageInput.setSelectionRange(pos, pos);
-    } catch {
-      /* ignore */
-    }
-    autoSize();
-  }
-
-  function closeEmojiPanel() {
-    emojiPanel.hidden = true;
-    emojiBtn.classList.remove("active");
-  }
-
-  function openEmojiPanel() {
-    // Close keyboard first so the strip is not buried under iOS keyboard.
-    messageInput.blur();
-    emojiPanel.hidden = false;
-    emojiBtn.classList.add("active");
-    setTimeout(() => {
-      lockPageScroll();
-      syncViewportHeight();
-    }, 50);
-  }
-
-  function buildEmojiPanel() {
-    emojiPanel.replaceChildren();
-    for (const emoji of EMOJIS) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "emoji-btn-item";
-      const glyph = document.createElement("span");
-      glyph.className = "emoji-glyph";
-      glyph.textContent = emoji;
-      btn.append(glyph);
-      // Prevent focus steal / keyboard open on iOS.
-      btn.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
-        btn.classList.add("is-pressed");
-      });
-      btn.addEventListener("pointerup", () => btn.classList.remove("is-pressed"));
-      btn.addEventListener("pointercancel", () => btn.classList.remove("is-pressed"));
-      btn.addEventListener("pointerleave", () => btn.classList.remove("is-pressed"));
-      btn.addEventListener("click", () => {
-        insertEmoji(emoji);
-        // Leave the strip open for more picks; do not focus the textarea.
-      });
-      emojiPanel.append(btn);
-    }
   }
 
   async function uploadPhoto(file) {
@@ -1714,7 +1682,6 @@
       autoSize();
       clearPreview();
       clearReply();
-      closeEmojiPanel();
       composerHint.textContent = "";
     });
   }
@@ -1768,12 +1735,6 @@
 
   sendBtn.addEventListener("click", send);
   replyCancelBtn.addEventListener("click", clearReply);
-  emojiBtn.addEventListener("pointerdown", (e) => e.preventDefault());
-  emojiBtn.addEventListener("click", () => {
-    if (emojiPanel.hidden) openEmojiPanel();
-    else closeEmojiPanel();
-  });
-  buildEmojiPanel();
 
   messageInput.addEventListener("input", autoSize);
   messageInput.addEventListener("focus", () => {
@@ -1846,6 +1807,7 @@
 
   const onPinsViewport = () => {
     if (pinsDialog.open) layoutPinsDialog();
+    if (dmDialog?.open) layoutDmDialog();
   };
   window.addEventListener("resize", onPinsViewport);
   if (window.visualViewport) {
@@ -1989,6 +1951,14 @@
       e.preventDefault();
       joinDmFromInput();
     }
+  });
+  dmDialog?.addEventListener("close", () => {
+    dmDialog.style.top = "";
+    dmDialog.style.bottom = "";
+    dmDialog.style.height = "";
+    dmDialog.style.maxHeight = "";
+    dmDialog.style.width = "";
+    dmDialog.style.transform = "";
   });
   dmCodeInput?.addEventListener("focus", () => keepDialogAboveKeyboard(dmDialog, dmCodeInput));
   dmLeaveBtn?.addEventListener("click", () => leaveDmMode());
