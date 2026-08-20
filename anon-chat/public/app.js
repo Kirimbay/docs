@@ -674,24 +674,39 @@
     if (dialog.classList.contains("pins-dialog") || dialog.classList.contains("lightbox")) return;
     const vv = window.visualViewport;
     const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
-    const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
+    const active = document.activeElement;
+    const inputFocused =
+      active === adminPassword ||
+      active === renameInput ||
+      active === dmCodeInput ||
+      (dialog.contains(active) && (active?.tagName === "INPUT" || active?.tagName === "TEXTAREA"));
+    // Without a focused field, keep a stable full-sheet size (no keyboard shrink/jump).
+    const vvH = inputFocused && vv
+      ? Math.round(vv.height)
+      : Math.round((vv?.height || window.innerHeight));
     const pad = 8;
     dialog.style.top = `${vvTop + pad}px`;
     dialog.style.left = "50%";
     dialog.style.right = "auto";
     dialog.style.bottom = "auto";
     dialog.style.transform = "translateX(-50%)";
-    dialog.style.maxHeight = `${Math.max(140, vvH - pad * 2)}px`;
+    dialog.style.maxHeight = `${Math.max(inputFocused ? 160 : 240, vvH - pad * 2)}px`;
     dialog.style.margin = "0";
   }
 
   function keepDialogAboveKeyboard(dialog, focusEl) {
     if (!dialog) return;
+    // Only chase the keyboard when the field is actually focused.
+    if (focusEl && document.activeElement !== focusEl) {
+      layoutFormDialog(dialog);
+      return;
+    }
     const bump = () => {
+      if (!dialog.open) return;
       syncViewportHeight();
       layoutFormDialog(dialog);
       if (dialog.classList.contains("dm-dialog")) layoutDmDialog();
-      if (focusEl && typeof focusEl.scrollIntoView === "function") {
+      if (focusEl && document.activeElement === focusEl && typeof focusEl.scrollIntoView === "function") {
         try {
           focusEl.scrollIntoView({ block: "nearest", inline: "nearest" });
         } catch {
@@ -1829,6 +1844,8 @@
   const onPinsViewport = () => {
     if (pinsDialog.open) layoutPinsDialog();
     if (dmDialog?.open) layoutDmDialog();
+    if (renameDialog?.open) layoutFormDialog(renameDialog);
+    if (adminDialog?.open) layoutFormDialog(adminDialog);
   };
   window.addEventListener("resize", onPinsViewport);
   if (window.visualViewport) {
@@ -1903,15 +1920,35 @@
   });
 
   function openAdminDialog() {
+    meTapCount = 0;
+    if (meTapTimer) {
+      clearTimeout(meTapTimer);
+      meTapTimer = null;
+    }
+    if (meRenameTimer) {
+      clearTimeout(meRenameTimer);
+      meRenameTimer = null;
+    }
     if (adminError) adminError.hidden = true;
-    if (adminPassword) adminPassword.value = "";
+    if (adminPassword) {
+      adminPassword.value = "";
+      try {
+        adminPassword.blur();
+      } catch {
+        /* ignore */
+      }
+    }
+    // Blur whatever stole focus (e.g. the nick button) so the keyboard stays down.
+    try {
+      if (document.activeElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
+    } catch {
+      /* ignore */
+    }
     adminDialog.showModal();
     layoutFormDialog(adminDialog);
-    requestAnimationFrame(() => {
-      layoutFormDialog(adminDialog);
-      adminPassword?.focus();
-      keepDialogAboveKeyboard(adminDialog, adminPassword);
-    });
+    requestAnimationFrame(() => layoutFormDialog(adminDialog));
   }
 
   function submitAdminLogin() {
@@ -1947,6 +1984,9 @@
   const ME_RENAME_DELAY_MS = 320;
 
   meBtn?.addEventListener("click", () => {
+    // Ignore stray taps while the admin sheet is already open.
+    if (adminDialog?.open) return;
+
     meTapCount += 1;
     if (meTapTimer) clearTimeout(meTapTimer);
     if (meRenameTimer) clearTimeout(meRenameTimer);
@@ -1973,7 +2013,15 @@
     }
   });
 
-  adminPassword?.addEventListener("focus", () => keepDialogAboveKeyboard(adminDialog, adminPassword));
+  adminPassword?.addEventListener("focus", () => {
+    // Keyboard only after the user taps the password field.
+    keepDialogAboveKeyboard(adminDialog, adminPassword);
+  });
+  adminPassword?.addEventListener("blur", () => {
+    if (adminDialog?.open) {
+      requestAnimationFrame(() => layoutFormDialog(adminDialog));
+    }
+  });
   adminCancelBtn?.addEventListener("click", () => adminDialog?.close());
   adminSubmit?.addEventListener("click", (e) => {
     e.preventDefault();
