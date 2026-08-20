@@ -101,6 +101,9 @@
   let deleteArmedId = null;
   let deleteArmedTimer = null;
   const DELETE_ARM_MS = 1000;
+  let unpinArmedId = null;
+  let unpinArmedTimer = null;
+  const UNPIN_ARM_MS = 1000;
 
   function clearDeleteArm() {
     if (deleteArmedTimer) {
@@ -113,6 +116,19 @@
       btn.title = "Нажмите дважды, чтобы удалить";
     });
     if (composerHint.textContent.includes("✕")) composerHint.textContent = "";
+  }
+
+  function clearUnpinArm() {
+    if (unpinArmedTimer) {
+      clearTimeout(unpinArmedTimer);
+      unpinArmedTimer = null;
+    }
+    unpinArmedId = null;
+    document.querySelectorAll(".pins-unpin.armed").forEach((btn) => {
+      btn.classList.remove("armed");
+      btn.title = "Нажмите дважды, чтобы открепить";
+    });
+    if (composerHint.textContent.includes("📌")) composerHint.textContent = "";
   }
 
   function loadSavedName() {
@@ -594,19 +610,27 @@
   }
 
   function closePinsList() {
+    clearUnpinArm();
     if (pinsDialog.open) pinsDialog.close();
   }
 
   function openPinsList() {
     const list = visiblePins();
     if (!list.length) return;
+    clearUnpinArm();
     pinsList.replaceChildren();
     list.forEach((msg, index) => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "pins-picker-item" + (index === pinCycleIndex ? " current" : "");
-      item.setAttribute("role", "option");
-      item.setAttribute("aria-selected", index === pinCycleIndex ? "true" : "false");
+      const row = document.createElement("div");
+      row.className =
+        "pins-picker-item" +
+        (index === pinCycleIndex ? " current" : "") +
+        (isAdmin ? " has-unpin" : "");
+      row.setAttribute("role", "option");
+      row.setAttribute("aria-selected", index === pinCycleIndex ? "true" : "false");
+
+      const main = document.createElement("button");
+      main.type = "button";
+      main.className = "pins-picker-main";
 
       const name = document.createElement("span");
       name.className = "pins-picker-name";
@@ -620,14 +644,59 @@
       meta.className = "pins-picker-meta";
       meta.textContent = formatTime(msg.createdAt);
 
-      item.append(name, preview, meta);
-      item.addEventListener("click", () => {
+      main.append(name, preview, meta);
+      main.addEventListener("click", () => {
         pinCycleIndex = index;
         updatePinBar();
         closePinsList();
         scrollToPinnedMessage(msg);
       });
-      pinsList.append(item);
+      row.append(main);
+
+      if (isAdmin) {
+        const unpinBtn = document.createElement("button");
+        unpinBtn.type = "button";
+        unpinBtn.className = "pins-unpin";
+        unpinBtn.textContent = "📌";
+        unpinBtn.title = "Нажмите дважды, чтобы открепить";
+        unpinBtn.setAttribute("aria-label", "Открепить");
+        if (unpinArmedId === msg.id) unpinBtn.classList.add("armed");
+        unpinBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (unpinArmedId === msg.id) {
+            clearUnpinArm();
+            socket.emit("admin:unpin", { id: msg.id }, (res) => {
+              if (!res?.ok) {
+                composerHint.textContent = res?.error || "Не открепилось";
+                return;
+              }
+              lastState.pinned = (lastState.pinned || []).filter((m) => m.id !== msg.id);
+              const inMessages = (lastState.messages || []).find((m) => m.id === msg.id);
+              if (inMessages) inMessages.pinned = false;
+              updatePinBar();
+              if (visiblePins().length) openPinsList();
+              else closePinsList();
+              renderAll(lastState);
+              composerHint.textContent = "Сообщение откреплено";
+            });
+            return;
+          }
+          clearUnpinArm();
+          clearDeleteArm();
+          unpinArmedId = msg.id;
+          unpinBtn.classList.add("armed");
+          unpinBtn.title = "Ещё раз — открепить";
+          composerHint.textContent = "Нажмите 📌 ещё раз в течение 1 с";
+          unpinArmedTimer = setTimeout(() => {
+            if (unpinArmedId !== msg.id) return;
+            clearUnpinArm();
+          }, UNPIN_ARM_MS);
+        });
+        row.append(unpinBtn);
+      }
+
+      pinsList.append(row);
     });
     if (!pinsDialog.open) pinsDialog.showModal();
   }
@@ -1418,6 +1487,10 @@
   socket.on("chat:state", (state) => {
     if (dmCode) return;
     renderAll(state);
+    if (pinsDialog?.open) {
+      if (visiblePins().length) openPinsList();
+      else closePinsList();
+    }
   });
 
   socket.on("chat:message-removed", ({ id } = {}) => {

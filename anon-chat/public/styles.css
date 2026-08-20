@@ -1261,6 +1261,35 @@ body.keyboard-open .dialog {
 
 .pins-picker-item {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "main unpin";
+  gap: 0.35rem;
+  align-items: stretch;
+  width: 100%;
+  margin: 0;
+  padding: 0.2rem 0.2rem 0.2rem 0.2rem;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--bg-elev);
+  color: inherit;
+  min-width: 0;
+}
+
+.pins-picker-item:not(.has-unpin) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "main";
+}
+
+.pins-picker-item:hover,
+.pins-picker-item.current {
+  border-color: #4a6478;
+  background: #1e2429;
+}
+
+.pins-picker-main {
+  grid-area: main;
+  display: grid;
   grid-template-columns: 1fr auto;
   grid-template-areas:
     "name meta"
@@ -1268,20 +1297,14 @@ body.keyboard-open .dialog {
   gap: 0.12rem 0.55rem;
   width: 100%;
   margin: 0;
-  padding: 0.65rem 0.7rem;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: var(--bg-elev);
+  padding: 0.5rem 0.55rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
   min-width: 0;
-}
-
-.pins-picker-item:hover,
-.pins-picker-item.current {
-  border-color: #4a6478;
-  background: #1e2429;
 }
 
 .pins-picker-name {
@@ -1311,6 +1334,38 @@ body.keyboard-open .dialog {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.pins-unpin {
+  grid-area: unpin;
+  align-self: center;
+  flex: 0 0 auto;
+  width: 2.2rem;
+  height: 2.2rem;
+  min-width: 2.2rem;
+  margin: 0 0.15rem 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pins-unpin:hover {
+  color: #e08a8a;
+  background: rgba(217, 106, 106, 0.12);
+}
+
+.pins-unpin.armed,
+.pins-unpin.armed:hover {
+  color: #fff;
+  background: #d96a6a;
 }
 
 .user-row {
