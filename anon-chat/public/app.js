@@ -1022,9 +1022,23 @@
     lastState.messages = [...(lastState.messages || []), msg];
     if (!passesFilter(msg)) return;
     const nearBottom = isNearBottom(120);
-    feed.append(renderMessage(msg));
-    if (nearBottom || msg.name === myName) {
-      scrollFeedToBottom(false);
+    const el = renderMessage(msg);
+    el.classList.add("msg-enter");
+    feed.append(el);
+    el.addEventListener(
+      "animationend",
+      () => {
+        el.classList.remove("msg-enter");
+      },
+      { once: true }
+    );
+    const stick = nearBottom || msg.name === myName;
+    if (stick) {
+      scrollFeedToBottom(true);
+      const img = el.querySelector(".msg-photo");
+      if (img && !img.complete) {
+        img.addEventListener("load", () => scrollFeedToBottom(true), { once: true });
+      }
     } else {
       updateJumpBottom();
     }
@@ -1423,9 +1437,10 @@
 
   function joinDmFromInput() {
     showDmDialogError("");
-    const code = (dmCodeInput?.value || "").trim();
-    if (!code) {
-      showDmDialogError("Введите код");
+    const code = (dmCodeInput?.value || "").replace(/\D/g, "");
+    if (dmCodeInput) dmCodeInput.value = code;
+    if (code.length !== 6) {
+      showDmDialogError("Нужен код из 6 цифр");
       return;
     }
     socket.emit("dm:join", { code }, (res) => {
@@ -1461,6 +1476,10 @@
     });
   });
   dmJoinBtn?.addEventListener("click", joinDmFromInput);
+  dmCodeInput?.addEventListener("input", () => {
+    const digits = (dmCodeInput.value || "").replace(/\D/g, "").slice(0, 6);
+    if (dmCodeInput.value !== digits) dmCodeInput.value = digits;
+  });
   dmCodeInput?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();

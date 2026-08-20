@@ -282,7 +282,8 @@ function snapshot() {
   return { messages, pinned };
 }
 
-const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const ROOM_CODE_ALPHABET = "0123456789";
+const ROOM_CODE_LENGTH = 6;
 const MAX_ROOM_MESSAGES = 2000;
 const MAX_ROOM_MEMBERS = 2;
 
@@ -292,20 +293,25 @@ function ensureRooms() {
 
 function generateRoomCode() {
   ensureRooms();
-  for (let attempt = 0; attempt < 48; attempt += 1) {
+  for (let attempt = 0; attempt < 64; attempt += 1) {
     let code = "";
-    for (let i = 0; i < 6; i += 1) {
+    for (let i = 0; i < ROOM_CODE_LENGTH; i += 1) {
       code += ROOM_CODE_ALPHABET[Math.floor(Math.random() * ROOM_CODE_ALPHABET.length)];
     }
     if (!store.rooms[code]) return code;
   }
-  return randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
+  // Extremely unlikely fallback: sequential-ish numeric from time
+  for (let n = 0; n < 1000; n += 1) {
+    const code = String((Date.now() + n) % 1e6).padStart(ROOM_CODE_LENGTH, "0");
+    if (!store.rooms[code]) return code;
+  }
+  return String(Math.floor(Math.random() * 1e6)).padStart(ROOM_CODE_LENGTH, "0");
 }
 
 function normalizeRoomCode(raw) {
   if (typeof raw !== "string") return null;
-  const code = raw.replace(/\s+/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (code.length < 4 || code.length > 8) return null;
+  const code = raw.replace(/\s+/g, "").replace(/\D/g, "");
+  if (code.length !== ROOM_CODE_LENGTH) return null;
   return code;
 }
 
@@ -701,7 +707,7 @@ io.on("connection", (socket) => {
     }
     const code = normalizeRoomCode(payload.code);
     if (!code) {
-      if (typeof ack === "function") ack({ ok: false, error: "Введите код комнаты" });
+      if (typeof ack === "function") ack({ ok: false, error: "Нужен код из 6 цифр" });
       return;
     }
     ensureRooms();

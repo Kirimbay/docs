@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=52" />
+    <link rel="stylesheet" href="/styles.css?v=54" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -168,23 +168,25 @@
       <div class="dialog-body">
         <h2>Чат вдвоём</h2>
         <p>
-          Создайте комнату и передайте код второму человеку — или введите код, который вам дали.
+          Создайте комнату и передайте 6-значный код второму человеку — или введите код, который вам дали.
           Имена могут совпадать: вход только по коду. История сохраняется.
         </p>
         <div class="dm-dialog-actions">
           <button type="button" id="dm-create-btn" class="primary">Создать комнату</button>
         </div>
         <label class="field">
-          <span>Код комнаты</span>
+          <span>Код комнаты (6 цифр)</span>
           <div class="name-row">
             <input
               id="dm-code-input"
               type="text"
-              maxlength="8"
-              autocomplete="off"
-              autocapitalize="characters"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              maxlength="6"
+              autocomplete="one-time-code"
+              autocapitalize="off"
               spellcheck="false"
-              placeholder="Например: K7M2PQ"
+              placeholder="Например: 482913"
             />
             <button type="button" id="dm-join-btn" class="ghost">Войти</button>
           </div>
@@ -224,6 +226,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=52"></script>
+    <script src="/app.js?v=54"></script>
   </body>
 </html>

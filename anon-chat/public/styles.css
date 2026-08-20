@@ -22,6 +22,11 @@
   --app-height: 100dvh;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
+  --motion-fast: 180ms;
+  --motion: 300ms;
+  --motion-slow: 420ms;
 }
 
 *,
@@ -77,6 +82,13 @@ button {
   background: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  transition:
+    background-color var(--motion-fast) var(--ease-soft),
+    border-color var(--motion-fast) var(--ease-soft),
+    color var(--motion-fast) var(--ease-soft),
+    opacity var(--motion-fast) var(--ease-soft),
+    transform var(--motion-fast) var(--ease-soft),
+    box-shadow var(--motion-fast) var(--ease-soft);
 }
 
 .primary {
@@ -325,10 +337,25 @@ button {
   background: #18201c;
   color: #b7dcc4;
   flex-wrap: wrap;
+  max-height: 4rem;
+  opacity: 1;
+  overflow: hidden;
+  transition:
+    max-height var(--motion) var(--ease-out),
+    opacity var(--motion) var(--ease-out),
+    padding var(--motion) var(--ease-out),
+    visibility var(--motion);
 }
 
 .dm-bar[hidden] {
-  display: none !important;
+  display: flex !important;
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom-width: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .dm-bar-text {
@@ -401,10 +428,26 @@ body.admin-on #rename-btn {
   color: var(--ink-soft);
   font-size: 0.85rem;
   min-width: 0;
+  max-height: 3.5rem;
+  opacity: 1;
+  overflow: hidden;
+  transition:
+    max-height var(--motion) var(--ease-out),
+    opacity var(--motion) var(--ease-out),
+    padding var(--motion) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-soft),
+    visibility var(--motion);
 }
 
 .filter-bar[hidden] {
-  display: none !important;
+  display: flex !important;
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom-width: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .filter-bar-text {
@@ -430,14 +473,31 @@ body.admin-on #rename-btn {
   text-align: left;
   cursor: pointer;
   min-width: 0;
+  max-height: 4.5rem;
+  opacity: 1;
+  overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   touch-action: manipulation;
+  transition:
+    background-color var(--motion-fast) var(--ease-soft),
+    max-height var(--motion) var(--ease-out),
+    opacity var(--motion) var(--ease-out),
+    padding var(--motion) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-soft),
+    visibility var(--motion);
 }
 
 .pin-bar[hidden] {
-  display: none !important;
+  display: flex !important;
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom-width: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .pin-bar:hover {
@@ -568,16 +628,40 @@ body.admin-on #rename-btn {
   place-items: center;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(8px);
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity var(--motion) var(--ease-out),
+    transform var(--motion) var(--ease-out),
+    background-color var(--motion-fast) var(--ease-soft),
+    border-color var(--motion-fast) var(--ease-soft),
+    color var(--motion-fast) var(--ease-soft),
+    visibility var(--motion);
 }
 
 .jump-bottom[hidden] {
-  display: none !important;
+  display: grid !important;
+  opacity: 0;
+  transform: translateY(10px) scale(0.9);
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .jump-bottom:hover {
   background: #222426;
   border-color: #4a6478;
   color: #fff;
+}
+
+@keyframes msg-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .msg {
@@ -594,6 +678,11 @@ body.admin-on #rename-btn {
   word-break: break-word;
   color: var(--ink);
   overflow-anchor: none;
+}
+
+.msg.msg-enter {
+  animation: msg-enter var(--motion-slow) var(--ease-out) both;
+  will-change: transform, opacity;
 }
 
 .msg.mine {
@@ -673,6 +762,9 @@ body.admin-on #rename-btn {
 .msg.pin-flash {
   outline: 1px solid #6ea8d9;
   background: #1e2429;
+  transition:
+    background-color var(--motion) var(--ease-soft),
+    outline-color var(--motion) var(--ease-soft);
 }
 
 .msg-meta {
@@ -776,10 +868,26 @@ body.admin-on #rename-btn {
   align-items: stretch;
   gap: 0.55rem;
   min-width: 0;
+  max-height: 3.2rem;
+  opacity: 1;
+  overflow: hidden;
+  transform: translateY(0);
+  transition:
+    max-height var(--motion) var(--ease-out),
+    opacity var(--motion) var(--ease-out),
+    transform var(--motion) var(--ease-out),
+    margin var(--motion) var(--ease-out),
+    visibility var(--motion);
 }
 
 .reply-bar[hidden] {
-  display: none !important;
+  display: flex !important;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(6px);
+  margin: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .reply-bar-accent {
@@ -817,14 +925,33 @@ body.admin-on #rename-btn {
   gap: 0.2rem;
   margin: 0;
   padding: 0.2rem 0 0;
-  min-height: 2.5rem;
+  min-height: 0;
+  max-height: 3.2rem;
+  opacity: 1;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  transform: translateY(0);
+  transform-origin: top center;
+  transition:
+    max-height var(--motion) var(--ease-out),
+    opacity var(--motion) var(--ease-out),
+    transform var(--motion) var(--ease-out),
+    padding var(--motion) var(--ease-out),
+    visibility var(--motion);
 }
 
 .emoji-panel[hidden] {
-  display: none !important;
+  display: flex !important;
+  max-height: 0;
+  min-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  visibility: hidden;
+  overflow: hidden;
 }
 
 .emoji-panel::-webkit-scrollbar {
@@ -1023,6 +1150,18 @@ body.admin-on #rename-btn {
   bottom: auto;
   right: auto;
   z-index: 60;
+  animation: pop-in var(--motion-fast) var(--ease-out) both;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .msg-react-menu[hidden] {
@@ -1136,6 +1275,26 @@ body.admin-on #rename-btn {
   position: relative;
   width: fit-content;
   max-width: 100%;
+  max-height: 6.5rem;
+  opacity: 1;
+  overflow: hidden;
+  transform: translateY(0);
+  transition:
+    max-height var(--motion) var(--ease-out),
+    opacity var(--motion) var(--ease-out),
+    transform var(--motion) var(--ease-out),
+    margin var(--motion) var(--ease-out),
+    visibility var(--motion);
+}
+
+.preview[hidden] {
+  display: block !important;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(6px);
+  margin: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .preview img {
@@ -1215,11 +1374,51 @@ body.admin-on #rename-btn {
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
 }
 
+.dialog[open] {
+  animation: dialog-in var(--motion) var(--ease-out) both;
+}
+
+.dialog[open]::backdrop {
+  animation: backdrop-in var(--motion) var(--ease-soft) both;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 10px)) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Keep form dialogs above the software keyboard */
 body.keyboard-open .dialog {
   top: calc(var(--vv-top, 0px) + 0.45rem);
   transform: translate(-50%, 0);
   max-height: calc(var(--app-height, 100dvh) - 0.9rem);
+  animation: dialog-in-top var(--motion) var(--ease-out) both;
+}
+
+@keyframes dialog-in-top {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
 }
 
 .dialog::backdrop {
@@ -1457,6 +1656,7 @@ body.keyboard-open .dialog {
     width: min(400px, calc(100vw - 1.2rem));
     max-height: calc(var(--app-height, 100dvh) - 1rem);
     border-radius: 16px;
+    animation: dialog-in-top var(--motion) var(--ease-out) both;
   }
 
   .name-row {
@@ -1630,5 +1830,31 @@ body.keyboard-open .dialog {
 
   .composer textarea {
     max-height: 3.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 1ms;
+    --motion: 1ms;
+    --motion-slow: 1ms;
+  }
+
+  .msg.msg-enter,
+  .msg-react-menu.fixed-open,
+  .dialog[open],
+  .dialog[open]::backdrop,
+  body.keyboard-open .dialog {
+    animation: none !important;
+  }
+
+  .jump-bottom[hidden],
+  .emoji-panel[hidden],
+  .reply-bar[hidden],
+  .preview[hidden],
+  .pin-bar[hidden],
+  .filter-bar[hidden],
+  .dm-bar[hidden] {
+    display: none !important;
   }
 }
