@@ -217,13 +217,13 @@
     }
   }
 
-  function rememberDmRoom(code) {
+  function rememberDmRoom(code, { active = true } = {}) {
     const c = normalizeDmCodeLocal(code);
     if (c.length !== 6) return;
     const rooms = loadDmRooms().filter((r) => r.code !== c);
     rooms.unshift({ code: c, lastAt: Date.now() });
     saveDmRooms(rooms);
-    saveDmCode(c);
+    if (active) saveDmCode(c);
   }
 
   function forgetDmRoom(code) {
@@ -401,7 +401,8 @@
     });
     syncDmBtn();
     if (prev) {
-      rememberDmRoom(prev);
+      rememberDmRoom(prev, { active: false });
+      saveDmCode("");
       composerHint.textContent = `Снова общий чат · комната ${prev} в меню «Вдвоём»`;
     }
   }
@@ -637,6 +638,9 @@
   }
 
   function syncViewportHeight() {
+    // Avoid layout thrash / backdrop flicker while viewing a zoomed photo.
+    if (lightbox?.open) return;
+
     const vv = window.visualViewport;
     const active = document.activeElement;
     const focused =
@@ -644,6 +648,7 @@
       active === nameInput ||
       active === renameInput ||
       active === adminPassword ||
+      active === dmCodeInput ||
       active?.tagName === "TEXTAREA" ||
       active?.tagName === "INPUT";
 
@@ -651,10 +656,8 @@
     let inset = 0;
     if (vv) {
       height = Math.round(vv.height);
-      // Only treat large viewport shrink as keyboard while typing.
       const rawInset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
       inset = focused && rawInset > 60 ? rawInset : 0;
-      // Anchor layout to visual viewport top (standalone iOS).
       document.documentElement.style.setProperty("--vv-top", `${Math.round(vv.offsetTop || 0)}px`);
     } else {
       document.documentElement.style.setProperty("--vv-top", "0px");
@@ -666,13 +669,28 @@
     lockPageScroll();
   }
 
+  function layoutFormDialog(dialog) {
+    if (!dialog?.open) return;
+    if (dialog.classList.contains("pins-dialog") || dialog.classList.contains("lightbox")) return;
+    const vv = window.visualViewport;
+    const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
+    const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
+    const pad = 8;
+    dialog.style.top = `${vvTop + pad}px`;
+    dialog.style.left = "50%";
+    dialog.style.right = "auto";
+    dialog.style.bottom = "auto";
+    dialog.style.transform = "translateX(-50%)";
+    dialog.style.maxHeight = `${Math.max(140, vvH - pad * 2)}px`;
+    dialog.style.margin = "0";
+  }
+
   function keepDialogAboveKeyboard(dialog, focusEl) {
     if (!dialog) return;
     const bump = () => {
       syncViewportHeight();
-      if (dialog.classList.contains("dm-dialog") && dialog.open) {
-        layoutDmDialog();
-      }
+      layoutFormDialog(dialog);
+      if (dialog.classList.contains("dm-dialog")) layoutDmDialog();
       if (focusEl && typeof focusEl.scrollIntoView === "function") {
         try {
           focusEl.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -683,25 +701,17 @@
     };
     bump();
     requestAnimationFrame(bump);
-    setTimeout(bump, 80);
-    setTimeout(bump, 280);
-    setTimeout(bump, 500);
+    setTimeout(bump, 120);
+    setTimeout(bump, 320);
   }
 
   function layoutDmDialog() {
     if (!dmDialog?.open) return;
+    layoutFormDialog(dmDialog);
+    dmDialog.style.width = `min(400px, calc(100vw - 1.2rem))`;
     const vv = window.visualViewport;
     const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
     const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
-    const pad = 8;
-    dmDialog.style.top = `${vvTop + pad}px`;
-    dmDialog.style.left = "50%";
-    dmDialog.style.right = "auto";
-    dmDialog.style.bottom = "auto";
-    dmDialog.style.transform = "translateX(-50%)";
-    dmDialog.style.maxHeight = `${Math.max(160, vvH - pad * 2)}px`;
-    dmDialog.style.width = `min(400px, calc(100vw - 1.2rem))`;
-    // Keep the pin row visible above the keyboard.
     const body = dmDialog.querySelector(".dialog-body");
     if (body && dmCodeInput) {
       const inputRect = dmCodeInput.getBoundingClientRect();
@@ -1707,9 +1717,14 @@
     if (!renameDialog || !renameInput) return;
     renameInput.value = myName || "";
     renameDialog.showModal();
-    renameInput.focus();
-    renameInput.select();
-    keepDialogAboveKeyboard(renameDialog, renameInput);
+    layoutFormDialog(renameDialog);
+    // Focus after layout so iOS keyboard doesn't shove a centered dialog around.
+    requestAnimationFrame(() => {
+      layoutFormDialog(renameDialog);
+      renameInput.focus();
+      renameInput.select();
+      keepDialogAboveKeyboard(renameDialog, renameInput);
+    });
   }
 
   function applyRename() {
@@ -1862,6 +1877,24 @@
   renameCancelBtn?.addEventListener("click", () => renameDialog?.close());
   renameApplyBtn?.addEventListener("click", applyRename);
   renameInput?.addEventListener("focus", () => keepDialogAboveKeyboard(renameDialog, renameInput));
+  renameDialog?.addEventListener("close", () => {
+    renameDialog.style.top = "";
+    renameDialog.style.bottom = "";
+    renameDialog.style.maxHeight = "";
+    renameDialog.style.transform = "";
+    renameDialog.style.margin = "";
+  });
+  adminDialog?.addEventListener("close", () => {
+    adminDialog.style.top = "";
+    adminDialog.style.bottom = "";
+    adminDialog.style.maxHeight = "";
+    adminDialog.style.transform = "";
+    adminDialog.style.margin = "";
+  });
+  lightbox?.addEventListener("close", () => {
+    if (lightboxImg) lightboxImg.removeAttribute("src");
+    syncViewportHeight();
+  });
   renameInput?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -1873,8 +1906,12 @@
     if (adminError) adminError.hidden = true;
     if (adminPassword) adminPassword.value = "";
     adminDialog.showModal();
-    adminPassword?.focus();
-    keepDialogAboveKeyboard(adminDialog, adminPassword);
+    layoutFormDialog(adminDialog);
+    requestAnimationFrame(() => {
+      layoutFormDialog(adminDialog);
+      adminPassword?.focus();
+      keepDialogAboveKeyboard(adminDialog, adminPassword);
+    });
   }
 
   function submitAdminLogin() {
