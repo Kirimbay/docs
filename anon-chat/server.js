@@ -1002,6 +1002,7 @@ io.on("connection", (socket) => {
     if (!msg.reactions || typeof msg.reactions !== "object") msg.reactions = {};
     const list = Array.isArray(msg.reactions[emoji]) ? msg.reactions[emoji] : [];
     const idx = list.indexOf(user.name);
+    const added = idx < 0;
     if (idx >= 0) list.splice(idx, 1);
     else list.push(user.name);
     if (list.length) msg.reactions[emoji] = list;
@@ -1011,12 +1012,12 @@ io.on("connection", (socket) => {
     if (roomCode) {
       const pub = publicRoomMessage(msg);
       io.to(roomChannel(roomCode)).emit("dm:message-update", pub);
-      if (typeof ack === "function") ack({ ok: true, message: pub });
+      if (typeof ack === "function") ack({ ok: true, message: pub, added });
       return;
     }
     const pub = publicMessage(msg);
     io.emit("chat:message-update", pub);
-    if (typeof ack === "function") ack({ ok: true, message: pub });
+    if (typeof ack === "function") ack({ ok: true, message: pub, added });
   });
 
   socket.on("admin:pin", (payload = {}, ack) => {

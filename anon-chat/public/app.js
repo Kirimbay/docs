@@ -1471,7 +1471,7 @@
     setTimeout(finish, 280);
   }
 
-  function notify(text, { dim = false, clearMs = 1800 } = {}) {
+  function notify(text, { dim = true, clearMs = 1800 } = {}) {
     const msg = String(text || "").trim();
     if (!msg || !appToast || !appToastText) return;
     lastNotice = msg;
@@ -1746,12 +1746,20 @@
 
   function applyReaction(msgId, emoji) {
     closeAllReactMenus();
+    const prev =
+      (lastState.messages || []).find((m) => m.id === msgId) ||
+      (lastState.pinned || []).find((m) => m.id === msgId);
+    const hadMine = Boolean(
+      myName && Array.isArray(prev?.reactions?.[emoji]) && prev.reactions[emoji].includes(myName)
+    );
     socket.emit("chat:react", { id: msgId, emoji }, (res) => {
       if (!res?.ok) {
-        notify(res?.error || "Ошибка реакции")
+        notify(res?.error || "Ошибка реакции");
         return;
       }
-      // Bubble-pop at the reaction chip once the update lands.
+      const added = typeof res.added === "boolean" ? res.added : !hadMine;
+      // Celebrate only adding; removing should just vanish with no ghost bubble.
+      if (!added) return;
       requestAnimationFrame(() => {
         setTimeout(() => popReactionBubble(msgId, emoji), 40);
         setTimeout(() => popReactionBubble(msgId, emoji), 160);
@@ -1765,24 +1773,11 @@
     const chip =
       [...msgEl.querySelectorAll(".msg-react-chip")].find((c) => (c.textContent || "").includes(emoji)) ||
       null;
-    if (chip) {
-      chip.classList.remove("react-pop");
-      void chip.offsetWidth;
-      chip.classList.add("react-pop");
-      setTimeout(() => chip.classList.remove("react-pop"), 420);
-      return;
-    }
-    const actions = msgEl.querySelector(".msg-actions") || msgEl;
-    const box = actions.getBoundingClientRect();
-    const bubble = document.createElement("span");
-    bubble.className = "react-bubble";
-    bubble.textContent = emoji;
-    bubble.setAttribute("aria-hidden", "true");
-    bubble.style.left = `${Math.round(box.left + 14)}px`;
-    bubble.style.top = `${Math.round(box.top + box.height / 2)}px`;
-    document.body.appendChild(bubble);
-    requestAnimationFrame(() => bubble.classList.add("is-on"));
-    setTimeout(() => bubble.remove(), 480);
+    if (!chip) return;
+    chip.classList.remove("react-pop");
+    void chip.offsetWidth;
+    chip.classList.add("react-pop");
+    setTimeout(() => chip.classList.remove("react-pop"), 420);
   }
 
   function renderMessage(msg) {
@@ -2252,6 +2247,12 @@
   );
 
   previewClear.addEventListener("click", clearPreview);
+
+  appToast?.addEventListener("click", (e) => {
+    if (e.target === appToast || e.target.classList?.contains("app-toast-scrim") || e.target === appToastText) {
+      hideAppToast();
+    }
+  });
 
   presence?.addEventListener("click", () => {
     if (!myName) return;
