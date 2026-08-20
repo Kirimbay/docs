@@ -700,19 +700,64 @@
     }
   }
 
-  function scrollToPinnedMessage(msg) {
+  function clearPinFocus() {
+    document.body.classList.remove("pins-list-open", "pins-focus-mode");
+    feed.querySelectorAll(".msg.pin-focus, .msg.pin-flash").forEach((el) => {
+      el.classList.remove("pin-focus", "pin-flash");
+    });
+  }
+
+  function highlightPinPickerItem(index) {
+    pinsList.querySelectorAll(".pins-picker-item").forEach((row, i) => {
+      const on = i === index;
+      row.classList.toggle("current", on);
+      row.setAttribute("aria-selected", on ? "true" : "false");
+    });
+  }
+
+  function scrollMsgBelowPinsPanel(el) {
+    if (!el) return;
+    const feedBox = feed.getBoundingClientRect();
+    const dialogBox = pinsDialog.open
+      ? pinsDialog.getBoundingClientRect()
+      : { bottom: feedBox.top, height: 0 };
+    const margin = 14;
+    const viewTop = Math.max(feedBox.top, dialogBox.bottom) + margin;
+    const viewBottom = feedBox.bottom - margin;
+    const viewMid = (viewTop + viewBottom) / 2;
+    const elBox = el.getBoundingClientRect();
+    const elMid = elBox.top + elBox.height / 2;
+    const delta = elMid - viewMid;
+    if (Math.abs(delta) < 2) return;
+    feedScroller.scrollTo(feed.scrollTop + delta, true);
+  }
+
+  function scrollToPinnedMessage(msg, { fromMenu = false } = {}) {
     const el = feed.querySelector(`[data-id="${msg.id}"]`);
     if (!el) {
       composerHint.textContent = "Сообщение не в текущей ленте (фильтр?)";
       return;
     }
-    el.classList.add("pin-flash");
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    setTimeout(() => el.classList.remove("pin-flash"), 1200);
+
+    feed.querySelectorAll(".msg.pin-focus, .msg.pin-flash").forEach((node) => {
+      node.classList.remove("pin-focus", "pin-flash");
+    });
+    el.classList.add("pin-focus");
+    if (fromMenu || pinsDialog.open) {
+      document.body.classList.add("pins-focus-mode");
+      scrollMsgBelowPinsPanel(el);
+      // Second pass after layout/smooth scroll settles a bit
+      setTimeout(() => scrollMsgBelowPinsPanel(el), 320);
+    } else {
+      el.classList.add("pin-flash");
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => el.classList.remove("pin-flash"), 1200);
+    }
   }
 
   function closePinsList() {
     clearUnpinArm();
+    clearPinFocus();
     if (pinsDialog.open) pinsDialog.close();
   }
 
@@ -720,6 +765,7 @@
     const list = visiblePins();
     if (!list.length) return;
     clearUnpinArm();
+    syncViewportHeight();
     pinsList.replaceChildren();
     list.forEach((msg, index) => {
       const row = document.createElement("div");
@@ -750,8 +796,8 @@
       main.addEventListener("click", () => {
         pinCycleIndex = index;
         updatePinBar();
-        closePinsList();
-        scrollToPinnedMessage(msg);
+        highlightPinPickerItem(index);
+        scrollToPinnedMessage(msg, { fromMenu: true });
       });
       row.append(main);
 
@@ -798,7 +844,9 @@
 
       pinsList.append(row);
     });
+    document.body.classList.add("pins-list-open");
     if (!pinsDialog.open) pinsDialog.showModal();
+    requestAnimationFrame(() => syncViewportHeight());
   }
 
   function clearPinHold() {
@@ -1437,6 +1485,10 @@
   pinsCloseBtn.addEventListener("click", closePinsList);
   pinsDialog.addEventListener("click", (e) => {
     if (e.target === pinsDialog) closePinsList();
+  });
+  pinsDialog.addEventListener("close", () => {
+    clearUnpinArm();
+    clearPinFocus();
   });
 
   pins.addEventListener("pointerdown", (e) => {
