@@ -568,6 +568,10 @@ body.admin-on #rename-btn {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: #3a3d42 transparent;
+  /* Own compositor layer — less paint thrash while wheel-scrolling */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  scrollbar-gutter: stable;
 }
 
 .feed::-webkit-scrollbar {

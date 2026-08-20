@@ -364,15 +364,119 @@
     return feed.scrollHeight - feed.scrollTop - feed.clientHeight < threshold;
   }
 
+  let jumpBottomRaf = 0;
   function updateJumpBottom() {
-    jumpBottomBtn.hidden = isNearBottom(180);
+    if (jumpBottomRaf) return;
+    jumpBottomRaf = requestAnimationFrame(() => {
+      jumpBottomRaf = 0;
+      jumpBottomBtn.hidden = isNearBottom(180);
+    });
   }
 
+  /** Softens discrete mouse-wheel jumps in Chrome (trackpad stays pixel-smooth). */
+  function createSmoothScroller(el) {
+    let target = el.scrollTop;
+    let current = el.scrollTop;
+    let raf = 0;
+    let animating = false;
+    const ease = 0.2;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const clamp = (y) => {
+      const max = Math.max(0, el.scrollHeight - el.clientHeight);
+      return Math.max(0, Math.min(max, y));
+    };
+
+    const stop = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      animating = false;
+    };
+
+    const tick = () => {
+      raf = 0;
+      const diff = target - current;
+      if (Math.abs(diff) < 0.45) {
+        current = target;
+        el.scrollTop = current;
+        animating = false;
+        return;
+      }
+      current += diff * ease;
+      el.scrollTop = current;
+      raf = requestAnimationFrame(tick);
+    };
+
+    const setTarget = (y, { animate = true } = {}) => {
+      target = clamp(y);
+      if (!animate || reduceMotion.matches) {
+        stop();
+        current = target;
+        el.scrollTop = target;
+        return;
+      }
+      current = el.scrollTop;
+      animating = true;
+      if (!raf) raf = requestAnimationFrame(tick);
+    };
+
+    el.addEventListener(
+      "wheel",
+      (e) => {
+        if (reduceMotion.matches || e.ctrlKey) return;
+        if (el.scrollHeight <= el.clientHeight + 1) return;
+
+        let dy = e.deltaY;
+        if (e.deltaMode === 1) dy *= 16;
+        else if (e.deltaMode === 2) dy *= el.clientHeight;
+
+        // Discrete notches feel harsh — blend them into a glide.
+        if (e.deltaMode === 1 || Math.abs(e.deltaY) >= 40) dy *= 0.65;
+
+        const max = Math.max(0, el.scrollHeight - el.clientHeight);
+        const from = animating ? target : el.scrollTop;
+        const next = clamp(from + dy);
+        if (
+          next === from &&
+          ((dy < 0 && el.scrollTop <= 0) || (dy > 0 && el.scrollTop >= max - 0.5))
+        ) {
+          return;
+        }
+
+        e.preventDefault();
+        setTarget(next, { animate: true });
+      },
+      { passive: false }
+    );
+
+    el.addEventListener(
+      "scroll",
+      () => {
+        if (!animating) {
+          target = el.scrollTop;
+          current = el.scrollTop;
+        }
+      },
+      { passive: true }
+    );
+
+    return {
+      scrollTo(y, smooth = true) {
+        setTarget(y, { animate: smooth });
+      },
+      refresh() {
+        if (!animating) {
+          target = el.scrollTop;
+          current = el.scrollTop;
+        }
+      },
+    };
+  }
+
+  const feedScroller = createSmoothScroller(feed);
+
   function scrollFeedToBottom(smooth = true) {
-    feed.scrollTo({
-      top: feed.scrollHeight,
-      behavior: smooth ? "smooth" : "auto",
-    });
+    feedScroller.scrollTo(feed.scrollHeight, smooth);
     jumpBottomBtn.hidden = true;
   }
 
