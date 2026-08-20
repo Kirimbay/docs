@@ -1001,8 +1001,8 @@
     messageInput.style.height = "auto";
     const visible = window.visualViewport?.height || window.innerHeight;
     const narrow = window.matchMedia("(max-width: 640px)").matches;
-    const minH = narrow ? 28 : 44;
-    const cap = Math.min(narrow ? 58 : 88, Math.round(visible * (narrow ? 0.12 : 0.18)));
+    const minH = narrow ? 41 : 46;
+    const cap = Math.min(narrow ? 72 : 96, Math.round(visible * (narrow ? 0.14 : 0.18)));
     messageInput.style.height = `${Math.min(messageInput.scrollHeight, Math.max(minH, cap))}px`;
   }
 
