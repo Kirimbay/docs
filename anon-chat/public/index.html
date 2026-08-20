@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Комната — открытый чат</title>
+    <meta name="description" content="Анонимный чат без регистрации: текст и фото." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true"></div>
+
+    <section id="gate" class="gate">
+      <div class="gate-inner">
+        <p class="brand">Комната</p>
+        <h1>Зайдите без регистрации</h1>
+        <p class="lede">
+          Вам дадут случайное имя — или придумайте своё. Только текст и фото.
+        </p>
+        <label class="field">
+          <span>Имя в чате</span>
+          <div class="name-row">
+            <input id="name-input" type="text" maxlength="24" autocomplete="nickname" placeholder="Например: Тихий Барс42" />
+            <button type="button" id="random-btn" class="ghost">Случайное</button>
+          </div>
+        </label>
+        <button type="button" id="join-btn" class="primary">Войти</button>
+        <p id="gate-error" class="error" hidden></p>
+      </div>
+    </section>
+
+    <div id="app" class="app" hidden>
+      <header class="topbar">
+        <div class="topbar-brand">
+          <span class="brand-mark">Комната</span>
+          <span id="presence" class="presence">онлайн —</span>
+        </div>
+        <div class="topbar-actions">
+          <button type="button" id="rename-btn" class="ghost compact" title="Сменить имя">Имя</button>
+          <button type="button" id="admin-btn" class="ghost compact" title="Админ">Админ</button>
+        </div>
+      </header>
+
+      <section id="pins" class="pins" hidden>
+        <h2>Закреплено</h2>
+        <div id="pins-list" class="pins-list"></div>
+      </section>
+
+      <main id="feed" class="feed" aria-live="polite"></main>
+
+      <footer class="composer">
+        <div id="preview" class="preview" hidden>
+          <img id="preview-img" alt="Превью фото" />
+          <button type="button" id="preview-clear" class="ghost compact" aria-label="Убрать фото">×</button>
+        </div>
+        <div class="composer-row">
+          <label class="attach" title="Прикрепить фото">
+            <input id="photo-input" type="file" accept="image/*" hidden />
+            <span aria-hidden="true">＋</span>
+          </label>
+          <textarea
+            id="message-input"
+            rows="1"
+            maxlength="2000"
+            placeholder="Написать сообщение…"
+            enterkeyhint="send"
+          ></textarea>
+          <button type="button" id="send-btn" class="primary compact" aria-label="Отправить">↑</button>
+        </div>
+        <p id="composer-hint" class="hint"></p>
+      </footer>
+    </div>
+
+    <dialog id="admin-dialog" class="dialog">
+      <form method="dialog" id="admin-form">
+        <h2>Админ</h2>
+        <p>Пароль нужен, чтобы закреплять и удалять сообщения.</p>
+        <label class="field">
+          <span>Пароль</span>
+          <input id="admin-password" type="password" autocomplete="current-password" />
+        </label>
+        <p id="admin-error" class="error" hidden></p>
+        <div class="dialog-actions">
+          <button type="submit" value="cancel" class="ghost">Отмена</button>
+          <button type="submit" value="ok" class="primary" id="admin-submit">Войти</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="lightbox" class="lightbox">
+      <form method="dialog">
+        <button type="submit" class="ghost compact lightbox-close" aria-label="Закрыть">×</button>
+      </form>
+      <img id="lightbox-img" alt="Фото в полном размере" />
+    </dialog>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
