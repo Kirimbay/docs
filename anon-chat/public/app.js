@@ -46,8 +46,6 @@
   const dmCodeInput = $("#dm-code-input");
   const dmDialogError = $("#dm-dialog-error");
   const dmDialogClose = $("#dm-dialog-close");
-  const dmCreatedBox = $("#dm-created-box");
-  const dmCreatedCode = $("#dm-created-code");
   const dmRoomsWrap = $("#dm-rooms-wrap");
   const dmRoomsList = $("#dm-rooms-list");
   const onlineDialog = $("#online-dialog");
@@ -385,10 +383,6 @@
     document.body.classList.add("dm-on");
     if (dmBar) dmBar.hidden = false;
     if (dmBarCode) dmBarCode.textContent = res.code;
-    if (dmCreatedBox && dmCreatedCode) {
-      dmCreatedBox.hidden = false;
-      dmCreatedCode.textContent = res.code;
-    }
     clearReply();
     pinToLatestOnce = true;
     renderAll({ messages: res.messages || [], pinned: [] });
@@ -425,7 +419,6 @@
   function openDmDialog() {
     if (!dmDialog) return;
     showDmDialogError("");
-    if (dmCreatedBox) dmCreatedBox.hidden = true;
     renderDmRoomsList();
     if (dmCodeInput) dmCodeInput.value = "";
     dmDialog.showModal();
@@ -2541,9 +2534,8 @@
       }
       rememberDmRoom(res.code);
       enterDmMode(res);
-      if (dmCodeInput) dmCodeInput.value = res.code;
       dmDialog?.close();
-      notify(`Код ${res.code} — передайте второму человеку`)
+      notify(`Код ${res.code} — передайте второму человеку`);
     });
   });
   dmJoinBtn?.addEventListener("click", joinDmFromInput);
