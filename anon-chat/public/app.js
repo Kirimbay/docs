@@ -343,21 +343,75 @@
     const actions = document.createElement("div");
     actions.className = "msg-actions";
 
+    const activeWrap = document.createElement("div");
+    activeWrap.className = "msg-reacts-active";
     for (const { emoji, title } of REACTIONS) {
       const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
+      if (!reactors.length) continue;
       const mine = reactors.includes(myName);
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "msg-react" + (mine ? " mine" : "") + (reactors.length ? " on" : "");
-      btn.title = title;
-      btn.textContent = reactors.length ? `${emoji}${reactors.length}` : emoji;
-      btn.addEventListener("click", () => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "msg-react-chip" + (mine ? " mine" : "");
+      chip.title = title;
+      chip.textContent = `${emoji} ${reactors.length}`;
+      chip.addEventListener("click", () => {
         socket.emit("chat:react", { id: msg.id, emoji }, (res) => {
           if (!res?.ok) composerHint.textContent = res?.error || "Ошибка реакции";
         });
       });
-      actions.append(btn);
+      activeWrap.append(chip);
     }
+    if (activeWrap.childElementCount) actions.append(activeWrap);
+
+    const reactWrap = document.createElement("div");
+    reactWrap.className = "msg-react-wrap";
+
+    const reactToggle = document.createElement("button");
+    reactToggle.type = "button";
+    reactToggle.className = "msg-reply msg-react-toggle";
+    reactToggle.textContent = "реакция";
+    reactToggle.title = "Добавить реакцию";
+
+    const reactMenu = document.createElement("div");
+    reactMenu.className = "msg-react-menu";
+    reactMenu.hidden = true;
+    for (const { emoji, title } of REACTIONS) {
+      const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
+      const mine = reactors.includes(myName);
+      const opt = document.createElement("button");
+      opt.type = "button";
+      opt.className = "msg-react-opt" + (mine ? " mine" : "");
+      opt.title = title;
+      opt.textContent = emoji;
+      opt.addEventListener("pointerdown", (e) => e.preventDefault());
+      opt.addEventListener("click", (e) => {
+        e.stopPropagation();
+        reactMenu.hidden = true;
+        reactWrap.classList.remove("open");
+        socket.emit("chat:react", { id: msg.id, emoji }, (res) => {
+          if (!res?.ok) composerHint.textContent = res?.error || "Ошибка реакции";
+        });
+      });
+      reactMenu.append(opt);
+    }
+
+    reactToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const willOpen = reactMenu.hidden;
+      document.querySelectorAll(".msg-react-menu").forEach((m) => {
+        m.hidden = true;
+      });
+      document.querySelectorAll(".msg-react-wrap.open").forEach((w) => {
+        w.classList.remove("open");
+      });
+      if (willOpen) {
+        reactMenu.hidden = false;
+        reactWrap.classList.add("open");
+      }
+    });
+
+    reactWrap.append(reactToggle, reactMenu);
+    actions.append(reactWrap);
 
     const replyBtn = document.createElement("button");
     replyBtn.type = "button";
@@ -725,6 +779,16 @@
         }
       });
     }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (e.target.closest(".msg-react-wrap")) return;
+    document.querySelectorAll(".msg-react-menu").forEach((m) => {
+      m.hidden = true;
+    });
+    document.querySelectorAll(".msg-react-wrap.open").forEach((w) => {
+      w.classList.remove("open");
+    });
   });
 
   const savedName = loadSavedName();
