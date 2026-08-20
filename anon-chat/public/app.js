@@ -95,18 +95,6 @@
     }
   }
 
-  function scrollToMessageId(id) {
-    if (!id) return;
-    const el = feed.querySelector(`[data-id="${id}"]`);
-    if (!el) {
-      composerHint.textContent = "Сообщение не в текущей ленте (фильтр?)";
-      return;
-    }
-    el.classList.add("pin-flash");
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    setTimeout(() => el.classList.remove("pin-flash"), 1200);
-  }
-
   async function fetchRandomName(targetInput = nameInput) {
     const res = await fetch("/api/random-name");
     const data = await res.json();
