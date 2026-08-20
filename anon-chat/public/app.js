@@ -53,7 +53,6 @@
   const onlineList = $("#online-list");
   const onlineCloseBtn = $("#online-close-btn");
   const invitesBtn = $("#invites-btn");
-  const invitesBadge = $("#invites-badge");
   const invitesDialog = $("#invites-dialog");
   const invitesList = $("#invites-list");
   const invitesCloseBtn = $("#invites-close-btn");
@@ -534,20 +533,15 @@
     if (!n) {
       invitesBtn.hidden = true;
       invitesBtn.classList.remove("has-invites");
-      if (invitesBadge) {
-        invitesBadge.hidden = true;
-        invitesBadge.textContent = "";
-      }
+      invitesBtn.removeAttribute("aria-label");
       if (invitesDialog?.open) invitesDialog.close();
       return;
     }
     invitesBtn.hidden = false;
     invitesBtn.classList.add("has-invites");
-    invitesBtn.title = n === 1 ? "Вас зовут вдвоём" : `Приглашения · ${n}`;
-    if (invitesBadge) {
-      invitesBadge.hidden = false;
-      invitesBadge.textContent = String(n);
-    }
+    const label = n === 1 ? "Вас зовут вдвоём" : `Вас зовут · ${n}`;
+    invitesBtn.title = label;
+    invitesBtn.setAttribute("aria-label", label);
   }
 
   function removePendingInvite(code) {
