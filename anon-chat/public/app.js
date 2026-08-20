@@ -157,7 +157,6 @@
       dmCreatedCode.textContent = res.code;
     }
     clearReply();
-    clearFilter();
     filterNames = new Set();
     updateFilterChrome();
     renderAll({ messages: res.messages || [], pinned: [] });
