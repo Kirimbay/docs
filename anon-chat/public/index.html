@@ -7,7 +7,17 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <title>Сарафан — открытый чат</title>
-    <meta name="description" content="Анонимный чат без регистрации: текст и фото." />
+    <meta name="description" content="Сарафан — анонимный чат без регистрации: текст и фото." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Сарафан" />
+    <meta property="og:title" content="Сарафан — открытый чат" />
+    <meta property="og:description" content="Анонимный чат без регистрации: текст и фото." />
+    <meta property="og:url" content="https://chat.one.vele.uk/" />
+    <meta property="og:image" content="https://chat.one.vele.uk/icon-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Сарафан — открытый чат" />
+    <meta name="twitter:description" content="Анонимный чат без регистрации: текст и фото." />
+    <meta name="twitter:image" content="https://chat.one.vele.uk/icon-512.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -20,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=68" />
+    <link rel="stylesheet" href="/styles.css?v=69" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -45,11 +55,11 @@
     <div id="app" class="app" hidden>
       <header class="topbar">
         <div class="topbar-brand">
-          <span id="presence" class="presence">онлайн —</span>
+          <span class="topbar-title">Сарафан</span>
+          <button type="button" id="presence" class="presence" title="Кто онлайн">онлайн —</button>
         </div>
         <div class="topbar-actions">
           <button type="button" id="dm-btn" class="ghost compact" title="Чат вдвоём по коду">Вдвоём</button>
-          <button type="button" id="filter-btn" class="ghost compact" title="Фильтр по участникам">Фильтр</button>
           <button type="button" id="me-btn" class="ghost compact me-btn" title="Ваше имя">…</button>
         </div>
       </header>
@@ -57,12 +67,15 @@
       <div id="dm-bar" class="dm-bar" hidden>
         <span class="dm-bar-text">код <strong id="dm-bar-code"></strong></span>
         <span id="dm-bar-presence" class="dm-bar-presence">1/2</span>
-        <button type="button" id="dm-copy-btn" class="ghost compact" title="Скопировать код комнаты">Скопировать код</button>
+        <button type="button" id="dm-copy-btn" class="ghost compact" title="Скопировать код">Скопировать код</button>
       </div>
 
-      <div id="filter-bar" class="filter-bar" hidden>
-        <span id="filter-bar-text" class="filter-bar-text">Фильтр</span>
-        <button type="button" id="filter-clear-btn" class="ghost compact">Сбросить</button>
+      <div id="invite-banner" class="invite-banner" hidden aria-live="polite">
+        <p class="invite-banner-text"><strong id="invite-from"></strong> зовёт вдвоём</p>
+        <div class="invite-banner-actions">
+          <button type="button" id="invite-decline" class="ghost compact">Нет</button>
+          <button type="button" id="invite-accept" class="primary compact">Войти</button>
+        </div>
       </div>
 
       <button type="button" id="pins" class="pin-bar" hidden title="Нажмите — перейти. Удерживайте — список">
@@ -129,14 +142,12 @@
       </div>
     </dialog>
 
-    <dialog id="filter-dialog" class="dialog">
+    <dialog id="online-dialog" class="dialog pins-dialog online-dialog">
       <div class="dialog-body">
-        <h2>Фильтр по участникам</h2>
-        <p>Отметьте, чьи сообщения показывать. Можно выбрать несколько.</p>
-        <div id="filter-user-list" class="user-list"></div>
+        <h2>Онлайн</h2>
+        <div id="online-list" class="pins-picker online-list" role="listbox" aria-label="Кто онлайн"></div>
         <div class="dialog-actions">
-          <button type="button" id="filter-cancel-btn" class="ghost">Отмена</button>
-          <button type="button" id="filter-apply-btn" class="primary">Показать</button>
+          <button type="button" id="online-close-btn" class="ghost compact">Закрыть</button>
         </div>
       </div>
     </dialog>
@@ -162,12 +173,12 @@
     <dialog id="dm-dialog" class="dialog dm-dialog">
       <div class="dialog-body">
         <h2>Вдвоём</h2>
-        <p class="dm-lead">История в коде. Выберите комнату или введите пин.</p>
+        <p class="dm-lead">История в коде. Выберите чат или введите пин.</p>
         <div id="dm-rooms-wrap" class="dm-rooms-wrap" hidden>
-          <span class="dm-rooms-heading">Ваши комнаты</span>
+          <span class="dm-rooms-heading">Ваши чаты</span>
           <div id="dm-rooms-list" class="dm-rooms-list" role="list"></div>
         </div>
-        <button type="button" id="dm-create-btn" class="primary dm-create-btn">Новая комната</button>
+        <button type="button" id="dm-create-btn" class="primary dm-create-btn">Новый чат</button>
         <label class="field dm-code-field">
           <span>Пин · 6 цифр</span>
           <div class="name-row">
@@ -187,7 +198,7 @@
         </label>
         <p id="dm-dialog-error" class="error" hidden></p>
         <div id="dm-created-box" class="dm-created-box" hidden>
-          <span class="dm-created-label">Код комнаты</span>
+          <span class="dm-created-label">Код чата</span>
           <strong id="dm-created-code" class="dm-created-code"></strong>
         </div>
         <div class="dialog-actions">
@@ -220,6 +231,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=68"></script>
+    <script src="/app.js?v=69"></script>
   </body>
 </html>

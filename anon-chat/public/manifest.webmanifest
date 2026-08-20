@@ -1,7 +1,7 @@
 {
   "name": "Сарафан",
   "short_name": "Сарафан",
-  "description": "Анонимный чат: текст и фото",
+  "description": "Сарафан — анонимный чат: текст и фото",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -49,14 +49,13 @@
   const dmCreatedCode = $("#dm-created-code");
   const dmRoomsWrap = $("#dm-rooms-wrap");
   const dmRoomsList = $("#dm-rooms-list");
-  const filterBtn = $("#filter-btn");
-  const filterBar = $("#filter-bar");
-  const filterBarText = $("#filter-bar-text");
-  const filterClearBtn = $("#filter-clear-btn");
-  const filterDialog = $("#filter-dialog");
-  const filterUserList = $("#filter-user-list");
-  const filterApplyBtn = $("#filter-apply-btn");
-  const filterCancelBtn = $("#filter-cancel-btn");
+  const onlineDialog = $("#online-dialog");
+  const onlineList = $("#online-list");
+  const onlineCloseBtn = $("#online-close-btn");
+  const inviteBanner = $("#invite-banner");
+  const inviteFrom = $("#invite-from");
+  const inviteAccept = $("#invite-accept");
+  const inviteDecline = $("#invite-decline");
   const adminDialog = $("#admin-dialog");
   const adminPassword = $("#admin-password");
   const adminError = $("#admin-error");
@@ -66,15 +65,17 @@
   const lightboxImg = $("#lightbox-img");
 
   const socket = io({ autoConnect: true });
-  const NAME_KEY = "komnata_name";
+  const NAME_KEY = "sarafan_name";
+  const NAME_KEY_LEGACY = "komnata_name";
   const DM_CODE_KEY = "sarafan_dm_code";
   const DM_ROOMS_KEY = "sarafan_dm_rooms";
   const MAX_DM_ROOMS = 24;
   const ADMIN_TOKEN_KEY = "sarafan_admin_token";
   const PREV_NAME_KEY = "sarafan_prev_name";
+  const LIKE_EMOJI = "❤️";
   const REACTIONS = [
     { emoji: "😊", title: "смайл" },
-    { emoji: "❤️", title: "любовь" },
+    { emoji: LIKE_EMOJI, title: "любовь" },
     { emoji: "😢", title: "грусть" },
     { emoji: "💩", title: "говно" },
     { emoji: "🔥", title: "огонь" },
@@ -86,9 +87,11 @@
   let uploading = false;
   let pendingReply = null;
   const knownIds = new Set();
-  /** @type {Set<string>} */
-  let filterNames = new Set();
   let lastState = { messages: [], pinned: [] };
+  /** @type {{ id: string, name: string }[]} */
+  let lastPeople = [];
+  let lastPresenceCount = 0;
+  let pendingInvite = null;
   let publicStateBackup = null;
   let dmCode = null;
   let pinCycleIndex = 0;
@@ -132,7 +135,14 @@
 
   function loadSavedName() {
     try {
-      return (localStorage.getItem(NAME_KEY) || "").trim().slice(0, 24);
+      const next = (localStorage.getItem(NAME_KEY) || "").trim().slice(0, 24);
+      if (next) return next;
+      const legacy = (localStorage.getItem(NAME_KEY_LEGACY) || "").trim().slice(0, 24);
+      if (legacy) {
+        localStorage.setItem(NAME_KEY, legacy);
+        return legacy;
+      }
+      return "";
     } catch {
       return "";
     }
@@ -361,8 +371,7 @@
   function updateDmPresence({ count, names } = {}) {
     if (!dmBarPresence) return;
     const n = Number(count) || 0;
-    const sample = (names || []).filter((x) => x && x !== myName).slice(0, 2).join(", ");
-    dmBarPresence.textContent = sample ? `${n}/2 · ${sample}` : `${n}/2`;
+    dmBarPresence.textContent = `${n}/2`;
   }
 
   function enterDmMode(res) {
@@ -378,14 +387,14 @@
       dmCreatedCode.textContent = res.code;
     }
     clearReply();
-    filterNames = new Set();
-    updateFilterChrome();
     pinToLatestOnce = true;
     renderAll({ messages: res.messages || [], pinned: [] });
     schedulePinToLatest();
     updateDmPresence(res);
     if (messageInput) messageInput.placeholder = "Сообщение вдвоём…";
-    composerHint.textContent = `Комната ${res.code} · передайте код второму`;
+    composerHint.textContent = res.invited
+      ? `Ждём ${res.invited} · код ${res.code}`
+      : `Код ${res.code} · передайте второму`;
     syncDmBtn();
   }
 
@@ -406,7 +415,7 @@
     if (prev) {
       rememberDmRoom(prev, { active: false });
       saveDmCode("");
-      composerHint.textContent = `Снова общий чат · комната ${prev} в меню «Вдвоём»`;
+      composerHint.textContent = `Снова общий чат · ${prev} в меню «Вдвоём»`;
     }
   }
 
@@ -421,6 +430,136 @@
     keepDialogAboveKeyboard(dmDialog, dmCodeInput);
     const rooms = loadDmRooms();
     if (!rooms.length) dmCodeInput?.focus();
+  }
+
+  function updatePresenceChrome() {
+    if (!presence) return;
+    const n = lastPresenceCount;
+    presence.textContent = n ? `онлайн ${n}` : "онлайн —";
+    presence.title = n ? "Нажмите — кто онлайн" : "Пока никого";
+  }
+
+  function layoutBottomSheet(dialog) {
+    if (!dialog?.open) return;
+    syncViewportHeight();
+    const vv = window.visualViewport;
+    const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
+    const vvBottom = vv ? Math.round((vv.offsetTop || 0) + vv.height) : vvH;
+    const sidePad = 10;
+    const bottomPad = 10;
+    const maxSheet = Math.round(vvH * 0.5);
+    const bottomInset = Math.max(0, Math.round(window.innerHeight - vvBottom));
+    dialog.style.top = "auto";
+    dialog.style.left = "50%";
+    dialog.style.right = "auto";
+    dialog.style.bottom = `${bottomInset + bottomPad}px`;
+    dialog.style.transform = "translateX(-50%)";
+    dialog.style.width = `min(420px, calc(100vw - ${sidePad * 2}px))`;
+    dialog.style.maxWidth = `calc(100vw - ${sidePad * 2}px)`;
+    dialog.style.maxHeight = `${maxSheet}px`;
+    dialog.style.height = "auto";
+  }
+
+  function closeOnlineList() {
+    if (onlineDialog?.open) onlineDialog.close();
+  }
+
+  function invitePerson(person) {
+    if (!person?.id || person.name === myName) return;
+    closeOnlineList();
+    socket.emit("dm:invite", { toId: person.id }, (res) => {
+      if (!res?.ok) {
+        composerHint.textContent = res?.error || "Не удалось пригласить";
+        return;
+      }
+      enterDmMode(res);
+      composerHint.textContent = `Приглашение ${person.name} · код ${res.code}`;
+    });
+  }
+
+  function renderOnlineList() {
+    if (!onlineList) return;
+    const others = lastPeople.filter((p) => p.name && p.name !== myName);
+    const prevFocus = onlineList.querySelector(":focus")?.dataset?.id || "";
+    onlineList.replaceChildren();
+    if (!others.length) {
+      const empty = document.createElement("p");
+      empty.className = "user-list-empty";
+      empty.textContent = lastPresenceCount <= 1 ? "Вы одни онлайн" : "Никого кроме вас";
+      onlineList.append(empty);
+      return;
+    }
+    others
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name, "ru"))
+      .forEach((person) => {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "online-row";
+        row.setAttribute("role", "option");
+        row.dataset.id = person.id;
+        const name = document.createElement("span");
+        name.className = "online-row-name";
+        name.textContent = person.name;
+        const action = document.createElement("span");
+        action.className = "online-row-action";
+        action.textContent = "пригласить";
+        row.append(name, action);
+        row.addEventListener("click", () => invitePerson(person));
+        onlineList.append(row);
+        if (person.id === prevFocus) row.focus({ preventScroll: true });
+      });
+  }
+
+  function openOnlineList() {
+    if (!onlineDialog || !myName) return;
+    syncViewportHeight();
+    renderOnlineList();
+    if (!onlineDialog.open) onlineDialog.showModal();
+    layoutBottomSheet(onlineDialog);
+  }
+
+  function hideInviteBanner() {
+    pendingInvite = null;
+    if (!inviteBanner) return;
+    inviteBanner.classList.remove("is-visible");
+    const finish = () => {
+      if (!inviteBanner.classList.contains("is-visible")) inviteBanner.hidden = true;
+    };
+    inviteBanner.addEventListener("transitionend", finish, { once: true });
+    setTimeout(finish, 320);
+  }
+
+  function showInviteBanner(invite) {
+    pendingInvite = invite;
+    if (!inviteBanner || !inviteFrom) return;
+    inviteFrom.textContent = invite.from || "Кто-то";
+    inviteBanner.hidden = false;
+    requestAnimationFrame(() => {
+      inviteBanner.classList.add("is-visible");
+    });
+  }
+
+  function acceptInvite() {
+    const invite = pendingInvite;
+    hideInviteBanner();
+    if (!invite?.code) return;
+    socket.emit("dm:join", { code: invite.code }, (res) => {
+      if (!res?.ok) {
+        composerHint.textContent = res?.error || "Не удалось войти";
+        return;
+      }
+      enterDmMode(res);
+      composerHint.textContent = `Вдвоём с ${invite.from || "участником"}`;
+    });
+  }
+
+  function declineInvite() {
+    const invite = pendingInvite;
+    hideInviteBanner();
+    if (invite?.fromId) {
+      socket.emit("dm:invite-decline", { fromId: invite.fromId });
+    }
   }
 
   async function fetchRandomName(targetInput = nameInput) {
@@ -843,82 +982,6 @@
     });
   }
 
-  function passesFilter(msg) {
-    if (!filterNames.size) return true;
-    return filterNames.has(msg.name);
-  }
-
-  function uniqueAuthors() {
-    const names = new Set();
-    for (const msg of lastState.messages || []) names.add(msg.name);
-    for (const msg of lastState.pinned || []) names.add(msg.name);
-    return [...names].sort((a, b) => a.localeCompare(b, "ru"));
-  }
-
-  function updateFilterChrome() {
-    const active = filterNames.size > 0;
-    filterBtn.classList.toggle("active", active);
-    filterBtn.textContent = active ? `Фильтр (${filterNames.size})` : "Фильтр";
-    if (active) {
-      filterBar.hidden = false;
-      const list = [...filterNames];
-      filterBarText.textContent =
-        list.length === 1
-          ? `Только: ${list[0]}`
-          : `Только: ${list.slice(0, 3).join(", ")}${list.length > 3 ? "…" : ""}`;
-    } else {
-      filterBar.hidden = true;
-    }
-  }
-
-  function openFilterDialog() {
-    const authors = uniqueAuthors();
-    filterUserList.replaceChildren();
-    if (!authors.length) {
-      const empty = document.createElement("p");
-      empty.className = "user-list-empty";
-      empty.textContent = "Пока нет участников в истории";
-      filterUserList.append(empty);
-    } else {
-      for (const name of authors) {
-        const row = document.createElement("label");
-        row.className = "user-row";
-        const input = document.createElement("input");
-        input.type = "checkbox";
-        input.value = name;
-        input.checked = filterNames.has(name);
-        const span = document.createElement("span");
-        span.textContent = name;
-        row.append(input, span);
-        filterUserList.append(row);
-      }
-    }
-    filterDialog.showModal();
-  }
-
-  function applyFilterFromDialog() {
-    const next = new Set();
-    filterUserList.querySelectorAll('input[type="checkbox"]:checked').forEach((el) => {
-      next.add(el.value);
-    });
-    filterNames = next;
-    updateFilterChrome();
-    filterDialog.close();
-    renderAll(lastState);
-  }
-
-  function clearFilter() {
-    filterNames = new Set();
-    updateFilterChrome();
-    renderAll(lastState);
-  }
-
-  function filterOnlyUser(name) {
-    filterNames = new Set([name]);
-    updateFilterChrome();
-    renderAll(lastState);
-  }
-
   function pinPreviewText(msg) {
     if (msg.text && msg.text.trim()) {
       return msg.text.replace(/\s+/g, " ").trim();
@@ -928,7 +991,7 @@
   }
 
   function visiblePins() {
-    return (lastState.pinned || []).filter(passesFilter);
+    return lastState.pinned || [];
   }
 
   function updatePinBar() {
@@ -1003,7 +1066,7 @@
   function scrollToPinnedMessage(msg, { fromMenu = false } = {}) {
     const el = feed.querySelector(`[data-id="${msg.id}"]`);
     if (!el) {
-      composerHint.textContent = "Сообщение не в текущей ленте (фильтр?)";
+      composerHint.textContent = "Сообщение не в текущей ленте";
       return;
     }
 
@@ -1272,6 +1335,11 @@
     let timer = null;
     let start = null;
     let opened = false;
+    let lastTapAt = 0;
+    let lastTapX = 0;
+    let lastTapY = 0;
+    const DBL_MS = 300;
+    const DBL_MOVE_PX = 18;
 
     const interactive = (target) =>
       Boolean(
@@ -1290,6 +1358,7 @@
 
     const openAt = (x, y) => {
       opened = true;
+      lastTapAt = 0;
       clear();
       try {
         navigator.vibrate?.(12);
@@ -1297,6 +1366,18 @@
         /* ignore */
       }
       openMsgActionMenu(msg, el, x, y);
+    };
+
+    const pulseLike = () => {
+      el.classList.remove("msg-liked");
+      void el.offsetWidth;
+      el.classList.add("msg-liked");
+      setTimeout(() => el.classList.remove("msg-liked"), 520);
+      try {
+        navigator.vibrate?.(8);
+      } catch {
+        /* ignore */
+      }
     };
 
     el.addEventListener("pointerdown", (e) => {
@@ -1320,7 +1401,30 @@
       if (dx > MSG_HOLD_MOVE_PX || dy > MSG_HOLD_MOVE_PX) clear();
     });
 
-    el.addEventListener("pointerup", clear);
+    el.addEventListener("pointerup", (e) => {
+      const wasTiming = Boolean(timer);
+      const tapStart = start;
+      clear();
+      if (opened || !wasTiming || !tapStart) return;
+      if (interactive(e.target)) return;
+      const now = Date.now();
+      const dx = Math.abs(e.clientX - lastTapX);
+      const dy = Math.abs(e.clientY - lastTapY);
+      if (now - lastTapAt < DBL_MS && dx < DBL_MOVE_PX && dy < DBL_MOVE_PX) {
+        lastTapAt = 0;
+        e.preventDefault();
+        el.dataset.suppressPhoto = "1";
+        setTimeout(() => {
+          delete el.dataset.suppressPhoto;
+        }, 400);
+        pulseLike();
+        ensureLike(msg.id);
+        return;
+      }
+      lastTapAt = now;
+      lastTapX = e.clientX;
+      lastTapY = e.clientY;
+    });
     el.addEventListener("pointercancel", clear);
     el.addEventListener("lostpointercapture", clear);
 
@@ -1419,6 +1523,15 @@
     });
   }
 
+  function ensureLike(msgId) {
+    const msg =
+      (lastState.messages || []).find((m) => m.id === msgId) ||
+      (lastState.pinned || []).find((m) => m.id === msgId);
+    const reactors = Array.isArray(msg?.reactions?.[LIKE_EMOJI]) ? msg.reactions[LIKE_EMOJI] : [];
+    if (reactors.includes(myName)) return;
+    applyReaction(msgId, LIKE_EMOJI);
+  }
+
   function renderMessage(msg) {
     const el = document.createElement("article");
     el.className = "msg";
@@ -1434,8 +1547,15 @@
     nameBtn.type = "button";
     nameBtn.className = "msg-name";
     nameBtn.textContent = msg.name;
-    nameBtn.title = "Показать только этого участника";
-    nameBtn.addEventListener("click", () => filterOnlyUser(msg.name));
+    nameBtn.title = "Пригласить вдвоём";
+    nameBtn.addEventListener("click", () => {
+      const match = lastPeople.find((p) => p.name === msg.name && p.name !== myName);
+      if (match) invitePerson(match);
+      else {
+        openOnlineList();
+        composerHint.textContent = `${msg.name} сейчас не онлайн`;
+      }
+    });
     const time = document.createElement("span");
     time.className = "msg-time";
     time.textContent = formatTime(msg.createdAt);
@@ -1488,7 +1608,12 @@
       img.src = msg.imageUrl;
       img.alt = `Фото от ${msg.name}`;
       img.loading = "lazy";
-      img.addEventListener("click", () => {
+      img.addEventListener("click", (e) => {
+        if (el.dataset.suppressPhoto) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         lightboxImg.src = msg.imageUrl;
         lightbox.showModal();
       });
@@ -1586,7 +1711,6 @@
     knownIds.clear();
     for (const msg of messages) {
       knownIds.add(msg.id);
-      if (!passesFilter(msg)) continue;
       feed.append(renderMessage(msg));
     }
 
@@ -1595,7 +1719,6 @@
     } else {
       updateJumpBottom();
     }
-    updateFilterChrome();
   }
 
   function patchMessage(updated) {
@@ -1614,7 +1737,6 @@
     if (knownIds.has(msg.id)) return;
     knownIds.add(msg.id);
     lastState.messages = [...(lastState.messages || []), msg];
-    if (!passesFilter(msg)) return;
     const nearBottom = isNearBottom(120);
     const el = renderMessage(msg);
     el.classList.add("msg-enter");
@@ -1660,7 +1782,7 @@
         if (res?.ok) enterDmMode(res);
         else {
           saveDmCode("");
-          if (/не найдена|проверьте код/i.test(res?.error || "")) forgetDmRoom(savedDm);
+          if (/не найден|проверьте код/i.test(res?.error || "")) forgetDmRoom(savedDm);
         }
       });
     }
@@ -1870,10 +1992,26 @@
 
   previewClear.addEventListener("click", clearPreview);
 
-  filterBtn.addEventListener("click", openFilterDialog);
-  filterApplyBtn.addEventListener("click", applyFilterFromDialog);
-  filterCancelBtn.addEventListener("click", () => filterDialog.close());
-  filterClearBtn.addEventListener("click", clearFilter);
+  presence?.addEventListener("click", () => {
+    if (!myName) return;
+    openOnlineList();
+  });
+  onlineCloseBtn?.addEventListener("click", closeOnlineList);
+  onlineDialog?.addEventListener("click", (e) => {
+    if (e.target === onlineDialog) closeOnlineList();
+  });
+  onlineDialog?.addEventListener("close", () => {
+    onlineDialog.style.top = "";
+    onlineDialog.style.bottom = "";
+    onlineDialog.style.height = "";
+    onlineDialog.style.maxHeight = "";
+    onlineDialog.style.width = "";
+    onlineDialog.style.maxWidth = "";
+    onlineDialog.style.transform = "";
+  });
+  inviteAccept?.addEventListener("click", acceptInvite);
+  inviteDecline?.addEventListener("click", declineInvite);
+
   pinsCloseBtn.addEventListener("click", closePinsList);
   pinsDialog.addEventListener("click", (e) => {
     if (e.target === pinsDialog) closePinsList();
@@ -1892,6 +2030,7 @@
 
   const onPinsViewport = () => {
     if (pinsDialog.open) layoutPinsDialog();
+    if (onlineDialog?.open) layoutBottomSheet(onlineDialog);
     if (dmDialog?.open) layoutDmDialog();
     if (renameDialog?.open) layoutFormDialog(renameDialog);
     if (adminDialog?.open) layoutFormDialog(adminDialog);
@@ -2203,12 +2342,34 @@
     patchMessage(msg);
   });
 
-  socket.on("chat:presence", ({ count, names }) => {
-    const sample = (names || []).slice(0, 4).join(", ");
-    presence.textContent =
-      count === 1
-        ? `онлайн 1${sample ? ` · ${sample}` : ""}`
-        : `онлайн ${count}${sample ? ` · ${sample}` : ""}`;
+  socket.on("chat:presence", ({ count, people, names } = {}) => {
+    lastPresenceCount = Number(count) || 0;
+    if (Array.isArray(people) && people.length) {
+      lastPeople = people
+        .filter((p) => p && typeof p.id === "string" && typeof p.name === "string")
+        .map((p) => ({ id: p.id, name: p.name }));
+    } else if (Array.isArray(names)) {
+      // Fallback if an older server build is still running.
+      lastPeople = names.filter(Boolean).map((name, i) => ({ id: `n-${i}-${name}`, name }));
+    } else {
+      lastPeople = [];
+    }
+    updatePresenceChrome();
+    if (onlineDialog?.open) renderOnlineList();
+  });
+
+  socket.on("dm:invite", (payload = {}) => {
+    if (!payload.code || !myName) return;
+    if (dmCode && dmCode === payload.code) return;
+    showInviteBanner({
+      code: payload.code,
+      from: payload.from || "Кто-то",
+      fromId: payload.fromId || "",
+    });
+  });
+
+  socket.on("dm:invite-declined", ({ name } = {}) => {
+    composerHint.textContent = `${name || "Участник"} отклонил приглашение`;
   });
 
   socket.on("connect", () => {

@@ -351,6 +351,22 @@ function emitDmPresence(code) {
   });
 }
 
+function presencePayload() {
+  const people = [...online.entries()].map(([id, u]) => ({
+    id,
+    name: u.name,
+  }));
+  return {
+    count: people.length,
+    people,
+    names: people.map((p) => p.name),
+  };
+}
+
+function emitChatPresence() {
+  io.emit("chat:presence", presencePayload());
+}
+
 function leaveDmRoom(socket) {
   const code = socket.data.roomCode;
   if (!code) return;
@@ -517,10 +533,7 @@ io.on("connection", (socket) => {
     socket.data.isAdmin = asAdmin;
     socket.data.roomCode = null;
     socket.data.previousName = asAdmin ? previousName : null;
-    io.emit("chat:presence", {
-      count: online.size,
-      names: [...online.values()].map((u) => u.name),
-    });
+    emitChatPresence();
     // Fresh snapshot after join so the client can pin to latest once visible.
     socket.emit("chat:state", snapshot());
     if (typeof ack === "function") {
@@ -556,10 +569,7 @@ io.on("connection", (socket) => {
     }
     user.name = name;
     socket.data.name = name;
-    io.emit("chat:presence", {
-      count: online.size,
-      names: [...online.values()].map((u) => u.name),
-    });
+    emitChatPresence();
     if (user.roomCode) emitDmPresence(user.roomCode);
     if (typeof ack === "function") ack({ ok: true, name });
   });
@@ -584,10 +594,7 @@ io.on("connection", (socket) => {
     user.name = ADMIN_DISPLAY_NAME;
     socket.data.name = ADMIN_DISPLAY_NAME;
     const token = issueAdminToken();
-    io.emit("chat:presence", {
-      count: online.size,
-      names: [...online.values()].map((u) => u.name),
-    });
+    emitChatPresence();
     if (user.roomCode) emitDmPresence(user.roomCode);
     if (typeof ack === "function") {
       ack({
@@ -622,10 +629,7 @@ io.on("connection", (socket) => {
     socket.data.isAdmin = true;
     user.name = ADMIN_DISPLAY_NAME;
     socket.data.name = ADMIN_DISPLAY_NAME;
-    io.emit("chat:presence", {
-      count: online.size,
-      names: [...online.values()].map((u) => u.name),
-    });
+    emitChatPresence();
     if (user.roomCode) emitDmPresence(user.roomCode);
     if (typeof ack === "function") {
       ack({
@@ -660,10 +664,7 @@ io.on("connection", (socket) => {
     user.previousName = null;
     socket.data.previousName = null;
 
-    io.emit("chat:presence", {
-      count: online.size,
-      names: [...online.values()].map((u) => u.name),
-    });
+    emitChatPresence();
     if (user.roomCode) emitDmPresence(user.roomCode);
     if (typeof ack === "function") ack({ ok: true, name: restore, admin: false });
   });
@@ -701,6 +702,65 @@ io.on("connection", (socket) => {
     emitDmPresence(code);
   });
 
+  socket.on("dm:invite", (payload = {}, ack) => {
+    const user = online.get(socket.id);
+    if (!user) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
+      return;
+    }
+    const toId = typeof payload.toId === "string" ? payload.toId.trim() : "";
+    if (!toId || toId === socket.id) {
+      if (typeof ack === "function") ack({ ok: false, error: "Выберите участника" });
+      return;
+    }
+    const target = online.get(toId);
+    if (!target) {
+      if (typeof ack === "function") ack({ ok: false, error: "Участник уже не онлайн" });
+      return;
+    }
+    leaveDmRoom(socket);
+    ensureRooms();
+    const code = generateRoomCode();
+    store.rooms[code] = {
+      code,
+      createdAt: new Date().toISOString(),
+      createdBy: user.name,
+      messages: [],
+    };
+    saveStore(store);
+    socket.join(roomChannel(code));
+    socket.data.roomCode = code;
+    user.roomCode = code;
+    const snap = roomSnapshot(code);
+    const targetSocket = io.sockets.sockets.get(toId);
+    if (targetSocket) {
+      targetSocket.emit("dm:invite", {
+        code,
+        from: user.name,
+        fromId: socket.id,
+      });
+    }
+    if (typeof ack === "function") {
+      ack({
+        ok: true,
+        code,
+        messages: snap.messages,
+        pinned: [],
+        count: roomOnlineCount(code),
+        names: roomMemberNames(code),
+        invited: target.name,
+      });
+    }
+    emitDmPresence(code);
+  });
+
+  socket.on("dm:invite-decline", (payload = {}) => {
+    const fromId = typeof payload.fromId === "string" ? payload.fromId.trim() : "";
+    if (!fromId) return;
+    const name = socket.data.name || "Участник";
+    io.to(fromId).emit("dm:invite-declined", { name });
+  });
+
   socket.on("dm:join", (payload = {}, ack) => {
     const user = online.get(socket.id);
     if (!user) {
@@ -715,7 +775,7 @@ io.on("connection", (socket) => {
     ensureRooms();
     const room = store.rooms[code];
     if (!room) {
-      if (typeof ack === "function") ack({ ok: false, error: "Комната не найдена — проверьте код" });
+      if (typeof ack === "function") ack({ ok: false, error: "Чат не найден — проверьте код" });
       return;
     }
     if (socket.data.roomCode === code) {
@@ -735,7 +795,7 @@ io.on("connection", (socket) => {
     leaveDmRoom(socket);
     if (roomOnlineCount(code) >= MAX_ROOM_MEMBERS) {
       if (typeof ack === "function") {
-        ack({ ok: false, error: "Уже двое в комнате. Зайдите, когда кто-то выйдет." });
+        ack({ ok: false, error: "Уже двое в чате. Зайдите, когда кто-то выйдет." });
       }
       return;
     }
@@ -787,7 +847,7 @@ io.on("connection", (socket) => {
       ? (ensureRooms(), store.rooms[roomCode] ? store.rooms[roomCode].messages : null)
       : store.messages;
     if (roomCode && !messageList) {
-      if (typeof ack === "function") ack({ ok: false, error: "Комната не найдена" });
+      if (typeof ack === "function") ack({ ok: false, error: "Чат не найден" });
       return;
     }
 
@@ -926,7 +986,7 @@ io.on("connection", (socket) => {
       ensureRooms();
       const room = store.rooms[roomCode];
       if (!room) {
-        if (typeof ack === "function") ack({ ok: false, error: "Комната не найдена" });
+        if (typeof ack === "function") ack({ ok: false, error: "Чат не найден" });
         return;
       }
       const idx = room.messages.findIndex((m) => m.id === payload.id);
@@ -964,10 +1024,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     leaveDmRoom(socket);
     online.delete(socket.id);
-    io.emit("chat:presence", {
-      count: online.size,
-      names: [...online.values()].map((u) => u.name),
-    });
+    emitChatPresence();
   });
 });
 
