@@ -1108,9 +1108,19 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "emoji-btn-item";
-      btn.textContent = emoji;
+      const glyph = document.createElement("span");
+      glyph.textContent = emoji;
+      glyph.style.cssText =
+        "display:inline-flex;align-items:center;justify-content:center;line-height:1;transform:translateY(0.5px)";
+      btn.append(glyph);
       // Prevent focus steal / keyboard open on iOS.
-      btn.addEventListener("pointerdown", (e) => e.preventDefault());
+      btn.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        btn.classList.add("is-pressed");
+      });
+      btn.addEventListener("pointerup", () => btn.classList.remove("is-pressed"));
+      btn.addEventListener("pointercancel", () => btn.classList.remove("is-pressed"));
+      btn.addEventListener("pointerleave", () => btn.classList.remove("is-pressed"));
       btn.addEventListener("click", () => {
         insertEmoji(emoji);
         // Leave the strip open for more picks; do not focus the textarea.

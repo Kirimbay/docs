@@ -10,7 +10,9 @@
   --accent-on: #161719;
   --ok: #6fbf8a;
   --danger: #e26d5a;
-  --mine: #222426;
+  --mine: #1a2430;
+  --mine-line: #3d5a73;
+  --mine-accent: #6ea8d9;
   --radius: 18px;
   --font-display: "Newsreader", Georgia, serif;
   --font-body: "Instrument Sans", system-ui, sans-serif;
@@ -582,9 +584,19 @@ button {
 }
 
 .msg.mine {
-  background: var(--mine);
+  background: linear-gradient(180deg, rgba(110, 168, 217, 0.16), rgba(26, 36, 48, 0.95));
+  border-color: var(--mine-line);
+  box-shadow: inset 3px 0 0 var(--mine-accent);
   align-self: end;
   width: min(100%, 34rem);
+}
+
+.msg.mine .msg-name {
+  color: #8cbcE3;
+}
+
+.msg.mine .msg-text {
+  color: #e4e9ee;
 }
 
 .msg.pinned-item {
@@ -1064,8 +1076,6 @@ button {
   min-width: 0;
 }
 
-/* duplicate .attach block removed — styles live above near emoji panel */
-
 .composer textarea {
   resize: none;
   flex: 1 1 auto;
@@ -1422,8 +1432,11 @@ button {
   }
 
   .emoji-btn-item {
-    min-height: 1.6rem;
-    font-size: 1rem;
+    width: 2rem;
+    height: 2rem;
+    min-width: 2rem;
+    min-height: 2rem;
+    font-size: 1.1rem;
   }
 
   .preview img {
