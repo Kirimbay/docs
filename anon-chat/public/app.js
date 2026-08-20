@@ -120,6 +120,47 @@
     }
   }
 
+  function appendLinkedText(container, raw) {
+    const text = String(raw || "");
+    const re = /\b((?:https?:\/\/|www\.)[^\s]+)/gi;
+    let last = 0;
+    let match;
+    while ((match = re.exec(text)) !== null) {
+      if (match.index > last) {
+        container.append(document.createTextNode(text.slice(last, match.index)));
+      }
+      let url = match[1];
+      let trailing = "";
+      while (url.length > 1 && /[.,;:!?)"'\]]$/.test(url)) {
+        trailing = url.slice(-1) + trailing;
+        url = url.slice(0, -1);
+      }
+      const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+      let linked = false;
+      try {
+        const parsed = new URL(href);
+        if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+          const a = document.createElement("a");
+          a.className = "msg-link";
+          a.href = parsed.href;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.textContent = url;
+          container.append(a);
+          linked = true;
+        }
+      } catch {
+        /* fall through */
+      }
+      if (!linked) container.append(document.createTextNode(match[1]));
+      else if (trailing) container.append(document.createTextNode(trailing));
+      last = match.index + match[1].length;
+    }
+    if (last < text.length) {
+      container.append(document.createTextNode(text.slice(last)));
+    }
+  }
+
   function isNearBottom(threshold = 120) {
     return feed.scrollHeight - feed.scrollTop - feed.clientHeight < threshold;
   }
@@ -484,7 +525,7 @@
     if (msg.text) {
       const text = document.createElement("p");
       text.className = "msg-text";
-      text.textContent = msg.text;
+      appendLinkedText(text, msg.text);
       el.append(text);
     }
 
