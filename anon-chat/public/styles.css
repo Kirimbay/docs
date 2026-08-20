@@ -739,30 +739,61 @@ body.admin-on #me-btn {
   position: relative;
 }
 
-.msg.msg-liked::after {
-  content: "❤️";
-  position: absolute;
-  left: 50%;
-  top: 42%;
-  transform: translate(-50%, -50%) scale(0.6);
-  font-size: 1.6rem;
-  opacity: 0;
+.like-fly {
+  position: fixed;
+  z-index: 90;
+  left: 0;
+  top: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.45rem;
+  line-height: 1;
   pointer-events: none;
-  animation: like-burst 0.48s var(--ease-out) both;
+  will-change: transform, opacity;
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.45s var(--ease-soft);
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.28));
 }
 
-@keyframes like-burst {
+.like-fly.is-moving {
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(0.55);
+  opacity: 0.92;
+}
+
+.like-fly.like-fly--out.is-moving {
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(0.35);
+  opacity: 0;
+}
+
+.msg-react-chip.like-land {
+  animation: like-chip-pop 0.32s var(--ease-out) both;
+}
+
+@keyframes like-chip-pop {
   0% {
-    opacity: 0;
-    transform: translate(-50%, -40%) scale(0.45);
+    transform: scale(0.72);
   }
-  35% {
-    opacity: 1;
-    transform: translate(-50%, -55%) scale(1.15);
+  55% {
+    transform: scale(1.14);
   }
   100% {
-    opacity: 0;
-    transform: translate(-50%, -70%) scale(0.9);
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .like-fly {
+    transition: none;
+  }
+  .msg-react-chip.like-land {
+    animation: none;
   }
 }
 
@@ -997,6 +1028,14 @@ body.admin-on #me-btn {
   cursor: default;
 }
 
+.msg .msg-text,
+.msg .msg-quote-text {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+  cursor: text;
+}
+
 .msg.msg-menu-open {
   outline: 1px solid rgba(110, 168, 217, 0.45);
   outline-offset: 1px;
@@ -1021,8 +1060,9 @@ body.admin-on #me-btn {
   background: linear-gradient(180deg, #323538, #26282b);
   border-color: var(--mine-line);
   box-shadow: inset 3px 0 0 var(--mine-accent);
-  align-self: end;
-  width: min(100%, 34rem);
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
 }
 
 .msg.mine .msg-name {

@@ -1426,21 +1426,15 @@
       openMsgActionMenu(msg, el, x, y);
     };
 
-    const pulseLike = () => {
-      el.classList.remove("msg-liked");
-      void el.offsetWidth;
-      el.classList.add("msg-liked");
-      setTimeout(() => el.classList.remove("msg-liked"), 520);
-      try {
-        navigator.vibrate?.(8);
-      } catch {
-        /* ignore */
-      }
-    };
-
     el.addEventListener("pointerdown", (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
       if (interactive(e.target)) return;
+      // Allow native text selection / copy on message body.
+      if (e.target.closest(".msg-text, .msg-quote-text")) {
+        opened = false;
+        clear();
+        return;
+      }
       opened = false;
       clear();
       start = { x: e.clientX, y: e.clientY };
@@ -1461,10 +1455,13 @@
 
     el.addEventListener("pointerup", (e) => {
       const wasTiming = Boolean(timer);
-      const tapStart = start;
       clear();
-      if (opened || !wasTiming || !tapStart) return;
+      if (opened) return;
       if (interactive(e.target)) return;
+      const onText = Boolean(e.target.closest(".msg-text, .msg-quote-text"));
+      // Short bubble taps and text taps both count toward double-tap like.
+      if (!wasTiming && !onText) return;
+
       const now = Date.now();
       const dx = Math.abs(e.clientX - lastTapX);
       const dy = Math.abs(e.clientY - lastTapY);
@@ -1475,8 +1472,12 @@
         setTimeout(() => {
           delete el.dataset.suppressPhoto;
         }, 400);
-        pulseLike();
-        ensureLike(msg.id);
+        try {
+          navigator.vibrate?.(8);
+        } catch {
+          /* ignore */
+        }
+        toggleLike(msg.id, el, e.clientX, e.clientY);
         return;
       }
       lastTapAt = now;
@@ -1488,6 +1489,7 @@
 
     el.addEventListener("contextmenu", (e) => {
       if (interactive(e.target)) return;
+      if (e.target.closest(".msg-text, .msg-quote-text")) return;
       e.preventDefault();
       openAt(e.clientX, e.clientY);
     });
@@ -1581,12 +1583,120 @@
     });
   }
 
-  function ensureLike(msgId) {
-    const msg =
+  function findMessage(msgId) {
+    return (
       (lastState.messages || []).find((m) => m.id === msgId) ||
-      (lastState.pinned || []).find((m) => m.id === msgId);
+      (lastState.pinned || []).find((m) => m.id === msgId) ||
+      null
+    );
+  }
+
+  function likeChipEl(msgEl) {
+    if (!msgEl) return null;
+    return (
+      [...msgEl.querySelectorAll(".msg-react-chip")].find((c) => (c.textContent || "").includes("❤")) ||
+      null
+    );
+  }
+
+  function likeFlightTarget(msgEl) {
+    const chip = likeChipEl(msgEl);
+    if (chip) return chip.getBoundingClientRect();
+    const actions = msgEl.querySelector(".msg-actions");
+    if (actions) {
+      const r = actions.getBoundingClientRect();
+      return { left: r.left + 10, top: r.top + r.height / 2, width: 0, height: 0 };
+    }
+    const r = msgEl.getBoundingClientRect();
+    return { left: r.left + 18, top: r.bottom - 14, width: 0, height: 0 };
+  }
+
+  function playLikeFlight(msgEl, msgId, clientX, clientY, { removing = false } = {}) {
+    const reduceMotion =
+      typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion || !msgEl) return;
+
+    const liveEl = () => feed.querySelector(`[data-id="${CSS.escape(msgId)}"]`) || msgEl;
+    const chip = likeChipEl(msgEl);
+    const msgBox = msgEl.getBoundingClientRect();
+    let startX;
+    let startY;
+
+    if (removing && chip) {
+      const c = chip.getBoundingClientRect();
+      startX = c.left + c.width / 2;
+      startY = c.top + c.height / 2;
+    } else {
+      startX = typeof clientX === "number" ? clientX : msgBox.left + msgBox.width / 2;
+      startY = typeof clientY === "number" ? clientY : msgBox.top + msgBox.height * 0.42;
+    }
+
+    const endPoint = () => {
+      const el = liveEl();
+      if (removing) {
+        const box = el.getBoundingClientRect();
+        return { x: box.left + box.width / 2, y: box.top + box.height * 0.32 };
+      }
+      const target = likeFlightTarget(el);
+      return {
+        x: target.left + (target.width || 0) / 2,
+        y: target.top + (target.height || 0) / 2,
+      };
+    };
+
+    const heart = document.createElement("span");
+    heart.className = "like-fly" + (removing ? " like-fly--out" : "");
+    heart.textContent = "❤️";
+    heart.setAttribute("aria-hidden", "true");
+    heart.style.left = `${Math.round(startX)}px`;
+    heart.style.top = `${Math.round(startY)}px`;
+    heart.style.setProperty("--dx", "0px");
+    heart.style.setProperty("--dy", "0px");
+    document.body.appendChild(heart);
+
+    const setEnd = () => {
+      if (!heart.isConnected) return;
+      const { x, y } = endPoint();
+      heart.style.setProperty("--dx", `${Math.round(x - startX)}px`);
+      heart.style.setProperty("--dy", `${Math.round(y - startY)}px`);
+    };
+
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      heart.remove();
+      if (!removing) {
+        const landed = likeChipEl(liveEl());
+        if (landed) {
+          landed.classList.remove("like-land");
+          void landed.offsetWidth;
+          landed.classList.add("like-land");
+          setTimeout(() => landed.classList.remove("like-land"), 360);
+        }
+      }
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setEnd();
+        heart.classList.add("is-moving");
+      });
+    });
+    // Retarget as the reaction chip mounts from the server update.
+    setTimeout(setEnd, 90);
+    setTimeout(setEnd, 180);
+    setTimeout(setEnd, 280);
+
+    heart.addEventListener("transitionend", finish, { once: true });
+    setTimeout(finish, 560);
+  }
+
+  function toggleLike(msgId, msgEl, clientX, clientY) {
+    const msg = findMessage(msgId);
     const reactors = Array.isArray(msg?.reactions?.[LIKE_EMOJI]) ? msg.reactions[LIKE_EMOJI] : [];
-    if (reactors.includes(myName)) return;
+    const removing = reactors.includes(myName);
+    playLikeFlight(msgEl, msgId, clientX, clientY, { removing });
     applyReaction(msgId, LIKE_EMOJI);
   }
 
