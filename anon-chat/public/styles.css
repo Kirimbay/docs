@@ -1842,40 +1842,74 @@ body.pins-focus-mode .feed .msg.pin-focus {
 }
 
 .composer .hint {
-  padding: 0 0.15rem;
-  min-height: 0;
+  display: none !important;
 }
 
-.composer .hint:empty {
-  display: none;
-}
-
-.copy-toast {
+.app-toast {
   position: fixed;
-  left: 50%;
-  bottom: calc(5.5rem + var(--safe-bottom, 0px) + var(--kb-inset, 0px));
-  z-index: 80;
-  max-width: min(20rem, calc(100vw - 2rem));
-  padding: 0.65rem 1rem;
-  border-radius: 14px;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: max(1rem, env(safe-area-inset-top)) 1.1rem max(1rem, env(safe-area-inset-bottom));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 240ms var(--ease-out, ease-out),
+    visibility 240ms var(--ease-out, ease-out);
+}
+
+.app-toast[hidden] {
+  display: grid !important;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.app-toast.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.app-toast-scrim {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  transition: background 240ms var(--ease-soft, ease);
+}
+
+.app-toast.dim .app-toast-scrim {
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.app-toast-card {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  max-width: min(18.5rem, calc(100vw - 2.4rem));
+  padding: 0.85rem 1.15rem;
+  border-radius: var(--radius);
   border: 1px solid var(--line);
   background: var(--bg-elev);
   color: var(--ink);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
+  line-height: 1.3;
   letter-spacing: 0.01em;
   text-align: center;
-  pointer-events: none;
+  box-shadow: var(--shadow-strong);
+  transform: translateY(10px) scale(0.96);
   opacity: 0;
-  transform: translate(-50%, 8px);
   transition:
-    opacity 160ms var(--ease-out, ease-out),
-    transform 160ms var(--ease-out, ease-out);
+    transform 240ms var(--ease-out, ease-out),
+    opacity 240ms var(--ease-out, ease-out);
 }
 
-.copy-toast.show {
+.app-toast.show .app-toast-card {
+  transform: translateY(0) scale(1);
   opacity: 1;
-  transform: translate(-50%, 0);
 }
 
 .dialog {
@@ -2497,11 +2531,6 @@ body.keyboard-open .pins-dialog.dialog {
   .composer .send-icon {
     width: 0.92rem;
     height: 0.92rem;
-  }
-
-  .composer .hint {
-    font-size: 0.64rem;
-    margin-top: 0.1rem;
   }
 
   .emoji-btn-item {

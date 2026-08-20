@@ -23,7 +23,8 @@
   const preview = $("#preview");
   const previewImg = $("#preview-img");
   const previewClear = $("#preview-clear");
-  const composerHint = $("#composer-hint");
+  const appToast = $("#app-toast");
+  const appToastText = $("#app-toast-text");
   const replyBar = $("#reply-bar");
   const replyBarLabel = $("#reply-bar-label");
   const replyBarPreview = $("#reply-bar-preview");
@@ -394,9 +395,9 @@
     schedulePinToLatest();
     updateDmPresence(res);
     if (messageInput) messageInput.placeholder = "Сообщение вдвоём…";
-    composerHint.textContent = res.invited
+    notify(res.invited
       ? `Ждём ${res.invited} · код ${res.code}`
-      : `Код ${res.code} · передайте второму`;
+      : `Код ${res.code} · передайте второму`)
     syncDmBtn();
   }
 
@@ -417,7 +418,7 @@
     if (prev) {
       rememberDmRoom(prev, { active: false });
       saveDmCode("");
-      composerHint.textContent = `Снова общий чат · ${prev} в меню «Вдвоём»`;
+      notify(`Снова общий чат · ${prev} в меню «Вдвоём»`)
     }
   }
 
@@ -471,11 +472,11 @@
     closeOnlineList();
     socket.emit("dm:invite", { toId: person.id }, (res) => {
       if (!res?.ok) {
-        composerHint.textContent = res?.error || "Не удалось пригласить";
+        notify(res?.error || "Не удалось пригласить")
         return;
       }
       enterDmMode(res);
-      composerHint.textContent = `Приглашение ${person.name} · код ${res.code}`;
+      notify(`Приглашение ${person.name} · код ${res.code}`)
     });
   }
 
@@ -635,12 +636,12 @@
     closeInvitesDialog();
     socket.emit("dm:join", { code: invite.code }, (res) => {
       if (!res?.ok) {
-        composerHint.textContent = res?.error || "Не удалось войти";
+        notify(res?.error || "Не удалось войти")
         syncInvitesBtn();
         return;
       }
       enterDmMode(res);
-      composerHint.textContent = `Вдвоём с ${from}`;
+      notify(`Вдвоём с ${from}`)
     });
   }
 
@@ -1055,12 +1056,12 @@
     socket.emit("admin:logout", { token, name: prev }, (res) => {
       clearAdminToken();
       if (!res?.ok) {
-        composerHint.textContent = res?.error || "Не удалось выйти из админки";
+        notify(res?.error || "Не удалось выйти из админки")
         return;
       }
       clearPrevName();
       setAdminUi(false, res.name);
-      composerHint.textContent = `Снова обычный участник · ${res.name}`;
+      notify(`Снова обычный участник · ${res.name}`)
     });
   }
 
@@ -1148,7 +1149,7 @@
   function scrollToPinnedMessage(msg, { fromMenu = false } = {}) {
     const el = feed.querySelector(`[data-id="${msg.id}"]`);
     if (!el) {
-      composerHint.textContent = "Сообщение не в текущей ленте";
+      notify("Сообщение не в текущей ленте")
       return;
     }
 
@@ -1255,7 +1256,7 @@
             clearUnpinArm();
             socket.emit("admin:unpin", { id: msg.id }, (res) => {
               if (!res?.ok) {
-                composerHint.textContent = res?.error || "Не открепилось";
+                notify(res?.error || "Не открепилось")
                 return;
               }
               lastState.pinned = (lastState.pinned || []).filter((m) => m.id !== msg.id);
@@ -1452,46 +1453,49 @@
     requestAnimationFrame(() => positionFixedMenu(menu, msgEl, clientX, clientY));
   }
 
-  let copyToastTimer = null;
-  let hintClearTimer = null;
+  let appToastTimer = null;
+  let lastNotice = "";
 
-  function showComposerNotice(text, { toast = false, clearMs = 2200 } = {}) {
-    if (!composerHint) return;
-    composerHint.textContent = text;
-    if (hintClearTimer) clearTimeout(hintClearTimer);
-    hintClearTimer = setTimeout(() => {
-      if (composerHint.textContent === text) composerHint.textContent = "";
-      hintClearTimer = null;
-    }, clearMs);
-
-    if (!toast) return;
-    let el = document.getElementById("copy-toast");
-    if (!el) {
-      el = document.createElement("div");
-      el.id = "copy-toast";
-      el.className = "copy-toast";
-      el.setAttribute("role", "status");
-      el.setAttribute("aria-live", "polite");
-      document.body.appendChild(el);
+  function hideAppToast() {
+    if (appToastTimer) {
+      clearTimeout(appToastTimer);
+      appToastTimer = null;
     }
-    el.textContent = text;
-    el.classList.add("show");
-    if (copyToastTimer) clearTimeout(copyToastTimer);
-    copyToastTimer = setTimeout(() => {
-      el.classList.remove("show");
-      copyToastTimer = null;
+    lastNotice = "";
+    if (!appToast) return;
+    appToast.classList.remove("show", "dim");
+    const finish = () => {
+      if (!appToast.classList.contains("show")) appToast.hidden = true;
+    };
+    appToast.addEventListener("transitionend", finish, { once: true });
+    setTimeout(finish, 280);
+  }
+
+  function notify(text, { dim = false, clearMs = 1800 } = {}) {
+    const msg = String(text || "").trim();
+    if (!msg || !appToast || !appToastText) return;
+    lastNotice = msg;
+    appToastText.textContent = msg;
+    appToast.hidden = false;
+    appToast.classList.toggle("dim", Boolean(dim));
+    // Force reflow so the show transition always plays.
+    void appToast.offsetWidth;
+    appToast.classList.add("show");
+    if (appToastTimer) clearTimeout(appToastTimer);
+    appToastTimer = setTimeout(() => {
+      if (lastNotice === msg) hideAppToast();
     }, clearMs);
   }
 
   async function copyBubbleText(msg) {
     const text = (msg?.text || "").trim();
     if (!text) {
-      showComposerNotice("В сообщении нет текста");
+      notify("В сообщении нет текста", { dim: true });
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      showComposerNotice("Текст сообщения скопирован", { toast: true });
+      notify("Текст сообщения скопирован", { dim: true, clearMs: 1600 });
       try {
         navigator.vibrate?.(10);
       } catch {
@@ -1511,9 +1515,9 @@
       ta.select();
       document.execCommand("copy");
       ta.remove();
-      showComposerNotice("Текст сообщения скопирован", { toast: true });
+      notify("Текст сообщения скопирован", { dim: true, clearMs: 1600 });
     } catch {
-      showComposerNotice("Не удалось скопировать");
+      notify("Не удалось скопировать", { dim: true });
     }
   }
 
@@ -1744,7 +1748,7 @@
     closeAllReactMenus();
     socket.emit("chat:react", { id: msgId, emoji }, (res) => {
       if (!res?.ok) {
-        composerHint.textContent = res?.error || "Ошибка реакции";
+        notify(res?.error || "Ошибка реакции")
         return;
       }
       // Bubble-pop at the reaction chip once the update lands.
@@ -1802,8 +1806,7 @@
       if (match) invitePerson(match);
       else {
         openOnlineList();
-        composerHint.textContent =
-          msg.name === myName ? "Это вы" : `${msg.name} сейчас не онлайн`;
+        notify(msg.name === myName ? "Это вы" : `${msg.name} сейчас не онлайн`)
       }
     });
     const time = document.createElement("span");
@@ -1841,7 +1844,7 @@
         e?.stopPropagation?.();
         const target = feed.querySelector(`[data-id="${CSS.escape(msg.reply.id)}"]`);
         if (!target) {
-          composerHint.textContent = "Оригинал не в ленте";
+          notify("Оригинал не в ленте")
           return;
         }
         target.classList.add("pin-flash");
@@ -1909,7 +1912,7 @@
       pinBtn.addEventListener("click", () => {
         const event = msg.pinned ? "admin:unpin" : "admin:pin";
         socket.emit(event, { id: msg.id }, (res) => {
-          if (!res?.ok) composerHint.textContent = res?.error || "Ошибка";
+          if (!res?.ok) notify(res?.error || "Ошибка")
         });
       });
       actions.append(pinBtn);
@@ -1929,7 +1932,7 @@
           clearDeleteArm();
           socket.emit("admin:delete", { id: msg.id }, (res) => {
             if (!res?.ok) {
-              composerHint.textContent = res?.error || "Ошибка";
+              notify(res?.error || "Ошибка")
               return;
             }
             removeMessageById(msg.id);
@@ -2093,7 +2096,7 @@
 
   async function uploadPhoto(file) {
     uploading = true;
-    composerHint.textContent = "Загрузка фото…";
+    notify("Загрузка фото…")
     sendBtn.disabled = true;
     try {
       const body = new FormData();
@@ -2104,9 +2107,9 @@
       pendingImageUrl = data.imageUrl;
       previewImg.src = data.imageUrl;
       preview.hidden = false;
-      composerHint.textContent = "Фото готово к отправке";
+      notify("Фото готово к отправке")
     } catch (err) {
-      composerHint.textContent = err.message || "Не удалось загрузить фото";
+      notify(err.message || "Не удалось загрузить фото")
       pendingImageUrl = null;
       preview.hidden = true;
     } finally {
@@ -2120,7 +2123,7 @@
     preview.hidden = true;
     previewImg.removeAttribute("src");
     photoInput.value = "";
-    if (composerHint.textContent.includes("Фото")) composerHint.textContent = "";
+    if (lastNotice.includes("Фото")) hideAppToast();
   }
 
   function send() {
@@ -2135,14 +2138,14 @@
     };
     socket.emit("chat:message", payload, (res) => {
       if (!res?.ok) {
-        composerHint.textContent = res?.error || "Не отправилось";
+        notify(res?.error || "Не отправилось")
         return;
       }
       messageInput.value = "";
       autoSize();
       clearPreview();
       clearReply();
-      composerHint.textContent = "";
+      hideAppToast()
     });
   }
 
@@ -2155,7 +2158,7 @@
 
   function openRenameDialog() {
     if (isAdmin) {
-      composerHint.textContent = "В админке имя всегда АДМИН";
+      notify("В админке имя всегда АДМИН")
       return;
     }
     if (!renameDialog || !renameInput) return;
@@ -2174,12 +2177,12 @@
   function applyRename() {
     const next = (renameInput?.value || "").trim();
     if (!next) {
-      composerHint.textContent = "Введите имя";
+      notify("Введите имя")
       return;
     }
     socket.emit("chat:rename", { name: next }, (res) => {
       if (!res?.ok) {
-        composerHint.textContent = res?.error || "Не сменилось";
+        notify(res?.error || "Не сменилось")
         return;
       }
       myName = res.name;
@@ -2231,7 +2234,7 @@
     const file = photoInput.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      composerHint.textContent = "Можно только изображения";
+      notify("Можно только изображения")
       return;
     }
     uploadPhoto(file);
@@ -2436,7 +2439,7 @@
       }
       applyAdminSession(res);
       adminDialog.close();
-      composerHint.textContent = "Режим админа · ник АДМИН";
+      notify("Режим админа · ник АДМИН")
     });
   }
 
@@ -2539,7 +2542,7 @@
       enterDmMode(res);
       if (dmCodeInput) dmCodeInput.value = res.code;
       dmDialog?.close();
-      composerHint.textContent = `Код ${res.code} — передайте второму человеку`;
+      notify(`Код ${res.code} — передайте второму человеку`)
     });
   });
   dmJoinBtn?.addEventListener("click", joinDmFromInput);
@@ -2566,9 +2569,9 @@
     if (!dmCode) return;
     try {
       await navigator.clipboard.writeText(dmCode);
-      composerHint.textContent = `Код ${dmCode} скопирован`;
+      notify(`Код ${dmCode} скопирован`)
     } catch {
-      composerHint.textContent = `Код: ${dmCode}`;
+      notify(`Код: ${dmCode}`)
     }
   });
 
@@ -2662,7 +2665,7 @@
   });
 
   socket.on("dm:invite-declined", ({ name } = {}) => {
-    composerHint.textContent = `${name || "Участник"} отклонил приглашение`;
+    notify(`${name || "Участник"} отклонил приглашение`)
   });
 
   socket.on("connect", () => {

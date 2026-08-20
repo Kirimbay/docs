@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=81" />
+    <link rel="stylesheet" href="/styles.css?v=82" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -124,8 +124,12 @@
             </button>
           </div>
         </div>
-        <p id="composer-hint" class="hint"></p>
       </footer>
+    </div>
+
+    <div id="app-toast" class="app-toast" hidden aria-live="polite">
+      <div class="app-toast-scrim" aria-hidden="true"></div>
+      <p class="app-toast-card" id="app-toast-text" role="status"></p>
     </div>
 
     <dialog id="pins-dialog" class="dialog pins-dialog">
@@ -238,6 +242,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=81"></script>
+    <script src="/app.js?v=82"></script>
   </body>
 </html>
