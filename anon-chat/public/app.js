@@ -98,6 +98,8 @@
   let pinHoldStart = null;
   const PIN_HOLD_MS = 420;
   const PIN_HOLD_MOVE_PX = 12;
+  const MSG_HOLD_MS = 420;
+  const MSG_HOLD_MOVE_PX = 12;
   let deleteArmedId = null;
   let deleteArmedTimer = null;
   const DELETE_ARM_MS = 1000;
@@ -720,10 +722,15 @@
     const feedBox = feed.getBoundingClientRect();
     const dialogBox = pinsDialog.open
       ? pinsDialog.getBoundingClientRect()
-      : { bottom: feedBox.top, height: 0 };
+      : { top: feedBox.bottom, bottom: feedBox.top, height: 0 };
     const margin = 14;
-    const viewTop = Math.max(feedBox.top, dialogBox.bottom) + margin;
-    const viewBottom = feedBox.bottom - margin;
+    const dialogInUpper = dialogBox.height > 0 && dialogBox.top < feedBox.top + feedBox.height * 0.45;
+    const viewTop = dialogInUpper
+      ? Math.max(feedBox.top, dialogBox.bottom) + margin
+      : feedBox.top + margin;
+    const viewBottom = dialogInUpper
+      ? feedBox.bottom - margin
+      : Math.min(feedBox.bottom, dialogBox.top || feedBox.bottom) - margin;
     const viewMid = (viewTop + viewBottom) / 2;
     const elBox = el.getBoundingClientRect();
     const elMid = elBox.top + elBox.height / 2;
@@ -753,6 +760,35 @@
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       setTimeout(() => el.classList.remove("pin-flash"), 1200);
     }
+  }
+
+  function layoutPinsDialog() {
+    if (!pinsDialog?.open) return;
+    syncViewportHeight();
+    const vv = window.visualViewport;
+    const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
+    const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
+    const vvBottom = vvTop + vvH;
+    const pinRect = pins.getBoundingClientRect();
+    const sidePad = 10;
+    let top = Math.round(pinRect.bottom + 8);
+    // Keep inside the visible viewport (avoids Safari chrome overlap).
+    if (top < vvTop + 10) top = vvTop + Math.round(vvH * 0.1);
+    let maxH = Math.round(vvBottom - top - 14);
+    maxH = Math.min(maxH, Math.round(vvH * 0.52));
+    if (maxH < 150) {
+      maxH = Math.min(Math.round(vvH * 0.48), Math.max(140, vvH - 28));
+      top = Math.round(vvBottom - maxH - 12);
+      if (top < vvTop + 8) top = vvTop + 8;
+    }
+    pinsDialog.style.top = `${top}px`;
+    pinsDialog.style.left = "50%";
+    pinsDialog.style.right = "auto";
+    pinsDialog.style.bottom = "auto";
+    pinsDialog.style.transform = "translateX(-50%)";
+    pinsDialog.style.width = `min(420px, calc(100vw - ${sidePad * 2}px))`;
+    pinsDialog.style.maxWidth = `calc(100vw - ${sidePad * 2}px)`;
+    pinsDialog.style.maxHeight = `${Math.max(120, maxH)}px`;
   }
 
   function closePinsList() {
@@ -846,7 +882,11 @@
     });
     document.body.classList.add("pins-list-open");
     if (!pinsDialog.open) pinsDialog.showModal();
-    requestAnimationFrame(() => syncViewportHeight());
+    requestAnimationFrame(() => {
+      layoutPinsDialog();
+      syncViewportHeight();
+      layoutPinsDialog();
+    });
   }
 
   function clearPinHold() {
@@ -873,7 +913,15 @@
     }
   }
 
+  function closeMsgActionMenu() {
+    document.querySelectorAll("body > .msg-action-menu").forEach((m) => m.remove());
+    document.querySelectorAll(".msg.msg-menu-open").forEach((el) => {
+      el.classList.remove("msg-menu-open");
+    });
+  }
+
   function closeAllReactMenus() {
+    closeMsgActionMenu();
     document.querySelectorAll(".msg-react-menu").forEach((m) => {
       m.hidden = true;
       m.classList.remove("fixed-open");
@@ -891,6 +939,151 @@
     });
   }
 
+  function positionFixedMenu(menu, anchorEl, clientX, clientY) {
+    const mw = menu.offsetWidth || 200;
+    const mh = menu.offsetHeight || 120;
+    const vv = window.visualViewport;
+    const vvTop = vv ? vv.offsetTop || 0 : 0;
+    const vvLeft = vv ? vv.offsetLeft || 0 : 0;
+    const vvW = vv ? vv.width : window.innerWidth;
+    const vvH = vv ? vv.height : window.innerHeight;
+    const pad = 10;
+    let left = typeof clientX === "number" ? clientX - mw / 2 : 0;
+    let top = typeof clientY === "number" ? clientY - mh - 12 : 0;
+    if (anchorEl) {
+      const rect = anchorEl.getBoundingClientRect();
+      if (typeof clientX !== "number") left = rect.left + rect.width / 2 - mw / 2;
+      if (typeof clientY !== "number") top = rect.top - mh - 10;
+      // Prefer above message; if clipped, place below.
+      if (top < vvTop + pad) top = rect.bottom + 10;
+    }
+    left = Math.max(vvLeft + pad, Math.min(left, vvLeft + vvW - mw - pad));
+    top = Math.max(vvTop + pad, Math.min(top, vvTop + vvH - mh - pad));
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+  }
+
+  function openMsgActionMenu(msg, msgEl, clientX, clientY) {
+    closeAllReactMenus();
+    if (!msg || !msgEl) return;
+    msgEl.classList.add("msg-menu-open");
+
+    const menu = document.createElement("div");
+    menu.className = "msg-action-menu";
+    menu.setAttribute("role", "menu");
+
+    const replyBtn = document.createElement("button");
+    replyBtn.type = "button";
+    replyBtn.className = "msg-action-reply";
+    replyBtn.setAttribute("role", "menuitem");
+    replyBtn.textContent = "Ответить";
+    replyBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMsgActionMenu();
+      setReplyTarget(msg);
+    });
+
+    const reacts = document.createElement("div");
+    reacts.className = "msg-action-reacts";
+    reacts.setAttribute("role", "group");
+    reacts.setAttribute("aria-label", "Реакции");
+    for (const { emoji, title } of REACTIONS) {
+      const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
+      const mine = reactors.includes(myName);
+      const opt = document.createElement("button");
+      opt.type = "button";
+      opt.className = "msg-action-react" + (mine ? " mine" : "");
+      opt.title = title;
+      opt.setAttribute("aria-label", title);
+      opt.textContent = emoji;
+      opt.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        applyReaction(msg.id, emoji);
+      });
+      reacts.append(opt);
+    }
+
+    menu.append(replyBtn, reacts);
+    document.body.appendChild(menu);
+    requestAnimationFrame(() => positionFixedMenu(menu, msgEl, clientX, clientY));
+  }
+
+  function bindMessageHold(el, msg) {
+    let timer = null;
+    let start = null;
+    let opened = false;
+
+    const interactive = (target) =>
+      Boolean(
+        target.closest(
+          "a, button, input, textarea, label, .msg-react-chip, .msg-admin-icon, .msg-quote, .msg-name"
+        )
+      );
+
+    const clear = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      start = null;
+    };
+
+    const openAt = (x, y) => {
+      opened = true;
+      clear();
+      try {
+        navigator.vibrate?.(12);
+      } catch {
+        /* ignore */
+      }
+      openMsgActionMenu(msg, el, x, y);
+    };
+
+    el.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (interactive(e.target)) return;
+      opened = false;
+      clear();
+      start = { x: e.clientX, y: e.clientY };
+      const x = e.clientX;
+      const y = e.clientY;
+      timer = setTimeout(() => {
+        timer = null;
+        openAt(x, y);
+      }, MSG_HOLD_MS);
+    });
+
+    el.addEventListener("pointermove", (e) => {
+      if (!start || !timer) return;
+      const dx = Math.abs(e.clientX - start.x);
+      const dy = Math.abs(e.clientY - start.y);
+      if (dx > MSG_HOLD_MOVE_PX || dy > MSG_HOLD_MOVE_PX) clear();
+    });
+
+    el.addEventListener("pointerup", clear);
+    el.addEventListener("pointercancel", clear);
+    el.addEventListener("lostpointercapture", clear);
+
+    el.addEventListener("contextmenu", (e) => {
+      if (interactive(e.target)) return;
+      e.preventDefault();
+      openAt(e.clientX, e.clientY);
+    });
+
+    el.addEventListener(
+      "click",
+      (e) => {
+        if (!opened) return;
+        e.preventDefault();
+        e.stopPropagation();
+        opened = false;
+      },
+      true
+    );
+  }
+
   function removeMessageById(id) {
     if (!id) return;
     closeAllReactMenus();
@@ -899,31 +1092,10 @@
     lastState.pinned = (lastState.pinned || []).filter((m) => m.id !== id);
     const el = feed.querySelector(`[data-id="${CSS.escape(id)}"]`);
     if (el) el.remove();
-    // Orphan reaction menus were moved to <body> — drop them so they don't leave a hole.
-    document.querySelectorAll("body > .msg-react-menu").forEach((m) => m.remove());
+    document.querySelectorAll("body > .msg-react-menu, body > .msg-action-menu").forEach((m) => m.remove());
     if (deleteArmedId === id) clearDeleteArm();
     updatePinBar();
     updateJumpBottom();
-  }
-
-  function openReactMenu(menu, wrap, toggle) {
-    closeAllReactMenus();
-    menu._ownerWrap = wrap;
-    document.body.appendChild(menu);
-    menu.hidden = false;
-    wrap.classList.add("open");
-    menu.classList.add("fixed-open");
-    requestAnimationFrame(() => {
-      const rect = toggle.getBoundingClientRect();
-      const mw = menu.offsetWidth || 180;
-      const mh = menu.offsetHeight || 44;
-      let left = rect.left;
-      left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
-      let top = rect.top - mh - 8;
-      if (top < 8) top = Math.min(window.innerHeight - mh - 8, rect.bottom + 8);
-      menu.style.left = `${Math.round(left)}px`;
-      menu.style.top = `${Math.round(top)}px`;
-    });
   }
 
   function applyReaction(msgId, emoji) {
@@ -1031,52 +1203,6 @@
     }
     if (activeWrap.childElementCount) actions.append(activeWrap);
 
-    const reactWrap = document.createElement("div");
-    reactWrap.className = "msg-react-wrap";
-
-    const reactToggle = document.createElement("button");
-    reactToggle.type = "button";
-    reactToggle.className = "msg-reply msg-react-toggle";
-    reactToggle.textContent = "реакция";
-    reactToggle.title = "Добавить реакцию";
-
-    const reactMenu = document.createElement("div");
-    reactMenu.className = "msg-react-menu";
-    reactMenu.hidden = true;
-    for (const { emoji, title } of REACTIONS) {
-      const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
-      const mine = reactors.includes(myName);
-      const opt = document.createElement("button");
-      opt.type = "button";
-      opt.className = "msg-react-opt" + (mine ? " mine" : "");
-      opt.title = title;
-      opt.textContent = emoji;
-      const pick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        applyReaction(msg.id, emoji);
-      };
-      opt.addEventListener("click", pick);
-      reactMenu.append(opt);
-    }
-
-    reactToggle.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (reactMenu.hidden) openReactMenu(reactMenu, reactWrap, reactToggle);
-      else closeAllReactMenus();
-    });
-
-    reactWrap.append(reactToggle, reactMenu);
-    actions.append(reactWrap);
-
-    const replyBtn = document.createElement("button");
-    replyBtn.type = "button";
-    replyBtn.className = "msg-reply";
-    replyBtn.textContent = "ответить";
-    replyBtn.addEventListener("click", () => setReplyTarget(msg));
-    actions.append(replyBtn);
-
     if (isAdmin && !dmCode) {
       const pinBtn = document.createElement("button");
       pinBtn.type = "button";
@@ -1126,13 +1252,14 @@
       actions.append(delBtn);
     }
 
-    el.append(actions);
+    if (actions.childElementCount) el.append(actions);
+    bindMessageHold(el, msg);
     return el;
   }
 
   function renderAll(state) {
     closeAllReactMenus();
-    document.querySelectorAll("body > .msg-react-menu").forEach((m) => m.remove());
+    document.querySelectorAll("body > .msg-react-menu, body > .msg-action-menu").forEach((m) => m.remove());
     lastState = state || lastState;
     const { messages = [] } = lastState;
 
@@ -1489,7 +1616,20 @@
   pinsDialog.addEventListener("close", () => {
     clearUnpinArm();
     clearPinFocus();
+    pinsDialog.style.top = "";
+    pinsDialog.style.maxHeight = "";
+    pinsDialog.style.width = "";
+    pinsDialog.style.maxWidth = "";
   });
+
+  const onPinsViewport = () => {
+    if (pinsDialog.open) layoutPinsDialog();
+  };
+  window.addEventListener("resize", onPinsViewport);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", onPinsViewport);
+    window.visualViewport.addEventListener("scroll", onPinsViewport);
+  }
 
   pins.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -1741,11 +1881,14 @@
   });
 
   document.addEventListener("pointerdown", (e) => {
-    if (e.target.closest(".msg-react-wrap") || e.target.closest(".msg-react-menu")) return;
+    if (e.target.closest(".msg-action-menu") || e.target.closest(".msg-react-menu")) return;
     closeAllReactMenus();
   });
   window.addEventListener("resize", closeAllReactMenus);
   feed.addEventListener("scroll", closeAllReactMenus, { passive: true });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeAllReactMenus();
+  });
 
   // Drop legacy push/notification service workers from older builds.
   if ("serviceWorker" in navigator) {
