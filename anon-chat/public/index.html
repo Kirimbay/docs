@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=46" />
+    <link rel="stylesheet" href="/styles.css?v=47" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -194,7 +194,7 @@
     </dialog>
 
     <dialog id="admin-dialog" class="dialog">
-      <form method="dialog" id="admin-form">
+      <div class="dialog-body">
         <h2>Админ</h2>
         <p>Пароль нужен, чтобы закреплять и удалять сообщения.</p>
         <label class="field">
@@ -203,10 +203,10 @@
         </label>
         <p id="admin-error" class="error" hidden></p>
         <div class="dialog-actions">
-          <button type="submit" value="cancel" class="ghost">Отмена</button>
-          <button type="submit" value="ok" class="primary" id="admin-submit">Войти</button>
+          <button type="button" id="admin-cancel-btn" class="ghost">Отмена</button>
+          <button type="button" id="admin-submit" class="primary">Войти</button>
         </div>
-      </form>
+      </div>
     </dialog>
 
     <dialog id="lightbox" class="lightbox">

@@ -486,7 +486,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("admin:login", (payload = {}, ack) => {
-    const password = typeof payload.password === "string" ? payload.password : "";
+    const password = typeof payload.password === "string" ? payload.password.trim() : "";
     const user = online.get(socket.id);
     if (!user) {
       if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите в чат" });

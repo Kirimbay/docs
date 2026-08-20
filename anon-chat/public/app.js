@@ -60,9 +60,10 @@
   const filterApplyBtn = $("#filter-apply-btn");
   const filterCancelBtn = $("#filter-cancel-btn");
   const adminDialog = $("#admin-dialog");
-  const adminForm = $("#admin-form");
   const adminPassword = $("#admin-password");
   const adminError = $("#admin-error");
+  const adminSubmit = $("#admin-submit");
+  const adminCancelBtn = $("#admin-cancel-btn");
   const lightbox = $("#lightbox");
   const lightboxImg = $("#lightbox-img");
 
@@ -901,6 +902,13 @@
     renameBtn.title = `Сейчас: ${myName}`;
     syncViewportHeight();
     messageInput.focus();
+    const savedDm = loadDmCode();
+    if (savedDm && !dmCode) {
+      socket.emit("dm:join", { code: savedDm }, (res) => {
+        if (res?.ok) enterDmMode(res);
+        else saveDmCode("");
+      });
+    }
   }
 
   function join(nameOverride) {
@@ -1209,14 +1217,50 @@
       composerHint.textContent = "Вы уже админ в этой сессии";
       return;
     }
-    adminError.hidden = true;
-    adminPassword.value = "";
+    if (adminError) adminError.hidden = true;
+    if (adminPassword) adminPassword.value = "";
     adminDialog.showModal();
-    adminPassword.focus();
+    adminPassword?.focus();
     keepDialogAboveKeyboard(adminDialog, adminPassword);
   });
 
   adminPassword?.addEventListener("focus", () => keepDialogAboveKeyboard(adminDialog, adminPassword));
+
+  function submitAdminLogin() {
+    if (adminError) adminError.hidden = true;
+    const password = (adminPassword?.value || "").trim();
+    if (!password) {
+      if (adminError) {
+        adminError.hidden = false;
+        adminError.textContent = "Введите пароль";
+      }
+      return;
+    }
+    socket.emit("admin:login", { password }, (res) => {
+      if (!res?.ok) {
+        if (adminError) {
+          adminError.hidden = false;
+          adminError.textContent = res?.error || "Ошибка";
+        }
+        return;
+      }
+      setAdminUi(true, res.name || "АДМИН");
+      adminDialog.close();
+      composerHint.textContent = "Режим админа · ник АДМИН";
+    });
+  }
+
+  adminCancelBtn?.addEventListener("click", () => adminDialog?.close());
+  adminSubmit?.addEventListener("click", (e) => {
+    e.preventDefault();
+    submitAdminLogin();
+  });
+  adminPassword?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submitAdminLogin();
+    }
+  });
 
   function joinDmFromInput() {
     showDmDialogError("");
