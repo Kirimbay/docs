@@ -481,11 +481,36 @@
       m.style.left = "";
       m.style.top = "";
       const owner = m._ownerWrap;
-      if (owner && m.parentElement !== owner) owner.appendChild(m);
+      if (owner && owner.isConnected && m.parentElement !== owner) {
+        owner.appendChild(m);
+      } else if (!owner || !owner.isConnected) {
+        m.remove();
+      }
     });
     document.querySelectorAll(".msg-react-wrap.open").forEach((w) => {
       w.classList.remove("open");
     });
+  }
+
+  function removeMessageById(id) {
+    if (!id) return;
+    closeAllReactMenus();
+    knownIds.delete(id);
+    lastState.messages = (lastState.messages || []).filter((m) => m.id !== id);
+    lastState.pinned = (lastState.pinned || []).filter((m) => m.id !== id);
+    const el = feed.querySelector(`[data-id="${CSS.escape(id)}"]`);
+    if (el) el.remove();
+    // Orphan reaction menus were moved to <body> — drop them so they don't leave a hole.
+    document.querySelectorAll("body > .msg-react-menu").forEach((m) => m.remove());
+    if (deleteArmedId === id) {
+      deleteArmedId = null;
+      if (deleteArmedTimer) {
+        clearTimeout(deleteArmedTimer);
+        deleteArmedTimer = null;
+      }
+    }
+    updatePinBar();
+    updateJumpBottom();
   }
 
   function openReactMenu(menu, wrap, toggle) {
@@ -690,7 +715,12 @@
           }
           delBtn.classList.remove("armed");
           socket.emit("admin:delete", { id: msg.id }, (res) => {
-            if (!res?.ok) composerHint.textContent = res?.error || "Ошибка";
+            if (!res?.ok) {
+              composerHint.textContent = res?.error || "Ошибка";
+              return;
+            }
+            removeMessageById(msg.id);
+            if (composerHint.textContent.includes("✕")) composerHint.textContent = "";
           });
           return;
         }
@@ -716,6 +746,8 @@
   }
 
   function renderAll(state) {
+    closeAllReactMenus();
+    document.querySelectorAll("body > .msg-react-menu").forEach((m) => m.remove());
     lastState = state || lastState;
     const { messages = [] } = lastState;
 
@@ -1108,6 +1140,10 @@
 
   socket.on("chat:state", (state) => {
     renderAll(state);
+  });
+
+  socket.on("chat:message-removed", ({ id } = {}) => {
+    removeMessageById(id);
   });
 
   socket.on("chat:message", (msg) => {

@@ -546,8 +546,9 @@ io.on("connection", (socket) => {
       const file = path.join(UPLOAD_DIR, path.basename(removed.imageUrl));
       fs.promises.unlink(file).catch(() => {});
     }
+    io.emit("chat:message-removed", { id: removed.id });
     io.emit("chat:state", snapshot());
-    if (typeof ack === "function") ack({ ok: true });
+    if (typeof ack === "function") ack({ ok: true, id: removed.id });
   });
 
   socket.on("disconnect", () => {

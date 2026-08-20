@@ -500,6 +500,7 @@ button {
   overflow-wrap: anywhere;
   word-break: break-word;
   color: var(--ink);
+  overflow-anchor: none;
 }
 
 .msg.mine {
