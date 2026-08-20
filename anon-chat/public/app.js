@@ -32,6 +32,7 @@
   const emojiPanel = $("#emoji-panel");
   const renameBtn = $("#rename-btn");
   const adminBtn = $("#admin-btn");
+  const pingAllBtn = $("#ping-all-btn");
   const filterBtn = $("#filter-btn");
   const filterBar = $("#filter-bar");
   const filterBarText = $("#filter-bar-text");
@@ -89,7 +90,7 @@
   let initialStateSynced = false;
   let lastSeenMsgMs = 0;
   const notifiedReplyIds = new Set();
-  const BASE_TITLE = "Комната — открытый чат";
+  const BASE_TITLE = "Сарафан — открытый чат";
   let swReg = null;
   const isIos =
     /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -211,8 +212,32 @@
     replyToastTimer = setTimeout(hideReplyToast, 9000);
   }
 
+  function showPingToast(text) {
+    if (!replyToast) return;
+    toastTargetId = null;
+    replyToastTitle.textContent = "Сарафан";
+    replyToastText.textContent = text || "Заходите в чат";
+    replyToast.hidden = false;
+    replyToast.classList.remove("pulse");
+    void replyToast.offsetWidth;
+    replyToast.classList.add("pulse");
+    if (replyToastTimer) clearTimeout(replyToastTimer);
+    replyToastTimer = setTimeout(hideReplyToast, 9000);
+    playNotifySound();
+    document.title = "💬 Сарафан";
+  }
+
   function flashDocumentTitle(msg) {
     document.title = `💬 ${msg.name} ответил`;
+  }
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(base64);
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
+    return out;
   }
 
   async function ensureServiceWorker() {
@@ -226,13 +251,45 @@
     }
   }
 
+  async function syncPushSubscription() {
+    if (!notifyEnabled) return false;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return false;
+    if (!("PushManager" in window)) return false;
+    const reg = swReg || (await ensureServiceWorker());
+    if (!reg) return false;
+    try {
+      const keyRes = await fetch("/api/vapid-public-key");
+      const keyData = await keyRes.json();
+      if (!keyData?.publicKey) return false;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(keyData.publicKey),
+        });
+      }
+      await fetch("/api/push-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscription: sub.toJSON(),
+          name: myName || "",
+        }),
+      });
+      return true;
+    } catch (err) {
+      console.warn("push subscribe failed", err);
+      return false;
+    }
+  }
+
   async function showSystemReplyNotification(msg) {
     const title = `${msg.name} ответил вам`;
     const body = (msg.text || (msg.imageUrl ? "Фото" : "Сообщение"))
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 120);
-    const tag = `komnata-reply-${msg.id}`;
+    const tag = `sarafan-reply-${msg.id}`;
     const payload = {
       type: "reply-notify",
       title,
@@ -242,15 +299,19 @@
       url: "/",
     };
 
-    // Prefer SW notification — required path for iOS home-screen apps.
     try {
       const reg = swReg || (await ensureServiceWorker());
-      if (reg?.active && typeof Notification !== "undefined" && Notification.permission === "granted") {
-        reg.active.postMessage(payload);
+      if (reg && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        await reg.showNotification(title, {
+          body,
+          tag,
+          renotify: true,
+          data: { id: msg.id, url: "/" },
+        });
         return;
       }
-      if (reg && typeof Notification !== "undefined" && Notification.permission === "granted") {
-        await reg.showNotification(title, { body, tag, renotify: true, data: { id: msg.id, url: "/" } });
+      if (reg?.active) {
+        reg.active.postMessage(payload);
         return;
       }
     } catch {
@@ -351,27 +412,32 @@
 
     if (typeof Notification === "undefined") {
       composerHint.textContent = isIos
-        ? "Добавьте сайт на экран «Домой», затем снова нажмите 🔔"
+        ? "Откройте ярлык с Домой (не Safari) и снова нажмите 🔔"
         : "Тосты в чате включены";
       return;
     }
 
-    if (Notification.permission === "granted") {
-      composerHint.textContent = iosNotifyHint();
-      return;
-    }
     if (Notification.permission === "denied") {
       composerHint.textContent = isIos
-        ? "Уведомления запрещены. Включите их в Настройки → Комната"
+        ? "Уведомления запрещены. Настройки → Сарафан → Уведомления"
         : "Разрешите уведомления в настройках браузера";
       return;
     }
 
-    try {
-      const perm = await Notification.requestPermission();
-      if (perm === "granted") composerHint.textContent = iosNotifyHint();
-      else composerHint.textContent = iosNotifyHint();
-    } catch {
+    if (Notification.permission === "default") {
+      try {
+        await Notification.requestPermission();
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const pushed = await syncPushSubscription();
+    if (Notification.permission === "granted" && pushed) {
+      composerHint.textContent = "Уведомления включены (в т.ч. когда чат закрыт)";
+    } else if (Notification.permission === "granted") {
+      composerHint.textContent = iosNotifyHint();
+    } else {
       composerHint.textContent = iosNotifyHint();
     }
   }
@@ -437,10 +503,26 @@
 
   function syncViewportHeight() {
     const vv = window.visualViewport;
+    const focused =
+      document.activeElement === messageInput ||
+      document.activeElement === nameInput ||
+      document.activeElement?.tagName === "TEXTAREA" ||
+      document.activeElement?.tagName === "INPUT";
+
+    let height = window.innerHeight;
     let inset = 0;
     if (vv) {
-      inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      height = Math.round(vv.height);
+      // Only treat large viewport shrink as keyboard while typing.
+      const rawInset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      inset = focused && rawInset > 60 ? rawInset : 0;
+      // Anchor layout to visual viewport top (standalone iOS).
+      document.documentElement.style.setProperty("--vv-top", `${Math.round(vv.offsetTop || 0)}px`);
+    } else {
+      document.documentElement.style.setProperty("--vv-top", "0px");
     }
+
+    document.documentElement.style.setProperty("--app-height", `${height}px`);
     document.documentElement.style.setProperty("--kb-inset", `${inset}px`);
     document.body.classList.toggle("keyboard-open", inset > 80);
     lockPageScroll();
@@ -469,6 +551,7 @@
     isAdmin = on;
     document.body.classList.toggle("admin-on", on);
     adminBtn.textContent = on ? "Админ ✓" : "Админ";
+    if (pingAllBtn) pingAllBtn.hidden = !on;
     renderAll(lastState);
   }
 
@@ -937,6 +1020,8 @@
     renameBtn.title = `Сейчас: ${myName}`;
     unlockAudio();
     void ensureServiceWorker();
+    if (notifyEnabled) void syncPushSubscription();
+    syncViewportHeight();
     if (notifyEnabled) {
       setTimeout(() => {
         if (!notifyEnabled) return;
@@ -944,7 +1029,7 @@
           composerHint.textContent =
             "iPhone: Поделиться → На экран «Домой», откройте ярлык и нажмите 🔔";
         } else if (typeof Notification !== "undefined" && Notification.permission === "default") {
-          composerHint.textContent = "Нажмите 🔔, чтобы разрешить уведомления об ответах";
+          composerHint.textContent = "Нажмите 🔔, чтобы разрешить уведомления";
         }
       }, 600);
     }
@@ -1218,7 +1303,21 @@
       myName = res.name;
       saveName(myName);
       renameBtn.title = `Сейчас: ${myName}`;
+      if (notifyEnabled) void syncPushSubscription();
       renderAll(lastState);
+    });
+  });
+
+  pingAllBtn?.addEventListener("click", () => {
+    if (!isAdmin) return;
+    const text = prompt("Текст для всех (можно пусто)", "Заходите в Сарафан");
+    if (text == null) return;
+    socket.emit("admin:ping-all", { text }, (res) => {
+      if (!res?.ok) {
+        composerHint.textContent = res?.error || "Не удалось позвать";
+        return;
+      }
+      composerHint.textContent = `Приглашение отправлено (${res.sent}/${res.subscribers})`;
     });
   });
 
@@ -1265,6 +1364,11 @@
   socket.on("chat:reply-notify", (msg) => {
     if (msg?.id && !knownIds.has(msg.id)) appendMessage(msg);
     notifyReply(msg, { forceSystem: true });
+  });
+
+  socket.on("chat:admin-ping", (payload) => {
+    if (!notifyEnabled) return;
+    showPingToast(payload?.body || "Заходите в чат");
   });
 
   socket.on("chat:message-update", (msg) => {

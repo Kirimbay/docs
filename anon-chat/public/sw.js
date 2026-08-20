@@ -1,4 +1,4 @@
-/* Komnata service worker: show reply notifications on iOS/Android PWAs. */
+/* Сарафан service worker: Web Push + local reply notifications. */
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
 });
@@ -7,15 +7,41 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+async function showReplyNotification(data) {
+  const title = data.title || "Сарафан";
+  const options = {
+    body: data.body || "",
+    tag: data.tag || "sarafan",
+    renotify: true,
+    data: { id: data.id || null, url: data.url || "/" },
+  };
+  await self.registration.showNotification(title, options);
+}
+
 self.addEventListener("message", (event) => {
   const data = event.data || {};
   if (data.type !== "reply-notify") return;
+  event.waitUntil(showReplyNotification(data));
+});
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    try {
+      data = { body: event.data?.text?.() || "" };
+    } catch {
+      data = {};
+    }
+  }
   event.waitUntil(
-    self.registration.showNotification(data.title || "Ответ в Комнате", {
-      body: data.body || "",
-      tag: data.tag || "komnata-reply",
-      renotify: true,
-      data: { id: data.id || null, url: data.url || "/" },
+    showReplyNotification({
+      title: data.title || "Сарафан",
+      body: data.body || "Новое уведомление",
+      tag: data.tag || "sarafan-push",
+      id: data.id || null,
+      url: data.url || "/",
     })
   );
 });

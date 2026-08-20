@@ -17,7 +17,9 @@
   --app-max: 760px;
   --pad-x: clamp(0.75rem, 3vw, 1rem);
   --kb-inset: 0px;
+  --app-height: 100dvh;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
 }
 
 *,
@@ -31,6 +33,7 @@ body {
   margin: 0;
   width: 100%;
   height: 100%;
+  height: 100dvh;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -46,9 +49,12 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   width: 100%;
-  height: 100%;
+  height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
 }
 
 body.keyboard-open {
@@ -229,11 +235,12 @@ button {
 
 .app {
   position: fixed;
-  top: 0;
+  top: var(--vv-top, 0px);
   left: 0;
   right: 0;
-  bottom: var(--kb-inset);
   width: 100%;
+  height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
   max-width: var(--app-max);
   margin: 0 auto;
   display: flex;
@@ -242,6 +249,7 @@ button {
   overflow: hidden;
   z-index: 1;
   background: var(--bg);
+  padding-bottom: 0;
 }
 
 .app[hidden] {
@@ -956,7 +964,7 @@ button {
 .composer {
   flex: 0 0 auto;
   z-index: 4;
-  padding: 0.55rem var(--pad-x) calc(0.65rem + var(--safe-bottom));
+  padding: 0.35rem var(--pad-x) max(0.2rem, calc(0.15rem + var(--safe-bottom)));
   background: transparent;
   border-top: 0;
   min-width: 0;
@@ -1238,6 +1246,16 @@ button {
   z-index: 2;
 }
 
+#ping-all-btn {
+  display: none;
+}
+
+.admin-on #ping-all-btn {
+  display: inline-flex;
+  border-color: #4a6478;
+  color: #8cbcE3;
+}
+
 .admin-on #admin-btn {
   border-color: var(--ok);
   color: var(--ok);
@@ -1323,7 +1341,7 @@ button {
   }
 
   .composer {
-    padding: 0.18rem var(--pad-x) calc(0.22rem + var(--safe-bottom));
+    padding: 0.12rem var(--pad-x) max(0.12rem, calc(0.08rem + var(--safe-bottom)));
   }
 
   .composer-shell {

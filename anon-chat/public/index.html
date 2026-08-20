@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <title>Комната — открытый чат</title>
+    <title>Сарафан — открытый чат</title>
     <meta name="description" content="Анонимный чат без регистрации: текст и фото." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,10 +17,10 @@
     <meta name="theme-color" content="#121314" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Комната" />
+    <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=29" />
+    <link rel="stylesheet" href="/styles.css?v=31" />
   </head>
   <body>
     <div id="reply-toast" class="reply-toast" hidden>
@@ -32,7 +32,7 @@
     </div>
     <section id="gate" class="gate">
       <div class="gate-inner">
-        <p class="brand">Комната</p>
+        <p class="brand">Сарафан</p>
         <h1>Зайдите без регистрации</h1>
         <p class="lede">
           Вам дадут случайное имя — или придумайте своё. Только текст и фото.
@@ -40,7 +40,7 @@
         <label class="field">
           <span>Имя в чате</span>
           <div class="name-row">
-            <input id="name-input" type="text" maxlength="24" autocomplete="nickname" placeholder="Например: Тихий Барс42" />
+            <input id="name-input" type="text" maxlength="24" autocomplete="nickname" placeholder="Например: Барс" />
             <button type="button" id="random-btn" class="ghost">Случайное</button>
           </div>
         </label>
@@ -55,9 +55,10 @@
           <span id="presence" class="presence">онлайн —</span>
         </div>
         <div class="topbar-actions">
-          <button type="button" id="notify-btn" class="ghost compact" title="Уведомления об ответах" aria-label="Уведомления об ответах">🔔</button>
+          <button type="button" id="notify-btn" class="ghost compact" title="Уведомления" aria-label="Уведомления">🔔</button>
           <button type="button" id="filter-btn" class="ghost compact" title="Фильтр по участникам">Фильтр</button>
           <button type="button" id="rename-btn" class="ghost compact" title="Сменить имя">Имя</button>
+          <button type="button" id="ping-all-btn" class="ghost compact" hidden title="Позвать всех в чат">Позвать</button>
           <button type="button" id="admin-btn" class="ghost compact" title="Админ">Админ</button>
         </div>
       </header>
@@ -108,7 +109,7 @@
               placeholder="Написать сообщение…"
               enterkeyhint="send"
             ></textarea>
-            <button type="button" id="send-btn" class="primary compact" aria-label="Отправить">↑</button>
+            <button type="button" id="send-btn" class="primary compact" aria-label="Отправить">↗</button>
           </div>
           <div id="emoji-panel" class="emoji-panel" hidden></div>
         </div>
@@ -163,6 +164,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=29"></script>
+    <script src="/app.js?v=31"></script>
   </body>
 </html>
