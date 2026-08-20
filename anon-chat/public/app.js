@@ -596,7 +596,7 @@
       actions.className = "invite-row-actions";
       const declineBtn = document.createElement("button");
       declineBtn.type = "button";
-      declineBtn.className = "ghost compact";
+      declineBtn.className = "invite-chip invite-chip-no";
       declineBtn.textContent = "Нет";
       declineBtn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -604,7 +604,7 @@
       });
       const enterBtn = document.createElement("button");
       enterBtn.type = "button";
-      enterBtn.className = "primary compact";
+      enterBtn.className = "invite-chip invite-chip-yes";
       enterBtn.textContent = "Войти";
       enterBtn.addEventListener("click", (e) => {
         e.stopPropagation();
