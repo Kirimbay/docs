@@ -879,6 +879,7 @@ body.admin-on #me-btn {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition:
     background-color var(--motion-fast) var(--ease-soft),
@@ -887,6 +888,21 @@ body.admin-on #me-btn {
     padding var(--motion) var(--ease-out),
     border-color var(--motion-fast) var(--ease-soft),
     visibility var(--motion);
+}
+
+.pin-bar,
+.pin-bar * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+.pin-bar-accent,
+.pin-bar-body,
+.pin-bar-label,
+.pin-bar-preview,
+.pin-bar-meta {
+  pointer-events: none;
 }
 
 .pin-bar[hidden] {

@@ -2309,8 +2309,28 @@
     window.visualViewport.addEventListener("scroll", onPinsViewport);
   }
 
+  function clearPinTextSelection() {
+    try {
+      const sel = window.getSelection?.();
+      if (sel && sel.rangeCount) sel.removeAllRanges();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  pins.addEventListener("selectstart", (e) => {
+    e.preventDefault();
+  });
+  pins.addEventListener(
+    "touchstart",
+    () => {
+      clearPinTextSelection();
+    },
+    { passive: true }
+  );
   pins.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    clearPinTextSelection();
     clearPinHold();
     pinHoldOpened = false;
     pinHoldStart = { x: e.clientX, y: e.clientY };
@@ -2322,7 +2342,12 @@
     pinHoldTimer = setTimeout(() => {
       pinHoldTimer = null;
       pinHoldOpened = true;
+      clearPinTextSelection();
       openPinsList();
+      // iOS sometimes selects after the hold opens — clear again on next frames.
+      requestAnimationFrame(clearPinTextSelection);
+      setTimeout(clearPinTextSelection, 50);
+      setTimeout(clearPinTextSelection, 180);
     }, PIN_HOLD_MS);
   });
   pins.addEventListener("pointermove", (e) => {
@@ -2335,6 +2360,8 @@
   pins.addEventListener("pointercancel", clearPinHold);
   pins.addEventListener("contextmenu", (e) => {
     e.preventDefault();
+    e.stopPropagation();
+    clearPinTextSelection();
     clearPinHold();
     pinHoldOpened = true;
     openPinsList();
