@@ -1,5 +1,13 @@
 # Деплой «Комнаты» на VPS с Hiddify
 
+## Боевой адрес
+
+- URL: https://chat.one.vele.uk
+- Сервис: `komnata.service` на VPS (`127.0.0.1:3847`)
+- Данные: `/var/lib/komnata/`
+- Маршрут: HAProxy map `http_domain` → backend `komnata` (+ файл `haproxy/komnata.cfg`)
+- TLS: Let's Encrypt в `/opt/hiddify-manager/ssl/chat.one.vele.uk.crt`
+
 Hiddify занимает `:80` / `:443` (HAProxy). Чат ставится локально, наружу — через Host-based ACL в HAProxy.
 
 ## 1. DNS
@@ -31,15 +39,10 @@ SSH_KEY=/tmp/chat-ssh/id_ed25519 \
   bash anon-chat/deploy/remote-install.sh root@138.124.242.142
 ```
 
-## 4. HAProxy
-
-Скрипт пишет подсказку в `/opt/hiddify-manager/haproxy/komnata.cfg.snippet`.
-Нужно добавить ACL `hdr(host) -i CHAT_DOMAIN` и backend на `127.0.0.1:3848` в живой конфиг HAProxy Hiddify (и не потерять при `apply`).
-
-После этого: `https://CHAT_DOMAIN/`.
+После установки: выпустить сертификат через Hiddify `acme.sh/get_cert.sh`, добавить backend `komnata` и строку в `maps/http_domain`, затем `systemctl reload hiddify-haproxy`.
 
 ## Сервисы
 
 - `komnata.service` — Node-чат на `127.0.0.1:3847`
-- nginx site `komnata` — TLS на `127.0.0.1:3848`
+- HAProxy Host `chat.one.vele.uk` → backend `komnata`
 - данные: `/var/lib/komnata/`
