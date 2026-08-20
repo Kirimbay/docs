@@ -595,13 +595,18 @@
     const text = String(raw || "");
     if (!text) return;
 
-    // Match each URL; stop at whitespace / quotes / angle brackets / backticks.
-    const re = /(?:https?:\/\/|www\.)[^\s<>"'`]+/gi;
+    // http(s)/www and bare domains like apps.apple.com/path or github.com/...
+    const re =
+      /(?:https?:\/\/|www\.)[^\s<>"'`]+|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s<>"'`]*)?/gi;
     const TRAIL = ".,;:!?)]}\"'>»";
     let last = 0;
     let match;
     while ((match = re.exec(text)) !== null) {
       const start = match.index;
+      // Don't treat the domain part of an email as a link.
+      if (start > 0 && text.charAt(start - 1) === "@") {
+        continue;
+      }
       if (start > last) {
         container.append(document.createTextNode(text.slice(last, start)));
       }
