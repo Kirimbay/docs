@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=51" />
+    <link rel="stylesheet" href="/styles.css?v=52" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -108,7 +108,14 @@
               placeholder="Написать сообщение…"
               enterkeyhint="send"
             ></textarea>
-            <button type="button" id="send-btn" class="primary compact" aria-label="Отправить">↗</button>
+            <button type="button" id="send-btn" class="primary compact send-btn" aria-label="Отправить">
+              <svg class="send-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path
+                  fill="currentColor"
+                  d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.405Z"
+                />
+              </svg>
+            </button>
           </div>
           <div id="emoji-panel" class="emoji-panel" hidden></div>
         </div>
@@ -217,6 +224,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=51"></script>
+    <script src="/app.js?v=52"></script>
   </body>
 </html>

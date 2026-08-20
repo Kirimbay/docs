@@ -102,6 +102,24 @@ button {
   flex: 0 0 auto;
 }
 
+.send-btn {
+  line-height: 0;
+  font-size: 0;
+  padding: 0;
+}
+
+.send-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  display: block;
+  /* Nose points right — nudge so the mass feels centered */
+  transform: translateX(0.08rem);
+}
+
+.send-btn:active .send-icon {
+  transform: translateX(0.08rem) scale(0.92);
+}
+
 .ghost {
   border: 1px solid var(--line);
   background: var(--bg-elev);
@@ -1581,6 +1599,11 @@ body.keyboard-open .dialog {
     min-height: 1.85rem;
     padding: 0;
     font-size: 0.9rem;
+  }
+
+  .composer .send-icon {
+    width: 0.92rem;
+    height: 0.92rem;
   }
 
   .composer .hint {
