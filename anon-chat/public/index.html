@@ -20,16 +20,9 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=39" />
+    <link rel="stylesheet" href="/styles.css?v=40" />
   </head>
   <body>
-    <div id="reply-toast" class="reply-toast" hidden>
-      <button type="button" id="reply-toast-body" class="reply-toast-body">
-        <span id="reply-toast-title" class="reply-toast-title"></span>
-        <span id="reply-toast-text" class="reply-toast-text"></span>
-      </button>
-      <button type="button" id="reply-toast-close" class="ghost compact reply-toast-close" aria-label="Закрыть">×</button>
-    </div>
     <section id="gate" class="gate">
       <div class="gate-inner">
         <p class="brand">Сарафан</p>
@@ -55,10 +48,8 @@
           <span id="presence" class="presence">онлайн —</span>
         </div>
         <div class="topbar-actions">
-          <button type="button" id="notify-btn" class="ghost compact" title="Уведомления" aria-label="Уведомления">🔔</button>
           <button type="button" id="filter-btn" class="ghost compact" title="Фильтр по участникам">Фильтр</button>
           <button type="button" id="rename-btn" class="ghost compact" title="Сменить имя">Имя</button>
-          <button type="button" id="ping-all-btn" class="ghost compact" hidden title="Позвать всех в чат">Позвать</button>
           <button type="button" id="admin-btn" class="ghost compact" title="Админ">Админ</button>
         </div>
       </header>
@@ -182,6 +173,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=39"></script>
+    <script src="/app.js?v=40"></script>
   </body>
 </html>

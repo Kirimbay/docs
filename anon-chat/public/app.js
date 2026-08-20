@@ -37,7 +37,6 @@
   const renameCancelBtn = $("#rename-cancel-btn");
   const renameApplyBtn = $("#rename-apply-btn");
   const adminBtn = $("#admin-btn");
-  const pingAllBtn = $("#ping-all-btn");
   const filterBtn = $("#filter-btn");
   const filterBar = $("#filter-bar");
   const filterBarText = $("#filter-bar-text");
@@ -46,12 +45,6 @@
   const filterUserList = $("#filter-user-list");
   const filterApplyBtn = $("#filter-apply-btn");
   const filterCancelBtn = $("#filter-cancel-btn");
-  const notifyBtn = $("#notify-btn");
-  const replyToast = $("#reply-toast");
-  const replyToastBody = $("#reply-toast-body");
-  const replyToastTitle = $("#reply-toast-title");
-  const replyToastText = $("#reply-toast-text");
-  const replyToastClose = $("#reply-toast-close");
   const adminDialog = $("#admin-dialog");
   const adminForm = $("#admin-form");
   const adminPassword = $("#admin-password");
@@ -61,7 +54,6 @@
 
   const socket = io({ autoConnect: true });
   const NAME_KEY = "komnata_name";
-  const NOTIFY_KEY = "komnata_notify";
   const EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😢", "👍", "❤️", "🔥", "🎉"];
   const REACTIONS = [
     { emoji: "😊", title: "смайл" },
@@ -78,8 +70,6 @@
   let pendingReply = null;
   const knownIds = new Set();
   /** @type {Set<string>} */
-  const myMessageIds = new Set();
-  /** @type {Set<string>} */
   let filterNames = new Set();
   let lastState = { messages: [], pinned: [] };
   let pinCycleIndex = 0;
@@ -88,21 +78,6 @@
   let pinHoldStart = null;
   const PIN_HOLD_MS = 420;
   const PIN_HOLD_MOVE_PX = 12;
-  let notifyEnabled = false;
-  let replyToastTimer = null;
-  let audioCtx = null;
-  let toastTargetId = null;
-  let initialStateSynced = false;
-  let lastSeenMsgMs = 0;
-  const notifiedReplyIds = new Set();
-  const BASE_TITLE = "Сарафан — открытый чат";
-  let swReg = null;
-  const isIos =
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const isStandalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true;
 
   function loadSavedName() {
     try {
@@ -120,75 +95,6 @@
     }
   }
 
-  function loadNotifyPref() {
-    try {
-      return localStorage.getItem(NOTIFY_KEY) !== "0";
-    } catch {
-      return true;
-    }
-  }
-
-  function saveNotifyPref(on) {
-    try {
-      localStorage.setItem(NOTIFY_KEY, on ? "1" : "0");
-    } catch {
-      /* ignore */
-    }
-  }
-
-  function updateNotifyButton() {
-    if (!notifyBtn) return;
-    notifyBtn.classList.toggle("notify-on", notifyEnabled);
-    notifyBtn.classList.toggle("notify-off", !notifyEnabled);
-    notifyBtn.textContent = notifyEnabled ? "🔔" : "🔕";
-    notifyBtn.title = notifyEnabled
-      ? "Уведомления об ответах включены"
-      : "Уведомления об ответах выключены";
-  }
-
-  function unlockAudio() {
-    try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      if (!audioCtx) audioCtx = new Ctx();
-      if (audioCtx.state === "suspended") void audioCtx.resume();
-    } catch {
-      /* ignore */
-    }
-  }
-
-  function playNotifySound() {
-    try {
-      unlockAudio();
-      if (!audioCtx) return;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.05, audioCtx.currentTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.22);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.24);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  function hideReplyToast() {
-    if (replyToastTimer) {
-      clearTimeout(replyToastTimer);
-      replyToastTimer = null;
-    }
-    if (replyToast) replyToast.hidden = true;
-    toastTargetId = null;
-    if (document.visibilityState === "visible") {
-      document.title = BASE_TITLE;
-    }
-  }
-
   function scrollToMessageId(id) {
     if (!id) return;
     const el = feed.querySelector(`[data-id="${id}"]`);
@@ -199,267 +105,6 @@
     el.classList.add("pin-flash");
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     setTimeout(() => el.classList.remove("pin-flash"), 1200);
-  }
-
-  function showReplyToast(msg) {
-    if (!replyToast) return;
-    toastTargetId = msg.id;
-    replyToastTitle.textContent = `${msg.name} ответил вам`;
-    replyToastText.textContent = (msg.text || (msg.imageUrl ? "📷 Фото" : "Сообщение"))
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 140);
-    replyToast.hidden = false;
-    replyToast.classList.remove("pulse");
-    void replyToast.offsetWidth;
-    replyToast.classList.add("pulse");
-    if (replyToastTimer) clearTimeout(replyToastTimer);
-    replyToastTimer = setTimeout(hideReplyToast, 9000);
-  }
-
-  function showPingToast(text) {
-    if (!replyToast) return;
-    toastTargetId = null;
-    replyToastTitle.textContent = "Сарафан";
-    replyToastText.textContent = text || "Заходите в чат";
-    replyToast.hidden = false;
-    replyToast.classList.remove("pulse");
-    void replyToast.offsetWidth;
-    replyToast.classList.add("pulse");
-    if (replyToastTimer) clearTimeout(replyToastTimer);
-    replyToastTimer = setTimeout(hideReplyToast, 9000);
-    playNotifySound();
-    document.title = "💬 Сарафан";
-  }
-
-  function flashDocumentTitle(msg) {
-    document.title = `💬 ${msg.name} ответил`;
-  }
-
-  function urlBase64ToUint8Array(base64String) {
-    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-    const raw = atob(base64);
-    const out = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
-    return out;
-  }
-
-  async function ensureServiceWorker() {
-    if (!("serviceWorker" in navigator)) return null;
-    try {
-      swReg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-      await navigator.serviceWorker.ready;
-      return swReg;
-    } catch {
-      return null;
-    }
-  }
-
-  async function syncPushSubscription() {
-    if (!notifyEnabled) return false;
-    if (typeof Notification === "undefined" || Notification.permission !== "granted") return false;
-    if (!("PushManager" in window)) return false;
-    const reg = swReg || (await ensureServiceWorker());
-    if (!reg) return false;
-    try {
-      const keyRes = await fetch("/api/vapid-public-key");
-      const keyData = await keyRes.json();
-      if (!keyData?.publicKey) return false;
-      let sub = await reg.pushManager.getSubscription();
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(keyData.publicKey),
-        });
-      }
-      await fetch("/api/push-subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subscription: sub.toJSON(),
-          name: myName || "",
-        }),
-      });
-      return true;
-    } catch (err) {
-      console.warn("push subscribe failed", err);
-      return false;
-    }
-  }
-
-  async function showSystemReplyNotification(msg) {
-    const title = `${msg.name} ответил вам`;
-    const body = (msg.text || (msg.imageUrl ? "Фото" : "Сообщение"))
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 120);
-    const tag = `sarafan-reply-${msg.id}`;
-    const payload = {
-      type: "reply-notify",
-      title,
-      body,
-      tag,
-      id: msg.id,
-      url: "/",
-    };
-
-    try {
-      const reg = swReg || (await ensureServiceWorker());
-      if (reg && typeof Notification !== "undefined" && Notification.permission === "granted") {
-        await reg.showNotification(title, {
-          body,
-          tag,
-          renotify: true,
-          data: { id: msg.id, url: "/" },
-        });
-        return;
-      }
-      if (reg?.active) {
-        reg.active.postMessage(payload);
-        return;
-      }
-    } catch {
-      /* fall through */
-    }
-
-    if (typeof Notification === "undefined") return;
-    if (Notification.permission !== "granted") return;
-    try {
-      const note = new Notification(title, { body, tag, renotify: true });
-      note.onclick = () => {
-        window.focus();
-        scrollToMessageId(msg.id);
-        note.close();
-      };
-    } catch {
-      /* ignore */
-    }
-  }
-
-  function isReplyToMe(msg) {
-    if (!myName || !msg?.reply) return false;
-    if (msg.name === myName) return false;
-    if (myMessageIds.has(msg.reply.id)) return true;
-    return msg.reply.name === myName;
-  }
-
-  function messageTimeMs(msg) {
-    const t = Date.parse(msg?.createdAt || "");
-    return Number.isFinite(t) ? t : 0;
-  }
-
-  function markHistoryCaughtUp(messages) {
-    let maxT = lastSeenMsgMs;
-    for (const msg of messages || []) {
-      const t = messageTimeMs(msg);
-      if (t > maxT) maxT = t;
-      if (isReplyToMe(msg)) notifiedReplyIds.add(msg.id);
-    }
-    lastSeenMsgMs = maxT || Date.now();
-    initialStateSynced = true;
-  }
-
-  function notifyReply(msg, { forceSystem = false } = {}) {
-    if (!notifyEnabled) return;
-    if (!isReplyToMe(msg)) return;
-    if (notifiedReplyIds.has(msg.id)) return;
-    notifiedReplyIds.add(msg.id);
-    const t = messageTimeMs(msg);
-    if (t > lastSeenMsgMs) lastSeenMsgMs = t;
-
-    showReplyToast(msg);
-    playNotifySound();
-    flashDocumentTitle(msg);
-    try {
-      navigator.vibrate?.(40);
-    } catch {
-      /* ignore */
-    }
-
-    const pageHidden = document.visibilityState === "hidden" || document.hidden;
-    if (forceSystem || pageHidden || isStandalone) {
-      void showSystemReplyNotification(msg);
-    } else if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      // Still try SW path on iOS even if page looks "visible".
-      if (isIos) void showSystemReplyNotification(msg);
-    }
-  }
-
-  function scanMessagesForReplyNotifications(messages) {
-    if (!notifyEnabled || !myName || !initialStateSynced) return;
-    const list = [...(messages || [])].sort((a, b) => messageTimeMs(a) - messageTimeMs(b));
-    for (const msg of list) {
-      if (notifiedReplyIds.has(msg.id)) continue;
-      const t = messageTimeMs(msg);
-      if (t && t <= lastSeenMsgMs) continue;
-      notifyReply(msg, { forceSystem: document.visibilityState === "hidden" || isIos });
-    }
-  }
-
-  function iosNotifyHint() {
-    if (!isIos) return "Уведомления об ответах включены";
-    if (isStandalone) {
-      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-        return "Уведомления включены";
-      }
-      return "Разрешите уведомления в настройках iOS для Комнаты";
-    }
-    return "На iPhone: Поделиться → На экран «Домой», откройте ярлык и нажмите 🔔";
-  }
-
-  async function enableNotifications() {
-    unlockAudio();
-    notifyEnabled = true;
-    saveNotifyPref(true);
-    updateNotifyButton();
-    await ensureServiceWorker();
-
-    if (typeof Notification === "undefined") {
-      composerHint.textContent = isIos
-        ? "Откройте ярлык с Домой (не Safari) и снова нажмите 🔔"
-        : "Тосты в чате включены";
-      return;
-    }
-
-    if (Notification.permission === "denied") {
-      composerHint.textContent = isIos
-        ? "Уведомления запрещены. Настройки → Сарафан → Уведомления"
-        : "Разрешите уведомления в настройках браузера";
-      return;
-    }
-
-    if (Notification.permission === "default") {
-      try {
-        await Notification.requestPermission();
-      } catch {
-        /* ignore */
-      }
-    }
-
-    const pushed = await syncPushSubscription();
-    if (Notification.permission === "granted" && pushed) {
-      composerHint.textContent = "Уведомления включены (в т.ч. когда чат закрыт)";
-    } else if (Notification.permission === "granted") {
-      composerHint.textContent = iosNotifyHint();
-    } else {
-      composerHint.textContent = iosNotifyHint();
-    }
-  }
-
-  function disableNotifications() {
-    notifyEnabled = false;
-    saveNotifyPref(false);
-    updateNotifyButton();
-    hideReplyToast();
-    document.title = BASE_TITLE;
-    composerHint.textContent = "Уведомления об ответах выключены";
-  }
-
-  async function toggleNotifications() {
-    unlockAudio();
-    if (notifyEnabled) disableNotifications();
-    else await enableNotifications();
   }
 
   async function fetchRandomName(targetInput = nameInput) {
@@ -557,7 +202,6 @@
     isAdmin = on;
     document.body.classList.toggle("admin-on", on);
     adminBtn.textContent = on ? "Админ ✓" : "Админ";
-    if (pingAllBtn) pingAllBtn.hidden = !on;
     renderAll(lastState);
   }
 
@@ -971,10 +615,8 @@
 
     feed.replaceChildren();
     knownIds.clear();
-    myMessageIds.clear();
     for (const msg of messages) {
       knownIds.add(msg.id);
-      if (msg.name === myName) myMessageIds.add(msg.id);
       if (!passesFilter(msg)) continue;
       feed.append(renderMessage(msg));
     }
@@ -1002,12 +644,8 @@
   function appendMessage(msg) {
     if (knownIds.has(msg.id)) return;
     knownIds.add(msg.id);
-    if (msg.name === myName) myMessageIds.add(msg.id);
     lastState.messages = [...(lastState.messages || []), msg];
-    if (!passesFilter(msg)) {
-      notifyReply(msg);
-      return;
-    }
+    if (!passesFilter(msg)) return;
     const nearBottom = isNearBottom(120);
     feed.append(renderMessage(msg));
     if (nearBottom || msg.name === myName) {
@@ -1015,7 +653,6 @@
     } else {
       updateJumpBottom();
     }
-    notifyReply(msg);
   }
 
   function enterChat(name) {
@@ -1024,21 +661,7 @@
     gate.hidden = true;
     app.hidden = false;
     renameBtn.title = `Сейчас: ${myName}`;
-    unlockAudio();
-    void ensureServiceWorker();
-    if (notifyEnabled) void syncPushSubscription();
     syncViewportHeight();
-    if (notifyEnabled) {
-      setTimeout(() => {
-        if (!notifyEnabled) return;
-        if (isIos && !isStandalone) {
-          composerHint.textContent =
-            "iPhone: Поделиться → На экран «Домой», откройте ярлык и нажмите 🔔";
-        } else if (typeof Notification !== "undefined" && Notification.permission === "default") {
-          composerHint.textContent = "Нажмите 🔔, чтобы разрешить уведомления";
-        }
-      }, 600);
-    }
     messageInput.focus();
   }
 
@@ -1213,7 +836,6 @@
       myName = res.name;
       saveName(myName);
       renameBtn.title = `Сейчас: ${myName}`;
-      if (notifyEnabled) void syncPushSubscription();
       renameDialog?.close();
       renderAll(lastState);
     });
@@ -1285,16 +907,6 @@
 
   previewClear.addEventListener("click", clearPreview);
 
-  notifyBtn?.addEventListener("click", () => {
-    void toggleNotifications();
-  });
-  replyToastBody?.addEventListener("click", () => {
-    const id = toastTargetId;
-    hideReplyToast();
-    scrollToMessageId(id);
-  });
-  replyToastClose?.addEventListener("click", hideReplyToast);
-
   filterBtn.addEventListener("click", openFilterDialog);
   filterApplyBtn.addEventListener("click", applyFilterFromDialog);
   filterCancelBtn.addEventListener("click", () => filterDialog.close());
@@ -1352,19 +964,6 @@
     }
   });
 
-  pingAllBtn?.addEventListener("click", () => {
-    if (!isAdmin) return;
-    const text = prompt("Текст для всех (можно пусто)", "Заходите в Сарафан");
-    if (text == null) return;
-    socket.emit("admin:ping-all", { text }, (res) => {
-      if (!res?.ok) {
-        composerHint.textContent = res?.error || "Не удалось позвать";
-        return;
-      }
-      composerHint.textContent = `Приглашение отправлено (${res.sent}/${res.subscribers})`;
-    });
-  });
-
   adminBtn.addEventListener("click", () => {
     if (isAdmin) {
       composerHint.textContent = "Вы уже админ в этой сессии";
@@ -1394,25 +993,10 @@
 
   socket.on("chat:state", (state) => {
     renderAll(state);
-    if (!initialStateSynced) {
-      markHistoryCaughtUp(state.messages || []);
-    } else {
-      scanMessagesForReplyNotifications(state.messages || []);
-    }
   });
 
   socket.on("chat:message", (msg) => {
     appendMessage(msg);
-  });
-
-  socket.on("chat:reply-notify", (msg) => {
-    if (msg?.id && !knownIds.has(msg.id)) appendMessage(msg);
-    notifyReply(msg, { forceSystem: true });
-  });
-
-  socket.on("chat:admin-ping", (payload) => {
-    if (!notifyEnabled) return;
-    showPingToast(payload?.body || "Заходите в чат");
   });
 
   socket.on("chat:message-update", (msg) => {
@@ -1445,30 +1029,10 @@
   window.addEventListener("resize", closeAllReactMenus);
   feed.addEventListener("scroll", closeAllReactMenus, { passive: true });
 
-  notifyEnabled = loadNotifyPref();
-  updateNotifyButton();
-  void ensureServiceWorker();
-
-  document.addEventListener(
-    "pointerdown",
-    () => {
-      unlockAudio();
-    },
-    { passive: true, once: true }
-  );
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      document.title = BASE_TITLE;
-      if (lastState?.messages) scanMessagesForReplyNotifications(lastState.messages);
-    }
-  });
-
+  // Drop legacy push/notification service workers from older builds.
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.addEventListener("message", (event) => {
-      if (event.data?.type === "open-reply") {
-        scrollToMessageId(event.data.id);
-      }
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      for (const reg of regs) void reg.unregister();
     });
   }
 
