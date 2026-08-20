@@ -341,7 +341,8 @@
 
     const replyBtn = document.createElement("button");
     replyBtn.type = "button";
-    replyBtn.textContent = "Ответить";
+    replyBtn.className = "msg-reply";
+    replyBtn.textContent = "ответить";
     replyBtn.addEventListener("click", () => setReplyTarget(msg));
     actions.append(replyBtn);
 
