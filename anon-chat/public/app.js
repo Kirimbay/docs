@@ -108,6 +108,9 @@
   let unpinArmedId = null;
   let unpinArmedTimer = null;
   const UNPIN_ARM_MS = 1000;
+  let forgetArmedCode = null;
+  let forgetArmedTimer = null;
+  const FORGET_ARM_MS = 1000;
 
   function clearDeleteArm() {
     if (deleteArmedTimer) {
@@ -130,6 +133,19 @@
     document.querySelectorAll(".pins-unpin.armed").forEach((btn) => {
       btn.classList.remove("armed");
       btn.title = "Нажмите дважды, чтобы открепить";
+    });
+  }
+
+  function clearForgetArm() {
+    if (forgetArmedTimer) {
+      clearTimeout(forgetArmedTimer);
+      forgetArmedTimer = null;
+    }
+    forgetArmedCode = null;
+    document.querySelectorAll(".dm-room-forget.armed").forEach((btn) => {
+      btn.classList.remove("armed");
+      btn.title = "Нажмите дважды, чтобы убрать";
+      btn.textContent = "×";
     });
   }
 
@@ -336,10 +352,6 @@
         }
         return;
       }
-      rememberDmRoom(c, {
-        peer: peerFromDmPayload(res),
-        messageCount: Array.isArray(res.messages) ? res.messages.length : 0,
-      });
       enterDmMode(res);
       dmDialog?.close();
     });
@@ -380,14 +392,31 @@
       const forgetBtn = document.createElement("button");
       forgetBtn.type = "button";
       forgetBtn.className = "dm-room-forget ghost compact";
+      forgetBtn.dataset.code = room.code;
       forgetBtn.setAttribute("aria-label", `Убрать ${room.code} из списка`);
-      forgetBtn.title = "Убрать из списка";
+      forgetBtn.title = "Нажмите дважды, чтобы убрать";
       forgetBtn.textContent = "×";
+      if (forgetArmedCode === room.code) {
+        forgetBtn.classList.add("armed");
+        forgetBtn.title = "Ещё раз — убрать";
+      }
       forgetBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        forgetDmRoom(room.code);
-        renderDmRoomsList({ skipRefresh: true });
+        if (forgetArmedCode === room.code) {
+          clearForgetArm();
+          forgetDmRoom(room.code);
+          renderDmRoomsList({ skipRefresh: true });
+          return;
+        }
+        clearForgetArm();
+        forgetArmedCode = room.code;
+        forgetBtn.classList.add("armed");
+        forgetBtn.title = "Ещё раз — убрать";
+        forgetArmedTimer = setTimeout(() => {
+          if (forgetArmedCode !== room.code) return;
+          clearForgetArm();
+        }, FORGET_ARM_MS);
       });
 
       row.append(enterBtn, forgetBtn);
