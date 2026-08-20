@@ -295,6 +295,12 @@
     time.className = "msg-time";
     time.textContent = formatTime(msg.createdAt);
     meta.append(nameBtn, time);
+    if (msg.pinned) {
+      const badge = document.createElement("span");
+      badge.className = "msg-pin-badge";
+      badge.textContent = "закреплено";
+      meta.append(badge);
+    }
 
     el.append(meta);
 
@@ -303,13 +309,16 @@
       quote.type = "button";
       quote.className = "msg-quote";
       quote.title = "Перейти к сообщению";
+      const qLabel = document.createElement("span");
+      qLabel.className = "msg-quote-label";
+      qLabel.textContent = "ответ";
       const qName = document.createElement("span");
       qName.className = "msg-quote-name";
       qName.textContent = msg.reply.name;
       const qText = document.createElement("span");
       qText.className = "msg-quote-text";
       qText.textContent = msg.reply.text || "Сообщение";
-      quote.append(qName, qText);
+      quote.append(qLabel, qName, qText);
       quote.addEventListener("click", () => {
         const target = feed.querySelector(`[data-id="${msg.reply.id}"]`);
         if (!target) return;

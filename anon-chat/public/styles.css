@@ -419,8 +419,23 @@ button {
 }
 
 .msg.pinned-item {
-  border-color: #4a3333;
-  box-shadow: inset 3px 0 0 #d96a6a;
+  border-color: #6a3a3a;
+  background: linear-gradient(180deg, rgba(217, 106, 106, 0.12), rgba(26, 27, 29, 0.2));
+  box-shadow: inset 4px 0 0 #d96a6a;
+}
+
+.msg-pin-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #e08a8a;
+  background: rgba(217, 106, 106, 0.14);
+  border: 1px solid rgba(217, 106, 106, 0.35);
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+  line-height: 1.1;
 }
 
 .msg.pin-flash {
@@ -460,12 +475,13 @@ button {
 
 .msg-quote {
   display: grid;
-  gap: 0.1rem;
-  padding: 0.35rem 0.55rem;
-  margin: 0.1rem 0 0.15rem;
-  border-radius: 10px;
-  border-left: 3px solid #6ea8d9;
-  background: rgba(110, 168, 217, 0.08);
+  gap: 0.12rem;
+  padding: 0.45rem 0.6rem;
+  margin: 0.15rem 0 0.2rem;
+  border-radius: 12px;
+  border: 1px solid rgba(110, 168, 217, 0.35);
+  border-left: 4px solid #6ea8d9;
+  background: rgba(110, 168, 217, 0.12);
   cursor: pointer;
   min-width: 0;
   text-align: left;
@@ -474,17 +490,25 @@ button {
 }
 
 .msg-quote:hover {
-  background: rgba(110, 168, 217, 0.14);
+  background: rgba(110, 168, 217, 0.18);
+}
+
+.msg-quote-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #7eb4de;
 }
 
 .msg-quote-name {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  color: #6ea8d9;
+  color: #8cbcE3;
 }
 
 .msg-quote-text {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   color: var(--ink-soft);
   white-space: nowrap;
   overflow: hidden;
@@ -677,24 +701,28 @@ button {
   background: #222426;
 }
 
-.msg-reply {
+.msg-reply,
+.msg-react-toggle {
   flex: 0 0 auto;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 500;
-  padding: 0.12rem 0.05rem;
-  min-height: 0;
+  padding: 0.28rem 0.7rem;
+  min-height: 1.7rem;
   line-height: 1.2;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  color: var(--muted);
+  border: 1px solid #3a3d42;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink-soft);
   display: inline-flex;
   align-items: center;
 }
 
 .msg-reply:hover,
+.msg-react-toggle:hover,
 .msg-react-wrap.open .msg-react-toggle {
-  color: #6ea8d9;
+  color: #d7e6f2;
+  border-color: #4a6478;
+  background: rgba(110, 168, 217, 0.12);
 }
 
 .msg-admin-icon {
