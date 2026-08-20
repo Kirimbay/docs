@@ -1610,6 +1610,15 @@ body.pins-focus-mode .feed .msg.pin-focus {
   overscroll-behavior: contain;
 }
 
+body.keyboard-open .dialog.sheet-top,
+body.keyboard-open .dm-dialog.dialog,
+body.keyboard-open #admin-dialog.dialog {
+  top: calc(var(--vv-top, 0px) + 0.3rem);
+  transform: translateX(-50%);
+  max-height: calc(var(--app-height, 100dvh) - 0.6rem);
+  animation: none;
+}
+
 body.keyboard-open .pins-dialog.dialog {
   transform: translateX(-50%);
   max-height: min(50vh, calc(var(--app-height, 100dvh) * 0.5));

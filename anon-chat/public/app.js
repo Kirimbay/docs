@@ -380,7 +380,9 @@
     clearReply();
     filterNames = new Set();
     updateFilterChrome();
+    pinToLatestOnce = true;
     renderAll({ messages: res.messages || [], pinned: [] });
+    schedulePinToLatest();
     updateDmPresence(res);
     if (messageInput) messageInput.placeholder = "Сообщение вдвоём…";
     composerHint.textContent = `Комната ${res.code} · передайте код второму`;
@@ -396,6 +398,7 @@
     if (dmBar) dmBar.hidden = true;
     if (messageInput) messageInput.placeholder = "Написать сообщение…";
     clearReply();
+    pinToLatestOnce = true;
     socket.emit("dm:leave", {}, () => {
       /* chat:state follows from server */
     });
@@ -625,10 +628,39 @@
   }
 
   const feedScroller = createSmoothScroller(feed);
+  let pinToLatestOnce = false;
 
   function scrollFeedToBottom(smooth = true) {
-    feedScroller.scrollTo(feed.scrollHeight, smooth);
+    const max = Math.max(0, feed.scrollHeight - feed.clientHeight);
+    if (!smooth) {
+      // Instant jump — bypass clamp race while the feed is still laying out.
+      feed.scrollTop = max;
+      feedScroller.refresh();
+    } else {
+      feedScroller.scrollTo(max, true);
+    }
     jumpBottomBtn.hidden = true;
+  }
+
+  function schedulePinToLatest() {
+    pinToLatestOnce = true;
+    const run = () => {
+      if (app.hidden) return;
+      scrollFeedToBottom(false);
+    };
+    run();
+    requestAnimationFrame(() => {
+      run();
+      requestAnimationFrame(run);
+    });
+    setTimeout(run, 60);
+    setTimeout(run, 220);
+    setTimeout(run, 480);
+    // Photos / viewport chrome often grow the feed after the first jump.
+    feed.querySelectorAll("img.msg-photo").forEach((img) => {
+      if (img.complete) return;
+      img.addEventListener("load", run, { once: true });
+    });
   }
 
   function lockPageScroll() {
@@ -1547,7 +1579,8 @@
 
     updatePinBar();
 
-    const nearBottom = isNearBottom(80);
+    const stick = pinToLatestOnce || isNearBottom(80);
+    pinToLatestOnce = false;
 
     feed.replaceChildren();
     knownIds.clear();
@@ -1557,8 +1590,8 @@
       feed.append(renderMessage(msg));
     }
 
-    if (nearBottom) {
-      scrollFeedToBottom(false);
+    if (stick) {
+      schedulePinToLatest();
     } else {
       updateJumpBottom();
     }
@@ -1613,8 +1646,14 @@
     if (admin) setAdminUi(true, name);
     else if (isAdmin) setAdminUi(false);
     else syncMeBtn();
+    pinToLatestOnce = true;
     syncViewportHeight();
-    messageInput.focus();
+    // Don't steal focus immediately — keyboard resize fights the first pin-to-bottom.
+    schedulePinToLatest();
+    setTimeout(() => {
+      messageInput?.focus({ preventScroll: true });
+      schedulePinToLatest();
+    }, 120);
     const savedDm = loadDmCode();
     if (savedDm && !dmCode) {
       socket.emit("dm:join", { code: savedDm }, (res) => {
@@ -2125,6 +2164,9 @@
 
   socket.on("chat:state", (state) => {
     if (dmCode) return;
+    // State often arrives while the gate is up; scrolling a hidden feed is lost
+    // when #app becomes visible, so remember to land on the newest messages.
+    if (app.hidden) pinToLatestOnce = true;
     renderAll(state);
     if (pinsDialog?.open) {
       if (visiblePins().length) openPinsList();

@@ -521,6 +521,8 @@ io.on("connection", (socket) => {
       count: online.size,
       names: [...online.values()].map((u) => u.name),
     });
+    // Fresh snapshot after join so the client can pin to latest once visible.
+    socket.emit("chat:state", snapshot());
     if (typeof ack === "function") {
       ack({
         ok: true,
