@@ -1103,15 +1103,29 @@ button {
 }
 
 .dialog {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 0;
   background: var(--bg-elev);
   color: var(--ink);
   width: min(400px, calc(100vw - 2rem));
-  max-height: 85vh;
+  max-width: calc(100vw - 2rem);
+  max-height: min(85dvh, calc(var(--app-height, 100dvh) - 2rem));
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+/* Keep form dialogs above the software keyboard */
+body.keyboard-open .dialog {
+  top: calc(var(--vv-top, 0px) + 0.45rem);
+  transform: translate(-50%, 0);
+  max-height: calc(var(--app-height, 100dvh) - 0.9rem);
 }
 
 .dialog::backdrop {
@@ -1288,6 +1302,14 @@ button {
 }
 
 @media (max-width: 640px) {
+  .dialog {
+    top: calc(var(--vv-top, 0px) + 0.5rem);
+    transform: translate(-50%, 0);
+    width: min(400px, calc(100vw - 1.2rem));
+    max-height: calc(var(--app-height, 100dvh) - 1rem);
+    border-radius: 16px;
+  }
+
   .name-row {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: stretch;

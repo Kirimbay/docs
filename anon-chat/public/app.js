@@ -185,11 +185,14 @@
 
   function syncViewportHeight() {
     const vv = window.visualViewport;
+    const active = document.activeElement;
     const focused =
-      document.activeElement === messageInput ||
-      document.activeElement === nameInput ||
-      document.activeElement?.tagName === "TEXTAREA" ||
-      document.activeElement?.tagName === "INPUT";
+      active === messageInput ||
+      active === nameInput ||
+      active === renameInput ||
+      active === adminPassword ||
+      active?.tagName === "TEXTAREA" ||
+      active?.tagName === "INPUT";
 
     let height = window.innerHeight;
     let inset = 0;
@@ -208,6 +211,25 @@
     document.documentElement.style.setProperty("--kb-inset", `${inset}px`);
     document.body.classList.toggle("keyboard-open", inset > 80);
     lockPageScroll();
+  }
+
+  function keepDialogAboveKeyboard(dialog, focusEl) {
+    if (!dialog) return;
+    const bump = () => {
+      syncViewportHeight();
+      if (focusEl && typeof focusEl.scrollIntoView === "function") {
+        try {
+          focusEl.scrollIntoView({ block: "nearest", inline: "nearest" });
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+    bump();
+    requestAnimationFrame(bump);
+    setTimeout(bump, 80);
+    setTimeout(bump, 280);
+    setTimeout(bump, 500);
   }
 
   function autoSize() {
@@ -881,6 +903,7 @@
     renameDialog.showModal();
     renameInput.focus();
     renameInput.select();
+    keepDialogAboveKeyboard(renameDialog, renameInput);
   }
 
   function applyRename() {
@@ -1018,6 +1041,7 @@
   });
   renameCancelBtn?.addEventListener("click", () => renameDialog?.close());
   renameApplyBtn?.addEventListener("click", applyRename);
+  renameInput?.addEventListener("focus", () => keepDialogAboveKeyboard(renameDialog, renameInput));
   renameInput?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -1034,7 +1058,10 @@
     adminPassword.value = "";
     adminDialog.showModal();
     adminPassword.focus();
+    keepDialogAboveKeyboard(adminDialog, adminPassword);
   });
+
+  adminPassword?.addEventListener("focus", () => keepDialogAboveKeyboard(adminDialog, adminPassword));
 
   adminForm.addEventListener("submit", (e) => {
     const submitter = e.submitter;
