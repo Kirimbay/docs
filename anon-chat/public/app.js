@@ -1001,9 +1001,9 @@
     messageInput.style.height = "auto";
     const visible = window.visualViewport?.height || window.innerHeight;
     const narrow = window.matchMedia("(max-width: 640px)").matches;
-    const minH = narrow ? 41 : 46;
-    const cap = Math.min(narrow ? 72 : 96, Math.round(visible * (narrow ? 0.14 : 0.18)));
-    messageInput.style.height = `${Math.min(messageInput.scrollHeight, Math.max(minH, cap))}px`;
+    const minH = narrow ? 32 : 33;
+    const cap = Math.min(narrow ? 68 : 84, Math.round(visible * (narrow ? 0.13 : 0.16)));
+    messageInput.style.height = `${Math.min(Math.max(messageInput.scrollHeight, minH), Math.max(minH, cap))}px`;
   }
 
   syncViewportHeight();
