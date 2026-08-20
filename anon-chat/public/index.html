@@ -140,6 +140,24 @@
       </div>
     </dialog>
 
+    <dialog id="rename-dialog" class="dialog">
+      <div class="dialog-body">
+        <h2>Сменить имя</h2>
+        <p>Введите своё или нажмите «Случайное».</p>
+        <label class="field">
+          <span>Имя в чате</span>
+          <div class="name-row">
+            <input id="rename-input" type="text" maxlength="24" autocomplete="nickname" placeholder="Например: Барс" />
+            <button type="button" id="rename-random-btn" class="ghost">Случайное</button>
+          </div>
+        </label>
+        <div class="dialog-actions">
+          <button type="button" id="rename-cancel-btn" class="ghost">Отмена</button>
+          <button type="button" id="rename-apply-btn" class="primary">Сохранить</button>
+        </div>
+      </div>
+    </dialog>
+
     <dialog id="admin-dialog" class="dialog">
       <form method="dialog" id="admin-form">
         <h2>Админ</h2>
