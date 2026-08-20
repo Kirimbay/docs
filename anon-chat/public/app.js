@@ -1285,10 +1285,14 @@
     });
     document.body.classList.add("pins-list-open");
     if (!pinsDialog.open) pinsDialog.showModal();
+    const focusIdx = Math.min(Math.max(pinCycleIndex, 0), list.length - 1);
+    pinCycleIndex = focusIdx;
+    highlightPinPickerItem(focusIdx);
     requestAnimationFrame(() => {
       layoutPinsDialog();
       syncViewportHeight();
       layoutPinsDialog();
+      scrollToPinnedMessage(list[focusIdx], { fromMenu: true });
     });
   }
 

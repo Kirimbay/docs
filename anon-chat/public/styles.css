@@ -1237,14 +1237,20 @@ body.admin-on #me-btn {
   z-index: 2;
   opacity: 1 !important;
   filter: none !important;
+  pointer-events: auto;
 }
 
 body.pins-list-open .composer,
 body.pins-list-open .topbar,
 body.pins-list-open .dm-bar,
-body.pins-list-open .pin-bar {
-  filter: brightness(0.72);
-  transition: filter var(--motion) var(--ease-soft);
+body.pins-list-open .pin-bar,
+body.pins-list-open .jump-bottom {
+  filter: brightness(0.55);
+  opacity: 0.55;
+  transition:
+    filter var(--motion) var(--ease-soft),
+    opacity var(--motion) var(--ease-soft);
+  pointer-events: none;
 }
 
 body.pins-list-open .feed .msg,
@@ -1254,12 +1260,14 @@ body.pins-focus-mode .feed .msg:not(.pin-focus) {
   transition:
     opacity var(--motion) var(--ease-soft),
     filter var(--motion) var(--ease-soft);
+  pointer-events: none;
 }
 
 body.pins-list-open.pins-focus-mode .feed .msg.pin-focus,
 body.pins-focus-mode .feed .msg.pin-focus {
   opacity: 1 !important;
   filter: none !important;
+  pointer-events: auto;
   transition:
     opacity var(--motion) var(--ease-soft),
     filter var(--motion) var(--ease-soft),
@@ -2040,9 +2048,16 @@ body.keyboard-open .pins-dialog.dialog {
   display: flex;
 }
 
-.pins-dialog::backdrop {
+/* Pins menu: no full-screen scrim — dim siblings via CSS so the
+   focused pin stays readable above the sheet (esp. on iOS). */
+#pins-dialog::backdrop {
+  background: transparent;
+  animation: none;
+}
+
+.online-dialog::backdrop,
+.invites-dialog::backdrop {
   background: var(--scrim);
-  transition: background var(--motion) var(--ease-soft);
 }
 
 .pins-dialog .dialog-body {
