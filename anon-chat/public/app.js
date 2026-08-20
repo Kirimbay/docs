@@ -40,6 +40,12 @@
   const filterUserList = $("#filter-user-list");
   const filterApplyBtn = $("#filter-apply-btn");
   const filterCancelBtn = $("#filter-cancel-btn");
+  const notifyBtn = $("#notify-btn");
+  const replyToast = $("#reply-toast");
+  const replyToastBody = $("#reply-toast-body");
+  const replyToastTitle = $("#reply-toast-title");
+  const replyToastText = $("#reply-toast-text");
+  const replyToastClose = $("#reply-toast-close");
   const adminDialog = $("#admin-dialog");
   const adminForm = $("#admin-form");
   const adminPassword = $("#admin-password");
@@ -49,6 +55,7 @@
 
   const socket = io({ autoConnect: true });
   const NAME_KEY = "komnata_name";
+  const NOTIFY_KEY = "komnata_notify";
   const EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😢", "👍", "❤️", "🔥", "🎉"];
   const REACTIONS = [
     { emoji: "😊", title: "смайл" },
@@ -65,6 +72,8 @@
   let pendingReply = null;
   const knownIds = new Set();
   /** @type {Set<string>} */
+  const myMessageIds = new Set();
+  /** @type {Set<string>} */
   let filterNames = new Set();
   let lastState = { messages: [], pinned: [] };
   let pinCycleIndex = 0;
@@ -73,6 +82,10 @@
   let pinHoldStart = null;
   const PIN_HOLD_MS = 420;
   const PIN_HOLD_MOVE_PX = 12;
+  let notifyEnabled = false;
+  let replyToastTimer = null;
+  let audioCtx = null;
+  let toastTargetId = null;
 
   function loadSavedName() {
     try {
@@ -88,6 +101,186 @@
     } catch {
       /* ignore */
     }
+  }
+
+  function loadNotifyPref() {
+    try {
+      return localStorage.getItem(NOTIFY_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  }
+
+  function saveNotifyPref(on) {
+    try {
+      localStorage.setItem(NOTIFY_KEY, on ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function updateNotifyButton() {
+    if (!notifyBtn) return;
+    const supported = typeof Notification !== "undefined";
+    notifyBtn.classList.toggle("notify-on", notifyEnabled);
+    notifyBtn.classList.toggle("notify-off", !notifyEnabled);
+    notifyBtn.textContent = notifyEnabled ? "🔔" : "🔕";
+    notifyBtn.title = !supported
+      ? "Уведомления не поддерживаются"
+      : notifyEnabled
+        ? "Уведомления об ответах включены"
+        : "Уведомления об ответах выключены";
+  }
+
+  function unlockAudio() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!audioCtx) audioCtx = new Ctx();
+      if (audioCtx.state === "suspended") void audioCtx.resume();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function playNotifySound() {
+    try {
+      unlockAudio();
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      gain.gain.value = 0.045;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+      osc.start(now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc.stop(now + 0.22);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function hideReplyToast() {
+    if (replyToastTimer) {
+      clearTimeout(replyToastTimer);
+      replyToastTimer = null;
+    }
+    if (replyToast) replyToast.hidden = true;
+    toastTargetId = null;
+  }
+
+  function scrollToMessageId(id) {
+    if (!id) return;
+    const el = feed.querySelector(`[data-id="${id}"]`);
+    if (!el) {
+      composerHint.textContent = "Сообщение не в текущей ленте (фильтр?)";
+      return;
+    }
+    el.classList.add("pin-flash");
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => el.classList.remove("pin-flash"), 1200);
+  }
+
+  function showReplyToast(msg) {
+    if (!replyToast) return;
+    toastTargetId = msg.id;
+    replyToastTitle.textContent = `${msg.name} ответил вам`;
+    replyToastText.textContent = (msg.text || (msg.imageUrl ? "📷 Фото" : "Сообщение"))
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 140);
+    replyToast.hidden = false;
+    if (replyToastTimer) clearTimeout(replyToastTimer);
+    replyToastTimer = setTimeout(hideReplyToast, 7000);
+  }
+
+  function showSystemReplyNotification(msg) {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission !== "granted") return;
+    if (document.visibilityState === "visible" && typeof document.hasFocus === "function" && document.hasFocus()) {
+      return;
+    }
+    try {
+      const body = (msg.text || (msg.imageUrl ? "Фото" : "Сообщение"))
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 120);
+      const note = new Notification(`${msg.name} ответил вам`, {
+        body,
+        tag: `komnata-reply-${msg.id}`,
+        renotify: true,
+      });
+      note.onclick = () => {
+        window.focus();
+        scrollToMessageId(msg.id);
+        note.close();
+      };
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function isReplyToMe(msg) {
+    if (!myName || !msg?.reply) return false;
+    if (msg.name === myName) return false;
+    if (myMessageIds.has(msg.reply.id)) return true;
+    return msg.reply.name === myName;
+  }
+
+  function notifyReply(msg) {
+    if (!notifyEnabled) return;
+    if (!isReplyToMe(msg)) return;
+    showReplyToast(msg);
+    playNotifySound();
+    try {
+      navigator.vibrate?.(36);
+    } catch {
+      /* ignore */
+    }
+    showSystemReplyNotification(msg);
+  }
+
+  async function enableNotifications() {
+    unlockAudio();
+    notifyEnabled = true;
+    saveNotifyPref(true);
+    updateNotifyButton();
+    if (typeof Notification === "undefined") {
+      composerHint.textContent = "В приложении тосты есть; системные уведомления недоступны";
+      return;
+    }
+    if (Notification.permission === "granted") {
+      composerHint.textContent = "Уведомления об ответах включены";
+      return;
+    }
+    if (Notification.permission === "denied") {
+      composerHint.textContent = "Разрешите уведомления в настройках браузера";
+      return;
+    }
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") composerHint.textContent = "Уведомления об ответах включены";
+      else composerHint.textContent = "Тосты в чате включены; системные — отклонены";
+    } catch {
+      composerHint.textContent = "Тосты в чате включены";
+    }
+  }
+
+  function disableNotifications() {
+    notifyEnabled = false;
+    saveNotifyPref(false);
+    updateNotifyButton();
+    hideReplyToast();
+    composerHint.textContent = "Уведомления об ответах выключены";
+  }
+
+  async function toggleNotifications() {
+    unlockAudio();
+    if (notifyEnabled) disableNotifications();
+    else await enableNotifications();
   }
 
   async function fetchRandomName() {
@@ -581,8 +774,10 @@
 
     feed.replaceChildren();
     knownIds.clear();
+    myMessageIds.clear();
     for (const msg of messages) {
       knownIds.add(msg.id);
+      if (msg.name === myName) myMessageIds.add(msg.id);
       if (!passesFilter(msg)) continue;
       feed.append(renderMessage(msg));
     }
@@ -610,8 +805,12 @@
   function appendMessage(msg) {
     if (knownIds.has(msg.id)) return;
     knownIds.add(msg.id);
+    if (msg.name === myName) myMessageIds.add(msg.id);
     lastState.messages = [...(lastState.messages || []), msg];
-    if (!passesFilter(msg)) return;
+    if (!passesFilter(msg)) {
+      notifyReply(msg);
+      return;
+    }
     const nearBottom = isNearBottom(120);
     feed.append(renderMessage(msg));
     if (nearBottom || msg.name === myName) {
@@ -619,6 +818,7 @@
     } else {
       updateJumpBottom();
     }
+    notifyReply(msg);
   }
 
   function enterChat(name) {
@@ -627,6 +827,15 @@
     gate.hidden = true;
     app.hidden = false;
     renameBtn.title = `Сейчас: ${myName}`;
+    unlockAudio();
+    if (notifyEnabled && typeof Notification !== "undefined" && Notification.permission === "default") {
+      // Soft prompt once after join; do not block chat.
+      setTimeout(() => {
+        if (notifyEnabled && Notification.permission === "default") {
+          composerHint.textContent = "Нажмите 🔔, чтобы разрешить уведомления об ответах";
+        }
+      }, 800);
+    }
     messageInput.focus();
   }
 
@@ -835,6 +1044,16 @@
 
   previewClear.addEventListener("click", clearPreview);
 
+  notifyBtn?.addEventListener("click", () => {
+    void toggleNotifications();
+  });
+  replyToastBody?.addEventListener("click", () => {
+    const id = toastTargetId;
+    hideReplyToast();
+    scrollToMessageId(id);
+  });
+  replyToastClose?.addEventListener("click", hideReplyToast);
+
   filterBtn.addEventListener("click", openFilterDialog);
   filterApplyBtn.addEventListener("click", applyFilterFromDialog);
   filterCancelBtn.addEventListener("click", () => filterDialog.close());
@@ -955,6 +1174,9 @@
   });
   window.addEventListener("resize", closeAllReactMenus);
   feed.addEventListener("scroll", closeAllReactMenus, { passive: true });
+
+  notifyEnabled = loadNotifyPref();
+  updateNotifyButton();
 
   const savedName = loadSavedName();
   if (savedName) {

@@ -287,6 +287,71 @@ button {
   justify-content: flex-end;
 }
 
+.reply-toast {
+  position: fixed;
+  top: max(0.55rem, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  width: min(calc(100% - 1.2rem), 26rem);
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  padding: 0.35rem 0.35rem 0.35rem 0.55rem;
+  border-radius: 14px;
+  border: 1px solid #4a6478;
+  background: rgba(26, 36, 44, 0.96);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+}
+
+.reply-toast[hidden] {
+  display: none !important;
+}
+
+.reply-toast-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+  text-align: left;
+  padding: 0.2rem 0.25rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.reply-toast-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #8cbcE3;
+}
+
+.reply-toast-text {
+  font-size: 0.84rem;
+  color: #d2d5d9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reply-toast-close {
+  align-self: center;
+  min-width: 1.85rem;
+  min-height: 1.85rem;
+  padding: 0;
+}
+
+#notify-btn.notify-on {
+  border-color: #4a6478;
+  color: #8cbcE3;
+}
+
+#notify-btn.notify-off {
+  opacity: 0.55;
+}
+
 .filter-bar {
   flex: 0 0 auto;
   display: flex;
@@ -832,11 +897,13 @@ button {
 .msg-reply,
 .msg-react-toggle {
   flex: 0 0 auto;
+  box-sizing: border-box;
+  height: 1.55rem;
+  min-height: 1.55rem;
   font-size: 0.68rem;
   font-weight: 500;
-  padding: 0.18rem 0.48rem;
-  min-height: 1.4rem;
-  line-height: 1.15;
+  padding: 0 0.48rem;
+  line-height: 1;
   border: 1px solid #3a3d42;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.04);
@@ -1222,15 +1289,21 @@ button {
   }
 
   .msg-reply,
+  .msg-react-toggle,
+  .msg-react-chip {
+    height: 1.55rem;
+    min-height: 1.55rem;
+  }
+
+  .msg-reply,
   .msg-react-toggle {
     font-size: 0.64rem;
-    padding: 0.14rem 0.4rem;
-    min-height: 1.3rem;
+    padding: 0 0.4rem;
   }
 
   .msg-react-chip {
-    font-size: 0.74rem;
-    padding: 0.04rem 0.22rem;
+    font-size: 0.78rem;
+    padding: 0 0.28rem;
   }
 
   .composer {

@@ -14,7 +14,7 @@
       href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=26" />
+    <link rel="stylesheet" href="/styles.css?v=28" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -42,11 +42,20 @@
           <span id="presence" class="presence">онлайн —</span>
         </div>
         <div class="topbar-actions">
+          <button type="button" id="notify-btn" class="ghost compact" title="Уведомления об ответах" aria-label="Уведомления об ответах">🔔</button>
           <button type="button" id="filter-btn" class="ghost compact" title="Фильтр по участникам">Фильтр</button>
           <button type="button" id="rename-btn" class="ghost compact" title="Сменить имя">Имя</button>
           <button type="button" id="admin-btn" class="ghost compact" title="Админ">Админ</button>
         </div>
       </header>
+
+      <div id="reply-toast" class="reply-toast" hidden>
+        <button type="button" id="reply-toast-body" class="reply-toast-body">
+          <span id="reply-toast-title" class="reply-toast-title"></span>
+          <span id="reply-toast-text" class="reply-toast-text"></span>
+        </button>
+        <button type="button" id="reply-toast-close" class="ghost compact reply-toast-close" aria-label="Закрыть">×</button>
+      </div>
 
       <div id="filter-bar" class="filter-bar" hidden>
         <span id="filter-bar-text" class="filter-bar-text">Фильтр</span>
@@ -149,6 +158,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=26"></script>
+    <script src="/app.js?v=28"></script>
   </body>
 </html>
