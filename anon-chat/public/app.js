@@ -490,7 +490,12 @@
     const value = messageInput.value;
     messageInput.value = value.slice(0, start) + emoji + value.slice(end);
     const pos = start + emoji.length;
-    messageInput.setSelectionRange(pos, pos);
+    // Keep selection for the next emoji without focusing (no iOS keyboard).
+    try {
+      messageInput.setSelectionRange(pos, pos);
+    } catch {
+      /* ignore */
+    }
     autoSize();
   }
 
@@ -517,11 +522,11 @@
       btn.type = "button";
       btn.className = "emoji-btn-item";
       btn.textContent = emoji;
+      // Prevent focus steal / keyboard open on iOS.
+      btn.addEventListener("pointerdown", (e) => e.preventDefault());
       btn.addEventListener("click", () => {
         insertEmoji(emoji);
-        closeEmojiPanel();
-        messageInput.focus();
-        autoSize();
+        // Leave the strip open for more picks; do not focus the textarea.
       });
       emojiPanel.append(btn);
     }
@@ -599,12 +604,10 @@
 
   sendBtn.addEventListener("click", send);
   replyCancelBtn.addEventListener("click", clearReply);
+  emojiBtn.addEventListener("pointerdown", (e) => e.preventDefault());
   emojiBtn.addEventListener("click", () => {
     if (emojiPanel.hidden) openEmojiPanel();
-    else {
-      closeEmojiPanel();
-      messageInput.focus();
-    }
+    else closeEmojiPanel();
   });
   buildEmojiPanel();
 
