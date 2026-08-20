@@ -52,10 +52,11 @@
   const onlineDialog = $("#online-dialog");
   const onlineList = $("#online-list");
   const onlineCloseBtn = $("#online-close-btn");
-  const inviteBanner = $("#invite-banner");
-  const inviteFrom = $("#invite-from");
-  const inviteAccept = $("#invite-accept");
-  const inviteDecline = $("#invite-decline");
+  const invitesBtn = $("#invites-btn");
+  const invitesBadge = $("#invites-badge");
+  const invitesDialog = $("#invites-dialog");
+  const invitesList = $("#invites-list");
+  const invitesCloseBtn = $("#invites-close-btn");
   const adminDialog = $("#admin-dialog");
   const adminPassword = $("#admin-password");
   const adminError = $("#admin-error");
@@ -91,7 +92,8 @@
   /** @type {{ id: string, name: string }[]} */
   let lastPeople = [];
   let lastPresenceCount = 0;
-  let pendingInvite = null;
+  /** @type {{ code: string, from: string, fromId: string, at: number }[]} */
+  let pendingInvites = [];
   let publicStateBackup = null;
   let dmCode = null;
   let pinCycleIndex = 0;
@@ -378,6 +380,7 @@
     if (!res?.ok || !res.code) return;
     if (!dmCode) publicStateBackup = { messages: [...(lastState.messages || [])], pinned: [...(lastState.pinned || [])] };
     dmCode = res.code;
+    removePendingInvite(res.code);
     rememberDmRoom(res.code);
     document.body.classList.add("dm-on");
     if (dmBar) dmBar.hidden = false;
@@ -525,47 +528,135 @@
     layoutBottomSheet(onlineDialog);
   }
 
-  function hideInviteBanner() {
-    pendingInvite = null;
-    if (!inviteBanner) return;
-    inviteBanner.classList.remove("is-visible");
-    const finish = () => {
-      if (!inviteBanner.classList.contains("is-visible")) inviteBanner.hidden = true;
-    };
-    inviteBanner.addEventListener("transitionend", finish, { once: true });
-    setTimeout(finish, 320);
+  function syncInvitesBtn() {
+    if (!invitesBtn) return;
+    const n = pendingInvites.length;
+    if (!n) {
+      invitesBtn.hidden = true;
+      invitesBtn.classList.remove("has-invites");
+      if (invitesBadge) {
+        invitesBadge.hidden = true;
+        invitesBadge.textContent = "";
+      }
+      if (invitesDialog?.open) invitesDialog.close();
+      return;
+    }
+    invitesBtn.hidden = false;
+    invitesBtn.classList.add("has-invites");
+    invitesBtn.title = n === 1 ? "Вас зовут вдвоём" : `Приглашения · ${n}`;
+    if (invitesBadge) {
+      invitesBadge.hidden = false;
+      invitesBadge.textContent = String(n);
+    }
   }
 
-  function showInviteBanner(invite) {
-    pendingInvite = invite;
-    if (!inviteBanner || !inviteFrom) return;
-    inviteFrom.textContent = invite.from || "Кто-то";
-    inviteBanner.hidden = false;
-    requestAnimationFrame(() => {
-      inviteBanner.classList.add("is-visible");
+  function removePendingInvite(code) {
+    const key = String(code || "");
+    pendingInvites = pendingInvites.filter((inv) => inv.code !== key);
+    syncInvitesBtn();
+    if (invitesDialog?.open) renderInvitesList();
+  }
+
+  function queueInvite(invite) {
+    const code = String(invite?.code || "").trim();
+    if (!code) return;
+    if (dmCode && dmCode === code) return;
+    pendingInvites = pendingInvites.filter((inv) => inv.code !== code);
+    pendingInvites.unshift({
+      code,
+      from: invite.from || "Кто-то",
+      fromId: invite.fromId || "",
+      at: Date.now(),
+    });
+    syncInvitesBtn();
+    if (invitesDialog?.open) renderInvitesList();
+  }
+
+  function renderInvitesList() {
+    if (!invitesList) return;
+    invitesList.replaceChildren();
+    if (!pendingInvites.length) {
+      const empty = document.createElement("p");
+      empty.className = "user-list-empty";
+      empty.textContent = "Пока нет приглашений";
+      invitesList.append(empty);
+      return;
+    }
+    pendingInvites.forEach((invite) => {
+      const row = document.createElement("div");
+      row.className = "invite-row";
+      row.setAttribute("role", "option");
+      row.dataset.code = invite.code;
+
+      const meta = document.createElement("div");
+      meta.className = "invite-row-meta";
+      const name = document.createElement("span");
+      name.className = "invite-row-name";
+      name.textContent = invite.from || "Кто-то";
+      const sub = document.createElement("span");
+      sub.className = "invite-row-sub";
+      sub.textContent = "зовёт вдвоём · без пина";
+      meta.append(name, sub);
+
+      const actions = document.createElement("div");
+      actions.className = "invite-row-actions";
+      const declineBtn = document.createElement("button");
+      declineBtn.type = "button";
+      declineBtn.className = "ghost compact";
+      declineBtn.textContent = "Нет";
+      declineBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        declineInvite(invite);
+      });
+      const enterBtn = document.createElement("button");
+      enterBtn.type = "button";
+      enterBtn.className = "primary compact";
+      enterBtn.textContent = "Войти";
+      enterBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        acceptInvite(invite);
+      });
+      actions.append(declineBtn, enterBtn);
+      row.append(meta, actions);
+      row.addEventListener("click", () => acceptInvite(invite));
+      invitesList.append(row);
     });
   }
 
-  function acceptInvite() {
-    const invite = pendingInvite;
-    hideInviteBanner();
+  function openInvitesDialog() {
+    if (!invitesDialog || !pendingInvites.length) return;
+    syncViewportHeight();
+    renderInvitesList();
+    if (!invitesDialog.open) invitesDialog.showModal();
+    layoutBottomSheet(invitesDialog);
+  }
+
+  function closeInvitesDialog() {
+    if (invitesDialog?.open) invitesDialog.close();
+  }
+
+  function acceptInvite(invite) {
     if (!invite?.code) return;
+    const from = invite.from || "участником";
+    closeInvitesDialog();
     socket.emit("dm:join", { code: invite.code }, (res) => {
       if (!res?.ok) {
         composerHint.textContent = res?.error || "Не удалось войти";
+        syncInvitesBtn();
         return;
       }
       enterDmMode(res);
-      composerHint.textContent = `Вдвоём с ${invite.from || "участником"}`;
+      composerHint.textContent = `Вдвоём с ${from}`;
     });
   }
 
-  function declineInvite() {
-    const invite = pendingInvite;
-    hideInviteBanner();
-    if (invite?.fromId) {
+  function declineInvite(invite) {
+    if (!invite) return;
+    removePendingInvite(invite.code);
+    if (invite.fromId) {
       socket.emit("dm:invite-decline", { fromId: invite.fromId });
     }
+    if (!pendingInvites.length) closeInvitesDialog();
   }
 
   async function fetchRandomName(targetInput = nameInput) {
@@ -2178,8 +2269,20 @@
     onlineDialog.style.maxWidth = "";
     onlineDialog.style.transform = "";
   });
-  inviteAccept?.addEventListener("click", acceptInvite);
-  inviteDecline?.addEventListener("click", declineInvite);
+  invitesBtn?.addEventListener("click", () => openInvitesDialog());
+  invitesCloseBtn?.addEventListener("click", () => closeInvitesDialog());
+  invitesDialog?.addEventListener("click", (e) => {
+    if (e.target === invitesDialog) closeInvitesDialog();
+  });
+  invitesDialog?.addEventListener("close", () => {
+    invitesDialog.style.top = "";
+    invitesDialog.style.bottom = "";
+    invitesDialog.style.height = "";
+    invitesDialog.style.maxHeight = "";
+    invitesDialog.style.width = "";
+    invitesDialog.style.maxWidth = "";
+    invitesDialog.style.transform = "";
+  });
 
   pinsCloseBtn.addEventListener("click", closePinsList);
   pinsDialog.addEventListener("click", (e) => {
@@ -2200,6 +2303,7 @@
   const onPinsViewport = () => {
     if (pinsDialog.open) layoutPinsDialog();
     if (onlineDialog?.open) layoutBottomSheet(onlineDialog);
+    if (invitesDialog?.open) layoutBottomSheet(invitesDialog);
     if (dmDialog?.open) layoutDmDialog();
     if (renameDialog?.open) layoutFormDialog(renameDialog);
     if (adminDialog?.open) layoutFormDialog(adminDialog);
@@ -2515,11 +2619,13 @@
     myName = "";
     isAdmin = false;
     dmCode = null;
+    pendingInvites = [];
+    syncInvitesBtn();
+    closeInvitesDialog();
     document.body.classList.remove("dm-on", "admin-on");
     if (dmBar) dmBar.hidden = true;
     closeOnlineList();
     closeAllReactMenus();
-    hideInviteBanner();
     app.hidden = true;
     gate.hidden = false;
     syncMeBtn();
@@ -2550,7 +2656,7 @@
   socket.on("dm:invite", (payload = {}) => {
     if (!payload.code || !myName) return;
     if (dmCode && dmCode === payload.code) return;
-    showInviteBanner({
+    queueInvite({
       code: payload.code,
       from: payload.from || "Кто-то",
       fromId: payload.fromId || "",

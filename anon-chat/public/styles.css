@@ -613,54 +613,85 @@ body.admin-on #me-btn {
   color: var(--ok);
 }
 
-.invite-banner {
-  position: fixed;
-  left: 50%;
-  top: calc(var(--vv-top, 0px) + 3.4rem);
-  z-index: 40;
-  width: min(360px, calc(100vw - 1.4rem));
-  transform: translateX(-50%) translateY(-8px);
-  opacity: 0;
-  pointer-events: none;
+.invites-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.invites-btn[hidden] {
+  display: none !important;
+}
+
+.invites-btn.has-invites {
+  border-color: color-mix(in srgb, var(--dm-accent) 55%, var(--line));
+  color: var(--dm-accent);
+}
+
+.invites-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: var(--dm-accent);
+  color: #121314;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.invites-badge[hidden] {
+  display: none !important;
+}
+
+.invites-lead {
+  margin: -0.15rem 0 0.55rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.invite-row {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid var(--dm-line);
-  border-radius: 14px;
-  background: var(--bg-elev);
-  color: var(--ink);
-  box-shadow: var(--shadow-strong);
-  transition:
-    opacity var(--motion) var(--ease-out),
-    transform var(--motion) var(--ease-out);
+  justify-content: space-between;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.62rem 0.45rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft);
 }
 
-.invite-banner.is-visible {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  pointer-events: auto;
+.invite-row:hover,
+.invite-row:focus-within {
+  background: var(--hover);
 }
 
-.invite-banner[hidden] {
-  display: flex !important;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.invite-banner.is-visible[hidden] {
-  display: flex !important;
-}
-
-.invite-banner-text {
-  margin: 0;
-  flex: 1 1 auto;
+.invite-row-meta {
+  display: grid;
+  gap: 0.12rem;
   min-width: 0;
-  font-size: 0.84rem;
-  line-height: 1.25;
+  flex: 1 1 auto;
 }
 
-.invite-banner-actions {
+.invite-row-name {
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invite-row-sub {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.invite-row-actions {
   display: flex;
   gap: 0.3rem;
   flex: 0 0 auto;
@@ -1135,8 +1166,7 @@ body.admin-on #me-btn {
 body.pins-list-open .composer,
 body.pins-list-open .topbar,
 body.pins-list-open .dm-bar,
-body.pins-list-open .pin-bar,
-body.pins-list-open .invite-banner {
+body.pins-list-open .pin-bar {
   filter: brightness(0.72);
   transition: filter var(--motion) var(--ease-soft);
 }
@@ -2427,8 +2457,7 @@ body.keyboard-open .pins-dialog.dialog {
   .reply-bar[hidden],
   .preview[hidden],
   .pin-bar[hidden],
-  .dm-bar[hidden],
-  .invite-banner[hidden] {
+  .dm-bar[hidden] {
     display: none !important;
   }
 }

@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=77" />
+    <link rel="stylesheet" href="/styles.css?v=78" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -59,6 +59,9 @@
           <button type="button" id="presence" class="presence" title="Кто онлайн">онлайн —</button>
         </div>
         <div class="topbar-actions">
+          <button type="button" id="invites-btn" class="ghost compact invites-btn" hidden title="Приглашения вдвоём">
+            Зовут<span id="invites-badge" class="invites-badge" hidden></span>
+          </button>
           <button type="button" id="dm-btn" class="ghost compact" title="Чат вдвоём по коду">Вдвоём</button>
           <button type="button" id="me-btn" class="ghost compact me-btn" title="Ваше имя">…</button>
         </div>
@@ -68,14 +71,6 @@
         <span class="dm-bar-text">код <strong id="dm-bar-code"></strong></span>
         <span id="dm-bar-presence" class="dm-bar-presence">1/2</span>
         <button type="button" id="dm-copy-btn" class="ghost compact" title="Скопировать код">Скопировать код</button>
-      </div>
-
-      <div id="invite-banner" class="invite-banner" hidden aria-live="polite">
-        <p class="invite-banner-text"><strong id="invite-from"></strong> зовёт вдвоём</p>
-        <div class="invite-banner-actions">
-          <button type="button" id="invite-decline" class="ghost compact">Нет</button>
-          <button type="button" id="invite-accept" class="primary compact">Войти</button>
-        </div>
       </div>
 
       <button type="button" id="pins" class="pin-bar" hidden title="Нажмите — перейти. Удерживайте — список">
@@ -148,6 +143,17 @@
         <div id="online-list" class="pins-picker online-list" role="listbox" aria-label="Кто онлайн"></div>
         <div class="dialog-actions">
           <button type="button" id="online-close-btn" class="ghost compact">Закрыть</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="invites-dialog" class="dialog pins-dialog invites-dialog">
+      <div class="dialog-body">
+        <h2>Приглашения</h2>
+        <p class="invites-lead">Вас позвали вдвоём — войдите без пина.</p>
+        <div id="invites-list" class="pins-picker invites-list" role="listbox" aria-label="Приглашения"></div>
+        <div class="dialog-actions">
+          <button type="button" id="invites-close-btn" class="ghost compact">Закрыть</button>
         </div>
       </div>
     </dialog>
@@ -231,6 +237,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=77"></script>
+    <script src="/app.js?v=78"></script>
   </body>
 </html>
