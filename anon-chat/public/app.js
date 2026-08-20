@@ -49,6 +49,13 @@
     "😀", "😂", "🥹", "😍", "😎", "🤔", "😢", "😡", "👍", "👎",
     "❤️", "🔥", "🎉", "🙏", "👏", "💯", "✅", "❌", "👀", "🤝",
   ];
+  const REACTIONS = [
+    { emoji: "😊", title: "смайл" },
+    { emoji: "❤️", title: "любовь" },
+    { emoji: "😢", title: "грусть" },
+    { emoji: "💩", title: "говно" },
+    { emoji: "🔥", title: "огонь" },
+  ];
 
   let myName = "";
   let isAdmin = false;
@@ -336,6 +343,28 @@
       el.append(img);
     }
 
+    const reactionsRow = document.createElement("div");
+    reactionsRow.className = "msg-reactions";
+    for (const { emoji, title } of REACTIONS) {
+      const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
+      const mine = reactors.includes(myName);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "msg-react" + (mine ? " mine" : "") + (reactors.length ? " on" : "");
+      btn.title = title;
+      btn.dataset.emoji = emoji;
+      btn.innerHTML = reactors.length
+        ? `<span class="msg-react-emoji">${emoji}</span><span class="msg-react-count">${reactors.length}</span>`
+        : `<span class="msg-react-emoji">${emoji}</span>`;
+      btn.addEventListener("click", () => {
+        socket.emit("chat:react", { id: msg.id, emoji }, (res) => {
+          if (!res?.ok) composerHint.textContent = res?.error || "Ошибка реакции";
+        });
+      });
+      reactionsRow.append(btn);
+    }
+    el.append(reactionsRow);
+
     const actions = document.createElement("div");
     actions.className = "msg-actions";
 
@@ -396,6 +425,18 @@
       feed.scrollTop = feed.scrollHeight;
     }
     updateFilterChrome();
+  }
+
+  function patchMessage(updated) {
+    if (!updated?.id) return;
+    const idx = (lastState.messages || []).findIndex((m) => m.id === updated.id);
+    if (idx >= 0) lastState.messages[idx] = updated;
+    const pinIdx = (lastState.pinned || []).findIndex((m) => m.id === updated.id);
+    if (pinIdx >= 0) lastState.pinned[pinIdx] = updated;
+    const el = feed.querySelector(`[data-id="${updated.id}"]`);
+    if (!el) return;
+    const next = renderMessage(updated);
+    el.replaceWith(next);
   }
 
   function appendMessage(msg) {
@@ -643,6 +684,10 @@
 
   socket.on("chat:message", (msg) => {
     appendMessage(msg);
+  });
+
+  socket.on("chat:message-update", (msg) => {
+    patchMessage(msg);
   });
 
   socket.on("chat:presence", ({ count, names }) => {

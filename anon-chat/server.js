@@ -87,6 +87,20 @@ function sanitizeText(raw) {
   return raw.trim().slice(0, MAX_TEXT_LEN);
 }
 
+const REACTION_EMOJIS = ["😊", "❤️", "😢", "💩", "🔥"];
+
+function normalizeReactions(raw) {
+  const out = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const emoji of REACTION_EMOJIS) {
+    const list = Array.isArray(raw[emoji])
+      ? raw[emoji].filter((n) => typeof n === "string" && n.trim()).map((n) => n.trim().slice(0, MAX_NAME_LEN))
+      : [];
+    if (list.length) out[emoji] = [...new Set(list)];
+  }
+  return out;
+}
+
 function publicMessage(msg) {
   return {
     id: msg.id,
@@ -102,6 +116,7 @@ function publicMessage(msg) {
           text: msg.reply.text || "",
         }
       : null,
+    reactions: normalizeReactions(msg.reactions),
   };
 }
 
@@ -279,6 +294,7 @@ io.on("connection", (socket) => {
       text,
       imageUrl,
       reply,
+      reactions: {},
       createdAt: new Date().toISOString(),
     };
     store.messages.push(msg);
@@ -296,6 +312,37 @@ io.on("connection", (socket) => {
     saveStore(store);
     io.emit("chat:message", publicMessage(msg));
     if (typeof ack === "function") ack({ ok: true, id: msg.id });
+  });
+
+  socket.on("chat:react", (payload = {}, ack) => {
+    const user = online.get(socket.id);
+    if (!user) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
+      return;
+    }
+    const emoji = typeof payload.emoji === "string" ? payload.emoji : "";
+    const id = typeof payload.id === "string" ? payload.id : "";
+    if (!REACTION_EMOJIS.includes(emoji)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Неизвестная реакция" });
+      return;
+    }
+    const msg = store.messages.find((m) => m.id === id);
+    if (!msg) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сообщение не найдено" });
+      return;
+    }
+    if (!msg.reactions || typeof msg.reactions !== "object") msg.reactions = {};
+    const list = Array.isArray(msg.reactions[emoji]) ? msg.reactions[emoji] : [];
+    const idx = list.indexOf(user.name);
+    if (idx >= 0) list.splice(idx, 1);
+    else list.push(user.name);
+    if (list.length) msg.reactions[emoji] = list;
+    else delete msg.reactions[emoji];
+    msg.reactions = normalizeReactions(msg.reactions);
+    saveStore(store);
+    const pub = publicMessage(msg);
+    io.emit("chat:message-update", pub);
+    if (typeof ack === "function") ack({ ok: true, message: pub });
   });
 
   socket.on("admin:pin", (payload = {}, ack) => {
