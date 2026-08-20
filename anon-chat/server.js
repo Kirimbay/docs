@@ -214,6 +214,63 @@ function sanitizeName(raw) {
   return name;
 }
 
+function nameKey(name) {
+  return String(name || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleLowerCase("ru-RU");
+}
+
+function findSocketIdsWithName(name, exceptSocketId = null) {
+  const key = nameKey(name);
+  if (!key) return [];
+  const ids = [];
+  for (const [id, u] of online) {
+    if (exceptSocketId && id === exceptSocketId) continue;
+    if (nameKey(u.name) === key) ids.push(id);
+  }
+  return ids;
+}
+
+function isNameTaken(name, exceptSocketId = null) {
+  return findSocketIdsWithName(name, exceptSocketId).length > 0;
+}
+
+function uniqueRandomName() {
+  const taken = new Set([...online.values()].map((u) => nameKey(u.name)));
+  const free = NAMES.filter((n) => !taken.has(nameKey(n)));
+  if (free.length) return free[Math.floor(Math.random() * free.length)];
+  for (let n = 0; n < 80; n += 1) {
+    const base = NAMES[Math.floor(Math.random() * NAMES.length)];
+    const candidate = `${base}${Math.floor(10 + Math.random() * 90)}`;
+    if (!taken.has(nameKey(candidate))) return candidate.slice(0, MAX_NAME_LEN);
+  }
+  return `Гость${String(Date.now()).slice(-4)}`;
+}
+
+function evictSocketById(id, reason) {
+  const other = io.sockets.sockets.get(id);
+  if (other) {
+    try {
+      other.emit("chat:kicked", { reason: reason || "Сессия закрыта" });
+    } catch {
+      /* ignore */
+    }
+    leaveDmRoom(other);
+    online.delete(id);
+    other.disconnect(true);
+  } else {
+    online.delete(id);
+  }
+}
+
+/** One live connection per name: new join/reconnect replaces older tabs. */
+function claimName(name, socketId) {
+  for (const id of findSocketIdsWithName(name, socketId)) {
+    evictSocketById(id, "Это имя открыто в другой вкладке — оставлена одна сессия");
+  }
+}
+
 function sanitizeText(raw) {
   if (typeof raw !== "string") return "";
   return raw.trim().slice(0, MAX_TEXT_LEN);
@@ -456,7 +513,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.get("/api/random-name", (_req, res) => {
-  res.json({ name: randomName() });
+  res.json({ name: uniqueRandomName() });
 });
 
 app.post("/api/upload", (req, res) => {
@@ -521,7 +578,18 @@ io.on("connection", (socket) => {
     const prevFromClient = sanitizeName(payload.previousName);
     const previousName =
       prevFromClient && !isReservedAdminName(prevFromClient) ? prevFromClient : null;
-    const name = asAdmin ? ADMIN_DISPLAY_NAME : custom || randomName();
+
+    let name;
+    if (asAdmin) {
+      name = ADMIN_DISPLAY_NAME;
+    } else if (custom) {
+      name = custom;
+    } else {
+      name = uniqueRandomName();
+    }
+
+    // One connection per nick: replace older tab/device with the same name.
+    claimName(name, socket.id);
     leaveDmRoom(socket);
     online.set(socket.id, {
       name,
@@ -567,6 +635,10 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Это имя зарезервировано" });
       return;
     }
+    if (isNameTaken(name, socket.id)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Имя уже занято — выберите другое" });
+      return;
+    }
     user.name = name;
     socket.data.name = name;
     emitChatPresence();
@@ -589,6 +661,7 @@ io.on("connection", (socket) => {
       user.previousName = user.name;
       socket.data.previousName = user.name;
     }
+    claimName(ADMIN_DISPLAY_NAME, socket.id);
     user.isAdmin = true;
     socket.data.isAdmin = true;
     user.name = ADMIN_DISPLAY_NAME;
@@ -627,6 +700,7 @@ io.on("connection", (socket) => {
     }
     user.isAdmin = true;
     socket.data.isAdmin = true;
+    claimName(ADMIN_DISPLAY_NAME, socket.id);
     user.name = ADMIN_DISPLAY_NAME;
     socket.data.name = ADMIN_DISPLAY_NAME;
     emitChatPresence();
@@ -653,8 +727,8 @@ io.on("connection", (socket) => {
     if (!restore || isReservedAdminName(restore)) {
       restore = user.previousName || socket.data.previousName || null;
     }
-    if (!restore || isReservedAdminName(restore)) {
-      restore = randomName();
+    if (!restore || isReservedAdminName(restore) || isNameTaken(restore, socket.id)) {
+      restore = uniqueRandomName();
     }
 
     user.isAdmin = false;

@@ -2327,6 +2327,26 @@
     patchMessage(msg);
   });
 
+  function leaveToGate(reason) {
+    myName = "";
+    isAdmin = false;
+    dmCode = null;
+    document.body.classList.remove("dm-on", "admin-on");
+    if (dmBar) dmBar.hidden = true;
+    closeOnlineList();
+    closeAllReactMenus();
+    hideInviteBanner();
+    app.hidden = true;
+    gate.hidden = false;
+    syncMeBtn();
+    syncDmBtn();
+    if (reason) showGateError(reason);
+  }
+
+  socket.on("chat:kicked", ({ reason } = {}) => {
+    leaveToGate(reason || "Сессия закрыта — это имя открыто в другой вкладке");
+  });
+
   socket.on("chat:presence", ({ count, people, names } = {}) => {
     lastPresenceCount = Number(count) || 0;
     if (Array.isArray(people) && people.length) {
