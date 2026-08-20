@@ -1,15 +1,16 @@
 :root {
-  --ink: #12201c;
-  --ink-soft: #1c322c;
-  --paper: #e8f0ea;
-  --paper-dim: #c5d6cb;
-  --mist: rgba(232, 240, 234, 0.08);
-  --line: rgba(232, 240, 234, 0.14);
-  --accent: #d9772f;
-  --ok: #6fbf8a;
-  --danger: #e26d5a;
-  --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-  --radius: 18px;
+  --bg: #eceff1;
+  --bg-elev: #ffffff;
+  --ink: #3a3f44;
+  --ink-soft: #5c636a;
+  --muted: #8a9199;
+  --line: #d5dbe0;
+  --accent: #4a5560;
+  --accent-fill: #3a3f44;
+  --ok: #2f6b4f;
+  --danger: #b5433a;
+  --mine: #e8ecef;
+  --radius: 14px;
   --font-display: "Newsreader", Georgia, serif;
   --font-body: "Instrument Sans", system-ui, sans-serif;
   --app-max: 760px;
@@ -39,8 +40,8 @@ html {
 
 body {
   font-family: var(--font-body);
-  color: var(--paper);
-  background: var(--ink);
+  color: var(--ink);
+  background: var(--bg);
   overflow: hidden;
   overscroll-behavior: none;
   position: fixed;
@@ -51,27 +52,6 @@ body {
 
 body.keyboard-open {
   --safe-bottom: 0px;
-}
-
-.atmosphere {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 80% 55% at 10% -10%, rgba(217, 119, 47, 0.28), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 100% 10%, rgba(72, 140, 110, 0.22), transparent 50%),
-    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(18, 40, 34, 0.9), transparent 60%),
-    linear-gradient(165deg, #0d1714 0%, #15251f 45%, #0f1b17 100%);
-  pointer-events: none;
-}
-
-.atmosphere::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: 0.08;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  pointer-events: none;
 }
 
 button,
@@ -91,16 +71,15 @@ button {
 }
 
 .primary {
-  background: var(--accent);
-  color: #1a1008;
+  background: var(--accent-fill);
+  color: #f4f5f6;
   font-weight: 600;
   border-radius: 999px;
   padding: 0.85rem 1.4rem;
-  box-shadow: 0 10px 30px rgba(217, 119, 47, 0.25);
 }
 
 .primary:hover {
-  background: #e8893d;
+  background: #2c3136;
 }
 
 .primary.compact {
@@ -116,22 +95,28 @@ button {
 
 .ghost {
   border: 1px solid var(--line);
-  background: var(--mist);
+  background: var(--bg-elev);
   border-radius: 999px;
   padding: 0.7rem 1rem;
-  color: var(--paper);
+  color: var(--ink);
   flex: 0 0 auto;
 }
 
 .ghost:hover {
-  background: rgba(232, 240, 234, 0.14);
-  border-color: rgba(232, 240, 234, 0.28);
+  background: #f3f5f7;
 }
 
 .ghost.compact {
   padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
   min-height: 2.25rem;
+}
+
+.ghost.active {
+  border-color: var(--accent-fill);
+  background: #e8ecef;
+  color: var(--accent-fill);
+  font-weight: 600;
 }
 
 .field {
@@ -145,23 +130,24 @@ button {
   font-size: 0.8rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--paper-dim);
+  color: var(--muted);
 }
 
 .field input,
 .composer textarea {
   width: 100%;
   border: 1px solid var(--line);
-  background: rgba(8, 16, 13, 0.55);
+  background: var(--bg-elev);
   border-radius: 14px;
   padding: 0.85rem 1rem;
   outline: none;
+  color: var(--ink);
 }
 
 .field input:focus,
 .composer textarea:focus {
-  border-color: rgba(217, 119, 47, 0.7);
-  box-shadow: 0 0 0 3px rgba(217, 119, 47, 0.18);
+  border-color: #9aa3ab;
+  box-shadow: 0 0 0 3px rgba(58, 63, 68, 0.08);
 }
 
 .error {
@@ -174,11 +160,10 @@ button {
   margin: 0.35rem 0 0;
   min-height: 1.1em;
   font-size: 0.78rem;
-  color: var(--paper-dim);
+  color: var(--muted);
   overflow-wrap: anywhere;
 }
 
-/* Gate */
 .gate {
   position: fixed;
   top: 0;
@@ -191,6 +176,7 @@ button {
   padding: max(1rem, env(safe-area-inset-top)) var(--pad-x) max(1rem, var(--safe-bottom));
   overflow: auto;
   z-index: 5;
+  background: var(--bg);
 }
 
 .gate[hidden] {
@@ -213,18 +199,19 @@ button {
   letter-spacing: -0.02em;
   margin: 0;
   line-height: 1;
+  color: var(--ink);
 }
 
 .gate h1 {
   margin: 0;
   font-size: clamp(1rem, 3.5vw, 1.15rem);
   font-weight: 500;
-  color: var(--paper-dim);
+  color: var(--ink-soft);
 }
 
 .lede {
   margin: 0;
-  color: rgba(232, 240, 234, 0.72);
+  color: var(--ink-soft);
   line-height: 1.5;
 }
 
@@ -239,10 +226,6 @@ button {
   width: 100%;
 }
 
-/*
-  App shell fills the layout viewport minus keyboard inset.
-  bottom: var(--kb-inset) lifts the whole UI above the iOS keyboard.
-*/
 .app {
   position: fixed;
   top: 0;
@@ -257,6 +240,7 @@ button {
   min-width: 0;
   overflow: hidden;
   z-index: 1;
+  background: var(--bg);
 }
 
 .app[hidden] {
@@ -271,7 +255,7 @@ button {
   flex: 0 0 auto;
   padding: max(0.55rem, env(safe-area-inset-top)) var(--pad-x) 0.55rem;
   border-bottom: 1px solid var(--line);
-  background: rgba(13, 23, 20, 0.92);
+  background: var(--bg-elev);
   min-width: 0;
 }
 
@@ -293,7 +277,7 @@ button {
 
 .presence {
   font-size: 0.78rem;
-  color: var(--paper-dim);
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -303,6 +287,33 @@ button {
   display: flex;
   gap: 0.35rem;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.filter-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem var(--pad-x);
+  border-bottom: 1px solid var(--line);
+  background: #f4f6f8;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.filter-bar[hidden] {
+  display: none !important;
+}
+
+.filter-bar-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pins {
@@ -310,7 +321,7 @@ button {
   max-height: 28%;
   padding: 0.5rem var(--pad-x) 0.15rem;
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(217, 119, 47, 0.12), transparent);
+  background: #f7f8f9;
   min-width: 0;
   overflow: hidden;
   display: flex;
@@ -326,7 +337,7 @@ button {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--ink-soft);
   font-weight: 600;
   flex: 0 0 auto;
 }
@@ -361,25 +372,24 @@ button {
   gap: 0.3rem;
   padding: 0.65rem 0.8rem;
   border-radius: var(--radius);
-  background: rgba(232, 240, 234, 0.05);
-  border: 1px solid transparent;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
   max-width: 100%;
   width: 100%;
   min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
+  color: var(--ink);
 }
 
 .msg.mine {
-  background: rgba(217, 119, 47, 0.12);
-  border-color: rgba(217, 119, 47, 0.18);
+  background: var(--mine);
   align-self: end;
   width: min(100%, 34rem);
 }
 
 .msg.pinned-item {
-  border-color: rgba(217, 119, 47, 0.35);
-  background: rgba(217, 119, 47, 0.1);
+  border-color: #b8c0c7;
 }
 
 .msg-meta {
@@ -393,11 +403,21 @@ button {
 .msg-name {
   font-weight: 600;
   font-size: 0.9rem;
+  color: var(--ink);
+  background: none;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.msg-name:hover {
+  text-decoration: underline;
 }
 
 .msg-time {
   font-size: 0.74rem;
-  color: var(--paper-dim);
+  color: var(--muted);
   flex-shrink: 0;
 }
 
@@ -408,6 +428,7 @@ button {
   word-break: break-word;
   line-height: 1.45;
   min-width: 0;
+  color: var(--ink);
 }
 
 .msg-photo {
@@ -433,7 +454,8 @@ button {
   min-height: 2rem;
   border-radius: 999px;
   border: 1px solid var(--line);
-  color: var(--paper-dim);
+  color: var(--ink-soft);
+  background: var(--bg-elev);
 }
 
 .msg-actions .danger:hover {
@@ -445,7 +467,7 @@ button {
   z-index: 4;
   padding: 0.55rem var(--pad-x) calc(0.55rem + var(--safe-bottom));
   border-top: 1px solid var(--line);
-  background: rgba(13, 23, 20, 0.98);
+  background: var(--bg-elev);
   min-width: 0;
 }
 
@@ -492,11 +514,12 @@ button {
   place-items: center;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: var(--mist);
+  background: var(--bg);
   font-size: 1.25rem;
   line-height: 1;
   flex: 0 0 auto;
   user-select: none;
+  color: var(--ink-soft);
 }
 
 .composer textarea {
@@ -514,19 +537,20 @@ button {
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 0;
-  background: var(--ink-soft);
-  color: var(--paper);
-  width: min(380px, calc(100vw - 2rem));
+  background: var(--bg-elev);
+  color: var(--ink);
+  width: min(400px, calc(100vw - 2rem));
   max-height: 85vh;
   overflow: auto;
-  box-shadow: var(--shadow);
+  box-shadow: 0 18px 50px rgba(40, 45, 50, 0.18);
 }
 
 .dialog::backdrop {
-  background: rgba(4, 10, 8, 0.72);
+  background: rgba(40, 45, 50, 0.35);
 }
 
-.dialog form {
+.dialog form,
+.dialog .dialog-body {
   display: grid;
   gap: 0.85rem;
   padding: 1.25rem;
@@ -536,11 +560,12 @@ button {
   margin: 0;
   font-family: var(--font-display);
   font-size: 1.45rem;
+  color: var(--ink);
 }
 
 .dialog p {
   margin: 0;
-  color: var(--paper-dim);
+  color: var(--ink-soft);
   line-height: 1.4;
 }
 
@@ -549,6 +574,44 @@ button {
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.user-list {
+  display: grid;
+  gap: 0.35rem;
+  max-height: min(45vh, 320px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.45rem;
+  background: var(--bg);
+}
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.user-row:hover {
+  background: #e8ecef;
+}
+
+.user-row input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent-fill);
+}
+
+.user-list-empty {
+  margin: 0;
+  padding: 0.75rem;
+  color: var(--muted);
+  text-align: center;
 }
 
 .lightbox {
@@ -560,7 +623,7 @@ button {
 }
 
 .lightbox::backdrop {
-  background: rgba(4, 10, 8, 0.88);
+  background: rgba(40, 45, 50, 0.72);
 }
 
 .lightbox img {
@@ -584,7 +647,7 @@ button {
 }
 
 .admin-on #admin-btn {
-  border-color: rgba(111, 191, 138, 0.55);
+  border-color: var(--ok);
   color: var(--ok);
 }
 
@@ -595,6 +658,11 @@ button {
 
   .msg.mine {
     width: 100%;
+  }
+
+  .topbar-actions .ghost.compact {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8rem;
   }
 }
 

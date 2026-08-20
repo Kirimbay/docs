@@ -14,11 +14,9 @@
       href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=4" />
+    <link rel="stylesheet" href="/styles.css?v=5" />
   </head>
   <body>
-    <div class="atmosphere" aria-hidden="true"></div>
-
     <section id="gate" class="gate">
       <div class="gate-inner">
         <p class="brand">Комната</p>
@@ -45,10 +43,16 @@
           <span id="presence" class="presence">онлайн —</span>
         </div>
         <div class="topbar-actions">
+          <button type="button" id="filter-btn" class="ghost compact" title="Фильтр по участникам">Фильтр</button>
           <button type="button" id="rename-btn" class="ghost compact" title="Сменить имя">Имя</button>
           <button type="button" id="admin-btn" class="ghost compact" title="Админ">Админ</button>
         </div>
       </header>
+
+      <div id="filter-bar" class="filter-bar" hidden>
+        <span id="filter-bar-text" class="filter-bar-text">Фильтр</span>
+        <button type="button" id="filter-clear-btn" class="ghost compact">Сбросить</button>
+      </div>
 
       <section id="pins" class="pins" hidden>
         <h2>Закреплено</h2>
@@ -80,6 +84,18 @@
       </footer>
     </div>
 
+    <dialog id="filter-dialog" class="dialog">
+      <div class="dialog-body">
+        <h2>Фильтр по участникам</h2>
+        <p>Отметьте, чьи сообщения показывать. Можно выбрать несколько.</p>
+        <div id="filter-user-list" class="user-list"></div>
+        <div class="dialog-actions">
+          <button type="button" id="filter-cancel-btn" class="ghost">Отмена</button>
+          <button type="button" id="filter-apply-btn" class="primary">Показать</button>
+        </div>
+      </div>
+    </dialog>
+
     <dialog id="admin-dialog" class="dialog">
       <form method="dialog" id="admin-form">
         <h2>Админ</h2>
@@ -104,6 +120,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=4"></script>
+    <script src="/app.js?v=5"></script>
   </body>
 </html>

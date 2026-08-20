@@ -20,6 +20,14 @@
   const composerHint = $("#composer-hint");
   const renameBtn = $("#rename-btn");
   const adminBtn = $("#admin-btn");
+  const filterBtn = $("#filter-btn");
+  const filterBar = $("#filter-bar");
+  const filterBarText = $("#filter-bar-text");
+  const filterClearBtn = $("#filter-clear-btn");
+  const filterDialog = $("#filter-dialog");
+  const filterUserList = $("#filter-user-list");
+  const filterApplyBtn = $("#filter-apply-btn");
+  const filterCancelBtn = $("#filter-cancel-btn");
   const adminDialog = $("#admin-dialog");
   const adminForm = $("#admin-form");
   const adminPassword = $("#admin-password");
@@ -34,6 +42,9 @@
   let pendingImageUrl = null;
   let uploading = false;
   const knownIds = new Set();
+  /** @type {Set<string>} */
+  let filterNames = new Set();
+  let lastState = { messages: [], pinned: [] };
 
   async function fetchRandomName() {
     const res = await fetch("/api/random-name");
@@ -67,7 +78,6 @@
     const vv = window.visualViewport;
     let inset = 0;
     if (vv) {
-      // Space covered below the visible viewport (keyboard + Safari chrome).
       inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
     }
     document.documentElement.style.setProperty("--kb-inset", `${inset}px`);
@@ -99,24 +109,102 @@
     renderAll(lastState);
   }
 
-  let lastState = { messages: [], pinned: [] };
+  function passesFilter(msg) {
+    if (!filterNames.size) return true;
+    return filterNames.has(msg.name);
+  }
+
+  function uniqueAuthors() {
+    const names = new Set();
+    for (const msg of lastState.messages || []) names.add(msg.name);
+    for (const msg of lastState.pinned || []) names.add(msg.name);
+    return [...names].sort((a, b) => a.localeCompare(b, "ru"));
+  }
+
+  function updateFilterChrome() {
+    const active = filterNames.size > 0;
+    filterBtn.classList.toggle("active", active);
+    filterBtn.textContent = active ? `Фильтр (${filterNames.size})` : "Фильтр";
+    if (active) {
+      filterBar.hidden = false;
+      const list = [...filterNames];
+      filterBarText.textContent =
+        list.length === 1
+          ? `Только: ${list[0]}`
+          : `Только: ${list.slice(0, 3).join(", ")}${list.length > 3 ? "…" : ""}`;
+    } else {
+      filterBar.hidden = true;
+    }
+  }
+
+  function openFilterDialog() {
+    const authors = uniqueAuthors();
+    filterUserList.replaceChildren();
+    if (!authors.length) {
+      const empty = document.createElement("p");
+      empty.className = "user-list-empty";
+      empty.textContent = "Пока нет участников в истории";
+      filterUserList.append(empty);
+    } else {
+      for (const name of authors) {
+        const row = document.createElement("label");
+        row.className = "user-row";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.value = name;
+        input.checked = filterNames.has(name);
+        const span = document.createElement("span");
+        span.textContent = name;
+        row.append(input, span);
+        filterUserList.append(row);
+      }
+    }
+    filterDialog.showModal();
+  }
+
+  function applyFilterFromDialog() {
+    const next = new Set();
+    filterUserList.querySelectorAll('input[type="checkbox"]:checked').forEach((el) => {
+      next.add(el.value);
+    });
+    filterNames = next;
+    updateFilterChrome();
+    filterDialog.close();
+    renderAll(lastState);
+  }
+
+  function clearFilter() {
+    filterNames = new Set();
+    updateFilterChrome();
+    renderAll(lastState);
+  }
+
+  function filterOnlyUser(name) {
+    filterNames = new Set([name]);
+    updateFilterChrome();
+    renderAll(lastState);
+  }
 
   function renderMessage(msg, { inPins = false } = {}) {
     const el = document.createElement("article");
     el.className = "msg";
     el.dataset.id = msg.id;
+    el.dataset.name = msg.name;
     if (msg.name === myName) el.classList.add("mine");
     if (msg.pinned || inPins) el.classList.add("pinned-item");
 
     const meta = document.createElement("div");
     meta.className = "msg-meta";
-    const name = document.createElement("span");
-    name.className = "msg-name";
-    name.textContent = msg.name;
+    const nameBtn = document.createElement("button");
+    nameBtn.type = "button";
+    nameBtn.className = "msg-name";
+    nameBtn.textContent = msg.name;
+    nameBtn.title = "Показать только этого участника";
+    nameBtn.addEventListener("click", () => filterOnlyUser(msg.name));
     const time = document.createElement("span");
     time.className = "msg-time";
     time.textContent = formatTime(msg.createdAt);
-    meta.append(name, time);
+    meta.append(nameBtn, time);
 
     el.append(meta);
 
@@ -177,9 +265,10 @@
     const { messages = [], pinned = [] } = lastState;
 
     pinsList.replaceChildren();
-    if (pinned.length) {
+    const pinnedVisible = pinned.filter(passesFilter);
+    if (pinnedVisible.length) {
       pins.hidden = false;
-      for (const msg of pinned) {
+      for (const msg of pinnedVisible) {
         pinsList.append(renderMessage(msg, { inPins: true }));
       }
     } else {
@@ -193,18 +282,21 @@
     knownIds.clear();
     for (const msg of messages) {
       knownIds.add(msg.id);
+      if (!passesFilter(msg)) continue;
       feed.append(renderMessage(msg));
     }
 
     if (nearBottom) {
       feed.scrollTop = feed.scrollHeight;
     }
+    updateFilterChrome();
   }
 
   function appendMessage(msg) {
     if (knownIds.has(msg.id)) return;
     knownIds.add(msg.id);
     lastState.messages = [...(lastState.messages || []), msg];
+    if (!passesFilter(msg)) return;
     const nearBottom =
       feed.scrollHeight - feed.scrollTop - feed.clientHeight < 120;
     feed.append(renderMessage(msg));
@@ -283,7 +375,6 @@
     });
   }
 
-  // Events
   randomBtn.addEventListener("click", () => {
     fetchRandomName().catch(() => {
       nameInput.value = `Гость${Math.floor(Math.random() * 90) + 10}`;
@@ -301,7 +392,6 @@
   sendBtn.addEventListener("click", send);
   messageInput.addEventListener("input", autoSize);
   messageInput.addEventListener("focus", () => {
-    // iOS Safari scrolls the focused field; fight that and re-fit to keyboard.
     setTimeout(() => {
       lockPageScroll();
       syncViewportHeight();
@@ -336,6 +426,11 @@
   });
 
   previewClear.addEventListener("click", clearPreview);
+
+  filterBtn.addEventListener("click", openFilterDialog);
+  filterApplyBtn.addEventListener("click", applyFilterFromDialog);
+  filterCancelBtn.addEventListener("click", () => filterDialog.close());
+  filterClearBtn.addEventListener("click", clearFilter);
 
   renameBtn.addEventListener("click", () => {
     const next = prompt("Новое имя", myName);
