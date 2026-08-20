@@ -34,6 +34,7 @@
   const renameCancelBtn = $("#rename-cancel-btn");
   const renameApplyBtn = $("#rename-apply-btn");
   const meBtn = $("#me-btn");
+  const themeBtn = $("#theme-btn");
   const dmBtn = $("#dm-btn");
   const dmBar = $("#dm-bar");
   const dmBarCode = $("#dm-bar-code");
@@ -72,6 +73,7 @@
   const MAX_DM_ROOMS = 24;
   const ADMIN_TOKEN_KEY = "sarafan_admin_token";
   const PREV_NAME_KEY = "sarafan_prev_name";
+  const THEME_KEY = "sarafan_theme";
   const LIKE_EMOJI = "❤️";
   const REACTIONS = [
     { emoji: "😊", title: "смайл" },
@@ -80,6 +82,62 @@
     { emoji: "💩", title: "говно" },
     { emoji: "🔥", title: "огонь" },
   ];
+
+  function systemTheme() {
+    try {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    } catch {
+      return "dark";
+    }
+  }
+
+  function loadStoredTheme() {
+    try {
+      const t = localStorage.getItem(THEME_KEY);
+      return t === "light" || t === "dark" ? t : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveTheme(theme) {
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function effectiveTheme() {
+    return loadStoredTheme() || systemTheme();
+  }
+
+  function applyTheme(theme, { persist = false } = {}) {
+    const next = theme === "light" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = next === "light" ? "#f2f1ee" : "#121314";
+    if (themeBtn) {
+      themeBtn.title = next === "light" ? "Тёмная тема" : "Светлая тема";
+      themeBtn.setAttribute("aria-label", themeBtn.title);
+    }
+    if (persist) saveTheme(next);
+  }
+
+  function toggleTheme() {
+    const next = effectiveTheme() === "light" ? "dark" : "light";
+    applyTheme(next, { persist: true });
+  }
+
+  applyTheme(effectiveTheme());
+  try {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      if (loadStoredTheme()) return;
+      applyTheme(systemTheme());
+    });
+  } catch {
+    /* ignore */
+  }
 
   let myName = "";
   let isAdmin = false;
@@ -284,7 +342,7 @@
       const enterBtn = document.createElement("button");
       enterBtn.type = "button";
       enterBtn.className = "dm-room-enter";
-      enterBtn.title = `Войти в комнату ${room.code}`;
+      enterBtn.title = `Войти в чат ${room.code}`;
 
       const codeEl = document.createElement("strong");
       codeEl.className = "dm-room-code";
@@ -2175,6 +2233,11 @@
   const ME_TAP_NEED = 10;
   const ME_TAP_WINDOW_MS = 2000;
   const ME_RENAME_DELAY_MS = 320;
+
+  themeBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    toggleTheme();
+  });
 
   meBtn?.addEventListener("click", () => {
     // Ignore stray taps while the admin sheet is already open.
