@@ -86,6 +86,17 @@
   let replyToastTimer = null;
   let audioCtx = null;
   let toastTargetId = null;
+  let initialStateSynced = false;
+  let lastSeenMsgMs = 0;
+  const notifiedReplyIds = new Set();
+  const BASE_TITLE = "Комната — открытый чат";
+  let swReg = null;
+  const isIos =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
 
   function loadSavedName() {
     try {
@@ -121,15 +132,12 @@
 
   function updateNotifyButton() {
     if (!notifyBtn) return;
-    const supported = typeof Notification !== "undefined";
     notifyBtn.classList.toggle("notify-on", notifyEnabled);
     notifyBtn.classList.toggle("notify-off", !notifyEnabled);
     notifyBtn.textContent = notifyEnabled ? "🔔" : "🔕";
-    notifyBtn.title = !supported
-      ? "Уведомления не поддерживаются"
-      : notifyEnabled
-        ? "Уведомления об ответах включены"
-        : "Уведомления об ответах выключены";
+    notifyBtn.title = notifyEnabled
+      ? "Уведомления об ответах включены"
+      : "Уведомления об ответах выключены";
   }
 
   function unlockAudio() {
@@ -150,14 +158,14 @@
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = "sine";
-      osc.frequency.value = 880;
-      gain.gain.value = 0.045;
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.05, audioCtx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.22);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-      const now = audioCtx.currentTime;
-      osc.start(now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-      osc.stop(now + 0.22);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.24);
     } catch {
       /* ignore */
     }
@@ -170,6 +178,9 @@
     }
     if (replyToast) replyToast.hidden = true;
     toastTargetId = null;
+    if (document.visibilityState === "visible") {
+      document.title = BASE_TITLE;
+    }
   }
 
   function scrollToMessageId(id) {
@@ -193,26 +204,63 @@
       .trim()
       .slice(0, 140);
     replyToast.hidden = false;
+    replyToast.classList.remove("pulse");
+    void replyToast.offsetWidth;
+    replyToast.classList.add("pulse");
     if (replyToastTimer) clearTimeout(replyToastTimer);
-    replyToastTimer = setTimeout(hideReplyToast, 7000);
+    replyToastTimer = setTimeout(hideReplyToast, 9000);
   }
 
-  function showSystemReplyNotification(msg) {
+  function flashDocumentTitle(msg) {
+    document.title = `💬 ${msg.name} ответил`;
+  }
+
+  async function ensureServiceWorker() {
+    if (!("serviceWorker" in navigator)) return null;
+    try {
+      swReg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      await navigator.serviceWorker.ready;
+      return swReg;
+    } catch {
+      return null;
+    }
+  }
+
+  async function showSystemReplyNotification(msg) {
+    const title = `${msg.name} ответил вам`;
+    const body = (msg.text || (msg.imageUrl ? "Фото" : "Сообщение"))
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120);
+    const tag = `komnata-reply-${msg.id}`;
+    const payload = {
+      type: "reply-notify",
+      title,
+      body,
+      tag,
+      id: msg.id,
+      url: "/",
+    };
+
+    // Prefer SW notification — required path for iOS home-screen apps.
+    try {
+      const reg = swReg || (await ensureServiceWorker());
+      if (reg?.active && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        reg.active.postMessage(payload);
+        return;
+      }
+      if (reg && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        await reg.showNotification(title, { body, tag, renotify: true, data: { id: msg.id, url: "/" } });
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+
     if (typeof Notification === "undefined") return;
     if (Notification.permission !== "granted") return;
-    if (document.visibilityState === "visible" && typeof document.hasFocus === "function" && document.hasFocus()) {
-      return;
-    }
     try {
-      const body = (msg.text || (msg.imageUrl ? "Фото" : "Сообщение"))
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 120);
-      const note = new Notification(`${msg.name} ответил вам`, {
-        body,
-        tag: `komnata-reply-${msg.id}`,
-        renotify: true,
-      });
+      const note = new Notification(title, { body, tag, renotify: true });
       note.onclick = () => {
         window.focus();
         scrollToMessageId(msg.id);
@@ -230,17 +278,68 @@
     return msg.reply.name === myName;
   }
 
-  function notifyReply(msg) {
+  function messageTimeMs(msg) {
+    const t = Date.parse(msg?.createdAt || "");
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  function markHistoryCaughtUp(messages) {
+    let maxT = lastSeenMsgMs;
+    for (const msg of messages || []) {
+      const t = messageTimeMs(msg);
+      if (t > maxT) maxT = t;
+      if (isReplyToMe(msg)) notifiedReplyIds.add(msg.id);
+    }
+    lastSeenMsgMs = maxT || Date.now();
+    initialStateSynced = true;
+  }
+
+  function notifyReply(msg, { forceSystem = false } = {}) {
     if (!notifyEnabled) return;
     if (!isReplyToMe(msg)) return;
+    if (notifiedReplyIds.has(msg.id)) return;
+    notifiedReplyIds.add(msg.id);
+    const t = messageTimeMs(msg);
+    if (t > lastSeenMsgMs) lastSeenMsgMs = t;
+
     showReplyToast(msg);
     playNotifySound();
+    flashDocumentTitle(msg);
     try {
-      navigator.vibrate?.(36);
+      navigator.vibrate?.(40);
     } catch {
       /* ignore */
     }
-    showSystemReplyNotification(msg);
+
+    const pageHidden = document.visibilityState === "hidden" || document.hidden;
+    if (forceSystem || pageHidden || isStandalone) {
+      void showSystemReplyNotification(msg);
+    } else if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      // Still try SW path on iOS even if page looks "visible".
+      if (isIos) void showSystemReplyNotification(msg);
+    }
+  }
+
+  function scanMessagesForReplyNotifications(messages) {
+    if (!notifyEnabled || !myName || !initialStateSynced) return;
+    const list = [...(messages || [])].sort((a, b) => messageTimeMs(a) - messageTimeMs(b));
+    for (const msg of list) {
+      if (notifiedReplyIds.has(msg.id)) continue;
+      const t = messageTimeMs(msg);
+      if (t && t <= lastSeenMsgMs) continue;
+      notifyReply(msg, { forceSystem: document.visibilityState === "hidden" || isIos });
+    }
+  }
+
+  function iosNotifyHint() {
+    if (!isIos) return "Уведомления об ответах включены";
+    if (isStandalone) {
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        return "Уведомления включены";
+      }
+      return "Разрешите уведомления в настройках iOS для Комнаты";
+    }
+    return "На iPhone: Поделиться → На экран «Домой», откройте ярлык и нажмите 🔔";
   }
 
   async function enableNotifications() {
@@ -248,24 +347,32 @@
     notifyEnabled = true;
     saveNotifyPref(true);
     updateNotifyButton();
+    await ensureServiceWorker();
+
     if (typeof Notification === "undefined") {
-      composerHint.textContent = "В приложении тосты есть; системные уведомления недоступны";
+      composerHint.textContent = isIos
+        ? "Добавьте сайт на экран «Домой», затем снова нажмите 🔔"
+        : "Тосты в чате включены";
       return;
     }
+
     if (Notification.permission === "granted") {
-      composerHint.textContent = "Уведомления об ответах включены";
+      composerHint.textContent = iosNotifyHint();
       return;
     }
     if (Notification.permission === "denied") {
-      composerHint.textContent = "Разрешите уведомления в настройках браузера";
+      composerHint.textContent = isIos
+        ? "Уведомления запрещены. Включите их в Настройки → Комната"
+        : "Разрешите уведомления в настройках браузера";
       return;
     }
+
     try {
       const perm = await Notification.requestPermission();
-      if (perm === "granted") composerHint.textContent = "Уведомления об ответах включены";
-      else composerHint.textContent = "Тосты в чате включены; системные — отклонены";
+      if (perm === "granted") composerHint.textContent = iosNotifyHint();
+      else composerHint.textContent = iosNotifyHint();
     } catch {
-      composerHint.textContent = "Тосты в чате включены";
+      composerHint.textContent = iosNotifyHint();
     }
   }
 
@@ -274,6 +381,7 @@
     saveNotifyPref(false);
     updateNotifyButton();
     hideReplyToast();
+    document.title = BASE_TITLE;
     composerHint.textContent = "Уведомления об ответах выключены";
   }
 
@@ -828,13 +936,17 @@
     app.hidden = false;
     renameBtn.title = `Сейчас: ${myName}`;
     unlockAudio();
-    if (notifyEnabled && typeof Notification !== "undefined" && Notification.permission === "default") {
-      // Soft prompt once after join; do not block chat.
+    void ensureServiceWorker();
+    if (notifyEnabled) {
       setTimeout(() => {
-        if (notifyEnabled && Notification.permission === "default") {
+        if (!notifyEnabled) return;
+        if (isIos && !isStandalone) {
+          composerHint.textContent =
+            "iPhone: Поделиться → На экран «Домой», откройте ярлык и нажмите 🔔";
+        } else if (typeof Notification !== "undefined" && Notification.permission === "default") {
           composerHint.textContent = "Нажмите 🔔, чтобы разрешить уведомления об ответах";
         }
-      }, 800);
+      }, 600);
     }
     messageInput.focus();
   }
@@ -1139,10 +1251,20 @@
 
   socket.on("chat:state", (state) => {
     renderAll(state);
+    if (!initialStateSynced) {
+      markHistoryCaughtUp(state.messages || []);
+    } else {
+      scanMessagesForReplyNotifications(state.messages || []);
+    }
   });
 
   socket.on("chat:message", (msg) => {
     appendMessage(msg);
+  });
+
+  socket.on("chat:reply-notify", (msg) => {
+    if (msg?.id && !knownIds.has(msg.id)) appendMessage(msg);
+    notifyReply(msg, { forceSystem: true });
   });
 
   socket.on("chat:message-update", (msg) => {
@@ -1177,6 +1299,30 @@
 
   notifyEnabled = loadNotifyPref();
   updateNotifyButton();
+  void ensureServiceWorker();
+
+  document.addEventListener(
+    "pointerdown",
+    () => {
+      unlockAudio();
+    },
+    { passive: true, once: true }
+  );
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      document.title = BASE_TITLE;
+      if (lastState?.messages) scanMessagesForReplyNotifications(lastState.messages);
+    }
+  });
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data?.type === "open-reply") {
+        scrollToMessageId(event.data.id);
+      }
+    });
+  }
 
   const savedName = loadSavedName();
   if (savedName) {

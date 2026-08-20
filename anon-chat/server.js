@@ -165,7 +165,12 @@ app.use(
     etag: false,
     lastModified: false,
     setHeaders(res, filePath) {
-      if (/\.(html|css|js)$/i.test(filePath)) {
+      if (/sw\.js$/i.test(filePath)) {
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        res.setHeader("Service-Worker-Allowed", "/");
+        return;
+      }
+      if (/\.(html|css|js|webmanifest)$/i.test(filePath)) {
         res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
       }
     },
@@ -311,6 +316,14 @@ io.on("connection", (socket) => {
     }
     saveStore(store);
     io.emit("chat:message", publicMessage(msg));
+    if (msg.reply && msg.reply.name && msg.reply.name !== msg.name) {
+      const pub = publicMessage(msg);
+      for (const [sid, user] of online.entries()) {
+        if (user.name === msg.reply.name) {
+          io.to(sid).emit("chat:reply-notify", pub);
+        }
+      }
+    }
     if (typeof ack === "function") ack({ ok: true, id: msg.id });
   });
 
