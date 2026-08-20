@@ -645,9 +645,10 @@ button {
 }
 
 .reply-bar-label {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.64rem;
+  font-weight: 500;
   color: #6ea8d9;
+  line-height: 1.15;
 }
 
 .reply-bar-preview {
