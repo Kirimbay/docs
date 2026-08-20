@@ -10,9 +10,9 @@
   --accent-on: #161719;
   --ok: #6fbf8a;
   --danger: #e26d5a;
-  --mine: #1a2430;
-  --mine-line: #3d5a73;
-  --mine-accent: #6ea8d9;
+  --mine: #2a2c2e;
+  --mine-line: #4a4e53;
+  --mine-accent: #9a9ea3;
   --radius: 18px;
   --font-display: "Newsreader", Georgia, serif;
   --font-body: "Instrument Sans", system-ui, sans-serif;
@@ -584,7 +584,7 @@ button {
 }
 
 .msg.mine {
-  background: linear-gradient(180deg, rgba(110, 168, 217, 0.16), rgba(26, 36, 48, 0.95));
+  background: linear-gradient(180deg, #323538, #26282b);
   border-color: var(--mine-line);
   box-shadow: inset 3px 0 0 var(--mine-accent);
   align-self: end;
@@ -592,11 +592,11 @@ button {
 }
 
 .msg.mine .msg-name {
-  color: #8cbcE3;
+  color: #a8adb3;
 }
 
 .msg.mine .msg-text {
-  color: #e4e9ee;
+  color: #e6e8ea;
 }
 
 .msg.pinned-item {
@@ -606,9 +606,9 @@ button {
 }
 
 .msg.mine.pinned-item {
-  background: linear-gradient(180deg, rgba(110, 168, 217, 0.14), rgba(26, 36, 48, 0.92));
-  border-color: #4a6478;
-  box-shadow: inset 3px 0 0 var(--mine-accent), inset 0 0 0 1px rgba(217, 106, 106, 0.25);
+  background: linear-gradient(180deg, #35383c, #292b2e);
+  border-color: #5a5e64;
+  box-shadow: inset 3px 0 0 var(--mine-accent), inset 0 0 0 1px rgba(217, 106, 106, 0.28);
 }
 
 .msg-pin-badge {
