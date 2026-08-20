@@ -42,6 +42,8 @@
   const dmCopyBtn = $("#dm-copy-btn");
   const dmDialog = $("#dm-dialog");
   const dmCreateBtn = $("#dm-create-btn");
+  const dmLeavePublicBtn = $("#dm-leave-public-btn");
+  const dmLead = $("#dm-lead");
   const dmJoinBtn = $("#dm-join-btn");
   const dmCodeInput = $("#dm-code-input");
   const dmDialogError = $("#dm-dialog-error");
@@ -544,16 +546,27 @@
     }
   }
 
+  function syncDmDialogChrome() {
+    const inDm = Boolean(dmCode);
+    if (dmLeavePublicBtn) dmLeavePublicBtn.hidden = !inDm;
+    if (dmLead) {
+      dmLead.textContent = inDm
+        ? `Сейчас комнате ${dmCode}. Можно сменить чат или вернуться в общий.`
+        : "История в коде. Выберите чат или введите пин.";
+    }
+  }
+
   function openDmDialog() {
     if (!dmDialog) return;
     showDmDialogError("");
+    syncDmDialogChrome();
     renderDmRoomsList();
     if (dmCodeInput) dmCodeInput.value = "";
     dmDialog.showModal();
     layoutDmDialog();
     keepDialogAboveKeyboard(dmDialog, dmCodeInput);
     const rooms = loadDmRooms();
-    if (!rooms.length) dmCodeInput?.focus();
+    if (!rooms.length && !dmCode) dmCodeInput?.focus();
   }
 
   function updatePresenceChrome() {
@@ -2663,22 +2676,23 @@
     if (!dmBtn) return;
     if (dmCode) {
       dmBtn.textContent = "Вдвоём";
-      dmBtn.title = "Выйти в общий чат";
+      dmBtn.title = "Меню комнат · сейчас вдвоём";
       dmBtn.classList.add("active");
     } else {
       dmBtn.textContent = "Вдвоём";
       dmBtn.title = "Чат вдвоём по коду";
       dmBtn.classList.remove("active");
     }
+    if (dmDialog?.open) syncDmDialogChrome();
   }
 
   dmBtn?.addEventListener("click", () => {
-    if (dmCode) {
-      leaveDmMode();
-      syncDmBtn();
-      return;
-    }
     openDmDialog();
+  });
+  dmLeavePublicBtn?.addEventListener("click", () => {
+    leaveDmMode();
+    syncDmBtn();
+    dmDialog?.close();
   });
   dmDialogClose?.addEventListener("click", () => dmDialog?.close());
   dmCreateBtn?.addEventListener("click", () => {
@@ -2705,6 +2719,7 @@
     }
   });
   dmDialog?.addEventListener("close", () => {
+    clearForgetArm();
     dmDialog.style.top = "";
     dmDialog.style.bottom = "";
     dmDialog.style.height = "";

@@ -445,6 +445,34 @@ button {
   color: var(--ink-soft);
 }
 
+.dm-leave-public-btn {
+  width: 100%;
+  margin: 0;
+  padding: 0.58rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--dm-line);
+  background: rgba(111, 191, 138, 0.12);
+  color: var(--dm-accent);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--motion-fast) var(--ease-soft),
+    border-color var(--motion-fast) var(--ease-soft);
+}
+
+.dm-leave-public-btn[hidden] {
+  display: none !important;
+}
+
+.dm-leave-public-btn:hover,
+.dm-leave-public-btn:active {
+  background: rgba(111, 191, 138, 0.2);
+  border-color: color-mix(in srgb, var(--dm-accent) 70%, var(--line));
+}
+
 .dm-create-btn {
   width: 100%;
   padding: 0.55rem 0.9rem;
