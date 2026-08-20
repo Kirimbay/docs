@@ -179,7 +179,7 @@
   }
 
   function loadDmRooms() {
-    /** @type {{ code: string, lastAt: number }[]} */
+    /** @type {{ code: string, lastAt: number, peer: string, messageCount: number }[]} */
     let rooms = [];
     try {
       const raw = localStorage.getItem(DM_ROOMS_KEY);
@@ -190,6 +190,8 @@
             .map((item) => ({
               code: normalizeDmCodeLocal(item?.code),
               lastAt: Number(item?.lastAt) || 0,
+              peer: typeof item?.peer === "string" ? item.peer.trim().slice(0, 24) : "",
+              messageCount: Math.max(0, Number(item?.messageCount) || 0),
             }))
             .filter((item) => item.code.length === 6);
         }
@@ -199,7 +201,7 @@
     }
     const legacy = loadDmCode();
     if (legacy.length === 6 && !rooms.some((r) => r.code === legacy)) {
-      rooms.unshift({ code: legacy, lastAt: Date.now() });
+      rooms.unshift({ code: legacy, lastAt: Date.now(), peer: "", messageCount: 0 });
     }
     rooms.sort((a, b) => b.lastAt - a.lastAt);
     const seen = new Set();
@@ -219,6 +221,12 @@
         JSON.stringify(
           (rooms || [])
             .filter((r) => r?.code && String(r.code).length === 6)
+            .map((r) => ({
+              code: r.code,
+              lastAt: Number(r.lastAt) || 0,
+              peer: typeof r.peer === "string" ? r.peer.trim().slice(0, 24) : "",
+              messageCount: Math.max(0, Number(r.messageCount) || 0),
+            }))
             .slice(0, MAX_DM_ROOMS)
         )
       );
@@ -227,13 +235,80 @@
     }
   }
 
-  function rememberDmRoom(code, { active = true } = {}) {
+  function messagesLabel(count) {
+    const n = Math.max(0, Number(count) || 0);
+    const abs = n % 100;
+    const d = abs % 10;
+    if (abs > 10 && abs < 20) return `${n} сообщений`;
+    if (d === 1) return `${n} сообщение`;
+    if (d >= 2 && d <= 4) return `${n} сообщения`;
+    return `${n} сообщений`;
+  }
+
+  function peerFromDmPayload(res = {}) {
+    const names = Array.isArray(res.names) ? res.names : [];
+    const otherOnline = names.find((n) => n && n !== myName);
+    if (otherOnline) return otherOnline;
+    if (res.invited && res.invited !== myName) return res.invited;
+    const msgs = Array.isArray(res.messages) ? res.messages : [];
+    for (let i = msgs.length - 1; i >= 0; i -= 1) {
+      const name = msgs[i]?.name;
+      if (name && name !== myName) return name;
+    }
+    return "";
+  }
+
+  function rememberDmRoom(code, { active = true, peer, messageCount } = {}) {
     const c = normalizeDmCodeLocal(code);
     if (c.length !== 6) return;
+    const prev = loadDmRooms().find((r) => r.code === c);
     const rooms = loadDmRooms().filter((r) => r.code !== c);
-    rooms.unshift({ code: c, lastAt: Date.now() });
+    const nextPeer =
+      typeof peer === "string" && peer.trim()
+        ? peer.trim().slice(0, 24)
+        : prev?.peer || "";
+    const nextCount =
+      typeof messageCount === "number" && Number.isFinite(messageCount)
+        ? Math.max(0, messageCount)
+        : prev?.messageCount || 0;
+    rooms.unshift({
+      code: c,
+      lastAt: Date.now(),
+      peer: nextPeer,
+      messageCount: nextCount,
+    });
     saveDmRooms(rooms);
     if (active) saveDmCode(c);
+  }
+
+  function dmRoomHintText(room) {
+    const peer = (room?.peer || "").trim() || "Без собеседника";
+    return `${peer} · ${messagesLabel(room?.messageCount || 0)}`;
+  }
+
+  function refreshDmRoomsMeta() {
+    const rooms = loadDmRooms();
+    if (!rooms.length || !socket.connected) return;
+    socket.emit(
+      "dm:rooms-meta",
+      { codes: rooms.map((r) => r.code) },
+      (res) => {
+        if (!res?.ok || !Array.isArray(res.rooms)) return;
+        const byCode = new Map(res.rooms.map((r) => [r.code, r]));
+        const next = loadDmRooms().map((room) => {
+          const meta = byCode.get(room.code);
+          if (!meta) return room;
+          if (!meta.exists) return null;
+          return {
+            ...room,
+            peer: meta.peer || room.peer || "",
+            messageCount: Math.max(0, Number(meta.messageCount) || 0),
+          };
+        }).filter(Boolean);
+        saveDmRooms(next);
+        if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+      }
+    );
   }
 
   function forgetDmRoom(code) {
@@ -255,19 +330,22 @@
       if (!res?.ok) {
         const err = res?.error || "Не удалось войти";
         showDmDialogError(err);
-        if (/не найдена|проверьте код/i.test(err)) {
+        if (/не найден|проверьте код/i.test(err)) {
           forgetDmRoom(c);
           renderDmRoomsList();
         }
         return;
       }
-      rememberDmRoom(c);
+      rememberDmRoom(c, {
+        peer: peerFromDmPayload(res),
+        messageCount: Array.isArray(res.messages) ? res.messages.length : 0,
+      });
       enterDmMode(res);
       dmDialog?.close();
     });
   }
 
-  function renderDmRoomsList() {
+  function renderDmRoomsList({ skipRefresh = false } = {}) {
     if (!dmRoomsList || !dmRoomsWrap) return;
     const rooms = loadDmRooms();
     dmRoomsList.replaceChildren();
@@ -284,7 +362,9 @@
       const enterBtn = document.createElement("button");
       enterBtn.type = "button";
       enterBtn.className = "dm-room-enter";
-      enterBtn.title = `Войти в чат ${room.code}`;
+      enterBtn.title = room.peer
+        ? `Вдвоём с ${room.peer} · ${room.code}`
+        : `Войти в чат ${room.code}`;
 
       const codeEl = document.createElement("strong");
       codeEl.className = "dm-room-code";
@@ -292,7 +372,7 @@
 
       const hint = document.createElement("span");
       hint.className = "dm-room-hint";
-      hint.textContent = "история сохранена";
+      hint.textContent = dmRoomHintText(room);
 
       enterBtn.append(codeEl, hint);
       enterBtn.addEventListener("click", () => joinDmByCode(room.code, { fromList: true }));
@@ -307,12 +387,13 @@
         e.preventDefault();
         e.stopPropagation();
         forgetDmRoom(room.code);
-        renderDmRoomsList();
+        renderDmRoomsList({ skipRefresh: true });
       });
 
       row.append(enterBtn, forgetBtn);
       dmRoomsList.append(row);
     }
+    if (!skipRefresh) refreshDmRoomsMeta();
   }
 
   function loadAdminToken() {
@@ -372,6 +453,14 @@
     if (!dmBarPresence) return;
     const n = Number(count) || 0;
     dmBarPresence.textContent = `${n}/2`;
+    if (!dmCode) return;
+    const peer = peerFromDmPayload({ names, messages: lastState.messages || [] });
+    if (peer) {
+      rememberDmRoom(dmCode, {
+        peer,
+        messageCount: Array.isArray(lastState.messages) ? lastState.messages.length : undefined,
+      });
+    }
   }
 
   function enterDmMode(res) {
@@ -379,7 +468,10 @@
     if (!dmCode) publicStateBackup = { messages: [...(lastState.messages || [])], pinned: [...(lastState.pinned || [])] };
     dmCode = res.code;
     removePendingInvite(res.code);
-    rememberDmRoom(res.code);
+    rememberDmRoom(res.code, {
+      peer: peerFromDmPayload(res),
+      messageCount: Array.isArray(res.messages) ? res.messages.length : 0,
+    });
     document.body.classList.add("dm-on");
     if (dmBar) dmBar.hidden = false;
     if (dmBarCode) dmBarCode.textContent = res.code;
@@ -389,14 +481,21 @@
     schedulePinToLatest();
     updateDmPresence(res);
     if (messageInput) messageInput.placeholder = "Сообщение вдвоём…";
-    notify(res.invited
-      ? `Ждём ${res.invited} · код ${res.code}`
-      : `Код ${res.code} · передайте второму`)
+    notify(
+      res.invited
+        ? `Ждём ${res.invited} · код ${res.code}`
+        : `Код ${res.code} · передайте второму`
+    );
     syncDmBtn();
   }
 
   function leaveDmMode() {
     const prev = dmCode;
+    const count = Array.isArray(lastState.messages) ? lastState.messages.length : 0;
+    const peer = peerFromDmPayload({
+      names: [],
+      messages: lastState.messages || [],
+    });
     dmCode = null;
     // Keep room in the saved list; only clear "active session" code.
     saveDmCode("");
@@ -410,9 +509,9 @@
     });
     syncDmBtn();
     if (prev) {
-      rememberDmRoom(prev, { active: false });
+      rememberDmRoom(prev, { active: false, peer, messageCount: count });
       saveDmCode("");
-      notify(`Снова общий чат · ${prev} в меню «Вдвоём»`)
+      notify(`Снова общий чат · ${prev} в меню «Вдвоём»`);
     }
   }
 
@@ -465,11 +564,12 @@
     closeOnlineList();
     socket.emit("dm:invite", { toId: person.id }, (res) => {
       if (!res?.ok) {
-        notify(res?.error || "Не удалось пригласить")
+        notify(res?.error || "Не удалось пригласить");
         return;
       }
+      if (person.name) res.invited = person.name;
       enterDmMode(res);
-      notify(`Приглашение ${person.name} · код ${res.code}`)
+      notify(`Приглашение ${person.name} · код ${res.code}`);
     });
   }
 
@@ -2559,7 +2659,6 @@
         showDmDialogError(res?.error || "Не создалось");
         return;
       }
-      rememberDmRoom(res.code);
       enterDmMode(res);
       dmDialog?.close();
       notify(`Код ${res.code} — передайте второму человеку`);
@@ -2619,6 +2718,10 @@
   socket.on("dm:message", (msg) => {
     if (!dmCode) return;
     appendMessage(msg);
+    rememberDmRoom(dmCode, {
+      peer: msg?.name && msg.name !== myName ? msg.name : undefined,
+      messageCount: Array.isArray(lastState.messages) ? lastState.messages.length : undefined,
+    });
   });
 
   socket.on("dm:message-update", (msg) => {

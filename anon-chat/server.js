@@ -400,6 +400,35 @@ function roomSnapshot(code) {
   };
 }
 
+function roomPeerFor(code, exceptName = "") {
+  ensureRooms();
+  const room = store.rooms[code];
+  if (!room) return "";
+  const except = String(exceptName || "").trim();
+  for (const u of online.values()) {
+    if (u.roomCode === code && u.name && u.name !== except) return u.name;
+  }
+  const msgs = Array.isArray(room.messages) ? room.messages : [];
+  for (let i = msgs.length - 1; i >= 0; i -= 1) {
+    const name = msgs[i]?.name;
+    if (name && name !== except) return name;
+  }
+  if (room.createdBy && room.createdBy !== except) return room.createdBy;
+  return "";
+}
+
+function roomListMeta(code, exceptName = "") {
+  ensureRooms();
+  const room = store.rooms[code];
+  if (!room) return { code, exists: false, peer: "", messageCount: 0 };
+  return {
+    code,
+    exists: true,
+    peer: roomPeerFor(code, exceptName),
+    messageCount: Array.isArray(room.messages) ? room.messages.length : 0,
+  };
+}
+
 function emitDmPresence(code) {
   io.to(roomChannel(code)).emit("dm:presence", {
     code,
@@ -833,6 +862,30 @@ io.on("connection", (socket) => {
     if (!fromId) return;
     const name = socket.data.name || "Участник";
     io.to(fromId).emit("dm:invite-declined", { name });
+  });
+
+  socket.on("dm:rooms-meta", (payload = {}, ack) => {
+    const user = online.get(socket.id);
+    if (!user) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
+      return;
+    }
+    const raw = Array.isArray(payload.codes) ? payload.codes : [];
+    const codes = [];
+    const seen = new Set();
+    for (const item of raw) {
+      const code = normalizeRoomCode(item);
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      codes.push(code);
+      if (codes.length >= 24) break;
+    }
+    if (typeof ack === "function") {
+      ack({
+        ok: true,
+        rooms: codes.map((code) => roomListMeta(code, user.name)),
+      });
+    }
   });
 
   socket.on("dm:join", (payload = {}, ack) => {
