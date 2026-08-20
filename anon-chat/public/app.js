@@ -141,8 +141,8 @@
     messageInput.style.height = "auto";
     const visible = window.visualViewport?.height || window.innerHeight;
     const narrow = window.matchMedia("(max-width: 640px)").matches;
-    const minH = narrow ? 32 : 44;
-    const cap = Math.min(narrow ? 68 : 88, Math.round(visible * (narrow ? 0.14 : 0.18)));
+    const minH = narrow ? 28 : 44;
+    const cap = Math.min(narrow ? 58 : 88, Math.round(visible * (narrow ? 0.12 : 0.18)));
     messageInput.style.height = `${Math.min(messageInput.scrollHeight, Math.max(minH, cap))}px`;
   }
 
@@ -313,13 +313,14 @@
     const time = document.createElement("span");
     time.className = "msg-time";
     time.textContent = formatTime(msg.createdAt);
-    meta.append(nameBtn, time);
+    meta.append(nameBtn);
     if (msg.pinned) {
       const badge = document.createElement("span");
       badge.className = "msg-pin-badge";
       badge.textContent = "закреплено";
       meta.append(badge);
     }
+    meta.append(time);
 
     el.append(meta);
 
@@ -391,6 +392,9 @@
     }
     if (activeWrap.childElementCount) actions.append(activeWrap);
 
+    const controls = document.createElement("div");
+    controls.className = "msg-actions-controls";
+
     const reactWrap = document.createElement("div");
     reactWrap.className = "msg-react-wrap";
 
@@ -439,14 +443,14 @@
     });
 
     reactWrap.append(reactToggle, reactMenu);
-    actions.append(reactWrap);
 
     const replyBtn = document.createElement("button");
     replyBtn.type = "button";
     replyBtn.className = "msg-reply";
     replyBtn.textContent = "ответить";
     replyBtn.addEventListener("click", () => setReplyTarget(msg));
-    actions.append(replyBtn);
+
+    controls.append(reactWrap, replyBtn);
 
     if (isAdmin) {
       const pinBtn = document.createElement("button");
@@ -473,9 +477,10 @@
         });
       });
 
-      actions.append(pinBtn, delBtn);
+      controls.append(pinBtn, delBtn);
     }
 
+    actions.append(controls);
     el.append(actions);
     return el;
   }
