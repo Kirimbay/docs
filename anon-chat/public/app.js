@@ -140,8 +140,10 @@
   function autoSize() {
     messageInput.style.height = "auto";
     const visible = window.visualViewport?.height || window.innerHeight;
-    const cap = Math.min(88, Math.round(visible * 0.18));
-    messageInput.style.height = `${Math.min(messageInput.scrollHeight, Math.max(44, cap))}px`;
+    const narrow = window.matchMedia("(max-width: 640px)").matches;
+    const minH = narrow ? 32 : 44;
+    const cap = Math.min(narrow ? 68 : 88, Math.round(visible * (narrow ? 0.14 : 0.18)));
+    messageInput.style.height = `${Math.min(messageInput.scrollHeight, Math.max(minH, cap))}px`;
   }
 
   syncViewportHeight();

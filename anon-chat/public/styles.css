@@ -906,6 +906,8 @@ button {
   min-width: 0;
   min-height: 2.5rem;
   max-height: 5.5rem;
+  font-size: 0.95rem;
+  font-weight: 400;
   line-height: 1.35;
   padding: 0.55rem 0.35rem;
   overflow-y: auto;
@@ -1051,9 +1053,98 @@ button {
     width: 100%;
   }
 
+  .topbar {
+    gap: 0.4rem;
+    padding: max(0.28rem, env(safe-area-inset-top)) var(--pad-x) 0.32rem;
+  }
+
+  .topbar-brand {
+    gap: 0;
+  }
+
+  .brand-mark {
+    font-size: 1.05rem;
+    line-height: 1.15;
+  }
+
+  .presence {
+    font-size: 0.68rem;
+    line-height: 1.15;
+  }
+
+  .topbar-actions {
+    gap: 0.22rem;
+  }
+
   .topbar-actions .ghost.compact {
-    padding: 0.4rem 0.55rem;
-    font-size: 0.8rem;
+    padding: 0.28rem 0.48rem;
+    font-size: 0.72rem;
+    min-height: 1.85rem;
+  }
+
+  .filter-bar,
+  .pin-bar {
+    padding-top: 0.32rem;
+    padding-bottom: 0.32rem;
+  }
+
+  .feed {
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+    gap: 0.5rem;
+  }
+
+  .composer {
+    padding: 0.28rem var(--pad-x) calc(0.32rem + var(--safe-bottom));
+  }
+
+  .composer-shell {
+    gap: 0.28rem;
+    padding: 0.32rem 0.4rem;
+    border-radius: 14px;
+  }
+
+  .composer-row {
+    gap: 0.2rem;
+  }
+
+  .attach {
+    width: 2rem;
+    height: 2rem;
+    min-width: 2rem;
+    min-height: 2rem;
+    font-size: 1.05rem;
+  }
+
+  .composer textarea {
+    min-height: 2rem;
+    max-height: 4.2rem;
+    font-size: 0.92rem;
+    line-height: 1.3;
+    padding: 0.32rem 0.2rem;
+  }
+
+  .composer .primary.compact {
+    width: 2rem;
+    height: 2rem;
+    min-width: 2rem;
+    padding: 0;
+    font-size: 0.95rem;
+  }
+
+  .composer .hint {
+    font-size: 0.68rem;
+    min-height: 0.9em;
+    margin-top: 0.15rem;
+  }
+
+  .emoji-btn-item {
+    min-height: 1.75rem;
+    font-size: 1.05rem;
+  }
+
+  .preview img {
+    max-height: 64px;
   }
 }
 
