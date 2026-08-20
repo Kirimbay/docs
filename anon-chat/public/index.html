@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=59" />
+    <link rel="stylesheet" href="/styles.css?v=60" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -168,9 +168,12 @@
       <div class="dialog-body">
         <h2>Чат вдвоём</h2>
         <p>
-          Создайте комнату и передайте 6-значный код второму человеку — или введите код, который вам дали.
-          Имена могут совпадать: вход только по коду. История сохраняется.
+          История живёт в коде комнаты. Выберите сохранённую, создайте новую или введите код.
         </p>
+        <div id="dm-rooms-wrap" class="dm-rooms-wrap" hidden>
+          <span class="dm-rooms-heading">Ваши комнаты</span>
+          <div id="dm-rooms-list" class="dm-rooms-list" role="list"></div>
+        </div>
         <div class="dm-dialog-actions">
           <button type="button" id="dm-create-btn" class="primary">Создать комнату</button>
         </div>
@@ -226,6 +229,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=58"></script>
+    <script src="/app.js?v=60"></script>
   </body>
 </html>

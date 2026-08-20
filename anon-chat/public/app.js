@@ -51,6 +51,8 @@
   const dmDialogClose = $("#dm-dialog-close");
   const dmCreatedBox = $("#dm-created-box");
   const dmCreatedCode = $("#dm-created-code");
+  const dmRoomsWrap = $("#dm-rooms-wrap");
+  const dmRoomsList = $("#dm-rooms-list");
   const filterBtn = $("#filter-btn");
   const filterBar = $("#filter-bar");
   const filterBarText = $("#filter-bar-text");
@@ -70,6 +72,8 @@
   const socket = io({ autoConnect: true });
   const NAME_KEY = "komnata_name";
   const DM_CODE_KEY = "sarafan_dm_code";
+  const DM_ROOMS_KEY = "sarafan_dm_rooms";
+  const MAX_DM_ROOMS = 24;
   const ADMIN_TOKEN_KEY = "sarafan_admin_token";
   const PREV_NAME_KEY = "sarafan_prev_name";
   const EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😢", "👍", "❤️", "🔥", "🎉"];
@@ -147,20 +151,162 @@
     }
   }
 
+  function normalizeDmCodeLocal(raw) {
+    return String(raw || "").replace(/\D/g, "").slice(0, 6);
+  }
+
   function loadDmCode() {
     try {
-      return (localStorage.getItem(DM_CODE_KEY) || "").trim().toUpperCase();
+      return normalizeDmCodeLocal(localStorage.getItem(DM_CODE_KEY) || "");
     } catch {
       return "";
     }
   }
 
   function saveDmCode(code) {
+    const c = normalizeDmCodeLocal(code);
     try {
-      if (code) localStorage.setItem(DM_CODE_KEY, code);
+      if (c.length === 6) localStorage.setItem(DM_CODE_KEY, c);
       else localStorage.removeItem(DM_CODE_KEY);
     } catch {
       /* ignore */
+    }
+  }
+
+  function loadDmRooms() {
+    /** @type {{ code: string, lastAt: number }[]} */
+    let rooms = [];
+    try {
+      const raw = localStorage.getItem(DM_ROOMS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          rooms = parsed
+            .map((item) => ({
+              code: normalizeDmCodeLocal(item?.code),
+              lastAt: Number(item?.lastAt) || 0,
+            }))
+            .filter((item) => item.code.length === 6);
+        }
+      }
+    } catch {
+      rooms = [];
+    }
+    const legacy = loadDmCode();
+    if (legacy.length === 6 && !rooms.some((r) => r.code === legacy)) {
+      rooms.unshift({ code: legacy, lastAt: Date.now() });
+    }
+    rooms.sort((a, b) => b.lastAt - a.lastAt);
+    const seen = new Set();
+    const uniq = [];
+    for (const r of rooms) {
+      if (seen.has(r.code)) continue;
+      seen.add(r.code);
+      uniq.push(r);
+    }
+    return uniq.slice(0, MAX_DM_ROOMS);
+  }
+
+  function saveDmRooms(rooms) {
+    try {
+      localStorage.setItem(
+        DM_ROOMS_KEY,
+        JSON.stringify(
+          (rooms || [])
+            .filter((r) => r?.code && String(r.code).length === 6)
+            .slice(0, MAX_DM_ROOMS)
+        )
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function rememberDmRoom(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return;
+    const rooms = loadDmRooms().filter((r) => r.code !== c);
+    rooms.unshift({ code: c, lastAt: Date.now() });
+    saveDmRooms(rooms);
+    saveDmCode(c);
+  }
+
+  function forgetDmRoom(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (!c) return;
+    saveDmRooms(loadDmRooms().filter((r) => r.code !== c));
+    if (loadDmCode() === c) saveDmCode("");
+  }
+
+  function joinDmByCode(code, { fromList = false } = {}) {
+    showDmDialogError("");
+    const c = normalizeDmCodeLocal(code);
+    if (dmCodeInput) dmCodeInput.value = c;
+    if (c.length !== 6) {
+      showDmDialogError("Нужен код из 6 цифр");
+      return;
+    }
+    socket.emit("dm:join", { code: c }, (res) => {
+      if (!res?.ok) {
+        const err = res?.error || "Не удалось войти";
+        showDmDialogError(err);
+        if (/не найдена|проверьте код/i.test(err)) {
+          forgetDmRoom(c);
+          renderDmRoomsList();
+        }
+        return;
+      }
+      rememberDmRoom(c);
+      enterDmMode(res);
+      dmDialog?.close();
+    });
+  }
+
+  function renderDmRoomsList() {
+    if (!dmRoomsList || !dmRoomsWrap) return;
+    const rooms = loadDmRooms();
+    dmRoomsList.replaceChildren();
+    if (!rooms.length) {
+      dmRoomsWrap.hidden = true;
+      return;
+    }
+    dmRoomsWrap.hidden = false;
+    for (const room of rooms) {
+      const row = document.createElement("div");
+      row.className = "dm-room-row";
+      row.setAttribute("role", "listitem");
+
+      const enterBtn = document.createElement("button");
+      enterBtn.type = "button";
+      enterBtn.className = "dm-room-enter";
+      enterBtn.title = `Войти в комнату ${room.code}`;
+
+      const codeEl = document.createElement("strong");
+      codeEl.className = "dm-room-code";
+      codeEl.textContent = room.code;
+
+      const hint = document.createElement("span");
+      hint.className = "dm-room-hint";
+      hint.textContent = "история сохранена";
+
+      enterBtn.append(codeEl, hint);
+      enterBtn.addEventListener("click", () => joinDmByCode(room.code, { fromList: true }));
+
+      const forgetBtn = document.createElement("button");
+      forgetBtn.type = "button";
+      forgetBtn.className = "dm-room-forget ghost compact";
+      forgetBtn.setAttribute("aria-label", `Убрать ${room.code} из списка`);
+      forgetBtn.title = "Убрать из списка";
+      forgetBtn.textContent = "×";
+      forgetBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        forgetDmRoom(room.code);
+        renderDmRoomsList();
+      });
+
+      row.append(enterBtn, forgetBtn);
+      dmRoomsList.append(row);
     }
   }
 
@@ -228,7 +374,7 @@
     if (!res?.ok || !res.code) return;
     if (!dmCode) publicStateBackup = { messages: [...(lastState.messages || [])], pinned: [...(lastState.pinned || [])] };
     dmCode = res.code;
-    saveDmCode(res.code);
+    rememberDmRoom(res.code);
     document.body.classList.add("dm-on");
     if (dmBar) dmBar.hidden = false;
     if (dmBarCode) dmBarCode.textContent = res.code;
@@ -248,6 +394,7 @@
   function leaveDmMode() {
     const prev = dmCode;
     dmCode = null;
+    // Keep room in the saved list; only clear "active session" code.
     saveDmCode("");
     document.body.classList.remove("dm-on");
     if (dmBar) dmBar.hidden = true;
@@ -256,19 +403,28 @@
     socket.emit("dm:leave", {}, () => {
       /* chat:state follows from server */
     });
-    if (prev) composerHint.textContent = "Снова общий чат";
+    if (prev) {
+      rememberDmRoom(prev);
+      composerHint.textContent = `Снова общий чат · комната ${prev} в меню «Вдвоём»`;
+    }
   }
 
   function openDmDialog() {
     if (!dmDialog) return;
     showDmDialogError("");
     if (dmCreatedBox) dmCreatedBox.hidden = true;
+    renderDmRoomsList();
     if (dmCodeInput) {
-      dmCodeInput.value = loadDmCode() || "";
+      dmCodeInput.value = "";
       keepDialogAboveKeyboard(dmDialog, dmCodeInput);
     }
     dmDialog.showModal();
-    dmCodeInput?.focus();
+    const rooms = loadDmRooms();
+    if (rooms.length) {
+      /* focus stays on dialog; list is primary */
+    } else {
+      dmCodeInput?.focus();
+    }
   }
 
   async function fetchRandomName(targetInput = nameInput) {
@@ -779,9 +935,8 @@
     if (!pinsDialog?.open) return;
     syncViewportHeight();
     const vv = window.visualViewport;
-    const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
     const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
-    const vvBottom = vvTop + vvH;
+    const vvBottom = vv ? Math.round((vv.offsetTop || 0) + vv.height) : vvH;
     const sidePad = 10;
     const bottomPad = 10;
     // Bottom sheet: leave most of the viewport free for the focused message above.
@@ -1799,21 +1954,7 @@
   });
 
   function joinDmFromInput() {
-    showDmDialogError("");
-    const code = (dmCodeInput?.value || "").replace(/\D/g, "");
-    if (dmCodeInput) dmCodeInput.value = code;
-    if (code.length !== 6) {
-      showDmDialogError("Нужен код из 6 цифр");
-      return;
-    }
-    socket.emit("dm:join", { code }, (res) => {
-      if (!res?.ok) {
-        showDmDialogError(res?.error || "Не удалось войти");
-        return;
-      }
-      enterDmMode(res);
-      dmDialog?.close();
-    });
+    joinDmByCode(dmCodeInput?.value || "");
   }
 
   dmBtn?.addEventListener("click", () => {
@@ -1831,9 +1972,9 @@
         showDmDialogError(res?.error || "Не создалось");
         return;
       }
+      rememberDmRoom(res.code);
       enterDmMode(res);
       if (dmCodeInput) dmCodeInput.value = res.code;
-      // Keep dialog open briefly so the code is visible, or close — bar shows code.
       dmDialog?.close();
       composerHint.textContent = `Код ${res.code} — передайте второму человеку`;
     });

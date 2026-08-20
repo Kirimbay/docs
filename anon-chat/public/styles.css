@@ -380,6 +380,89 @@ button {
   gap: 0.5rem;
 }
 
+.dm-rooms-wrap {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.dm-rooms-wrap[hidden] {
+  display: none !important;
+}
+
+.dm-rooms-heading {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.dm-rooms-list {
+  display: grid;
+  gap: 0.35rem;
+  max-height: min(36vh, 240px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  scrollbar-width: thin;
+  scrollbar-color: #3a3d42 transparent;
+}
+
+.dm-room-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.3rem;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.dm-room-enter {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  color: inherit;
+  text-align: left;
+}
+
+.dm-room-enter:hover,
+.dm-room-enter:active {
+  border-color: rgba(111, 191, 138, 0.55);
+  background: #1a2420;
+}
+
+.dm-room-code {
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #8fd9ad;
+}
+
+.dm-room-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm-room-forget {
+  width: 2.1rem;
+  min-width: 2.1rem;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+}
+
 .dm-created-box {
   display: grid;
   gap: 0.25rem;
