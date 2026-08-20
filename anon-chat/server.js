@@ -129,12 +129,16 @@ fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 function loadStore() {
   try {
     if (fs.existsSync(STORE_PATH)) {
-      return JSON.parse(fs.readFileSync(STORE_PATH, "utf8"));
+      const data = JSON.parse(fs.readFileSync(STORE_PATH, "utf8"));
+      if (!Array.isArray(data.messages)) data.messages = [];
+      if (!Array.isArray(data.pinnedIds)) data.pinnedIds = [];
+      if (!data.rooms || typeof data.rooms !== "object") data.rooms = {};
+      return data;
     }
   } catch (err) {
     console.error("Failed to load store:", err.message);
   }
-  return { messages: [], pinnedIds: [] };
+  return { messages: [], pinnedIds: [], rooms: {} };
 }
 
 function saveStore(store) {
@@ -202,6 +206,26 @@ function publicMessage(msg) {
   };
 }
 
+function publicRoomMessage(msg) {
+  return {
+    id: msg.id,
+    name: msg.name,
+    text: msg.text || "",
+    imageUrl: msg.imageUrl || null,
+    createdAt: msg.createdAt,
+    pinned: false,
+    admin: Boolean(msg.admin),
+    reply: msg.reply
+      ? {
+          id: msg.reply.id,
+          name: msg.reply.name,
+          text: msg.reply.text || "",
+        }
+      : null,
+    reactions: normalizeReactions(msg.reactions),
+  };
+}
+
 function snapshot() {
   const pinned = store.pinnedIds
     .map((id) => store.messages.find((m) => m.id === id))
@@ -209,6 +233,79 @@ function snapshot() {
     .map(publicMessage);
   const messages = store.messages.map(publicMessage);
   return { messages, pinned };
+}
+
+const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const MAX_ROOM_MESSAGES = 2000;
+const MAX_ROOM_MEMBERS = 2;
+
+function ensureRooms() {
+  if (!store.rooms || typeof store.rooms !== "object") store.rooms = {};
+}
+
+function generateRoomCode() {
+  ensureRooms();
+  for (let attempt = 0; attempt < 48; attempt += 1) {
+    let code = "";
+    for (let i = 0; i < 6; i += 1) {
+      code += ROOM_CODE_ALPHABET[Math.floor(Math.random() * ROOM_CODE_ALPHABET.length)];
+    }
+    if (!store.rooms[code]) return code;
+  }
+  return randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
+}
+
+function normalizeRoomCode(raw) {
+  if (typeof raw !== "string") return null;
+  const code = raw.replace(/\s+/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code.length < 4 || code.length > 8) return null;
+  return code;
+}
+
+function roomChannel(code) {
+  return `dm:${code}`;
+}
+
+function roomOnlineCount(code) {
+  const set = io.sockets.adapter.rooms.get(roomChannel(code));
+  return set ? set.size : 0;
+}
+
+function roomMemberNames(code) {
+  const names = [];
+  for (const u of online.values()) {
+    if (u.roomCode === code) names.push(u.name);
+  }
+  return names;
+}
+
+function roomSnapshot(code) {
+  ensureRooms();
+  const room = store.rooms[code];
+  if (!room) return null;
+  return {
+    code,
+    messages: (room.messages || []).map(publicRoomMessage),
+    pinned: [],
+  };
+}
+
+function emitDmPresence(code) {
+  io.to(roomChannel(code)).emit("dm:presence", {
+    code,
+    count: roomOnlineCount(code),
+    names: roomMemberNames(code),
+  });
+}
+
+function leaveDmRoom(socket) {
+  const code = socket.data.roomCode;
+  if (!code) return;
+  socket.leave(roomChannel(code));
+  socket.data.roomCode = null;
+  const user = online.get(socket.id);
+  if (user) user.roomCode = null;
+  emitDmPresence(code);
 }
 
 const storage = multer.memoryStorage();
@@ -350,9 +447,11 @@ io.on("connection", (socket) => {
       custom = null;
     }
     const name = custom || randomName();
-    online.set(socket.id, { name, isAdmin: false });
+    leaveDmRoom(socket);
+    online.set(socket.id, { name, isAdmin: false, roomCode: null });
     socket.data.name = name;
     socket.data.isAdmin = false;
+    socket.data.roomCode = null;
     io.emit("chat:presence", {
       count: online.size,
       names: [...online.values()].map((u) => u.name),
@@ -382,6 +481,7 @@ io.on("connection", (socket) => {
       count: online.size,
       names: [...online.values()].map((u) => u.name),
     });
+    if (user.roomCode) emitDmPresence(user.roomCode);
     if (typeof ack === "function") ack({ ok: true, name: nextName });
   });
 
@@ -404,7 +504,103 @@ io.on("connection", (socket) => {
       count: online.size,
       names: [...online.values()].map((u) => u.name),
     });
+    if (user.roomCode) emitDmPresence(user.roomCode);
     if (typeof ack === "function") ack({ ok: true, name: ADMIN_DISPLAY_NAME });
+  });
+
+  socket.on("dm:create", (_payload, ack) => {
+    const user = online.get(socket.id);
+    if (!user) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
+      return;
+    }
+    leaveDmRoom(socket);
+    ensureRooms();
+    const code = generateRoomCode();
+    store.rooms[code] = {
+      code,
+      createdAt: new Date().toISOString(),
+      createdBy: user.name,
+      messages: [],
+    };
+    saveStore(store);
+    socket.join(roomChannel(code));
+    socket.data.roomCode = code;
+    user.roomCode = code;
+    const snap = roomSnapshot(code);
+    if (typeof ack === "function") {
+      ack({
+        ok: true,
+        code,
+        messages: snap.messages,
+        pinned: [],
+        count: 1,
+        names: [user.name],
+      });
+    }
+    emitDmPresence(code);
+  });
+
+  socket.on("dm:join", (payload = {}, ack) => {
+    const user = online.get(socket.id);
+    if (!user) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
+      return;
+    }
+    const code = normalizeRoomCode(payload.code);
+    if (!code) {
+      if (typeof ack === "function") ack({ ok: false, error: "Введите код комнаты" });
+      return;
+    }
+    ensureRooms();
+    const room = store.rooms[code];
+    if (!room) {
+      if (typeof ack === "function") ack({ ok: false, error: "Комната не найдена — проверьте код" });
+      return;
+    }
+    if (socket.data.roomCode === code) {
+      const snap = roomSnapshot(code);
+      if (typeof ack === "function") {
+        ack({
+          ok: true,
+          code,
+          messages: snap.messages,
+          pinned: [],
+          count: roomOnlineCount(code),
+          names: roomMemberNames(code),
+        });
+      }
+      return;
+    }
+    leaveDmRoom(socket);
+    if (roomOnlineCount(code) >= MAX_ROOM_MEMBERS) {
+      if (typeof ack === "function") {
+        ack({ ok: false, error: "Уже двое в комнате. Зайдите, когда кто-то выйдет." });
+      }
+      return;
+    }
+    socket.join(roomChannel(code));
+    socket.data.roomCode = code;
+    user.roomCode = code;
+    const snap = roomSnapshot(code);
+    if (typeof ack === "function") {
+      ack({
+        ok: true,
+        code,
+        messages: snap.messages,
+        pinned: [],
+        count: roomOnlineCount(code),
+        names: roomMemberNames(code),
+      });
+    }
+    emitDmPresence(code);
+  });
+
+  socket.on("dm:leave", (_payload, ack) => {
+    const code = socket.data.roomCode;
+    leaveDmRoom(socket);
+    if (typeof ack === "function") ack({ ok: true, code: code || null });
+    socket.emit("chat:state", snapshot());
   });
 
   socket.on("chat:message", (payload = {}, ack) => {
@@ -426,10 +622,19 @@ io.on("connection", (socket) => {
       return;
     }
 
+    const roomCode = socket.data.roomCode || null;
+    const messageList = roomCode
+      ? (ensureRooms(), store.rooms[roomCode] ? store.rooms[roomCode].messages : null)
+      : store.messages;
+    if (roomCode && !messageList) {
+      if (typeof ack === "function") ack({ ok: false, error: "Комната не найдена" });
+      return;
+    }
+
     let reply = null;
     const replyId = typeof payload.replyToId === "string" ? payload.replyToId : "";
     if (replyId) {
-      const target = store.messages.find((m) => m.id === replyId);
+      const target = messageList.find((m) => m.id === replyId);
       if (target) {
         const preview = (target.text || (target.imageUrl ? "📷 Фото" : "Сообщение"))
           .replace(/\s+/g, " ")
@@ -449,19 +654,28 @@ io.on("connection", (socket) => {
       admin: Boolean(user.isAdmin || socket.data.isAdmin),
       createdAt: new Date().toISOString(),
     };
-    store.messages.push(msg);
-    if (store.messages.length > MAX_MESSAGES) {
-      const removed = store.messages.splice(0, store.messages.length - MAX_MESSAGES);
-      const keep = new Set(store.messages.map((m) => m.id));
-      store.pinnedIds = store.pinnedIds.filter((id) => keep.has(id));
+    messageList.push(msg);
+    const maxLen = roomCode ? MAX_ROOM_MESSAGES : MAX_MESSAGES;
+    if (messageList.length > maxLen) {
+      const removed = messageList.splice(0, messageList.length - maxLen);
+      if (!roomCode) {
+        const keep = new Set(store.messages.map((m) => m.id));
+        store.pinnedIds = store.pinnedIds.filter((id) => keep.has(id));
+      }
       for (const old of removed) {
-        if (old.imageUrl && !store.pinnedIds.includes(old.id)) {
+        if (old.imageUrl && (roomCode || !store.pinnedIds.includes(old.id))) {
           const file = path.join(UPLOAD_DIR, path.basename(old.imageUrl));
           fs.promises.unlink(file).catch(() => {});
         }
       }
     }
     saveStore(store);
+    if (roomCode) {
+      const pub = publicRoomMessage(msg);
+      io.to(roomChannel(roomCode)).emit("dm:message", pub);
+      if (typeof ack === "function") ack({ ok: true, id: msg.id });
+      return;
+    }
     const pub = publicMessage(msg);
     io.emit("chat:message", pub);
     if (typeof ack === "function") ack({ ok: true, id: msg.id });
@@ -479,7 +693,14 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Неизвестная реакция" });
       return;
     }
-    const msg = store.messages.find((m) => m.id === id);
+    const roomCode = socket.data.roomCode || null;
+    let msg = null;
+    if (roomCode) {
+      ensureRooms();
+      msg = store.rooms[roomCode]?.messages?.find((m) => m.id === id) || null;
+    } else {
+      msg = store.messages.find((m) => m.id === id) || null;
+    }
     if (!msg) {
       if (typeof ack === "function") ack({ ok: false, error: "Сообщение не найдено" });
       return;
@@ -493,6 +714,12 @@ io.on("connection", (socket) => {
     else delete msg.reactions[emoji];
     msg.reactions = normalizeReactions(msg.reactions);
     saveStore(store);
+    if (roomCode) {
+      const pub = publicRoomMessage(msg);
+      io.to(roomChannel(roomCode)).emit("dm:message-update", pub);
+      if (typeof ack === "function") ack({ ok: true, message: pub });
+      return;
+    }
     const pub = publicMessage(msg);
     io.emit("chat:message-update", pub);
     if (typeof ack === "function") ack({ ok: true, message: pub });
@@ -534,6 +761,29 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа" });
       return;
     }
+    const roomCode = socket.data.roomCode || null;
+    if (roomCode) {
+      ensureRooms();
+      const room = store.rooms[roomCode];
+      if (!room) {
+        if (typeof ack === "function") ack({ ok: false, error: "Комната не найдена" });
+        return;
+      }
+      const idx = room.messages.findIndex((m) => m.id === payload.id);
+      if (idx === -1) {
+        if (typeof ack === "function") ack({ ok: false, error: "Сообщение не найдено" });
+        return;
+      }
+      const [removed] = room.messages.splice(idx, 1);
+      saveStore(store);
+      if (removed.imageUrl) {
+        const file = path.join(UPLOAD_DIR, path.basename(removed.imageUrl));
+        fs.promises.unlink(file).catch(() => {});
+      }
+      io.to(roomChannel(roomCode)).emit("chat:message-removed", { id: removed.id });
+      if (typeof ack === "function") ack({ ok: true, id: removed.id });
+      return;
+    }
     const idx = store.messages.findIndex((m) => m.id === payload.id);
     if (idx === -1) {
       if (typeof ack === "function") ack({ ok: false, error: "Сообщение не найдено" });
@@ -552,6 +802,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    leaveDmRoom(socket);
     online.delete(socket.id);
     io.emit("chat:presence", {
       count: online.size,

@@ -297,6 +297,77 @@ button {
   justify-content: flex-end;
 }
 
+.dm-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem var(--pad-x);
+  border-bottom: 1px solid rgba(111, 191, 138, 0.35);
+  background: #18201c;
+  color: #b7dcc4;
+  flex-wrap: wrap;
+}
+
+.dm-bar[hidden] {
+  display: none !important;
+}
+
+.dm-bar-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.dm-bar-text strong {
+  letter-spacing: 0.08em;
+  color: #8fd9ad;
+}
+
+.dm-bar-presence {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.dm-dialog-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.dm-created-box {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  border: 1px dashed rgba(111, 191, 138, 0.5);
+  background: rgba(111, 191, 138, 0.08);
+  text-align: center;
+}
+
+.dm-created-label {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.dm-created-code {
+  font-size: 1.55rem;
+  letter-spacing: 0.14em;
+  color: #8fd9ad;
+  font-family: var(--font-body);
+}
+
+body.dm-on #filter-btn,
+body.dm-on #pins,
+body.dm-on #filter-bar {
+  display: none !important;
+}
+
+body.dm-on #dm-btn {
+  border-color: rgba(111, 191, 138, 0.55);
+  color: #8fd9ad;
+}
+
 .filter-bar {
   flex: 0 0 auto;
   display: flex;

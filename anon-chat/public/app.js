@@ -37,6 +37,20 @@
   const renameCancelBtn = $("#rename-cancel-btn");
   const renameApplyBtn = $("#rename-apply-btn");
   const adminBtn = $("#admin-btn");
+  const dmBtn = $("#dm-btn");
+  const dmBar = $("#dm-bar");
+  const dmBarCode = $("#dm-bar-code");
+  const dmBarPresence = $("#dm-bar-presence");
+  const dmCopyBtn = $("#dm-copy-btn");
+  const dmLeaveBtn = $("#dm-leave-btn");
+  const dmDialog = $("#dm-dialog");
+  const dmCreateBtn = $("#dm-create-btn");
+  const dmJoinBtn = $("#dm-join-btn");
+  const dmCodeInput = $("#dm-code-input");
+  const dmDialogError = $("#dm-dialog-error");
+  const dmDialogClose = $("#dm-dialog-close");
+  const dmCreatedBox = $("#dm-created-box");
+  const dmCreatedCode = $("#dm-created-code");
   const filterBtn = $("#filter-btn");
   const filterBar = $("#filter-bar");
   const filterBarText = $("#filter-bar-text");
@@ -54,6 +68,7 @@
 
   const socket = io({ autoConnect: true });
   const NAME_KEY = "komnata_name";
+  const DM_CODE_KEY = "sarafan_dm_code";
   const EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😢", "👍", "❤️", "🔥", "🎉"];
   const REACTIONS = [
     { emoji: "😊", title: "смайл" },
@@ -72,6 +87,8 @@
   /** @type {Set<string>} */
   let filterNames = new Set();
   let lastState = { messages: [], pinned: [] };
+  let publicStateBackup = null;
+  let dmCode = null;
   let pinCycleIndex = 0;
   let pinHoldTimer = null;
   let pinHoldOpened = false;
@@ -95,6 +112,84 @@
     } catch {
       /* ignore */
     }
+  }
+
+  function loadDmCode() {
+    try {
+      return (localStorage.getItem(DM_CODE_KEY) || "").trim().toUpperCase();
+    } catch {
+      return "";
+    }
+  }
+
+  function saveDmCode(code) {
+    try {
+      if (code) localStorage.setItem(DM_CODE_KEY, code);
+      else localStorage.removeItem(DM_CODE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function showDmDialogError(text) {
+    if (!dmDialogError) return;
+    dmDialogError.hidden = !text;
+    dmDialogError.textContent = text || "";
+  }
+
+  function updateDmPresence({ count, names } = {}) {
+    if (!dmBarPresence) return;
+    const n = Number(count) || 0;
+    const sample = (names || []).filter((x) => x && x !== myName).slice(0, 2).join(", ");
+    dmBarPresence.textContent = sample ? `${n}/2 · ${sample}` : `${n}/2`;
+  }
+
+  function enterDmMode(res) {
+    if (!res?.ok || !res.code) return;
+    if (!dmCode) publicStateBackup = { messages: [...(lastState.messages || [])], pinned: [...(lastState.pinned || [])] };
+    dmCode = res.code;
+    saveDmCode(res.code);
+    document.body.classList.add("dm-on");
+    if (dmBar) dmBar.hidden = false;
+    if (dmBarCode) dmBarCode.textContent = res.code;
+    if (dmCreatedBox && dmCreatedCode) {
+      dmCreatedBox.hidden = false;
+      dmCreatedCode.textContent = res.code;
+    }
+    clearReply();
+    clearFilter();
+    filterNames = new Set();
+    updateFilterChrome();
+    renderAll({ messages: res.messages || [], pinned: [] });
+    updateDmPresence(res);
+    if (messageInput) messageInput.placeholder = "Сообщение вдвоём…";
+    composerHint.textContent = `Комната ${res.code} · передайте код второму`;
+  }
+
+  function leaveDmMode() {
+    const prev = dmCode;
+    dmCode = null;
+    saveDmCode("");
+    document.body.classList.remove("dm-on");
+    if (dmBar) dmBar.hidden = true;
+    if (messageInput) messageInput.placeholder = "Написать сообщение…";
+    clearReply();
+    socket.emit("dm:leave", {}, () => {
+      /* chat:state follows from server */
+    });
+    if (prev) composerHint.textContent = "Снова общий чат";
+  }
+
+  function openDmDialog() {
+    if (!dmDialog) return;
+    showDmDialogError("");
+    if (dmCreatedBox) dmCreatedBox.hidden = true;
+    if (dmCodeInput) {
+      dmCodeInput.value = loadDmCode() || "";
+      keepDialogAboveKeyboard(dmDialog, dmCodeInput);
+    }
+    dmDialog.showModal();
+    dmCodeInput?.focus();
   }
 
   async function fetchRandomName(targetInput = nameInput) {
@@ -684,7 +779,7 @@
     replyBtn.addEventListener("click", () => setReplyTarget(msg));
     actions.append(replyBtn);
 
-    if (isAdmin) {
+    if (isAdmin && !dmCode) {
       const pinBtn = document.createElement("button");
       pinBtn.type = "button";
       pinBtn.textContent = "📌";
@@ -697,7 +792,9 @@
         });
       });
       actions.append(pinBtn);
+    }
 
+    if (isAdmin) {
       const delBtn = document.createElement("button");
       delBtn.type = "button";
       delBtn.className = "msg-admin-icon danger msg-delete";
@@ -1122,6 +1219,64 @@
 
   adminPassword?.addEventListener("focus", () => keepDialogAboveKeyboard(adminDialog, adminPassword));
 
+  function joinDmFromInput() {
+    showDmDialogError("");
+    const code = (dmCodeInput?.value || "").trim();
+    if (!code) {
+      showDmDialogError("Введите код");
+      return;
+    }
+    socket.emit("dm:join", { code }, (res) => {
+      if (!res?.ok) {
+        showDmDialogError(res?.error || "Не удалось войти");
+        return;
+      }
+      enterDmMode(res);
+      dmDialog?.close();
+    });
+  }
+
+  dmBtn?.addEventListener("click", () => {
+    if (dmCode) {
+      composerHint.textContent = `Вы уже в комнате ${dmCode}`;
+      return;
+    }
+    openDmDialog();
+  });
+  dmDialogClose?.addEventListener("click", () => dmDialog?.close());
+  dmCreateBtn?.addEventListener("click", () => {
+    showDmDialogError("");
+    socket.emit("dm:create", {}, (res) => {
+      if (!res?.ok) {
+        showDmDialogError(res?.error || "Не создалось");
+        return;
+      }
+      enterDmMode(res);
+      if (dmCodeInput) dmCodeInput.value = res.code;
+      // Keep dialog open briefly so the code is visible, or close — bar shows code.
+      dmDialog?.close();
+      composerHint.textContent = `Код ${res.code} — передайте второму человеку`;
+    });
+  });
+  dmJoinBtn?.addEventListener("click", joinDmFromInput);
+  dmCodeInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      joinDmFromInput();
+    }
+  });
+  dmCodeInput?.addEventListener("focus", () => keepDialogAboveKeyboard(dmDialog, dmCodeInput));
+  dmLeaveBtn?.addEventListener("click", () => leaveDmMode());
+  dmCopyBtn?.addEventListener("click", async () => {
+    if (!dmCode) return;
+    try {
+      await navigator.clipboard.writeText(dmCode);
+      composerHint.textContent = `Код ${dmCode} скопирован`;
+    } catch {
+      composerHint.textContent = `Код: ${dmCode}`;
+    }
+  });
+
   adminForm.addEventListener("submit", (e) => {
     const submitter = e.submitter;
     if (submitter?.value === "cancel") return;
@@ -1139,6 +1294,7 @@
   });
 
   socket.on("chat:state", (state) => {
+    if (dmCode) return;
     renderAll(state);
   });
 
@@ -1147,10 +1303,27 @@
   });
 
   socket.on("chat:message", (msg) => {
+    if (dmCode) return;
     appendMessage(msg);
   });
 
+  socket.on("dm:message", (msg) => {
+    if (!dmCode) return;
+    appendMessage(msg);
+  });
+
+  socket.on("dm:message-update", (msg) => {
+    if (!dmCode) return;
+    patchMessage(msg);
+  });
+
+  socket.on("dm:presence", (payload = {}) => {
+    if (!dmCode || payload.code !== dmCode) return;
+    updateDmPresence(payload);
+  });
+
   socket.on("chat:message-update", (msg) => {
+    if (dmCode) return;
     patchMessage(msg);
   });
 
