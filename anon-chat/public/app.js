@@ -1109,9 +1109,8 @@
       btn.type = "button";
       btn.className = "emoji-btn-item";
       const glyph = document.createElement("span");
+      glyph.className = "emoji-glyph";
       glyph.textContent = emoji;
-      glyph.style.cssText =
-        "display:inline-flex;align-items:center;justify-content:center;line-height:1;transform:translateY(0.5px)";
       btn.append(glyph);
       // Prevent focus steal / keyboard open on iOS.
       btn.addEventListener("pointerdown", (e) => {
