@@ -605,6 +605,12 @@ button {
   box-shadow: inset 4px 0 0 #d96a6a;
 }
 
+.msg.mine.pinned-item {
+  background: linear-gradient(180deg, rgba(110, 168, 217, 0.14), rgba(26, 36, 48, 0.92));
+  border-color: #4a6478;
+  box-shadow: inset 3px 0 0 var(--mine-accent), inset 0 0 0 1px rgba(217, 106, 106, 0.25);
+}
+
 .msg-pin-badge {
   display: inline-flex;
   align-items: center;
