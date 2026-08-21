@@ -563,6 +563,7 @@ button {
 .dm-dialog-footer {
   display: grid;
   gap: 0.3rem;
+  margin-top: auto;
   padding-top: 0.15rem;
   border-top: 1px solid var(--line);
 }
@@ -650,7 +651,9 @@ button {
   display: grid;
   align-content: start;
   gap: 0.18rem;
-  flex: 1 1 0;
+  flex: 1 1 0%;
+  align-self: stretch;
+  height: 100%;
   min-height: 0;
   max-height: none;
   overflow: auto;
@@ -734,29 +737,6 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.dm-room-row.is-expanded .dm-room-names {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
-  color: var(--ink-soft);
-}
-
-.dm-room-forget {
-  width: 1.65rem;
-  min-width: 1.65rem;
-  padding: 0;
-  display: inline-grid;
-  place-items: center;
-  color: var(--muted);
-  border-color: var(--line);
-  background: var(--bg-elev);
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    color var(--motion-fast) var(--ease-soft),
-    background-color var(--motion-fast) var(--ease-soft),
-    border-color var(--motion-fast) var(--ease-soft);
 }
 
 .dm-room-row.is-expanded .dm-room-names {
@@ -2448,10 +2428,28 @@ body.keyboard-open .pins-dialog.dialog {
 }
 
 .dialog form,
-.dialog .dialog-body {
+.dialog:not(.dm-dialog) .dialog-body {
   display: grid;
   gap: 0.85rem;
   padding: 1.25rem;
+}
+
+/* Re-assert after generic .dialog-body — same specificity lost the flex column
+   and the room list collapsed to content height with empty space below. */
+#dm-dialog.dm-dialog .dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  padding: max(0.35rem, env(safe-area-inset-top, 0px))
+    max(0.45rem, env(safe-area-inset-right, 0px))
+    max(0.35rem, env(safe-area-inset-bottom, 0px))
+    max(0.45rem, env(safe-area-inset-left, 0px));
+  overflow: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .dialog h2 {
