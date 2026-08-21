@@ -601,13 +601,19 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.25rem;
-  align-items: stretch;
+  align-items: start;
+  min-width: 0;
+}
+
+.dm-room-main {
+  display: grid;
+  gap: 0.18rem;
   min-width: 0;
 }
 
 .dm-room-enter {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.45rem;
   min-width: 0;
@@ -631,6 +637,43 @@ button {
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #8fd9ad;
+}
+
+.dm-room-unread {
+  justify-self: end;
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dm-room-unread.has-new {
+  color: #b7dcc4;
+  font-weight: 600;
+}
+
+.dm-room-names {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.05rem 0.35rem 0.15rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm-room-row.is-expanded .dm-room-names {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  color: var(--ink-soft);
 }
 
 .dm-room-hint {

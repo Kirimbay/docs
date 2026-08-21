@@ -706,26 +706,81 @@ function roomPushNames(code, exceptName = "") {
   return [...names.values()];
 }
 
-function roomListMeta(code, exceptName = "") {
+function roomParticipantNames(code) {
   ensureRooms();
   const room = store.rooms[code];
-  if (!room) return { code, exists: false, peer: "", messageCount: 0, onlineCount: 0 };
-  const exceptKey = nameKey(exceptName);
-  const onlineNames = roomMemberNames(code).filter((n) => nameKey(n) !== exceptKey);
-  let peer = "";
-  if (onlineNames.length === 1) peer = onlineNames[0];
-  else if (onlineNames.length > 1) peer = `${onlineNames[0]} +${onlineNames.length - 1}`;
-  else {
-    const participants = ensureRoomParticipants(room).filter((n) => nameKey(n) !== exceptKey);
-    if (participants.length === 1) peer = participants[0];
-    else if (participants.length > 1) peer = `${participants[0]} +${participants.length - 1}`;
-    else peer = roomPeerFor(code, exceptName);
+  if (!room) return [];
+  const map = new Map();
+  for (const n of ensureRoomParticipants(room)) {
+    const key = nameKey(n);
+    if (key) map.set(key, n);
   }
+  for (const m of Array.isArray(room.messages) ? room.messages : []) {
+    const key = nameKey(m?.name);
+    if (key) map.set(key, m.name);
+  }
+  const createdKey = nameKey(room.createdBy);
+  if (createdKey) map.set(createdKey, room.createdBy);
+  for (const u of online.values()) {
+    if (u.roomCode !== code || !u.name) continue;
+    const key = nameKey(u.name);
+    if (key) map.set(key, u.name);
+  }
+  const onlineKeys = new Set(
+    roomMemberNames(code)
+      .map((n) => nameKey(n))
+      .filter(Boolean)
+  );
+  return [...map.values()].sort((a, b) => {
+    const ao = onlineKeys.has(nameKey(a)) ? 0 : 1;
+    const bo = onlineKeys.has(nameKey(b)) ? 0 : 1;
+    if (ao !== bo) return ao - bo;
+    return String(a).localeCompare(String(b), "ru-RU");
+  });
+}
+
+function unreadSince(messages, sinceId) {
+  const list = Array.isArray(messages) ? messages : [];
+  if (!list.length) return 0;
+  if (typeof sinceId !== "string" || !sinceId) return list.length;
+  const idx = list.findIndex((m) => m && m.id === sinceId);
+  if (idx < 0) return list.length;
+  return Math.max(0, list.length - idx - 1);
+}
+
+function roomListMeta(code, exceptName = "", sinceId = "") {
+  ensureRooms();
+  const room = store.rooms[code];
+  if (!room) {
+    return {
+      code,
+      exists: false,
+      peer: "",
+      names: [],
+      messageCount: 0,
+      unread: 0,
+      lastMessageId: "",
+      onlineCount: 0,
+      maxMembers: MAX_ROOM_MEMBERS,
+    };
+  }
+  const names = roomParticipantNames(code);
+  const exceptKey = nameKey(exceptName);
+  const others = names.filter((n) => nameKey(n) !== exceptKey);
+  let peer = "";
+  if (others.length === 1) peer = others[0];
+  else if (others.length > 1) peer = `${others[0]} +${others.length - 1}`;
+  else if (names.length) peer = names[0];
+  const messages = Array.isArray(room.messages) ? room.messages : [];
+  const lastMessageId = messages.length ? String(messages[messages.length - 1]?.id || "") : "";
   return {
     code,
     exists: true,
     peer,
-    messageCount: Array.isArray(room.messages) ? room.messages.length : 0,
+    names,
+    messageCount: messages.length,
+    unread: unreadSince(messages, sinceId),
+    lastMessageId,
     onlineCount: roomOnlineCount(code),
     maxMembers: MAX_ROOM_MEMBERS,
   };
@@ -1268,6 +1323,7 @@ io.on("connection", (socket) => {
         pinned: [],
         count: 1,
         names: [user.name],
+        participants: [user.name],
         maxMembers: MAX_ROOM_MEMBERS,
       });
     }
@@ -1339,6 +1395,7 @@ io.on("connection", (socket) => {
         pinned: [],
         count: roomOnlineCount(code),
         names: roomMemberNames(code),
+        participants: roomParticipantNames(code),
         invited: target.name,
         maxMembers: MAX_ROOM_MEMBERS,
         created,
@@ -1360,20 +1417,34 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
       return;
     }
-    const raw = Array.isArray(payload.codes) ? payload.codes : [];
-    const codes = [];
+    /** @type {{code:string,sinceId:string}[]} */
+    const requests = [];
     const seen = new Set();
-    for (const item of raw) {
-      const code = normalizeRoomCode(item);
-      if (!code || seen.has(code)) continue;
+    const pushReq = (codeRaw, sinceRaw) => {
+      const code = normalizeRoomCode(codeRaw);
+      if (!code || seen.has(code)) return;
       seen.add(code);
-      codes.push(code);
-      if (codes.length >= 24) break;
+      requests.push({
+        code,
+        sinceId: typeof sinceRaw === "string" ? sinceRaw.trim().slice(0, 80) : "",
+      });
+    };
+    if (Array.isArray(payload.rooms)) {
+      for (const item of payload.rooms) {
+        if (typeof item === "string") pushReq(item, "");
+        else if (item && typeof item === "object") pushReq(item.code, item.sinceId);
+        if (requests.length >= 24) break;
+      }
+    } else if (Array.isArray(payload.codes)) {
+      for (const item of payload.codes) {
+        pushReq(item, "");
+        if (requests.length >= 24) break;
+      }
     }
     if (typeof ack === "function") {
       ack({
         ok: true,
-        rooms: codes.map((code) => roomListMeta(code, user.name)),
+        rooms: requests.map((req) => roomListMeta(req.code, user.name, req.sinceId)),
       });
     }
   });
@@ -1437,6 +1508,7 @@ io.on("connection", (socket) => {
         pinned: [],
         count: roomOnlineCount(code),
         names: roomMemberNames(code),
+        participants: roomParticipantNames(code),
         maxMembers: MAX_ROOM_MEMBERS,
       });
     }
