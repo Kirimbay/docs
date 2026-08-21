@@ -3323,11 +3323,14 @@
         notify(res?.error || "Не сменилось")
         return;
       }
-      myName = res.name;
+      const from = res.from || previousName;
+      const to = res.name;
+      renameDialog?.close();
+      // Rewrite + force-repaint before flipping myName helpers that gate .mine.
+      applyAuthorRename(from, to);
+      myName = to;
       saveName(myName);
       syncMeBtn();
-      renameDialog?.close();
-      applyAuthorRename(res.from || previousName, res.name);
       if (notifyEnabled) void syncPushSubscription();
     });
   }
