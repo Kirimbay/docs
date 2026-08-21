@@ -1812,13 +1812,18 @@
     const vvH = inputFocused && vv
       ? Math.round(vv.height)
       : Math.round((vv?.height || window.innerHeight));
-    const pad = 8;
+    const safeTop =
+      Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--safe-top")
+      ) || 0;
+    // Clear of the status bar; avoid hugging the clock on iPhone.
+    const pad = Math.max(12, Math.round(safeTop) + 8);
     dialog.style.top = `${vvTop + pad}px`;
     dialog.style.left = "50%";
     dialog.style.right = "auto";
     dialog.style.bottom = "auto";
     dialog.style.transform = "translateX(-50%)";
-    dialog.style.maxHeight = `${Math.max(inputFocused ? 160 : 240, vvH - pad * 2)}px`;
+    dialog.style.maxHeight = `${Math.max(inputFocused ? 160 : 240, vvH - pad - 8)}px`;
     dialog.style.margin = "0";
   }
 
@@ -1829,12 +1834,22 @@
       layoutFormDialog(dialog);
       return;
     }
+    const sheetTop =
+      dialog.classList.contains("sheet-top") ||
+      dialog === adminDialog ||
+      dialog === renameDialog;
     const bump = () => {
       if (!dialog.open) return;
       syncViewportHeight();
       layoutFormDialog(dialog);
       if (dialog.classList.contains("dm-dialog")) layoutDmDialog();
-      if (focusEl && document.activeElement === focusEl && typeof focusEl.scrollIntoView === "function") {
+      // scrollIntoView on iPhone shifts visualViewport and makes sheet-top dialogs jump.
+      if (
+        !sheetTop &&
+        focusEl &&
+        document.activeElement === focusEl &&
+        typeof focusEl.scrollIntoView === "function"
+      ) {
         try {
           focusEl.scrollIntoView({ block: "nearest", inline: "nearest" });
         } catch {
@@ -3277,11 +3292,20 @@
     renameInput.value = myName || "";
     renameDialog.showModal();
     layoutFormDialog(renameDialog);
-    // Focus after layout so iOS keyboard doesn't shove a centered dialog around.
+    // Focus after layout; do not select-all (iOS showed blue handles as if user selected).
     requestAnimationFrame(() => {
       layoutFormDialog(renameDialog);
-      renameInput.focus();
-      renameInput.select();
+      try {
+        renameInput.focus({ preventScroll: true });
+      } catch {
+        renameInput.focus();
+      }
+      try {
+        const len = renameInput.value.length;
+        renameInput.setSelectionRange(len, len);
+      } catch {
+        /* ignore */
+      }
       keepDialogAboveKeyboard(renameDialog, renameInput);
     });
   }

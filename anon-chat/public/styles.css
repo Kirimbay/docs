@@ -199,6 +199,11 @@ button {
   padding: 0.85rem 1rem;
   outline: none;
   color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.35;
+  min-height: 2.85rem;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .field input:focus,
@@ -2402,28 +2407,31 @@ body.bulk-select-on .composer-shell {
 
 /* Form sheets dock to the top of the visual viewport (iOS keyboard-safe) */
 .dialog.sheet-top,
-#admin-dialog.dialog {
-  top: calc(var(--vv-top, 0px) + 0.4rem);
+#admin-dialog.dialog,
+#rename-dialog.dialog {
+  top: calc(var(--vv-top, 0px) + max(0.65rem, env(safe-area-inset-top, 0px)));
   left: 50%;
   right: auto;
   bottom: auto;
   transform: translateX(-50%);
   margin: 0;
-  max-height: calc(var(--app-height, 100dvh) - 0.8rem);
+  max-height: calc(var(--app-height, 100dvh) - 1.2rem);
   animation: dialog-in-top var(--motion) var(--ease-out) both;
 }
 
-#admin-dialog .dialog-body {
+#admin-dialog .dialog-body,
+#rename-dialog .dialog-body {
   overflow: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
 body.keyboard-open .dialog.sheet-top,
-body.keyboard-open #admin-dialog.dialog {
-  top: calc(var(--vv-top, 0px) + 0.3rem);
+body.keyboard-open #admin-dialog.dialog,
+body.keyboard-open #rename-dialog.dialog {
+  top: calc(var(--vv-top, 0px) + max(0.5rem, env(safe-area-inset-top, 0px)));
   transform: translateX(-50%);
-  max-height: calc(var(--app-height, 100dvh) - 0.6rem);
+  max-height: calc(var(--app-height, 100dvh) - 1rem);
   animation: none;
 }
 
