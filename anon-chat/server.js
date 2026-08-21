@@ -884,10 +884,13 @@ function generateRoomCode() {
 }
 
 function normalizeRoomCode(raw) {
-  // Strict: exactly 6 digits. "543" is invalid; "000543" is valid. Never pad.
-  const code = String(raw ?? "").replace(/\s+/g, "").replace(/\D/g, "");
-  if (code.length !== ROOM_CODE_LENGTH) return null;
-  return code;
+  // 6-digit room number. Pure short digits pad: 75 → 000075. Reject alphanumeric.
+  const s = String(raw ?? "").trim();
+  if (/^\d{6}$/.test(s)) return s;
+  if (/^\d{1,5}$/.test(s)) return s.padStart(ROOM_CODE_LENGTH, "0");
+  const compact = s.replace(/\s+/g, "");
+  if (/^\d{1,6}$/.test(compact)) return compact.padStart(ROOM_CODE_LENGTH, "0");
+  return null;
 }
 
 /** Exactly 4 digits — room key (тёрка). Never pad. */
@@ -1889,6 +1892,7 @@ io.on("connection", (socket) => {
       }
     }
     const rooms = Object.keys(store.rooms)
+      .filter((code) => normalizeRoomCode(code) && !isPublicRoomCode(code))
       .map((code) => {
         const meta = roomListMeta(code, user.name, sinceByCode.get(code) || "");
         const room = store.rooms[code];
@@ -1898,6 +1902,7 @@ io.on("connection", (socket) => {
           createdBy: room?.createdBy || "",
         };
       })
+      .filter((row) => row && normalizeRoomCode(row.code))
       .sort((a, b) => {
         const ta = Date.parse(String(a.lastActiveAt || "")) || 0;
         const tb = Date.parse(String(b.lastActiveAt || "")) || 0;
@@ -2481,7 +2486,8 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Укажите номер комнаты" });
       return;
     }
-    if (code !== current) {
+    // Super-admin may delete from the hub list without entering the room.
+    if (code !== current && !isSuperAdminSocket(socket)) {
       if (typeof ack === "function") {
         ack({ ok: false, error: "Номер не совпадает с текущей комнатой" });
       }

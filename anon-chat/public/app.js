@@ -841,8 +841,14 @@
   }
 
   function normalizeDmCodeLocal(raw) {
-    // Digits only, max 6. Join requires length === 6 (000543 ok, 543 not).
-    return String(raw || "").replace(/\D/g, "").slice(0, 6);
+    // Exactly 6 digits after normalize. Short pure numbers pad: 75 → 000075.
+    // Alphanumeric legacy codes (75WECX) are rejected — not room numbers.
+    const s = String(raw ?? "").trim();
+    if (/^\d{6}$/.test(s)) return s;
+    if (/^\d{1,5}$/.test(s)) return s.padStart(6, "0");
+    const compact = s.replace(/\s+/g, "");
+    if (/^\d{1,6}$/.test(compact)) return compact.padStart(6, "0");
+    return "";
   }
 
   function loadDmCode() {
@@ -1504,14 +1510,17 @@
       enterBtn.type = "button";
       enterBtn.className = "dm-room-enter";
       const unread = dmCode === room.code ? 0 : Math.max(0, Number(room.unread) || 0);
+      const storedKey = loadRoomKey(room.code);
       enterBtn.title = owned
         ? keyed
-          ? loadRoomKey(room.code)
-            ? `Админ · для других ключ ${loadRoomKey(room.code)}`
+          ? storedKey
+            ? `Админ · для других ключ ${storedKey}`
             : "Админ · для других по ключу"
           : "Админ · для других свободный вход"
         : keyed
-          ? `По ключу · ${room.code}`
+          ? storedKey
+            ? `Закрытая · номер ${room.code} · ключ ${storedKey}`
+            : `Закрытая · номер ${room.code} · нужен ключ`
           : room.foreign
             ? unread
               ? `Смотреть · ${newMessagesLabel(unread)}`
@@ -1527,7 +1536,8 @@
         keyIcon.className = "dm-room-key-icon";
         keyIcon.setAttribute("aria-hidden", "true");
         keyIcon.textContent = "🔑";
-        codeEl.append(keyIcon, document.createTextNode(room.code));
+        const codeLabel = storedKey ? `${room.code} · ключ ${storedKey}` : room.code;
+        codeEl.append(keyIcon, document.createTextNode(codeLabel));
       } else {
         codeEl.textContent = room.code;
       }
@@ -1535,12 +1545,19 @@
       const unreadEl = document.createElement("span");
       unreadEl.className = "dm-room-unread" + (unread > 0 ? " has-new" : "");
       if (owned) {
-        const key = loadRoomKey(room.code);
         const access = keyed
-          ? key
-            ? `админ · для других ключ ${key}`
+          ? storedKey
+            ? `админ · для других ключ ${storedKey}`
             : "админ · для других по ключу"
           : "админ · для других свободный";
+        unreadEl.textContent =
+          dmCode === room.code
+            ? access
+            : unread
+              ? `${access} · ${newMessagesLabel(unread)}`
+              : access;
+      } else if (keyed) {
+        const access = storedKey ? `ключ ${storedKey}` : "закрытая · нужен ключ";
         unreadEl.textContent =
           dmCode === room.code
             ? access
@@ -1565,15 +1582,16 @@
       namesBtn.type = "button";
       namesBtn.className = "dm-room-names";
       const fullNames = Array.isArray(room.names) ? room.names : [];
-      const ownedKey = owned ? loadRoomKey(room.code) : "";
       const accessHint = owned
         ? keyed
-          ? ownedKey
-            ? `для других ключ ${ownedKey} · `
+          ? storedKey
+            ? `для других ключ ${storedKey} · `
             : "для других по ключу · "
           : "для других свободный · "
         : keyed
-          ? "по ключу · "
+          ? storedKey
+            ? `ключ ${storedKey} · `
+            : "по ключу · "
           : "";
       namesBtn.textContent = accessHint + namesLabel(fullNames, { collapsed: !expanded });
       namesBtn.title = fullNames.length
@@ -1582,11 +1600,15 @@
           : "Показать всех"
         : owned
           ? keyed
-            ? ownedKey
-              ? `Для других · ключ ${ownedKey}`
+            ? storedKey
+              ? `Для других · ключ ${storedKey}`
               : "Для других · по ключу"
             : "Для других · свободный вход"
-          : "Пока никого";
+          : keyed
+            ? storedKey
+              ? `Ключ ${storedKey}`
+              : "Закрытая · нужен ключ"
+            : "Пока никого";
       namesBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
       namesBtn.addEventListener("click", (e) => {
         e.preventDefault();
@@ -1600,23 +1622,44 @@
       main.append(enterBtn, namesBtn);
       row.append(main);
 
-      if (!room.foreign) {
+      {
         const forgetBtn = document.createElement("button");
         forgetBtn.type = "button";
         forgetBtn.className = "dm-room-forget ghost compact";
         forgetBtn.dataset.code = room.code;
-        forgetBtn.setAttribute("aria-label", `Убрать ${room.code} из списка`);
-        forgetBtn.title = "Нажмите дважды, чтобы убрать";
+        const destroyForeign = Boolean(room.foreign && isAdmin);
+        forgetBtn.setAttribute(
+          "aria-label",
+          destroyForeign ? `Удалить комнату ${room.code}` : `Убрать ${room.code} из списка`
+        );
+        forgetBtn.title = destroyForeign
+          ? "Нажмите дважды, чтобы удалить комнату навсегда"
+          : "Нажмите дважды, чтобы убрать";
         forgetBtn.textContent = "×";
         if (forgetArmedCode === room.code) {
           forgetBtn.classList.add("armed");
-          forgetBtn.title = "Ещё раз — убрать";
+          forgetBtn.title = destroyForeign ? "Ещё раз — удалить навсегда" : "Ещё раз — убрать";
         }
         forgetBtn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
           if (forgetArmedCode === room.code) {
             clearForgetArm();
+            if (destroyForeign) {
+              socket.emit("room:delete", { code: room.code }, (res) => {
+                if (!res?.ok) {
+                  notify(res?.error || "Не удалилось");
+                  return;
+                }
+                adminRoomCatalog = adminRoomCatalog.filter((r) => r.code !== room.code);
+                forgetDmRoom(room.code);
+                expandedDmRoomCodes.delete(room.code);
+                if (dmCode === room.code) leaveDmMode({ quiet: true, openHub: true });
+                renderDmRoomsList({ skipRefresh: true });
+                notify(`Комната ${room.code} удалена`);
+              });
+              return;
+            }
             forgetDmRoom(room.code);
             expandedDmRoomCodes.delete(room.code);
             renderDmRoomsList({ skipRefresh: true });
@@ -1625,7 +1668,7 @@
           clearForgetArm();
           forgetArmedCode = room.code;
           forgetBtn.classList.add("armed");
-          forgetBtn.title = "Ещё раз — убрать";
+          forgetBtn.title = destroyForeign ? "Ещё раз — удалить навсегда" : "Ещё раз — убрать";
           forgetArmedTimer = setTimeout(() => {
             if (forgetArmedCode !== room.code) return;
             clearForgetArm();
@@ -4887,8 +4930,8 @@
       dmCreateJoinKey?.focus();
       return;
     }
-    const preferredRaw = (dmCreateCode?.value || "").replace(/\D/g, "").slice(0, 6);
-    if (preferredRaw && preferredRaw.length !== 6) {
+    const preferredRaw = normalizeDmCodeLocal(dmCreateCode?.value || "");
+    if ((dmCreateCode?.value || "").replace(/\D/g, "") && preferredRaw.length !== 6) {
       showDmDialogError("Номер комнаты — ровно 6 цифр, или оставьте пустым");
       dmCreateCode?.focus();
       return;
