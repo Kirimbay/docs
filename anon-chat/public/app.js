@@ -68,6 +68,7 @@
   const adminCancelBtn = $("#admin-cancel-btn");
   const lightbox = $("#lightbox");
   const lightboxImg = $("#lightbox-img");
+  const lightboxClose = $("#lightbox-close");
 
   const socket = io({ autoConnect: true });
   const NAME_KEY = "sarafan_name";
@@ -1907,10 +1908,7 @@
         e.preventDefault();
         e.stopPropagation();
         closeMsgActionMenu();
-        if (lightboxImg && lightbox) {
-          lightboxImg.src = msg.imageUrl;
-          lightbox.showModal();
-        }
+        openLightbox(msg.imageUrl);
       });
       menu.append(photoBtn);
     }
@@ -3119,10 +3117,217 @@
     adminDialog.style.transform = "";
     adminDialog.style.margin = "";
   });
-  lightbox?.addEventListener("close", () => {
-    if (lightboxImg) lightboxImg.removeAttribute("src");
-    syncViewportHeight();
+  lightboxClose?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    lightbox?.close();
   });
+
+  let resetLightboxZoom = () => {};
+
+  function openLightbox(url) {
+    if (!lightbox || !lightboxImg || !url) return;
+    resetLightboxZoom();
+    lightboxImg.src = url;
+    if (!lightbox.open) lightbox.showModal();
+  }
+
+  (function bindLightboxGallery() {
+    if (!lightbox || !lightboxImg) return;
+
+    const MIN = 1;
+    const MAX = 4;
+    let scale = 1;
+    let tx = 0;
+    let ty = 0;
+    /** @type {Map<number, { x: number, y: number }>} */
+    const pointers = new Map();
+    let pinchStart = null;
+    let panStart = null;
+    let lastTapAt = 0;
+    let lastTapX = 0;
+    let lastTapY = 0;
+    let moved = false;
+
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+    const applyTransform = (withTransition) => {
+      lightboxImg.style.transition = withTransition
+        ? "transform 200ms cubic-bezier(0.33, 1, 0.68, 1)"
+        : "none";
+      lightboxImg.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
+    };
+
+    const resetZoom = (animate = true) => {
+      scale = 1;
+      tx = 0;
+      ty = 0;
+      applyTransform(animate);
+      lightbox.classList.remove("is-zoomed");
+    };
+    resetLightboxZoom = () => resetZoom(false);
+
+    const constrainPan = () => {
+      if (scale <= 1.01) {
+        tx = 0;
+        ty = 0;
+        return;
+      }
+      const vw = lightbox.clientWidth || window.innerWidth;
+      const vh = lightbox.clientHeight || window.innerHeight;
+      const baseW = lightboxImg.offsetWidth || 1;
+      const baseH = lightboxImg.offsetHeight || 1;
+      const boundX = Math.max(0, (baseW * scale - vw) / 2);
+      const boundY = Math.max(0, (baseH * scale - vh) / 2);
+      tx = clamp(tx, -boundX, boundX);
+      ty = clamp(ty, -boundY, boundY);
+    };
+
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+    lightbox.addEventListener("close", () => {
+      pointers.clear();
+      pinchStart = null;
+      panStart = null;
+      resetZoom(false);
+      lightboxImg.removeAttribute("src");
+      syncViewportHeight();
+    });
+
+    lightboxImg.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        moved = false;
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        try {
+          lightboxImg.setPointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+        if (pointers.size === 2) {
+          const [a, b] = [...pointers.values()];
+          pinchStart = {
+            dist: dist(a, b) || 1,
+            scale,
+            mid: mid(a, b),
+            tx,
+            ty,
+          };
+          panStart = null;
+        } else if (pointers.size === 1 && scale > 1.01) {
+          panStart = { x: e.clientX, y: e.clientY, tx, ty };
+        }
+      },
+      { passive: true }
+    );
+
+    lightboxImg.addEventListener(
+      "pointermove",
+      (e) => {
+        if (!pointers.has(e.pointerId)) return;
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (pointers.size === 2 && pinchStart) {
+          const [a, b] = [...pointers.values()];
+          const d = dist(a, b) || 1;
+          scale = clamp(pinchStart.scale * (d / pinchStart.dist), MIN, MAX);
+          const m = mid(a, b);
+          tx = pinchStart.tx + (m.x - pinchStart.mid.x);
+          ty = pinchStart.ty + (m.y - pinchStart.mid.y);
+          constrainPan();
+          applyTransform(false);
+          lightbox.classList.toggle("is-zoomed", scale > 1.01);
+          moved = true;
+          return;
+        }
+
+        if (pointers.size === 1 && panStart && scale > 1.01) {
+          const dx = e.clientX - panStart.x;
+          const dy = e.clientY - panStart.y;
+          if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
+          tx = panStart.tx + dx;
+          ty = panStart.ty + dy;
+          constrainPan();
+          applyTransform(false);
+        }
+      },
+      { passive: true }
+    );
+
+    const endPointer = (e) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinchStart = null;
+      if (pointers.size === 0) {
+        panStart = null;
+        if (scale <= 1.01) resetZoom(true);
+        else {
+          constrainPan();
+          applyTransform(true);
+        }
+      } else if (pointers.size === 1 && scale > 1.01) {
+        const only = [...pointers.values()][0];
+        panStart = { x: only.x, y: only.y, tx, ty };
+      }
+    };
+
+    lightboxImg.addEventListener("pointerup", (e) => {
+      const wasMoved = moved;
+      endPointer(e);
+      if (wasMoved || pointers.size > 0) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+
+      const now = Date.now();
+      const dt = now - lastTapAt;
+      const dx = Math.abs(e.clientX - lastTapX);
+      const dy = Math.abs(e.clientY - lastTapY);
+      if (dt < 320 && dx < 28 && dy < 28) {
+        lastTapAt = 0;
+        resetZoom(true);
+        return;
+      }
+      lastTapAt = now;
+      lastTapX = e.clientX;
+      lastTapY = e.clientY;
+    });
+
+    lightboxImg.addEventListener("pointercancel", endPointer);
+
+    lightboxImg.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.12 : 0.12;
+        const next = clamp(scale + delta, MIN, MAX);
+        if (next === scale) return;
+        scale = next;
+        if (scale <= 1.01) resetZoom(false);
+        else {
+          constrainPan();
+          applyTransform(false);
+          lightbox.classList.add("is-zoomed");
+        }
+      },
+      { passive: false }
+    );
+
+    lightbox.addEventListener(
+      "gesturestart",
+      (e) => {
+        e.preventDefault();
+      },
+      { passive: false }
+    );
+    lightbox.addEventListener(
+      "touchmove",
+      (e) => {
+        if (e.touches.length > 1) e.preventDefault();
+      },
+      { passive: false }
+    );
+  })();
+
   renameInput?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
