@@ -46,6 +46,7 @@
   const dmBarCode = $("#dm-bar-code");
   const dmBarPresence = $("#dm-bar-presence");
   const dmCopyBtn = $("#dm-copy-btn");
+  const dmLeaveBtn = $("#dm-leave-btn");
   const dmBarLabel = $("#dm-bar-label");
   const roomKeyBtn = $("#room-key-btn");
   const roomAdminPanelBtn = $("#room-admin-panel-btn");
@@ -622,15 +623,17 @@
     }
     if (!dmBarCode) return;
     if (isPublic) {
-      dmBarCode.textContent = `${publicChatLabel} · ${dmCode}`;
+      dmBarCode.textContent = `${publicChatLabel}, ${dmCode}`;
       return;
     }
     if (roomKeyed) {
       const key = loadRoomKey(dmCode);
-      dmBarCode.textContent = key ? `${dmCode} · ключ ${key}` : `${dmCode} · по ключу`;
+      dmBarCode.textContent = key
+        ? `комната ${dmCode}, ключ ${key}`
+        : `комната ${dmCode}, ключ нужен`;
       return;
     }
-    dmBarCode.textContent = dmCode;
+    dmBarCode.textContent = `комната ${dmCode}`;
   }
 
   function clearDeleteArm() {
