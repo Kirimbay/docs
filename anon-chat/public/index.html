@@ -216,18 +216,18 @@
         <div class="dm-dialog-footer">
           <button type="button" id="dm-create-btn" class="primary dm-create-btn">Новая комната</button>
           <label class="field dm-code-field">
-            <span>Пин</span>
+            <span>Пин · ровно 6 цифр</span>
             <div class="name-row">
               <input
                 id="dm-code-input"
                 type="text"
                 inputmode="numeric"
-                pattern="[0-9]*"
+                pattern="[0-9]{6}"
                 maxlength="6"
                 autocomplete="one-time-code"
                 autocapitalize="off"
                 spellcheck="false"
-                placeholder="введите пин"
+                placeholder="000543"
               />
               <button type="button" id="dm-join-btn" class="ghost">Войти</button>
             </div>
