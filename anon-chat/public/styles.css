@@ -723,10 +723,10 @@ button {
 
 .room-access-zone {
   display: grid;
-  gap: 0.4rem;
-  padding: 0.65rem 0.75rem 0.75rem;
+  gap: 0.45rem;
+  padding: 0.7rem 0.8rem 0.8rem;
   border: 1px solid color-mix(in srgb, #d48806 40%, var(--line));
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: color-mix(in srgb, #e09a3e 10%, var(--bg-elev));
 }
 
@@ -742,15 +742,36 @@ button {
   font-size: 0.8rem;
 }
 
-.room-access-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+/* Bubble-shaped actions in room settings — not round icon pills */
+#room-admin-panel .room-panel-btn {
+  width: 100%;
+  min-height: 2.65rem;
+  height: auto;
+  padding: 0.72rem 1rem;
+  border-radius: var(--radius);
+  font-weight: 650;
+  line-height: 1.25;
+  white-space: normal;
+  text-align: center;
 }
 
-.room-access-actions .primary,
-.room-access-actions .ghost {
-  flex: 1 1 auto;
+#room-admin-panel .room-panel-btn.primary {
+  background: var(--accent-fill);
+  color: var(--accent-on);
+  border: 1px solid transparent;
+}
+
+#room-admin-panel .room-panel-btn.ghost {
+  background: color-mix(in srgb, var(--bg-elev) 80%, var(--bg));
+  border: 1px solid var(--line);
+}
+
+#room-admin-panel .room-panel-btn[hidden] {
+  display: none !important;
+}
+
+#room-admin-panel #room-join-key-field[hidden] {
+  display: none !important;
 }
 
 .room-delete-zone {

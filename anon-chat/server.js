@@ -1750,7 +1750,7 @@ io.on("connection", (socket) => {
     const key = normalizeRoomKey(payload.key);
     if (!key) {
       if (typeof ack === "function") {
-        ack({ ok: false, error: "Придумайте ключ из ровно 4 цифр" });
+        ack({ ok: false, error: "Придумайте пин админа из ровно 4 цифр" });
       }
       return;
     }
@@ -2073,12 +2073,12 @@ io.on("connection", (socket) => {
     const room = store.rooms[code];
     const adminHash = roomAdminKeyHash(room);
     if (!adminHash) {
-      if (typeof ack === "function") ack({ ok: false, error: "У этой комнаты нет пароля админа" });
+      if (typeof ack === "function") ack({ ok: false, error: "У этой комнаты нет пина админа" });
       return;
     }
     const key = normalizeRoomKey(payload.key);
     if (!key || hashRoomKey(key) !== adminHash) {
-      if (typeof ack === "function") ack({ ok: false, error: "Неверный пароль админа" });
+      if (typeof ack === "function") ack({ ok: false, error: "Неверный пин админа" });
       return;
     }
     const clientId = normalizeClientId(user.clientId || socket.data.clientId);
@@ -2180,11 +2180,11 @@ io.on("connection", (socket) => {
     const newKey = normalizeRoomKey(payload.newKey);
     const adminHash = roomAdminKeyHash(room);
     if (!currentKey || !adminHash || hashRoomKey(currentKey) !== adminHash) {
-      if (typeof ack === "function") ack({ ok: false, error: "Неверный текущий пароль админа" });
+      if (typeof ack === "function") ack({ ok: false, error: "Неверный текущий пин админа" });
       return;
     }
     if (!newKey) {
-      if (typeof ack === "function") ack({ ok: false, error: "Новый пароль — ровно 4 цифры" });
+      if (typeof ack === "function") ack({ ok: false, error: "Новый пин — ровно 4 цифры" });
       return;
     }
     room.adminKeyHash = hashRoomKey(newKey);
@@ -2221,7 +2221,7 @@ io.on("connection", (socket) => {
     const adminHash = roomAdminKeyHash(room);
     // Prove with admin password.
     if (!currentKey || !adminHash || hashRoomKey(currentKey) !== adminHash) {
-      if (typeof ack === "function") ack({ ok: false, error: "Подтвердите паролем админа" });
+      if (typeof ack === "function") ack({ ok: false, error: "Подтвердите пином админа" });
       return;
     }
     const makeKeyed = payload.access === "keyed" || roomAccessMode(room) === "keyed" || Boolean(newKey);

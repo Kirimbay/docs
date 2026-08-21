@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=143" />
+    <link rel="stylesheet" href="/styles.css?v=144" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -241,7 +241,7 @@
               />
             </label>
             <label class="field dm-key-field">
-              <span>Пароль админа · 4 цифры (для «по ключу» — и вход)</span>
+              <span>Пин админа · 4 цифры (для «по ключу» — ещё и ключ входа)</span>
               <input
                 id="dm-create-key"
                 type="text"
@@ -291,9 +291,9 @@
     <dialog id="room-key-dialog" class="dialog sheet-top">
       <div class="dialog-body">
         <h2>Режим админа</h2>
-        <p class="dm-lead">Пароль админа · 4 цифры. Общаетесь от своего имени; здесь — удаление и закрепы.</p>
+        <p class="dm-lead">Пин админа · 4 цифры. Общаетесь от своего имени; здесь — удаление и закрепы.</p>
         <label class="field">
-          <span>Пароль админа</span>
+          <span>Пин админа</span>
           <input id="room-key-input" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="4821" autocomplete="off" />
         </label>
         <p id="room-key-error" class="error" hidden></p>
@@ -310,34 +310,31 @@
         <p class="dm-lead" id="room-admin-panel-lead">Номер · права создателя</p>
 
         <label class="field">
-          <span>Новый пароль админа (4 цифры)</span>
+          <span>Новый пин админа · 4 цифры</span>
           <input id="room-new-admin-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
         </label>
         <label class="field">
-          <span>Текущий пароль админа (подтверждение)</span>
+          <span>Текущий пин админа (подтверждение)</span>
           <input id="room-confirm-admin-key" type="text" inputmode="numeric" maxlength="4" placeholder="сейчас" autocomplete="off" />
         </label>
-        <button type="button" id="room-change-admin-key-btn" class="primary compact">Сменить пароль админа</button>
+        <button type="button" id="room-change-admin-key-btn" class="room-panel-btn primary">Сменить пин админа</button>
 
         <hr class="room-admin-hr" />
 
         <section class="room-access-zone" aria-label="Открыть или закрыть комнату">
           <p class="room-access-title">Доступ в комнату</p>
           <p class="dm-lead" id="room-access-status">Сейчас: открытая · без ключа</p>
-          <label class="field">
-            <span>Ключ входа (4 цифры) — нужен, чтобы закрыть комнату</span>
+          <label class="field" id="room-join-key-field">
+            <span id="room-join-key-label">Ключ · 4 цифры</span>
             <input id="room-new-join-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
           </label>
-          <div class="room-access-actions">
-            <button type="button" id="room-make-open-btn" class="ghost compact">Открыть · без ключа</button>
-            <button type="button" id="room-make-keyed-btn" class="primary compact">Закрыть · по ключу</button>
-          </div>
-          <button type="button" id="room-change-join-key-btn" class="ghost compact">Сменить ключ входа</button>
+          <button type="button" id="room-make-open-btn" class="room-panel-btn ghost">Открыть комнату · без ключа</button>
+          <button type="button" id="room-make-keyed-btn" class="room-panel-btn primary">Закрыть комнату · по ключу</button>
         </section>
 
         <hr class="room-admin-hr" />
 
-        <button type="button" id="room-close-btn" class="ghost compact">Закрыть вход · выгнать всех</button>
+        <button type="button" id="room-close-btn" class="room-panel-btn ghost">Закрыть вход · выгнать всех</button>
 
         <hr class="room-admin-hr" />
 
@@ -345,13 +342,13 @@
           <p class="room-delete-warn">
             Опасная зона · удаление необратимо. Комната, сообщения и участники пропадут навсегда.
           </p>
-          <p class="room-delete-lead">Чтобы удалить — введите номер этой комнаты и пароль админа</p>
+          <p class="room-delete-lead">Чтобы удалить — введите номер комнаты (6) и пин админа (4)</p>
           <label class="field">
-            <span>Номер комнаты</span>
+            <span>Номер комнаты · 6 цифр</span>
             <input id="room-delete-code" type="text" inputmode="numeric" maxlength="6" placeholder="000543" autocomplete="off" />
           </label>
           <label class="field">
-            <span>Пароль админа</span>
+            <span>Пин админа · 4 цифры</span>
             <input id="room-delete-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
           </label>
           <button type="button" id="room-delete-btn" class="room-delete-btn">Удалить комнату навсегда</button>
@@ -388,6 +385,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=143"></script>
+    <script src="/app.js?v=144"></script>
   </body>
 </html>

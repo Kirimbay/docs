@@ -86,6 +86,8 @@
   const roomConfirmAdminKey = $("#room-confirm-admin-key");
   const roomChangeAdminKeyBtn = $("#room-change-admin-key-btn");
   const roomNewJoinKey = $("#room-new-join-key");
+  const roomJoinKeyField = $("#room-join-key-field");
+  const roomJoinKeyLabel = $("#room-join-key-label");
   const roomChangeJoinKeyBtn = $("#room-change-join-key-btn");
   const roomMakeOpenBtn = $("#room-make-open-btn");
   const roomMakeKeyedBtn = $("#room-make-keyed-btn");
@@ -415,7 +417,7 @@
       roomKeyBtn.classList.toggle("active", isRoomAdmin);
       roomKeyBtn.title = isRoomAdmin
         ? "Выключить режим админа — снова обычный участник"
-        : "Пароль админа · удаление и закрепы";
+        : "Пин админа · удаление и закрепы";
     }
     if (roomAdminPanelBtn) {
       roomAdminPanelBtn.hidden = !(isRoomAdmin && !isAdmin && dmCode && !isPublicRoomCode(dmCode));
@@ -438,6 +440,7 @@
           : "Сейчас: закрытая · по ключу"
         : "Сейчас: открытая · без ключа";
     }
+    // Closed → only «open»; open → only «close» (+ key field).
     if (roomMakeOpenBtn) {
       roomMakeOpenBtn.hidden = !roomKeyed;
       roomMakeOpenBtn.disabled = !isRoomAdmin;
@@ -447,7 +450,18 @@
       roomMakeKeyedBtn.disabled = !isRoomAdmin;
     }
     if (roomChangeJoinKeyBtn) {
+      // Key change only while closed; open rooms just get closed with a key.
       roomChangeJoinKeyBtn.hidden = !roomKeyed;
+      roomChangeJoinKeyBtn.disabled = !isRoomAdmin;
+    }
+    if (roomJoinKeyField) {
+      // Need key input to close an open room, or to change key on a closed one.
+      roomJoinKeyField.hidden = false;
+    }
+    if (roomJoinKeyLabel) {
+      roomJoinKeyLabel.textContent = roomKeyed
+        ? "Новый ключ · 4 цифры (чтобы сменить)"
+        : "Ключ · 4 цифры (чтобы закрыть комнату)";
     }
   }
 
@@ -4701,7 +4715,7 @@
     showDmDialogError("");
     const key = normalizeRoomKeyLocal(dmCreateKey?.value || "");
     if (key.length !== 4) {
-      showDmDialogError("Придумайте ключ из ровно 4 цифр");
+      showDmDialogError("Придумайте пин админа из ровно 4 цифр");
       dmCreateKey?.focus();
       return;
     }
@@ -4731,10 +4745,10 @@
       const mode = access === "keyed" ? "по ключу" : "свободная";
       if (res.remapped && preferredRaw) {
         notify(
-          `Номер ${preferredRaw} занят · выдан свободный ${res.code} · пароль админа ${key} (${mode})`
+          `Номер ${preferredRaw} занят · выдан свободный ${res.code} · пин админа ${key} (${mode})`
         );
       } else {
-        notify(`Номер ${res.code} · пароль админа ${key} (${mode}) — сохрани. Режим админа — кнопка сверху`);
+        notify(`Номер ${res.code} · пин админа ${key} (${mode}) — сохрани. Режим админа — кнопка сверху`);
       }
     });
   });
@@ -4848,7 +4862,7 @@
     const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || "");
     const newKey = normalizeRoomKeyLocal(roomNewAdminKey?.value || "");
     if (currentKey.length !== 4 || newKey.length !== 4) {
-      showRoomAdminPanelError("Пароли — по 4 цифры");
+      showRoomAdminPanelError("Пины админа — по 4 цифры");
       return;
     }
     socket.emit("room:change-admin-key", { currentKey, newKey }, (res) => {
@@ -4860,7 +4874,7 @@
       if (roomConfirmAdminKey) roomConfirmAdminKey.value = newKey;
       if (roomNewAdminKey) roomNewAdminKey.value = "";
       showRoomAdminPanelError("");
-      notify("Пароль админа обновлён");
+      notify("Пин админа обновлён");
     });
   });
 
@@ -4868,7 +4882,7 @@
     const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || loadRoomKey(dmCode) || "");
     const newKey = normalizeRoomKeyLocal(roomNewJoinKey?.value || "");
     if (currentKey.length !== 4) {
-      showRoomAdminPanelError("Подтвердите паролем админа (4 цифры)");
+      showRoomAdminPanelError("Подтвердите пином админа (4 цифры)");
       return;
     }
     if (newKey.length !== 4) {
@@ -4897,7 +4911,7 @@
   roomMakeOpenBtn?.addEventListener("click", () => {
     const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || loadRoomKey(dmCode) || "");
     if (currentKey.length !== 4) {
-      showRoomAdminPanelError("Подтвердите паролем админа (4 цифры) сверху");
+      showRoomAdminPanelError("Подтвердите пином админа (4 цифры) сверху");
       roomConfirmAdminKey?.focus();
       return;
     }
@@ -4919,7 +4933,7 @@
       roomNewJoinKey?.value || loadRoomKey(dmCode) || roomConfirmAdminKey?.value || ""
     );
     if (currentKey.length !== 4) {
-      showRoomAdminPanelError("Подтвердите паролем админа (4 цифры) сверху");
+      showRoomAdminPanelError("Подтвердите пином админа (4 цифры) сверху");
       roomConfirmAdminKey?.focus();
       return;
     }
@@ -4975,7 +4989,7 @@
     const code = normalizeDmCodeLocal(roomDeleteCode?.value || "");
     const key = normalizeRoomKeyLocal(roomDeleteKey?.value || "");
     if (code.length !== 6 || key.length !== 4) {
-      showRoomAdminPanelError("Для удаления нужны номер (6) и пароль админа (4)");
+      showRoomAdminPanelError("Для удаления нужны номер (6) и пин админа (4)");
       return;
     }
     if (code !== dmCode) {
