@@ -1001,6 +1001,8 @@
           unread: Math.max(0, Number(r.unread) || 0),
           lastReadId: reads[normalizeDmCodeLocal(r.code)] || "",
           lastActiveAt: typeof r.lastActiveAt === "string" ? r.lastActiveAt : "",
+          keyed: Boolean(r.keyed),
+          closed: Boolean(r.closed),
           foreign: true,
         }))
         .filter((r) => r.code);
