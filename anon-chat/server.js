@@ -1052,6 +1052,10 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Сообщение не найдено" });
       return;
     }
+    if (msg.name === user.name) {
+      if (typeof ack === "function") ack({ ok: false, error: "На своё сообщение реакцию не ставят" });
+      return;
+    }
     if (!msg.reactions || typeof msg.reactions !== "object") msg.reactions = {};
     const list = Array.isArray(msg.reactions[emoji]) ? msg.reactions[emoji] : [];
     const idx = list.indexOf(user.name);

@@ -551,7 +551,7 @@
     if (dmLeavePublicBtn) dmLeavePublicBtn.hidden = !inDm;
     if (dmLead) {
       dmLead.textContent = inDm
-        ? `Сейчас комнате ${dmCode}. Можно сменить чат или вернуться в общий.`
+        ? `Сейчас в комнате ${dmCode}. Можно сменить чат или вернуться в общий.`
         : "История в коде. Выберите чат или введите пин.";
     }
   }
@@ -1562,28 +1562,31 @@
       menu.append(copyBtn);
     }
 
-    const reacts = document.createElement("div");
-    reacts.className = "msg-action-reacts";
-    reacts.setAttribute("role", "group");
-    reacts.setAttribute("aria-label", "Реакции");
-    for (const { emoji, title } of REACTIONS) {
-      const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
-      const mine = reactors.includes(myName);
-      const opt = document.createElement("button");
-      opt.type = "button";
-      opt.className = "msg-action-react" + (mine ? " mine" : "");
-      opt.title = title;
-      opt.setAttribute("aria-label", title);
-      opt.textContent = emoji;
-      opt.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        applyReaction(msg.id, emoji);
-      });
-      reacts.append(opt);
+    // Own messages: reply/copy only — no self-reactions.
+    if (msg.name !== myName) {
+      const reacts = document.createElement("div");
+      reacts.className = "msg-action-reacts";
+      reacts.setAttribute("role", "group");
+      reacts.setAttribute("aria-label", "Реакции");
+      for (const { emoji, title } of REACTIONS) {
+        const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
+        const mine = reactors.includes(myName);
+        const opt = document.createElement("button");
+        opt.type = "button";
+        opt.className = "msg-action-react" + (mine ? " mine" : "");
+        opt.title = title;
+        opt.setAttribute("aria-label", title);
+        opt.textContent = emoji;
+        opt.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          applyReaction(msg.id, emoji);
+        });
+        reacts.append(opt);
+      }
+      menu.append(reacts);
     }
 
-    menu.append(reacts);
     document.body.appendChild(menu);
     requestAnimationFrame(() => positionFixedMenu(menu, msgEl, clientX, clientY));
   }
@@ -1884,6 +1887,10 @@
     const prev =
       (lastState.messages || []).find((m) => m.id === msgId) ||
       (lastState.pinned || []).find((m) => m.id === msgId);
+    if (prev?.name && prev.name === myName) {
+      notify("На своё сообщение реакцию не ставят");
+      return;
+    }
     const hadMine = Boolean(
       myName && Array.isArray(prev?.reactions?.[emoji]) && prev.reactions[emoji].includes(myName)
     );
@@ -2016,19 +2023,22 @@
 
     const activeWrap = document.createElement("div");
     activeWrap.className = "msg-reacts-active";
+    const isOwn = msg.name === myName;
     for (const { emoji, title } of REACTIONS) {
       const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
       if (!reactors.length) continue;
       const mine = reactors.includes(myName);
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "msg-react-chip" + (mine ? " mine" : "");
+      const chip = document.createElement(isOwn ? "span" : "button");
+      if (!isOwn) chip.type = "button";
+      chip.className = "msg-react-chip" + (mine ? " mine" : "") + (isOwn ? " is-static" : "");
       chip.title = title;
       chip.textContent = reactors.length > 1 ? `${emoji}${reactors.length}` : emoji;
-      chip.addEventListener("click", (e) => {
-        e.stopPropagation();
-        applyReaction(msg.id, emoji);
-      });
+      if (!isOwn) {
+        chip.addEventListener("click", (e) => {
+          e.stopPropagation();
+          applyReaction(msg.id, emoji);
+        });
+      }
       activeWrap.append(chip);
     }
     if (activeWrap.childElementCount) actions.append(activeWrap);
