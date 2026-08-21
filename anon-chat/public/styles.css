@@ -599,6 +599,62 @@ button {
   border-radius: 10px;
 }
 
+.dm-create-box {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.35rem 0 0.55rem;
+}
+
+.dm-create-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dm-access-row {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.dm-access-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.dm-access-opt:has(input:checked) {
+  border-color: color-mix(in srgb, var(--dm-accent) 45%, var(--line));
+  color: var(--dm-accent);
+}
+
+.dm-access-opt input {
+  accent-color: var(--dm-accent);
+}
+
+.dm-key-field input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+}
+
+.dm-room-row.is-keyed .dm-room-code::after {
+  content: " · ключ";
+  font-weight: 500;
+  font-size: 0.72em;
+  color: var(--ink-soft);
+}
+
+.dm-room-row.is-closed {
+  opacity: 0.72;
+}
+
 .dm-dialog .dm-code-field {
   margin: 0;
   gap: 0.18rem;

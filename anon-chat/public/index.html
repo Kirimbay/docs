@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=135" />
+    <link rel="stylesheet" href="/styles.css?v=136" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -84,9 +84,11 @@
       </header>
 
       <div id="dm-bar" class="dm-bar" hidden>
-        <span class="dm-bar-text">код <strong id="dm-bar-code"></strong></span>
-        <span id="dm-bar-presence" class="dm-bar-presence">1/100</span>
-        <button type="button" id="dm-copy-btn" class="ghost compact" title="Скопировать код">Скопировать код</button>
+        <span class="dm-bar-text"><span id="dm-bar-label">номер</span> <strong id="dm-bar-code"></strong></span>
+        <span id="dm-bar-presence" class="dm-bar-presence">1/5000</span>
+        <button type="button" id="dm-copy-btn" class="ghost compact" title="Скопировать номер">Номер</button>
+        <button type="button" id="room-key-btn" class="ghost compact" hidden title="Ключ админа комнаты">Ключ</button>
+        <button type="button" id="room-close-btn" class="ghost compact" hidden title="Закрыть комнату для входа">Закрыть</button>
       </div>
 
       <button type="button" id="pins" class="pin-bar" hidden title="Нажмите — перейти. Удерживайте — список">
@@ -209,14 +211,39 @@
           <h2 id="dm-dialog-title">Чаты</h2>
           <button type="button" id="dm-dialog-close" class="ghost compact">Готово</button>
         </div>
-        <p id="dm-lead" class="dm-lead">Комнаты по пину · Сарафан ВПН = 000000</p>
+        <p id="dm-lead" class="dm-lead">Номер 6 цифр · ключ 4 цифры · Сарафан ВПН = 000000</p>
         <div id="dm-rooms-wrap" class="dm-rooms-wrap">
           <div id="dm-rooms-list" class="dm-rooms-list" role="list"></div>
         </div>
         <div class="dm-dialog-footer">
-          <button type="button" id="dm-create-btn" class="primary dm-create-btn">Новая комната</button>
+          <div class="dm-create-box">
+            <p class="dm-create-title">Новая комната</p>
+            <div class="dm-access-row" role="radiogroup" aria-label="Тип комнаты">
+              <label class="dm-access-opt">
+                <input type="radio" name="dm-access" value="open" checked />
+                <span>Свободная</span>
+              </label>
+              <label class="dm-access-opt">
+                <input type="radio" name="dm-access" value="keyed" />
+                <span>По ключу</span>
+              </label>
+            </div>
+            <label class="field dm-key-field">
+              <span>Ключ · ровно 4 цифры</span>
+              <input
+                id="dm-create-key"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]{4}"
+                maxlength="4"
+                autocomplete="off"
+                placeholder="4821"
+              />
+            </label>
+            <button type="button" id="dm-create-btn" class="primary dm-create-btn">Создать</button>
+          </div>
           <label class="field dm-code-field">
-            <span>Пин · ровно 6 цифр</span>
+            <span>Номер · ровно 6 цифр</span>
             <div class="name-row">
               <input
                 id="dm-code-input"
@@ -232,7 +259,35 @@
               <button type="button" id="dm-join-btn" class="ghost">Войти</button>
             </div>
           </label>
+          <label class="field dm-key-field" id="dm-join-key-wrap">
+            <span>Ключ · 4 цифры (если комната закрыта на ключ)</span>
+            <input
+              id="dm-join-key"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]{4}"
+              maxlength="4"
+              autocomplete="off"
+              placeholder="4821"
+            />
+          </label>
           <p id="dm-dialog-error" class="error" hidden></p>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="room-key-dialog" class="dialog sheet-top">
+      <div class="dialog-body">
+        <h2>Ключ комнаты</h2>
+        <p class="dm-lead">4 цифры создателя — удаление и закрепы в этой комнате</p>
+        <label class="field">
+          <span>Ключ</span>
+          <input id="room-key-input" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="4821" autocomplete="off" />
+        </label>
+        <p id="room-key-error" class="error" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" id="room-key-cancel" class="ghost">Отмена</button>
+          <button type="button" id="room-key-submit" class="primary">Войти</button>
         </div>
       </div>
     </dialog>
@@ -261,6 +316,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=135"></script>
+    <script src="/app.js?v=136"></script>
   </body>
 </html>

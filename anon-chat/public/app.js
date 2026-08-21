@@ -44,8 +44,13 @@
   const dmBarCode = $("#dm-bar-code");
   const dmBarPresence = $("#dm-bar-presence");
   const dmCopyBtn = $("#dm-copy-btn");
+  const dmBarLabel = $("#dm-bar-label");
+  const roomKeyBtn = $("#room-key-btn");
+  const roomCloseBtn = $("#room-close-btn");
   const dmDialog = $("#dm-dialog");
   const dmCreateBtn = $("#dm-create-btn");
+  const dmCreateKey = $("#dm-create-key");
+  const dmJoinKey = $("#dm-join-key");
   const dmLead = $("#dm-lead");
   const dmDialogTitle = $("#dm-dialog-title");
   const dmJoinBtn = $("#dm-join-btn");
@@ -66,6 +71,11 @@
   const adminError = $("#admin-error");
   const adminSubmit = $("#admin-submit");
   const adminCancelBtn = $("#admin-cancel-btn");
+  const roomKeyDialog = $("#room-key-dialog");
+  const roomKeyInput = $("#room-key-input");
+  const roomKeyError = $("#room-key-error");
+  const roomKeySubmit = $("#room-key-submit");
+  const roomKeyCancel = $("#room-key-cancel");
   const lightbox = $("#lightbox");
   const lightboxImg = $("#lightbox-img");
   const lightboxClose = $("#lightbox-close");
@@ -93,6 +103,7 @@
   const NOTIFY_PUBLIC_KEY = "sarafan_notify_public";
   const NOTIFY_DM_KEY = "sarafan_notify_dm";
   const ADMIN_ROOM_READS_KEY = "sarafan_admin_room_reads";
+  const ROOM_KEYS_KEY = "sarafan_room_keys";
   const MAX_ADMIN_ROOM_READS = 200;
   const LIKE_EMOJI = "❤️";
   const REACTIONS = [
@@ -105,6 +116,12 @@
 
   let myName = "";
   let isAdmin = false;
+  /** Room creator unlocked via 4-digit key (not super-admin). */
+  let isRoomAdmin = false;
+  let roomIsOwner = false;
+  let roomAccess = "open";
+  let roomClosed = false;
+  let roomKeyed = false;
   /** Device-scoped restriction: hub hides public chat. */
   let accessRoomsOnly = false;
   let publicChatLabel = PUBLIC_CHAT_LABEL_DEFAULT;
@@ -213,7 +230,7 @@
     wrap.addEventListener(
       "pointerdown",
       (e) => {
-        if (!isAdmin || bulkSelectOn) return;
+        if (!canModerate() || bulkSelectOn) return;
         if (e.pointerType === "mouse") return;
         if (
           e.target.closest(
@@ -284,6 +301,76 @@
       axis = null;
       dx = 0;
     });
+  }
+
+  function canModerate() {
+    return Boolean(isAdmin || isRoomAdmin);
+  }
+
+  function normalizeRoomKeyLocal(raw) {
+    return String(raw || "").replace(/\D/g, "").slice(0, 4);
+  }
+
+  function loadRoomKeys() {
+    try {
+      const raw = localStorage.getItem(ROOM_KEYS_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveRoomKey(code, key) {
+    const c = normalizeDmCodeLocal(code);
+    const k = normalizeRoomKeyLocal(key);
+    if (c.length !== 6 || k.length !== 4) return;
+    try {
+      const map = loadRoomKeys();
+      map[c] = k;
+      localStorage.setItem(ROOM_KEYS_KEY, JSON.stringify(map));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function loadRoomKey(code) {
+    const c = normalizeDmCodeLocal(code);
+    const k = normalizeRoomKeyLocal(loadRoomKeys()[c] || "");
+    return k.length === 4 ? k : "";
+  }
+
+  function syncRoomAdminUi() {
+    document.body.classList.toggle("room-admin-on", Boolean(isRoomAdmin && !isAdmin));
+    if (roomKeyBtn) {
+      roomKeyBtn.hidden = !dmCode || isPublicRoomCode(dmCode) || isAdmin || !roomIsOwner;
+      roomKeyBtn.textContent = isRoomAdmin ? "Админ ✓" : "Ключ";
+      roomKeyBtn.classList.toggle("active", isRoomAdmin);
+    }
+    if (roomCloseBtn) {
+      roomCloseBtn.hidden = !dmCode || isPublicRoomCode(dmCode) || !(isAdmin || isRoomAdmin);
+      roomCloseBtn.textContent = roomClosed ? "Открыть" : "Закрыть";
+    }
+  }
+
+  function applyRoomFlags(res = {}) {
+    if (typeof res.roomAdmin === "boolean") isRoomAdmin = res.roomAdmin;
+    if (typeof res.isOwner === "boolean") roomIsOwner = res.isOwner;
+    if (res.access === "keyed" || res.access === "open") roomAccess = res.access;
+    if (typeof res.closed === "boolean") roomClosed = res.closed;
+    if (typeof res.keyed === "boolean") roomKeyed = res.keyed;
+    else roomKeyed = roomAccess === "keyed";
+    syncRoomAdminUi();
+  }
+
+  function clearRoomAdminState() {
+    isRoomAdmin = false;
+    roomIsOwner = false;
+    roomAccess = "open";
+    roomClosed = false;
+    roomKeyed = false;
+    syncRoomAdminUi();
   }
 
   function clearDeleteArm() {
@@ -993,12 +1080,12 @@
     if (loadDmCode() === c) saveDmCode("");
   }
 
-  function joinDmByCode(code, { fromList = false, watchOnly = false } = {}) {
+  function joinDmByCode(code, { fromList = false, watchOnly = false, key = "" } = {}) {
     showDmDialogError("");
     const c = normalizeDmCodeLocal(code);
     if (dmCodeInput) dmCodeInput.value = c;
     if (c.length !== 6) {
-      showDmDialogError("Нужен пин из ровно 6 цифр (например 000543)");
+      showDmDialogError("Нужен номер из ровно 6 цифр (например 000543)");
       return;
     }
     if (accessRoomsOnly && isPublicRoomCode(c)) {
@@ -1006,17 +1093,26 @@
       notify(`«${publicChatLabel}» недоступен на этом устройстве`);
       return;
     }
+    const joinKey =
+      normalizeRoomKeyLocal(key) ||
+      normalizeRoomKeyLocal(dmJoinKey?.value || "") ||
+      loadRoomKey(c);
+    if (dmJoinKey && joinKey && dmJoinKey.value !== joinKey) dmJoinKey.value = joinKey;
     const ghost = Boolean(isAdmin && (watchOnly || roomsForDmList().some((r) => r.code === c && r.foreign)));
-    socket.emit("dm:join", { code: c }, (res) => {
+    socket.emit("dm:join", { code: c, key: joinKey || undefined }, (res) => {
       if (!res?.ok) {
         const err = res?.error || "Не удалось войти";
         showDmDialogError(err);
-        if (/не найден|проверьте код/i.test(err)) {
+        if (res?.needsKey) {
+          dmJoinKey?.focus();
+        }
+        if (/не найден|проверьте/i.test(err)) {
           forgetDmRoom(c);
           renderDmRoomsList();
         }
         return;
       }
+      if (joinKey) saveRoomKey(c, joinKey);
       enterDmMode(res, { watchOnly: ghost || Boolean(res.ghost) });
       markSessionLive();
       if (!ghost && !res.ghost) saveLastDest(c);
@@ -1090,6 +1186,8 @@
       row.className =
         "dm-room-row" +
         (room.foreign ? " is-foreign" : "") +
+        (room.keyed || loadRoomKey(room.code) ? " is-keyed" : "") +
+        (room.closed ? " is-closed" : "") +
         (dmCode === room.code ? " is-current" : "");
       row.setAttribute("role", "listitem");
       const expanded = expandedDmRoomCodes.has(room.code);
@@ -1273,6 +1371,7 @@
     }
     publicStateBackup = null;
     dmCode = res.code;
+    applyRoomFlags(res);
     removePendingInvite(res.code);
     const ghost = Boolean(watchOnly || res.ghost);
     const isPublic = isPublicRoomCode(res.code);
@@ -1309,9 +1408,17 @@
     document.body.classList.add("dm-on");
     document.body.classList.toggle("dm-ghost", Boolean(isAdmin));
     if (dmBar) dmBar.hidden = false;
+    if (dmBarLabel) {
+      dmBarLabel.textContent = isPublic
+        ? ""
+        : roomKeyed
+          ? "номер·ключ"
+          : "номер";
+    }
     if (dmBarCode) {
       dmBarCode.textContent = isPublic ? `${publicChatLabel} · ${res.code}` : res.code;
     }
+    syncRoomAdminUi();
     clearReply();
     renderAll(
       { messages: res.messages || [], pinned: Array.isArray(res.pinned) ? res.pinned : [] },
@@ -1326,14 +1433,15 @@
           : "Написать в комнату…";
     }
     const maxMembers = Number(res.maxMembers) > 0 ? Number(res.maxMembers) : 5000;
+    const accessHint = roomKeyed ? " · по ключу" : " · свободная";
     notify(
       res.invited
-        ? `Пригласили ${res.invited} · код ${res.code}`
+        ? `Пригласили ${res.invited} · номер ${res.code}`
         : isAdmin
           ? `Комната ${res.code} · вы невидимы в счётчике`
           : isPublic
-            ? `«${publicChatLabel}» · пин ${res.code}`
-            : `Код ${res.code} · до ${maxMembers} человек`
+            ? `«${publicChatLabel}» · номер ${res.code}`
+            : `Номер ${res.code}${accessHint} · до ${maxMembers}`
     );
     syncDmBtn();
   }
@@ -1347,6 +1455,7 @@
     const snapshotMessages = lastState.messages || [];
     const wasSaved = prev ? loadDmRooms().some((r) => r.code === prev) : false;
     dmCode = null;
+    clearRoomAdminState();
     // Keep room in the saved list; only clear "active session" code.
     saveDmCode("");
     document.body.classList.remove("dm-on", "dm-ghost");
@@ -1397,7 +1506,7 @@
       return;
     }
     if (dest?.kind === "room" && dest.code) {
-      socket.emit("dm:join", { code: dest.code }, (res) => {
+      socket.emit("dm:join", { code: dest.code, key: loadRoomKey(dest.code) || undefined }, (res) => {
         if (res?.ok) {
           enterDmMode(res);
           return;
@@ -2703,7 +2812,7 @@
       menu.append(copyBtn);
     }
 
-    if (isAdmin && dmCode) {
+    if (canModerate() && dmCode) {
       const pinBtn = document.createElement("button");
       pinBtn.type = "button";
       pinBtn.className = "msg-action-reply";
@@ -3328,7 +3437,7 @@
     if (activeWrap.childElementCount) actions.append(activeWrap);
 
     // Desktop: double-tap ✕. On iPhone / touch: swipe left instead (avoids copy conflict).
-    if (isAdmin && !prefersTouchAdminDelete()) {
+    if (canModerate() && !prefersTouchAdminDelete()) {
       const delBtn = document.createElement("button");
       delBtn.type = "button";
       delBtn.className = "msg-admin-icon danger msg-delete";
@@ -3359,7 +3468,7 @@
     if (actions.childElementCount) el.append(actions);
     bindMessageHold(el, msg);
 
-    if (isAdmin && prefersTouchAdminDelete()) {
+    if (canModerate() && prefersTouchAdminDelete()) {
       const wrap = document.createElement("div");
       wrap.className = "msg-swipe";
       const rail = document.createElement("div");
@@ -4293,7 +4402,12 @@
   });
 
   function joinDmFromInput() {
-    joinDmByCode(dmCodeInput?.value || "");
+    joinDmByCode(dmCodeInput?.value || "", { key: dmJoinKey?.value || "" });
+  }
+
+  function selectedCreateAccess() {
+    const checked = document.querySelector('input[name="dm-access"]:checked');
+    return checked?.value === "keyed" ? "keyed" : "open";
   }
 
   function syncDmBtn() {
@@ -4329,17 +4443,27 @@
   });
   dmCreateBtn?.addEventListener("click", () => {
     showDmDialogError("");
-    socket.emit("dm:create", {}, (res) => {
+    const key = normalizeRoomKeyLocal(dmCreateKey?.value || "");
+    if (key.length !== 4) {
+      showDmDialogError("Придумайте ключ из ровно 4 цифр");
+      dmCreateKey?.focus();
+      return;
+    }
+    const access = selectedCreateAccess();
+    socket.emit("dm:create", { access, key }, (res) => {
       if (!res?.ok) {
         showDmDialogError(res?.error || "Не создалось");
         return;
       }
+      saveRoomKey(res.code, key);
+      if (dmCreateKey) dmCreateKey.value = "";
       enterDmMode(res);
       saveLastDest(res.code);
       markSessionLive();
       hubRequirePick = false;
       void closeDmDialogSoft();
-      notify(`Код ${res.code} — поделитесь с участниками`);
+      const mode = access === "keyed" ? "по ключу" : "свободная";
+      notify(`Номер ${res.code} · ключ ${key} (${mode}) — сохрани оба`);
     });
   });
   dmJoinBtn?.addEventListener("click", joinDmFromInput);
@@ -4347,11 +4471,104 @@
     const digits = (dmCodeInput.value || "").replace(/\D/g, "").slice(0, 6);
     if (dmCodeInput.value !== digits) dmCodeInput.value = digits;
   });
+  dmJoinKey?.addEventListener("input", () => {
+    const digits = normalizeRoomKeyLocal(dmJoinKey.value);
+    if (dmJoinKey.value !== digits) dmJoinKey.value = digits;
+  });
+  dmCreateKey?.addEventListener("input", () => {
+    const digits = normalizeRoomKeyLocal(dmCreateKey.value);
+    if (dmCreateKey.value !== digits) dmCreateKey.value = digits;
+  });
   dmCodeInput?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       joinDmFromInput();
     }
+  });
+  dmJoinKey?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      joinDmFromInput();
+    }
+  });
+
+  roomKeyBtn?.addEventListener("click", () => {
+    if (!dmCode || isAdmin) return;
+    if (isRoomAdmin) {
+      socket.emit("room:admin-logout", {}, () => {
+        isRoomAdmin = false;
+        syncRoomAdminUi();
+        notify("Админка комнаты выключена");
+        renderAll(lastState, { force: true });
+      });
+      return;
+    }
+    if (roomKeyError) {
+      roomKeyError.hidden = true;
+      roomKeyError.textContent = "";
+    }
+    if (roomKeyInput) roomKeyInput.value = loadRoomKey(dmCode) || "";
+    roomKeyDialog?.showModal();
+    roomKeyInput?.focus();
+  });
+  roomKeyCancel?.addEventListener("click", () => roomKeyDialog?.close());
+  roomKeySubmit?.addEventListener("click", () => {
+    const key = normalizeRoomKeyLocal(roomKeyInput?.value || "");
+    if (key.length !== 4) {
+      if (roomKeyError) {
+        roomKeyError.hidden = false;
+        roomKeyError.textContent = "Нужны 4 цифры";
+      }
+      return;
+    }
+    socket.emit("room:admin-login", { key }, (res) => {
+      if (!res?.ok) {
+        if (roomKeyError) {
+          roomKeyError.hidden = false;
+          roomKeyError.textContent = res?.error || "Не вышло";
+        }
+        return;
+      }
+      saveRoomKey(dmCode, key);
+      isRoomAdmin = true;
+      roomIsOwner = true;
+      applyRoomFlags(res);
+      roomKeyDialog?.close();
+      notify("Админка комнаты включена");
+      renderAll(lastState, { force: true });
+    });
+  });
+  roomKeyInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      roomKeySubmit?.click();
+    }
+  });
+
+  roomCloseBtn?.addEventListener("click", () => {
+    if (!canModerate() || !dmCode) return;
+    if (roomClosed) {
+      socket.emit("room:reopen", {}, (res) => {
+        if (!res?.ok) {
+          notify(res?.error || "Не открылось");
+          return;
+        }
+        roomClosed = false;
+        syncRoomAdminUi();
+        notify("Комната снова открыта для входа");
+      });
+      return;
+    }
+    if (!window.confirm(`Закрыть комнату ${dmCode}? Новые не войдут.`)) return;
+    socket.emit("room:close", {}, (res) => {
+      if (!res?.ok) {
+        notify(res?.error || "Не закрылось");
+        return;
+      }
+      roomClosed = true;
+      syncRoomAdminUi();
+      notify("Комната закрыта для входа");
+    });
   });
   dmDialog?.addEventListener("close", () => {
     clearForgetArm();
@@ -4439,7 +4656,8 @@
     exitBulkSelectMode();
     syncInvitesBtn();
     closeInvitesDialog();
-    document.body.classList.remove("dm-on", "admin-on", "dm-ghost");
+    document.body.classList.remove("dm-on", "admin-on", "dm-ghost", "room-admin-on");
+    clearRoomAdminState();
     if (dmBar) dmBar.hidden = true;
     if (dmDialog?.open) dmDialog.close();
     closeOnlineList();
@@ -4517,7 +4735,9 @@
       notify(
         isPublicRoomCode(code)
           ? `«${publicChatLabel}» недоступен`
-          : "Комната удалена · 90 дней без сообщений"
+          : /closed/i.test(String(payload.reason || ""))
+            ? "Комната закрыта создателем"
+            : "Комната удалена · 90 дней без сообщений"
       );
     }
   });
@@ -4554,7 +4774,7 @@
             else syncMeBtn();
           }
           if (dmCode) {
-            socket.emit("dm:join", { code: dmCode }, (dmRes) => {
+            socket.emit("dm:join", { code: dmCode, key: loadRoomKey(dmCode) || undefined }, (dmRes) => {
               if (dmRes?.ok) {
                 enterDmMode(dmRes);
               } else {

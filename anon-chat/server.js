@@ -4,7 +4,7 @@ const http = require("http");
 const express = require("express");
 const multer = require("multer");
 const { Server } = require("socket.io");
-const { randomUUID } = require("crypto");
+const { randomUUID, createHash } = require("crypto");
 const helmet = require("helmet");
 const sharp = require("sharp");
 const webpush = require("web-push");
@@ -838,6 +838,7 @@ function snapshot() {
 
 const ROOM_CODE_ALPHABET = "0123456789";
 const ROOM_CODE_LENGTH = 6;
+const ROOM_KEY_LENGTH = 4;
 const MAX_ROOM_CODES = 10 ** ROOM_CODE_LENGTH; // 1_000_000: 000000–999999
 const MAX_ROOM_MESSAGES = MAX_MESSAGES;
 const MAX_ROOM_MEMBERS = 5000;
@@ -879,6 +880,52 @@ function normalizeRoomCode(raw) {
   const code = String(raw ?? "").replace(/\s+/g, "").replace(/\D/g, "");
   if (code.length !== ROOM_CODE_LENGTH) return null;
   return code;
+}
+
+/** Exactly 4 digits — room key (тёрка). Never pad. */
+function normalizeRoomKey(raw) {
+  const key = String(raw ?? "").replace(/\D/g, "");
+  return key.length === ROOM_KEY_LENGTH ? key : "";
+}
+
+function hashRoomKey(key) {
+  const k = normalizeRoomKey(key);
+  if (!k) return "";
+  return createHash("sha256").update(`sarafan-room-key:v1:${k}`).digest("hex");
+}
+
+function roomAccessMode(room) {
+  return room && room.access === "keyed" ? "keyed" : "open";
+}
+
+function isRoomClosed(room) {
+  return Boolean(room && room.closed);
+}
+
+function isSuperAdminSocket(socket) {
+  return Boolean(socket?.data?.isAdmin);
+}
+
+/** Global super-admin or unlocked room-admin for the current room. */
+function canModerateRoom(socket) {
+  if (isSuperAdminSocket(socket)) return true;
+  const code = socket?.data?.roomCode;
+  return Boolean(code && socket.data.roomAdmin && socket.data.roomAdminCode === code);
+}
+
+function clearRoomAdmin(socket) {
+  if (!socket) return;
+  socket.data.roomAdmin = false;
+  socket.data.roomAdminCode = null;
+}
+
+function roomPublicFlags(room) {
+  return {
+    access: roomAccessMode(room),
+    closed: isRoomClosed(room),
+    keyed: roomAccessMode(room) === "keyed",
+    hasKey: Boolean(room?.keyHash),
+  };
 }
 
 function roomChannel(code) {
@@ -1081,6 +1128,9 @@ function roomListMeta(code, exceptName = "", sinceId = "") {
     exists: true,
     label: isPublicRoomCode(code) ? PUBLIC_CHAT_LABEL : room.label || "",
     public: isPublicRoomCode(code),
+    access: roomAccessMode(room),
+    closed: isRoomClosed(room),
+    keyed: roomAccessMode(room) === "keyed",
     peer: isPublicRoomCode(code) ? PUBLIC_CHAT_LABEL : peer,
     names,
     messageCount: messages.length,
@@ -1192,10 +1242,14 @@ function emitChatPresence() {
 
 function leaveDmRoom(socket) {
   const code = socket.data.roomCode;
-  if (!code) return;
+  if (!code) {
+    clearRoomAdmin(socket);
+    return;
+  }
   socket.leave(roomChannel(code));
   socket.data.roomCode = null;
   socket.data.roomGhost = false;
+  clearRoomAdmin(socket);
   const user = online.get(socket.id);
   if (user) user.roomCode = null;
   emitDmPresence(code);
@@ -1637,10 +1691,24 @@ io.on("connection", (socket) => {
     if (typeof ack === "function") ack({ ok: true, rooms });
   });
 
-  socket.on("dm:create", (_payload, ack) => {
+  socket.on("dm:create", (payload = {}, ack) => {
     const user = online.get(socket.id);
     if (!user) {
       if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
+      return;
+    }
+    if (user.isAdmin || socket.data.isAdmin) {
+      if (typeof ack === "function") {
+        ack({ ok: false, error: "Супер-админ смотрит комнаты, не создаёт свои" });
+      }
+      return;
+    }
+    const access = payload.access === "keyed" ? "keyed" : "open";
+    const key = normalizeRoomKey(payload.key);
+    if (!key) {
+      if (typeof ack === "function") {
+        ack({ ok: false, error: "Придумайте ключ из ровно 4 цифр" });
+      }
       return;
     }
     leaveDmRoom(socket);
@@ -1650,11 +1718,16 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Нет свободных комнат" });
       return;
     }
+    const ownerClientId = normalizeClientId(user.clientId || socket.data.clientId);
     store.rooms[code] = {
       code,
       createdAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
       createdBy: user.name,
+      ownerClientId: ownerClientId || "",
+      access,
+      keyHash: hashRoomKey(key),
+      closed: false,
       participants: [user.name],
       messages: [],
       pinnedIds: [],
@@ -1663,6 +1736,8 @@ io.on("connection", (socket) => {
     socket.join(roomChannel(code));
     socket.data.roomCode = code;
     socket.data.roomGhost = false;
+    socket.data.roomAdmin = true;
+    socket.data.roomAdminCode = code;
     user.roomCode = code;
     const snap = roomSnapshot(code);
     if (typeof ack === "function") {
@@ -1677,6 +1752,9 @@ io.on("connection", (socket) => {
         participants: roomParticipantNames(code),
         maxMembers: MAX_ROOM_MEMBERS,
         ghost: false,
+        roomAdmin: true,
+        isOwner: true,
+        ...roomPublicFlags(store.rooms[code]),
       });
     }
     emitDmPresence(code);
@@ -1725,6 +1803,10 @@ io.on("connection", (socket) => {
         createdAt: new Date().toISOString(),
         lastActiveAt: new Date().toISOString(),
         createdBy: user.name,
+        ownerClientId: normalizeClientId(user.clientId || socket.data.clientId) || "",
+        access: "open",
+        keyHash: "",
+        closed: false,
         participants: [user.name],
         messages: [],
         pinnedIds: [],
@@ -1817,7 +1899,7 @@ io.on("connection", (socket) => {
     const code = normalizeRoomCode(payload.code);
     if (!code) {
       if (typeof ack === "function") {
-        ack({ ok: false, error: "Нужен пин из ровно 6 цифр (например 000543)" });
+        ack({ ok: false, error: "Нужен номер из ровно 6 цифр (например 000543)" });
       }
       return;
     }
@@ -1830,9 +1912,42 @@ io.on("connection", (socket) => {
     }
     const room = store.rooms[code];
     if (!room) {
-      if (typeof ack === "function") ack({ ok: false, error: "Чат не найден — проверьте код" });
+      if (typeof ack === "function") ack({ ok: false, error: "Чат не найден — проверьте номер" });
       return;
     }
+
+    const key = normalizeRoomKey(payload.key);
+    if (!asAdmin && !isPublicRoomCode(code)) {
+      if (isRoomClosed(room)) {
+        if (typeof ack === "function") ack({ ok: false, error: "Комната закрыта" });
+        return;
+      }
+      if (roomAccessMode(room) === "keyed") {
+        if (!room.keyHash || !key || hashRoomKey(key) !== room.keyHash) {
+          if (typeof ack === "function") {
+            ack({
+              ok: false,
+              error: "Комната по ключу — введите 4 цифры",
+              needsKey: true,
+              ...roomPublicFlags(room),
+            });
+          }
+          return;
+        }
+      }
+    }
+
+    const ownerClientId = normalizeClientId(user.clientId || socket.data.clientId);
+    const isOwner =
+      Boolean(room.ownerClientId) &&
+      ownerClientId &&
+      room.ownerClientId === ownerClientId;
+    // Creator rejoining an open room with the right key → room admin.
+    let grantRoomAdmin = false;
+    if (!asAdmin && !isPublicRoomCode(code) && room.keyHash && key && hashRoomKey(key) === room.keyHash) {
+      if (isOwner || !room.ownerClientId) grantRoomAdmin = true;
+    }
+
     const ackJoin = (snap) => {
       if (typeof ack !== "function") return;
       ack({
@@ -1847,12 +1962,18 @@ io.on("connection", (socket) => {
         participants: roomParticipantNames(code),
         maxMembers: MAX_ROOM_MEMBERS,
         ghost: asAdmin,
+        roomAdmin: asAdmin ? false : Boolean(socket.data.roomAdmin && socket.data.roomAdminCode === code),
+        isOwner: Boolean(isOwner),
+        ...roomPublicFlags(room),
       });
     };
     if (socket.data.roomCode === code) {
       touchRoom(code, { persist: true });
-      // Admins watch invisibly — do not join the visible roster.
       if (!asAdmin) rememberRoomParticipant(code, user.name);
+      if (grantRoomAdmin) {
+        socket.data.roomAdmin = true;
+        socket.data.roomAdminCode = code;
+      }
       ackJoin(roomSnapshot(code));
       return;
     }
@@ -1875,8 +1996,110 @@ io.on("connection", (socket) => {
     socket.data.roomCode = code;
     socket.data.roomGhost = asAdmin;
     user.roomCode = code;
+    if (grantRoomAdmin) {
+      socket.data.roomAdmin = true;
+      socket.data.roomAdminCode = code;
+    }
     ackJoin(roomSnapshot(code));
     emitDmPresence(code);
+  });
+
+  socket.on("room:admin-login", (payload = {}, ack) => {
+    const user = online.get(socket.id);
+    if (!user) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
+      return;
+    }
+    if (socket.data.isAdmin) {
+      if (typeof ack === "function") ack({ ok: true, roomAdmin: false, superAdmin: true });
+      return;
+    }
+    const code = socket.data.roomCode;
+    if (!code || isPublicRoomCode(code)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите в свою комнату" });
+      return;
+    }
+    ensureRooms();
+    const room = store.rooms[code];
+    if (!room?.keyHash) {
+      if (typeof ack === "function") ack({ ok: false, error: "У этой комнаты нет ключа" });
+      return;
+    }
+    const key = normalizeRoomKey(payload.key);
+    if (!key || hashRoomKey(key) !== room.keyHash) {
+      if (typeof ack === "function") ack({ ok: false, error: "Неверный ключ" });
+      return;
+    }
+    const clientId = normalizeClientId(user.clientId || socket.data.clientId);
+    if (room.ownerClientId && clientId && room.ownerClientId !== clientId) {
+      if (typeof ack === "function") {
+        ack({ ok: false, error: "Админка комнаты только у создателя" });
+      }
+      return;
+    }
+    socket.data.roomAdmin = true;
+    socket.data.roomAdminCode = code;
+    if (typeof ack === "function") {
+      ack({ ok: true, roomAdmin: true, code, ...roomPublicFlags(room) });
+    }
+  });
+
+  socket.on("room:admin-logout", (_payload, ack) => {
+    clearRoomAdmin(socket);
+    if (typeof ack === "function") ack({ ok: true, roomAdmin: false });
+  });
+
+  socket.on("room:close", (_payload, ack) => {
+    if (!canModerateRoom(socket)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа комнаты" });
+      return;
+    }
+    const code = socket.data.roomCode;
+    if (!code || isPublicRoomCode(code)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Эту комнату нельзя закрыть" });
+      return;
+    }
+    ensureRooms();
+    const room = store.rooms[code];
+    if (!room) {
+      if (typeof ack === "function") ack({ ok: false, error: "Чат не найден" });
+      return;
+    }
+    room.closed = true;
+    saveStore(store);
+    for (const id of roomSocketIds(code)) {
+      if (id === socket.id) continue;
+      const sock = io.sockets.sockets.get(id);
+      const u = online.get(id);
+      if (!sock) continue;
+      if (u?.isAdmin || sock.data?.isAdmin) continue;
+      leaveDmRoom(sock);
+      sock.emit("dm:room-gone", { code, reason: "closed" });
+      sock.emit("chat:state", emptyPublicSnapshot());
+    }
+    emitDmPresence(code);
+    if (typeof ack === "function") ack({ ok: true, closed: true, code });
+  });
+
+  socket.on("room:reopen", (_payload, ack) => {
+    if (!canModerateRoom(socket)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа комнаты" });
+      return;
+    }
+    const code = socket.data.roomCode;
+    if (!code || isPublicRoomCode(code)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нельзя" });
+      return;
+    }
+    ensureRooms();
+    const room = store.rooms[code];
+    if (!room) {
+      if (typeof ack === "function") ack({ ok: false, error: "Чат не найден" });
+      return;
+    }
+    room.closed = false;
+    saveStore(store);
+    if (typeof ack === "function") ack({ ok: true, closed: false, code });
   });
 
   socket.on("dm:leave", (_payload, ack) => {
@@ -2068,7 +2291,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("admin:pin", (payload = {}, ack) => {
-    if (!socket.data.isAdmin) {
+    if (!canModerateRoom(socket)) {
       if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа" });
       return;
     }
@@ -2100,7 +2323,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("admin:unpin", (payload = {}, ack) => {
-    if (!socket.data.isAdmin) {
+    if (!canModerateRoom(socket)) {
       if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа" });
       return;
     }
@@ -2221,7 +2444,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("admin:delete", (payload = {}, ack) => {
-    if (!socket.data.isAdmin) {
+    if (!canModerateRoom(socket)) {
       if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа" });
       return;
     }
