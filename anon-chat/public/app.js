@@ -161,6 +161,9 @@
   let roomModerators = new Map();
   /** @type {string[]} */
   let lastRoomOnlineNames = [];
+  /** @type {{ id: string, name: string }[]} */
+  let lastRoomOnlinePeople = [];
+  let lastRoomOnlineCount = 0;
   /** Device-scoped restriction: hub hides public chat. */
   let accessRoomsOnly = false;
   let publicChatLabel = PUBLIC_CHAT_LABEL_DEFAULT;
@@ -2159,15 +2162,33 @@
     if (text) notify(text);
   }
 
-  function updateDmPresence({ count, names, participants, moderators, maxMembers } = {}) {
-    if (!dmBarPresence) return;
-    const n = Number(count) || 0;
+  function updateDmPresence({ count, names, people, participants, moderators, maxMembers } = {}) {
+    if (!dmBarPresence && !presence) return;
+    const roster = Array.isArray(names)
+      ? names.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim())
+      : [];
+    const memberPeople = Array.isArray(people)
+      ? people
+          .filter((p) => p && typeof p.name === "string" && p.name.trim())
+          .map((p) => ({
+            id: typeof p.id === "string" && p.id ? p.id : `room-${p.name}`,
+            name: p.name.trim(),
+          }))
+      : roster.map((name, i) => ({ id: `room-${i}-${name}`, name }));
+    // Count must match the visible roster (unique seats from server).
+    const n =
+      typeof count === "number" && Number.isFinite(count)
+        ? Math.max(0, count)
+        : memberPeople.length;
     const max = Number(maxMembers) > 0 ? Number(maxMembers) : 5000;
-    dmBarPresence.textContent = `${n}/${max}`;
-    if (!dmCode) return;
-    // Live roster = who is in the room now (not historical participants).
-    const roster = Array.isArray(names) ? names.filter((x) => typeof x === "string" && x.trim()) : [];
     lastRoomOnlineNames = roster;
+    lastRoomOnlinePeople = memberPeople;
+    lastRoomOnlineCount = n;
+    if (dmBarPresence) dmBarPresence.textContent = `${n}/${max}`;
+    if (!dmCode) {
+      updatePresenceChrome();
+      return;
+    }
     const modMap = new Map();
     if (Array.isArray(moderators)) {
       for (const m of moderators) {
@@ -2184,6 +2205,7 @@
       lastReadId: lastMessageIdFromList(lastState.messages),
       unread: 0,
     });
+    updatePresenceChrome();
     if (onlineDialog?.open) renderOnlineList();
   }
 
@@ -2275,6 +2297,8 @@
     const wasSaved = prev ? loadDmRooms().some((r) => r.code === prev) : false;
     dmCode = null;
     lastRoomOnlineNames = [];
+    lastRoomOnlinePeople = [];
+    lastRoomOnlineCount = 0;
     roomModerators = new Map();
     clearRoomAdminState();
     // Keep room in the saved list; only clear "active session" code.
@@ -2291,6 +2315,7 @@
       /* empty state follows */
     });
     syncDmBtn();
+    updatePresenceChrome();
     if (prev) {
       if (wasSaved) {
         markDmRoomRead(prev, snapshotMessages, {
@@ -2424,6 +2449,12 @@
 
   function updatePresenceChrome() {
     if (!presence) return;
+    if (dmCode) {
+      const n = lastRoomOnlineCount || lastRoomOnlinePeople.length || lastRoomOnlineNames.length;
+      presence.textContent = n ? `онлайн ${n}` : "онлайн —";
+      presence.title = "Кто сейчас в этой комнате";
+      return;
+    }
     const n = lastPresenceCount;
     presence.textContent = n ? `онлайн ${n}` : "онлайн —";
     presence.title = n ? "Нажмите — кто онлайн" : "Пока никого";
@@ -2474,17 +2505,15 @@
 
   function renderOnlineList() {
     if (!onlineList) return;
-    let people = lastPeople.filter((p) => p.name);
-    // Inside a room — show only who is currently in this room.
-    if (dmCode && lastRoomOnlineNames.length) {
-      const inRoom = new Set(
-        lastRoomOnlineNames.map((n) => String(n || "").trim().toLowerCase()).filter(Boolean)
-      );
-      people = people.filter((p) => inRoom.has(String(p.name || "").trim().toLowerCase()));
-    } else if (dmCode && !lastRoomOnlineNames.length) {
-      // Room is empty of visible members (or only you left and count is 0).
-      // Still show yourself if presence says you're online globally and count includes you.
-      people = people.filter((p) => p.id === socket.id);
+    let people;
+    if (dmCode) {
+      // Room mode: only current room members (same source as the counter).
+      people = (lastRoomOnlinePeople.length ? lastRoomOnlinePeople : lastRoomOnlineNames.map((name, i) => ({
+        id: `room-${i}-${name}`,
+        name,
+      }))).filter((p) => p.name);
+    } else {
+      people = lastPeople.filter((p) => p.name);
     }
     const prevFocus = onlineList.querySelector(":focus")?.dataset?.id || "";
     onlineList.replaceChildren();

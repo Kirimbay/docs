@@ -1411,17 +1411,39 @@ function roomSocketIds(code) {
   return set ? [...set] : [];
 }
 
-/** Visible members only — admins are ghosts and do not take a seat. */
-function roomOnlineCount(code) {
-  let n = 0;
-  for (const id of roomSocketIds(code)) {
+/** Visible members currently inside the room (non-admin). One source for count + names. */
+function roomVisibleMembers(code) {
+  const c = normalizeRoomCode(code);
+  if (!c) return [];
+  const out = [];
+  const seenIds = new Set();
+  for (const id of roomSocketIds(c)) {
+    if (seenIds.has(id)) continue;
+    seenIds.add(id);
     const sock = io.sockets.sockets.get(id);
     const u = online.get(id);
-    if (!u) continue;
+    if (!u || !u.name) continue;
     if (isSocketAdmin(sock) || isSocketAdmin(u) || isAdminName(u.name)) continue;
-    n += 1;
+    // Keep adapter + online map in sync: stale channel seats are dropped.
+    if (u.roomCode !== c && sock?.data?.roomCode !== c) {
+      try {
+        sock?.leave?.(roomChannel(c));
+      } catch {
+        /* ignore */
+      }
+      continue;
+    }
+    // Heal drift: adapter says in room, map says otherwise.
+    if (u.roomCode !== c) u.roomCode = c;
+    if (sock && sock.data.roomCode !== c) sock.data.roomCode = c;
+    out.push({ id, name: u.name });
   }
-  return n;
+  return out;
+}
+
+/** Visible members only — admins are ghosts and do not take a seat. */
+function roomOnlineCount(code) {
+  return roomVisibleMembers(code).length;
 }
 
 /** Any connection still inside (incl. admin watchers) — used to skip idle prune. */
@@ -1430,11 +1452,14 @@ function roomHasOccupant(code) {
 }
 
 function roomMemberNames(code) {
+  // Unique names, stable order by join socket order.
   const names = [];
-  for (const u of online.values()) {
-    if (u.roomCode !== code || !u.name) continue;
-    if (u.isAdmin || isAdminName(u.name)) continue;
-    names.push(u.name);
+  const seen = new Set();
+  for (const m of roomVisibleMembers(code)) {
+    const key = nameKey(m.name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    names.push(m.name);
   }
   return names;
 }
@@ -1683,11 +1708,27 @@ function roomModeratorRoles(code) {
   return out;
 }
 
+function roomPresenceFields(code) {
+  const members = roomVisibleMembers(code);
+  const names = [];
+  const seen = new Set();
+  for (const m of members) {
+    const key = nameKey(m.name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    names.push(m.name);
+  }
+  return {
+    count: members.length,
+    names,
+    people: members.map((m) => ({ id: m.id, name: m.name })),
+  };
+}
+
 function emitDmPresence(code) {
   io.to(roomChannel(code)).emit("dm:presence", {
     code,
-    count: roomOnlineCount(code),
-    names: roomMemberNames(code),
+    ...roomPresenceFields(code),
     participants: roomParticipantNames(code),
     moderators: roomModeratorRoles(code),
     maxMembers: MAX_ROOM_MEMBERS,
@@ -2387,8 +2428,7 @@ io.on("connection", (socket) => {
         label: snap?.label || "",
         messages: snap.messages,
         pinned: snap.pinned || [],
-        count: roomOnlineCount(code),
-        names: roomMemberNames(code),
+        ...roomPresenceFields(code),
         participants: roomParticipantNames(code),
         maxMembers: MAX_ROOM_MEMBERS,
         ghost: false,
@@ -2478,8 +2518,7 @@ io.on("connection", (socket) => {
         label: snap?.label || "",
         messages: snap.messages,
         pinned: snap?.pinned || [],
-        count: roomOnlineCount(code),
-        names: roomMemberNames(code),
+        ...roomPresenceFields(code),
         participants: roomParticipantNames(code),
         invited: target.name,
         maxMembers: MAX_ROOM_MEMBERS,
@@ -2626,8 +2665,7 @@ io.on("connection", (socket) => {
         public: isPublicRoomCode(code),
         messages: snap.messages,
         pinned: snap.pinned || [],
-        count: roomOnlineCount(code),
-        names: roomMemberNames(code),
+        ...roomPresenceFields(code),
         participants: roomParticipantNames(code),
         maxMembers: MAX_ROOM_MEMBERS,
         ghost: asAdmin,
