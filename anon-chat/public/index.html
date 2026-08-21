@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=132" />
+    <link rel="stylesheet" href="/styles.css?v=133" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -64,7 +64,7 @@
             <div id="notify-menu" class="notify-menu" hidden role="menu" aria-label="Настройки уведомлений">
               <p class="notify-menu-title">Уведомления</p>
               <label class="notify-toggle">
-                <span>Общий чат</span>
+                <span>Сарафан ВПН</span>
                 <input id="notify-public" type="checkbox" role="menuitemcheckbox" checked />
               </label>
               <label class="notify-toggle">
@@ -78,7 +78,7 @@
             <span class="invites-dot" aria-hidden="true"></span>
             <span class="invites-btn-label">вас зовут</span>
           </button>
-          <button type="button" id="dm-btn" class="ghost compact" title="Общий чат и комнаты">Чаты</button>
+          <button type="button" id="dm-btn" class="ghost compact" title="Сарафан ВПН и комнаты">Чаты</button>
           <button type="button" id="me-btn" class="ghost compact me-btn" title="Ваше имя">…</button>
         </div>
       </header>
@@ -209,7 +209,7 @@
           <h2 id="dm-dialog-title">Чаты</h2>
           <button type="button" id="dm-dialog-close" class="ghost compact">Готово</button>
         </div>
-        <p id="dm-lead" class="dm-lead">Общий чат и комнаты · выберите, куда войти</p>
+        <p id="dm-lead" class="dm-lead">Сарафан ВПН и комнаты · выберите, куда войти</p>
         <div id="dm-rooms-wrap" class="dm-rooms-wrap">
           <div id="dm-rooms-list" class="dm-rooms-list" role="list"></div>
         </div>
@@ -261,6 +261,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=132"></script>
+    <script src="/app.js?v=133"></script>
   </body>
 </html>

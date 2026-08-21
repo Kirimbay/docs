@@ -19,8 +19,11 @@ const DATA_DIR = path.join(__dirname, "data");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
 const ADMIN_TOKENS_PATH = path.join(DATA_DIR, "admin-tokens.json");
+const ACCESS_PATH = path.join(DATA_DIR, "access.json");
 const VAPID_PATH = path.join(DATA_DIR, "vapid.json");
 const PUSH_SUBS_PATH = path.join(DATA_DIR, "push-subs.json");
+const PUBLIC_CHAT_LABEL = "Сарафан ВПН";
+const CLIENT_ID_RE = /^[a-zA-Z0-9_-]{8,80}$/;
 const MAX_MESSAGES = 5000;
 const MAX_NAME_LEN = 24;
 const MAX_TEXT_LEN = 2000;
@@ -203,6 +206,168 @@ function saveStore(store) {
 }
 
 let store = loadStore();
+
+function loadAccess() {
+  try {
+    if (fs.existsSync(ACCESS_PATH)) {
+      const data = JSON.parse(fs.readFileSync(ACCESS_PATH, "utf8"));
+      if (!data || typeof data !== "object") return { bans: {}, roomsOnly: {} };
+      if (!data.bans || typeof data.bans !== "object") data.bans = {};
+      if (!data.roomsOnly || typeof data.roomsOnly !== "object") data.roomsOnly = {};
+      return data;
+    }
+  } catch (err) {
+    console.error("Failed to load access:", err.message);
+  }
+  return { bans: {}, roomsOnly: {} };
+}
+
+function saveAccess(next) {
+  const tmp = `${ACCESS_PATH}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 2));
+  fs.renameSync(tmp, ACCESS_PATH);
+}
+
+let access = loadAccess();
+
+function normalizeClientId(raw) {
+  const id = String(raw || "").trim();
+  return CLIENT_ID_RE.test(id) ? id : "";
+}
+
+function isBannedClient(clientId) {
+  const id = normalizeClientId(clientId);
+  return Boolean(id && access.bans[id]);
+}
+
+function isRoomsOnlyClient(clientId) {
+  const id = normalizeClientId(clientId);
+  return Boolean(id && access.roomsOnly[id]);
+}
+
+function rememberAccessName(bucket, clientId, name) {
+  const id = normalizeClientId(clientId);
+  if (!id || !access[bucket]?.[id]) return;
+  const nick = typeof name === "string" ? name.trim().slice(0, MAX_NAME_LEN) : "";
+  if (!nick) return;
+  const names = Array.isArray(access[bucket][id].names) ? access[bucket][id].names : [];
+  if (!names.includes(nick)) {
+    names.push(nick);
+    access[bucket][id].names = names.slice(-12);
+  }
+}
+
+function banClient(clientId, { name = "", reason = "", by = "АДМИН" } = {}) {
+  const id = normalizeClientId(clientId);
+  if (!id) return false;
+  const prev = access.bans[id] || {};
+  const names = Array.isArray(prev.names) ? [...prev.names] : [];
+  if (name && !names.includes(name)) names.push(name);
+  access.bans[id] = {
+    at: new Date().toISOString(),
+    by,
+    reason: String(reason || "").trim().slice(0, 120),
+    names: names.slice(-12),
+  };
+  // Ban supersedes rooms-only.
+  if (access.roomsOnly[id]) delete access.roomsOnly[id];
+  saveAccess(access);
+  return true;
+}
+
+function unbanClient(clientId) {
+  const id = normalizeClientId(clientId);
+  if (!id || !access.bans[id]) return false;
+  delete access.bans[id];
+  saveAccess(access);
+  return true;
+}
+
+function setRoomsOnlyClient(clientId, on, { name = "", label = "" } = {}) {
+  const id = normalizeClientId(clientId);
+  if (!id) return false;
+  if (!on) {
+    if (!access.roomsOnly[id]) return false;
+    delete access.roomsOnly[id];
+    saveAccess(access);
+    return true;
+  }
+  if (access.bans[id]) return false;
+  const prev = access.roomsOnly[id] || {};
+  const names = Array.isArray(prev.names) ? [...prev.names] : [];
+  if (name && !names.includes(name)) names.push(name);
+  access.roomsOnly[id] = {
+    at: new Date().toISOString(),
+    label: String(label || prev.label || "").trim().slice(0, 40),
+    names: names.slice(-12),
+  };
+  saveAccess(access);
+  return true;
+}
+
+function findOnlineByClientId(clientId) {
+  const id = normalizeClientId(clientId);
+  if (!id) return [];
+  const out = [];
+  for (const [socketId, u] of online.entries()) {
+    if (normalizeClientId(u.clientId) === id) out.push(socketId);
+  }
+  return out;
+}
+
+function kickBannedOrRestricted(socketId, reason) {
+  evictSocketById(socketId, reason || "Доступ закрыт");
+}
+
+function notifyAccessUpdate(socketId) {
+  const sock = io.sockets.sockets.get(socketId);
+  const u = online.get(socketId);
+  if (!sock || !u) return;
+  sock.emit("access:update", {
+    roomsOnly: isRoomsOnlyClient(u.clientId),
+    publicLabel: PUBLIC_CHAT_LABEL,
+    banned: false,
+  });
+}
+
+function emptyPublicSnapshot() {
+  return { messages: [], pinned: [] };
+}
+
+function emitPublicChatState(state) {
+  for (const [id, sock] of io.sockets.sockets) {
+    const u = online.get(id);
+    if (u && isRoomsOnlyClient(u.clientId)) {
+      sock.emit("chat:state", emptyPublicSnapshot());
+    } else {
+      sock.emit("chat:state", state);
+    }
+  }
+}
+
+function emitPublicChatMessage(pub) {
+  for (const [id, sock] of io.sockets.sockets) {
+    const u = online.get(id);
+    if (u && isRoomsOnlyClient(u.clientId)) continue;
+    sock.emit("chat:message", pub);
+  }
+}
+
+function emitPublicMessageUpdate(pub) {
+  for (const [id, sock] of io.sockets.sockets) {
+    const u = online.get(id);
+    if (u && isRoomsOnlyClient(u.clientId)) continue;
+    sock.emit("chat:message-update", pub);
+  }
+}
+
+function emitPublicMessageRemoved(payload) {
+  for (const [id, sock] of io.sockets.sockets) {
+    const u = online.get(id);
+    if (u && isRoomsOnlyClient(u.clientId)) continue;
+    sock.emit("chat:message-removed", payload);
+  }
+}
 
 function loadOrCreateVapid() {
   try {
@@ -909,11 +1074,16 @@ function emitDmPresence(code) {
   });
 }
 
-function presencePayload() {
-  const people = [...online.entries()].map(([id, u]) => ({
-    id,
-    name: u.name,
-  }));
+function presencePayload(forSocket = null) {
+  const asAdmin = Boolean(forSocket?.data?.isAdmin);
+  const people = [...online.entries()].map(([id, u]) => {
+    const row = { id, name: u.name };
+    if (asAdmin) {
+      row.clientId = normalizeClientId(u.clientId) || "";
+      row.roomsOnly = isRoomsOnlyClient(u.clientId);
+    }
+    return row;
+  });
   return {
     count: people.length,
     people,
@@ -922,7 +1092,9 @@ function presencePayload() {
 }
 
 function emitChatPresence() {
-  io.emit("chat:presence", presencePayload());
+  for (const sock of io.sockets.sockets.values()) {
+    sock.emit("chat:presence", presencePayload(sock));
+  }
 }
 
 function leaveDmRoom(socket) {
@@ -1126,6 +1298,15 @@ io.on("connection", (socket) => {
     const adminToken =
       typeof payload.adminToken === "string" ? payload.adminToken.trim() : "";
     const asAdmin = Boolean(adminToken && isValidAdminToken(adminToken));
+    const clientId = normalizeClientId(payload.clientId);
+    if (!asAdmin && clientId && isBannedClient(clientId)) {
+      if (typeof ack === "function") {
+        ack({ ok: false, error: "Доступ закрыт администратором" });
+      }
+      socket.emit("chat:kicked", { reason: "Доступ закрыт администратором" });
+      socket.disconnect(true);
+      return;
+    }
     let custom = sanitizeName(payload.name);
     if (custom && isReservedAdminName(custom) && !asAdmin) {
       custom = null;
@@ -1146,25 +1327,34 @@ io.on("connection", (socket) => {
     // One connection per nick: replace older tab/device with the same name.
     claimName(name, socket.id);
     leaveDmRoom(socket);
+    const roomsOnly = !asAdmin && isRoomsOnlyClient(clientId);
     online.set(socket.id, {
       name,
       isAdmin: asAdmin,
       roomCode: null,
       previousName: asAdmin ? previousName : null,
+      clientId: clientId || "",
     });
     socket.data.name = name;
     socket.data.isAdmin = asAdmin;
     socket.data.roomCode = null;
     socket.data.previousName = asAdmin ? previousName : null;
+    socket.data.clientId = clientId || "";
+    if (clientId) {
+      rememberAccessName("roomsOnly", clientId, name);
+      rememberAccessName("bans", clientId, name);
+    }
     emitChatPresence();
     // Fresh snapshot after join so the client can pin to latest once visible.
-    socket.emit("chat:state", snapshot());
+    socket.emit("chat:state", roomsOnly ? emptyPublicSnapshot() : snapshot());
     if (typeof ack === "function") {
       ack({
         ok: true,
         name,
         admin: asAdmin,
         previousName: asAdmin ? previousName : null,
+        roomsOnly,
+        publicLabel: PUBLIC_CHAT_LABEL,
       });
     }
   });
@@ -1597,7 +1787,9 @@ io.on("connection", (socket) => {
     const code = socket.data.roomCode;
     leaveDmRoom(socket);
     if (typeof ack === "function") ack({ ok: true, code: code || null });
-    socket.emit("chat:state", snapshot());
+    const user = online.get(socket.id);
+    const roomsOnly = user && isRoomsOnlyClient(user.clientId);
+    socket.emit("chat:state", roomsOnly ? emptyPublicSnapshot() : snapshot());
   });
 
   socket.on("chat:message", (payload = {}, ack) => {
@@ -1620,6 +1812,12 @@ io.on("connection", (socket) => {
     }
 
     const roomCode = socket.data.roomCode || null;
+    if (!roomCode && isRoomsOnlyClient(user.clientId)) {
+      if (typeof ack === "function") {
+        ack({ ok: false, error: `${PUBLIC_CHAT_LABEL} недоступен для этого устройства` });
+      }
+      return;
+    }
     const messageList = roomCode
       ? (ensureRooms(), store.rooms[roomCode] ? store.rooms[roomCode].messages : null)
       : store.messages;
@@ -1695,7 +1893,7 @@ io.on("connection", (socket) => {
       return;
     }
     const pub = publicMessage(msg);
-    io.emit("chat:message", pub);
+    emitPublicChatMessage(pub);
     // Push: replies go to the quoted author; otherwise ping every other subscriber
     // so Home Screen installs still get alerts when the chat is closed.
     if (msg.reply?.name && nameKey(msg.reply.name) !== nameKey(msg.name)) {
@@ -1779,7 +1977,7 @@ io.on("connection", (socket) => {
       return;
     }
     const pub = publicMessage(msg);
-    io.emit("chat:message-update", pub);
+    emitPublicMessageUpdate(pub);
     if (typeof ack === "function") ack({ ok: true, message: pub, added });
   });
 
@@ -1799,7 +1997,7 @@ io.on("connection", (socket) => {
       store.pinnedIds = store.pinnedIds.slice(0, 20);
       saveStore(store);
     }
-    io.emit("chat:state", snapshot());
+    emitPublicChatState(snapshot());
     if (typeof ack === "function") ack({ ok: true });
   });
 
@@ -1810,8 +2008,109 @@ io.on("connection", (socket) => {
     }
     store.pinnedIds = store.pinnedIds.filter((id) => id !== payload.id);
     saveStore(store);
-    io.emit("chat:state", snapshot());
+    emitPublicChatState(snapshot());
     if (typeof ack === "function") ack({ ok: true });
+  });
+
+  socket.on("admin:ban", (payload = {}, ack) => {
+    if (!socket.data.isAdmin) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа" });
+      return;
+    }
+    const targetId = typeof payload.socketId === "string" ? payload.socketId.trim() : "";
+    const target = targetId ? online.get(targetId) : null;
+    const clientId = normalizeClientId(payload.clientId) || normalizeClientId(target?.clientId);
+    if (!clientId) {
+      if (typeof ack === "function") {
+        ack({ ok: false, error: "Нет id устройства — пользователь слишком старый клиент" });
+      }
+      return;
+    }
+    if (target?.isAdmin) {
+      if (typeof ack === "function") ack({ ok: false, error: "Админа нельзя заблокировать" });
+      return;
+    }
+    banClient(clientId, {
+      name: target?.name || "",
+      reason: typeof payload.reason === "string" ? payload.reason : "Бан",
+      by: socket.data.name || "АДМИН",
+    });
+    for (const id of findOnlineByClientId(clientId)) {
+      kickBannedOrRestricted(id, "Вас заблокировали в Сарафане");
+    }
+    emitChatPresence();
+    if (typeof ack === "function") ack({ ok: true, clientId });
+  });
+
+  socket.on("admin:rooms-only", (payload = {}, ack) => {
+    if (!socket.data.isAdmin) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа" });
+      return;
+    }
+    const on = payload.on !== false;
+    const targetId = typeof payload.socketId === "string" ? payload.socketId.trim() : "";
+    const target = targetId ? online.get(targetId) : null;
+    const clientId = normalizeClientId(payload.clientId) || normalizeClientId(target?.clientId);
+    if (!clientId) {
+      if (typeof ack === "function") {
+        ack({ ok: false, error: "Нет id устройства — пусть человек обновит страницу" });
+      }
+      return;
+    }
+    if (target?.isAdmin) {
+      if (typeof ack === "function") ack({ ok: false, error: "Админу это не нужно" });
+      return;
+    }
+    if (isBannedClient(clientId)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала разблокируйте" });
+      return;
+    }
+    const ok = setRoomsOnlyClient(clientId, on, {
+      name: target?.name || "",
+      label: typeof payload.label === "string" ? payload.label : "",
+    });
+    if (!ok && on) {
+      if (typeof ack === "function") ack({ ok: false, error: "Не удалось" });
+      return;
+    }
+    for (const id of findOnlineByClientId(clientId)) {
+      const u = online.get(id);
+      const sock = io.sockets.sockets.get(id);
+      if (!u || !sock) continue;
+      notifyAccessUpdate(id);
+      if (on) {
+        // Pull them out of the public feed if they were there.
+        if (!u.roomCode) {
+          leaveDmRoom(sock);
+          sock.emit("chat:state", emptyPublicSnapshot());
+        }
+      } else {
+        if (!u.roomCode) sock.emit("chat:state", snapshot());
+      }
+    }
+    emitChatPresence();
+    if (typeof ack === "function") {
+      ack({
+        ok: true,
+        clientId,
+        roomsOnly: on,
+        publicLabel: PUBLIC_CHAT_LABEL,
+      });
+    }
+  });
+
+  socket.on("admin:unban", (payload = {}, ack) => {
+    if (!socket.data.isAdmin) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа" });
+      return;
+    }
+    const clientId = normalizeClientId(payload.clientId);
+    if (!clientId) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нужен id" });
+      return;
+    }
+    unbanClient(clientId);
+    if (typeof ack === "function") ack({ ok: true, clientId });
   });
 
   socket.on("admin:delete", (payload = {}, ack) => {
@@ -1854,7 +2153,7 @@ io.on("connection", (socket) => {
       const file = path.join(UPLOAD_DIR, path.basename(removed.imageUrl));
       fs.promises.unlink(file).catch(() => {});
     }
-    io.emit("chat:message-removed", { id: removed.id });
+    emitPublicMessageRemoved({ id: removed.id });
     if (typeof ack === "function") ack({ ok: true, id: removed.id });
   });
 

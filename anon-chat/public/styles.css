@@ -1037,38 +1037,61 @@ body.admin-on #me-btn {
 
 .online-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
   width: 100%;
   border: 0;
   background: transparent;
   color: var(--ink);
   text-align: left;
-  padding: 0.62rem 0.55rem;
+  padding: 0.55rem 0.45rem;
   border-radius: 10px;
-  cursor: pointer;
+  cursor: default;
   font: inherit;
   transition: background var(--motion-fast) var(--ease-soft);
 }
 
 .online-row.is-self {
-  cursor: default;
   opacity: 0.72;
+}
+
+.online-row.is-rooms-only {
+  background: color-mix(in srgb, var(--dm-accent) 8%, transparent);
 }
 
 .online-row.is-self .online-row-action {
   color: var(--muted);
 }
 
-.online-row:hover,
-.online-row:focus-visible {
+.online-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 0.2rem 0.1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.online-row-main:hover,
+.online-row-main:focus-visible {
   background: var(--hover);
   outline: none;
 }
 
-.online-row.is-self:hover,
-.online-row.is-self:focus-visible {
+.online-row.is-self .online-row-main {
+  cursor: default;
+}
+
+.online-row.is-self .online-row-main:hover,
+.online-row.is-self .online-row-main:focus-visible {
   background: transparent;
 }
 
@@ -1084,6 +1107,42 @@ body.admin-on #me-btn {
   flex: 0 0 auto;
   font-size: 0.74rem;
   color: var(--dm-accent);
+}
+
+.online-row-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  padding: 0 0.1rem 0.1rem;
+}
+
+.online-tool {
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  padding: 0.28rem 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.online-tool:hover,
+.online-tool:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+
+.online-tool.is-on {
+  border-color: color-mix(in srgb, var(--dm-accent) 45%, var(--line));
+  color: var(--dm-accent);
+}
+
+.online-tool.danger {
+  color: color-mix(in srgb, #b42318 70%, var(--ink));
+  border-color: color-mix(in srgb, #b42318 28%, var(--line));
 }
 
 .react-bubble {

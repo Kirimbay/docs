@@ -83,6 +83,8 @@
   const LAST_DEST_KEY = "sarafan_last_dest";
   const LAST_DEST_PUBLIC = "public";
   const SESSION_LIVE_KEY = "sarafan_session_live";
+  const CLIENT_ID_KEY = "sarafan_client_id";
+  const PUBLIC_CHAT_LABEL_DEFAULT = "Сарафан ВПН";
   const MAX_DM_ROOMS = 24;
   const ADMIN_TOKEN_KEY = "sarafan_admin_token";
   const PREV_NAME_KEY = "sarafan_prev_name";
@@ -102,6 +104,9 @@
 
   let myName = "";
   let isAdmin = false;
+  /** Device-scoped restriction: hub hides public chat. */
+  let accessRoomsOnly = false;
+  let publicChatLabel = PUBLIC_CHAT_LABEL_DEFAULT;
   let pendingImageUrl = null;
   let uploading = false;
   let pendingReply = null;
@@ -545,9 +550,46 @@
     return null;
   }
 
+  function loadClientId() {
+    try {
+      let id = String(localStorage.getItem(CLIENT_ID_KEY) || "").trim();
+      if (!/^[a-zA-Z0-9_-]{8,80}$/.test(id)) {
+        id =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID().replace(/-/g, "")
+            : `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+        localStorage.setItem(CLIENT_ID_KEY, id);
+      }
+      return id;
+    } catch {
+      return `c${Date.now().toString(36)}`;
+    }
+  }
+
+  function applyAccessFlags({ roomsOnly, publicLabel } = {}) {
+    if (typeof roomsOnly === "boolean") accessRoomsOnly = roomsOnly;
+    if (typeof publicLabel === "string" && publicLabel.trim()) {
+      publicChatLabel = publicLabel.trim().slice(0, 40);
+    }
+    if (accessRoomsOnly && loadLastDest()?.kind === "public") saveLastDest("");
+    const notifyPublicLabel = notifyPublicInput?.closest("label")?.querySelector("span");
+    if (notifyPublicLabel) notifyPublicLabel.textContent = publicChatLabel;
+    if (dmDialog?.open) {
+      syncDmDialogChrome();
+      renderDmRoomsList({ skipRefresh: true });
+    }
+    syncDmBtn();
+  }
+
   function saveLastDest(dest) {
     try {
+      if (!dest) {
+        localStorage.removeItem(LAST_DEST_KEY);
+        saveDmCode("");
+        return;
+      }
       if (dest === LAST_DEST_PUBLIC || dest === "public" || dest?.kind === "public") {
+        if (accessRoomsOnly) return;
         localStorage.setItem(LAST_DEST_KEY, LAST_DEST_PUBLIC);
         saveDmCode("");
         return;
@@ -952,6 +994,7 @@
   }
 
   function appendPublicChatRow(fragment) {
+    if (accessRoomsOnly) return;
     const row = document.createElement("div");
     const here = !dmCode;
     row.className = "dm-room-row is-public" + (here ? " is-current" : "");
@@ -963,11 +1006,11 @@
     const enterBtn = document.createElement("button");
     enterBtn.type = "button";
     enterBtn.className = "dm-room-enter";
-    enterBtn.title = here ? "Вы в общем чате" : "Войти в общий чат";
+    enterBtn.title = here ? `Вы в «${publicChatLabel}»` : `Войти в «${publicChatLabel}»`;
 
     const codeEl = document.createElement("strong");
     codeEl.className = "dm-room-code";
-    codeEl.textContent = "Общий чат";
+    codeEl.textContent = publicChatLabel;
 
     const unreadEl = document.createElement("span");
     unreadEl.className = "dm-room-unread" + (here ? " has-new" : "");
@@ -979,8 +1022,8 @@
     const namesBtn = document.createElement("button");
     namesBtn.type = "button";
     namesBtn.className = "dm-room-names";
-    namesBtn.textContent = "Все участники · закрепы и история";
-    namesBtn.title = "Общий чат Сарафан";
+    namesBtn.textContent = "Общий канал · закрепы и история";
+    namesBtn.title = `Войти в «${publicChatLabel}»`;
     namesBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1254,7 +1297,11 @@
     clearReply();
     // Restore public feed under the dialog before it closes — avoids a blank
     // flash and a second hard rebuild when chat:state arrives with the same data.
-    if (publicStateBackup) {
+    if (accessRoomsOnly) {
+      publicStateBackup = null;
+      lastState = { messages: [], pinned: [] };
+      renderAll(lastState, { briefPin: true });
+    } else if (publicStateBackup) {
       renderAll(publicStateBackup, { briefPin: true });
       publicStateBackup = null;
     } else {
@@ -1274,11 +1321,22 @@
         markAdminRoomRead(prev, snapshotMessages);
       }
       saveDmCode("");
-      if (!quiet) notify(`Снова общий чат · ${prev} в меню «Чаты»`);
+      if (!quiet) {
+        notify(
+          accessRoomsOnly
+            ? `Комната закрыта · ${prev} в меню «Чаты»`
+            : `Снова «${publicChatLabel}» · ${prev} в меню «Чаты»`
+        );
+      }
     }
   }
 
   function enterPublicChat({ fromHub = false } = {}) {
+    if (accessRoomsOnly) {
+      notify(`«${publicChatLabel}» недоступен на этом устройстве`);
+      openDmDialog({ requirePick: true });
+      return;
+    }
     if (dmCode) leaveDmMode({ quiet: true });
     saveLastDest("public");
     markSessionLive();
@@ -1293,13 +1351,17 @@
 
   function resumeLastDestination() {
     const dest = loadLastDest();
+    if (accessRoomsOnly && (!dest || dest.kind === "public")) {
+      openDmDialog({ requirePick: true });
+      return;
+    }
     if (dest?.kind === "room") {
       socket.emit("dm:join", { code: dest.code }, (res) => {
         if (res?.ok) {
           enterDmMode(res);
           return;
         }
-        saveLastDest("public");
+        saveLastDest(accessRoomsOnly ? "" : "public");
         if (/не найден|проверьте код/i.test(res?.error || "")) forgetDmRoom(dest.code);
         openDmDialog({ requirePick: true });
       });
@@ -1314,12 +1376,18 @@
     if (dmLead) {
       dmLead.textContent = dmCode
         ? `Сейчас комната ${dmCode} · можно сменить`
-        : hubRequirePick
-          ? "Куда зайти? Выбор запомнится"
-          : "Общий чат и комнаты";
+        : accessRoomsOnly
+          ? `Только комнаты · «${publicChatLabel}» скрыт`
+          : hubRequirePick
+            ? "Куда зайти? Выбор запомнится"
+            : `${publicChatLabel} и комнаты`;
     }
     if (dmDialogClose) {
-      dmDialogClose.textContent = hubRequirePick ? "В общий" : "Готово";
+      dmDialogClose.textContent = hubRequirePick
+        ? accessRoomsOnly
+          ? "Закрыть"
+          : "В общий"
+        : "Готово";
     }
   }
 
@@ -1413,21 +1481,97 @@
       })
       .forEach((person) => {
         const isSelf = person.id === socket.id;
-        const row = document.createElement(isSelf ? "div" : "button");
-        if (!isSelf) row.type = "button";
-        row.className = "online-row" + (isSelf ? " is-self" : "");
+        const row = document.createElement("div");
+        row.className = "online-row" + (isSelf ? " is-self" : "") + (person.roomsOnly ? " is-rooms-only" : "");
         row.setAttribute("role", "option");
         row.dataset.id = person.id;
+
+        const main = document.createElement(isSelf ? "div" : "button");
+        if (!isSelf) main.type = "button";
+        main.className = "online-row-main";
         const name = document.createElement("span");
         name.className = "online-row-name";
         name.textContent = person.name;
         const action = document.createElement("span");
         action.className = "online-row-action";
-        action.textContent = isSelf ? "это вы" : "пригласить";
-        row.append(name, action);
-        if (!isSelf) row.addEventListener("click", () => invitePerson(person));
+        action.textContent = isSelf
+          ? "это вы"
+          : person.roomsOnly
+            ? "без общего"
+            : "пригласить";
+        main.append(name, action);
+        if (!isSelf) main.addEventListener("click", () => invitePerson(person));
+        row.append(main);
+
+        if (isAdmin && !isSelf) {
+          const tools = document.createElement("div");
+          tools.className = "online-row-tools";
+
+          const roomsOnlyBtn = document.createElement("button");
+          roomsOnlyBtn.type = "button";
+          roomsOnlyBtn.className = "online-tool" + (person.roomsOnly ? " is-on" : "");
+          roomsOnlyBtn.textContent = person.roomsOnly ? "общий+" : "без общего";
+          roomsOnlyBtn.title = person.roomsOnly
+            ? `Снова показать «${publicChatLabel}»`
+            : `Скрыть «${publicChatLabel}» на этом устройстве (для ребёнка)`;
+          roomsOnlyBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            socket.emit(
+              "admin:rooms-only",
+              { socketId: person.id, clientId: person.clientId, on: !person.roomsOnly },
+              (res) => {
+                if (!res?.ok) {
+                  notify(res?.error || "Не вышло");
+                  return;
+                }
+                person.roomsOnly = Boolean(res.roomsOnly);
+                notify(
+                  person.roomsOnly
+                    ? `${person.name}: «${publicChatLabel}» скрыт`
+                    : `${person.name}: «${publicChatLabel}» снова доступен`
+                );
+                renderOnlineList();
+              }
+            );
+          });
+
+          const banBtn = document.createElement("button");
+          banBtn.type = "button";
+          banBtn.className = "online-tool danger";
+          banBtn.textContent = "блок";
+          banBtn.title = "Выгнать и заблокировать устройство (имя можно сменить — вход не пустит)";
+          banBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!window.confirm(`Заблокировать «${person.name}» на этом устройстве?`)) return;
+            socket.emit(
+              "admin:ban",
+              { socketId: person.id, clientId: person.clientId, reason: "Бан админом" },
+              (res) => {
+                if (!res?.ok) {
+                  notify(res?.error || "Не заблокировалось");
+                  return;
+                }
+                notify(`${person.name} заблокирован`);
+                lastPeople = lastPeople.filter((p) => p.id !== person.id);
+                renderOnlineList();
+              }
+            );
+          });
+
+          tools.append(roomsOnlyBtn, banBtn);
+          row.append(tools);
+        }
+
         onlineList.append(row);
-        if (person.id === prevFocus && !isSelf) row.focus({ preventScroll: true });
+        if (person.id === prevFocus && !isSelf) {
+          try {
+            main.focus({ preventScroll: true });
+          } catch {
+            /* ignore */
+          }
+        }
       });
   }
 
@@ -3395,6 +3539,7 @@
       "chat:join",
       {
         name,
+        clientId: loadClientId(),
         adminToken: adminToken || undefined,
         previousName: previousName || undefined,
       },
@@ -3403,6 +3548,10 @@
           showGateError(res?.error || "Не удалось войти");
           return;
         }
+        applyAccessFlags({
+          roomsOnly: Boolean(res.roomsOnly),
+          publicLabel: res.publicLabel,
+        });
         if (res.admin) {
           if (res.previousName) savePrevName(res.previousName);
           enterChat(res.name, { admin: true });
@@ -4104,7 +4253,9 @@
       dmBtn.classList.add("active");
     } else {
       dmBtn.textContent = "Чаты";
-      dmBtn.title = "Общий чат и комнаты";
+      dmBtn.title = accessRoomsOnly
+        ? "Только комнаты"
+        : `${publicChatLabel} и комнаты`;
       dmBtn.classList.remove("active");
     }
     if (dmDialog?.open) syncDmDialogChrome();
@@ -4115,6 +4266,11 @@
   });
   dmDialogClose?.addEventListener("click", () => {
     if (hubRequirePick) {
+      if (accessRoomsOnly) {
+        // Must pick a room — keep hub open.
+        notify("Выберите комнату");
+        return;
+      }
       enterPublicChat({ fromHub: true });
       return;
     }
@@ -4219,6 +4375,8 @@
     isAdmin = false;
     dmCode = null;
     hubRequirePick = false;
+    accessRoomsOnly = false;
+    publicChatLabel = PUBLIC_CHAT_LABEL_DEFAULT;
     clearSessionLive();
     pendingInvites = [];
     exitBulkSelectMode();
@@ -4245,7 +4403,12 @@
     if (Array.isArray(people) && people.length) {
       lastPeople = people
         .filter((p) => p && typeof p.id === "string" && typeof p.name === "string")
-        .map((p) => ({ id: p.id, name: p.name }));
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          clientId: typeof p.clientId === "string" ? p.clientId : "",
+          roomsOnly: Boolean(p.roomsOnly),
+        }));
     } else if (Array.isArray(names)) {
       // Fallback if an older server build is still running.
       lastPeople = names.filter(Boolean).map((name, i) => ({ id: `n-${i}-${name}`, name }));
@@ -4255,6 +4418,14 @@
     updatePresenceChrome();
     if (onlineDialog?.open) renderOnlineList();
     if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+  });
+
+  socket.on("access:update", (payload = {}) => {
+    applyAccessFlags(payload);
+    if (accessRoomsOnly && !dmCode) {
+      openDmDialog({ requirePick: true });
+      notify(`«${publicChatLabel}» скрыт на этом устройстве`);
+    }
   });
 
   socket.on("dm:invite", (payload = {}) => {
@@ -4288,13 +4459,21 @@
         "chat:join",
         {
           name: myName === "АДМИН" ? previousName || myName : myName,
+          clientId: loadClientId(),
           adminToken: adminToken || undefined,
           previousName: previousName || undefined,
         },
         (res) => {
-          if (!res?.ok) return;
+          if (!res?.ok) {
+            leaveToGate(res?.error || "Не удалось восстановить сессию");
+            return;
+          }
           myName = res.name;
           saveName(myName);
+          applyAccessFlags({
+            roomsOnly: Boolean(res.roomsOnly),
+            publicLabel: res.publicLabel,
+          });
           if (res.admin) {
             if (res.previousName) savePrevName(res.previousName);
             setAdminUi(true, res.name);
@@ -4312,10 +4491,12 @@
                 document.body.classList.remove("dm-on");
                 if (dmBar) dmBar.hidden = true;
                 syncDmBtn();
+                if (accessRoomsOnly) openDmDialog({ requirePick: true });
               }
             });
           } else {
             syncDmBtn();
+            if (accessRoomsOnly) openDmDialog({ requirePick: true });
           }
         }
       );
