@@ -526,11 +526,12 @@
         : "Закрыть вход · выгнать всех";
     }
     if (roomAdminPanelLead && dmCode) {
+      const shown = formatRoomCodeDisplay(dmCode);
       roomAdminPanelLead.textContent = isAdmin
-        ? `Супер-админ · номер ${dmCode}${roomKeyed ? " · закрытая" : " · открытая"}${
+        ? `Супер-админ · номер ${shown}${roomKeyed ? " · закрытая" : " · открытая"}${
             roomClosed ? " · вход закрыт" : ""
           }`
-        : `Номер ${dmCode}${roomKeyed ? " · закрытая" : " · открытая"}${
+        : `Номер ${shown}${roomKeyed ? " · закрытая" : " · открытая"}${
             roomClosed ? " · вход закрыт" : ""
           }`;
     }
@@ -590,7 +591,7 @@
     } else {
       if (deleteLead) {
         deleteLead.textContent = dmCode
-          ? `Чтобы удалить — номер этой комнаты ${dmCode} и пин аккаунта`
+          ? `Чтобы удалить — номер этой комнаты ${formatRoomCodeDisplay(dmCode)} и пин аккаунта`
           : "Чтобы удалить — введите номер комнаты и пин аккаунта";
       }
       if (deleteKeyLabel) deleteKeyLabel.textContent = "Пин аккаунта";
@@ -632,17 +633,18 @@
     }
     if (!dmBarCode) return;
     if (isPublic) {
-      dmBarCode.textContent = `${publicChatLabel}, ${dmCode}`;
+      dmBarCode.textContent = `${publicChatLabel}, ${formatRoomCodeDisplay(dmCode)}`;
       return;
     }
+    const shown = formatRoomCodeDisplay(dmCode);
     if (roomKeyed) {
       const key = loadRoomKey(dmCode);
       dmBarCode.textContent = key
-        ? `комната ${dmCode}, ключ ${key}`
-        : `комната ${dmCode}, ключ нужен`;
+        ? `комната ${shown}, ключ ${key}`
+        : `комната ${shown}, ключ нужен`;
       return;
     }
-    dmBarCode.textContent = `комната ${dmCode}`;
+    dmBarCode.textContent = `комната ${shown}`;
   }
 
   function clearDeleteArm() {
@@ -839,8 +841,8 @@
       text:
         codes.length === 1
           ? foreverN
-            ? `Комната ${codes[0]} пропадёт навсегда.\nСообщения и участники тоже.`
-            : `Убрать комнату ${codes[0]} из списка?`
+            ? `Комната ${formatRoomCodeDisplay(codes[0])} пропадёт навсегда.\nСообщения и участники тоже.`
+            : `Убрать комнату ${formatRoomCodeDisplay(codes[0])} из списка?`
           : foreverN
             ? `Удалить ${codes.length} комнат?\nВыбранные чужие пропадут навсегда.`
             : `Убрать ${codes.length} комнат из списка?`,
@@ -875,7 +877,7 @@
     renderDmRoomsList({ skipRefresh: true });
     if (failed && deleted) notify(`Готово ${deleted} · не вышло ${failed}`);
     else if (failed) notify("Не получилось");
-    else if (deleted === 1) notify(foreverN ? `Комната ${codes[0]} удалена` : `Комната ${codes[0]} убрана`);
+    else if (deleted === 1) notify(foreverN ? `Комната ${formatRoomCodeDisplay(codes[0])} удалена` : `Комната ${formatRoomCodeDisplay(codes[0])} убрана`);
     else notify(foreverN ? `Удалено комнат: ${deleted}` : `Убрано комнат: ${deleted}`);
   }
 
@@ -1199,6 +1201,13 @@
     const compact = s.replace(/\s+/g, "");
     if (/^\d{1,6}$/.test(compact)) return compact.padStart(6, "0");
     return "";
+  }
+
+  /** User-facing room number without leading zeros: 000002 → "2", 000000 → "0". */
+  function formatRoomCodeDisplay(raw) {
+    const c = normalizeDmCodeLocal(raw);
+    if (!c) return "";
+    return String(Number(c));
   }
 
   function loadDmCode() {
@@ -1803,14 +1812,14 @@
       expandedDmRoomCodes.delete(c);
       if (dmCode === c) leaveDmMode({ quiet: true, openHub: true });
       renderDmRoomsList({ skipRefresh: true });
-      notify(`Комната ${c} удалена навсегда`);
+      notify(`Комната ${formatRoomCodeDisplay(c)} удалена навсегда`);
     });
   }
 
   function joinDmByCode(code, { fromList = false, watchOnly = false, key = "" } = {}) {
     showDmDialogError("");
     const c = normalizeDmCodeLocal(code);
-    if (dmCodeInput) dmCodeInput.value = c;
+    if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c) || c;
     if (c.length !== 6) {
       showDmDialogError("Введите номер комнаты цифрами");
       return;
@@ -1911,6 +1920,7 @@
       enterBtn.className = "dm-room-enter";
       const unread = dmCode === room.code ? 0 : Math.max(0, Number(room.unread) || 0);
       const storedKey = loadRoomKey(room.code);
+      const shown = formatRoomCodeDisplay(room.code);
       enterBtn.title = owned
         ? keyed
           ? storedKey
@@ -1919,15 +1929,15 @@
           : "Админ · для других свободный вход"
         : keyed
           ? storedKey
-            ? `Закрытая · номер ${room.code} · ключ ${storedKey}`
-            : `Закрытая · номер ${room.code} · нужен ключ`
+            ? `Закрытая · номер ${shown} · ключ ${storedKey}`
+            : `Закрытая · номер ${shown} · нужен ключ`
           : room.foreign
             ? unread
               ? `Смотреть · ${newMessagesLabel(unread)}`
-              : `Смотреть комнату ${room.code}`
+              : `Смотреть комнату ${shown}`
             : unread
               ? `Войти · ${newMessagesLabel(unread)}`
-              : `Войти в комнату ${room.code}`;
+              : `Войти в комнату ${shown}`;
 
       const codeEl = document.createElement("strong");
       codeEl.className = "dm-room-code";
@@ -1936,10 +1946,10 @@
         keyIcon.className = "dm-room-key-icon";
         keyIcon.setAttribute("aria-hidden", "true");
         keyIcon.textContent = "🔑";
-        const codeLabel = storedKey ? `${room.code} · ключ ${storedKey}` : room.code;
+        const codeLabel = storedKey ? `${shown} · ключ ${storedKey}` : shown;
         codeEl.append(keyIcon, document.createTextNode(codeLabel));
       } else {
-        codeEl.textContent = room.code;
+        codeEl.textContent = shown;
       }
 
       const unreadEl = document.createElement("span");
@@ -2027,7 +2037,7 @@
         forgetBtn.hidden = hubBulkSelectOn;
         forgetBtn.setAttribute(
           "aria-label",
-          destroyForeign ? `Удалить комнату ${room.code}` : `Убрать ${room.code} из списка`
+          destroyForeign ? `Удалить комнату ${formatRoomCodeDisplay(room.code)}` : `Убрать ${formatRoomCodeDisplay(room.code)} из списка`
         );
         forgetBtn.title = destroyForeign
           ? "Нажмите дважды — удалить навсегда"
@@ -2052,7 +2062,7 @@
               if (destroyForeign) {
                 const ok = await askConfirm({
                   title: "Удалить комнату?",
-                  text: `Комната ${room.code} пропадёт навсегда.\nСообщения и участники тоже.`,
+                  text: `Комната ${formatRoomCodeDisplay(room.code)} пропадёт навсегда.\nСообщения и участники тоже.`,
                   okLabel: "Удалить навсегда",
                 });
                 if (!ok) return;
@@ -2065,20 +2075,20 @@
                   forgetDmRoom(room.code);
                   expandedDmRoomCodes.delete(room.code);
                   renderDmRoomsList({ skipRefresh: true });
-                  notify(`Комната ${room.code} удалена`);
+                  notify(`Комната ${formatRoomCodeDisplay(room.code)} удалена`);
                 });
                 return;
               }
               const ok = await askConfirm({
                 title: "Убрать из списка?",
-                text: `Убрать комнату ${room.code} из списка?`,
+                text: `Убрать комнату ${formatRoomCodeDisplay(room.code)} из списка?`,
                 okLabel: "Убрать",
               });
               if (!ok) return;
               forgetDmRoom(room.code);
               expandedDmRoomCodes.delete(room.code);
               renderDmRoomsList({ skipRefresh: true });
-              notify(`Комната ${room.code} убрана`);
+              notify(`Комната ${formatRoomCodeDisplay(room.code)} убрана`);
             })();
             return;
           }
@@ -2279,14 +2289,15 @@
     }
     const maxMembers = Number(res.maxMembers) > 0 ? Number(res.maxMembers) : 5000;
     const accessHint = roomKeyed ? " · по ключу" : " · свободная";
+    const shown = formatRoomCodeDisplay(res.code);
     notify(
       res.invited
-        ? `Пригласили ${res.invited} · номер ${res.code}`
+        ? `Пригласили ${res.invited} · номер ${shown}`
         : isAdmin
-          ? `Комната ${res.code} · вы невидимы в счётчике`
+          ? `Комната ${shown} · вы невидимы в счётчике`
           : isPublic
-            ? `«${publicChatLabel}» · номер ${res.code}`
-            : `Номер ${res.code}${accessHint} · до ${maxMembers}`
+            ? `«${publicChatLabel}» · номер ${shown}`
+            : `Номер ${shown}${accessHint} · до ${maxMembers}`
     );
     syncDmBtn();
   }
@@ -2335,7 +2346,7 @@
         notify(
           isPublicRoomCode(prev)
             ? `Вышли из «${publicChatLabel}» · список в «Чаты»`
-            : `Комната ${prev} · снова в меню «Чаты»`
+            : `Комната ${formatRoomCodeDisplay(prev)} · снова в меню «Чаты»`
         );
       }
     }
@@ -2409,12 +2420,12 @@
       dmLead.textContent = dmCode
         ? isPublicRoomCode(dmCode)
           ? `Сейчас «${publicChatLabel}» · можно сменить`
-          : `Сейчас комната ${dmCode} · можно сменить`
+          : `Сейчас комната ${formatRoomCodeDisplay(dmCode)} · можно сменить`
         : accessRoomsOnly
           ? `Только комнаты · 30 дней без активности — удаление`
           : hubRequirePick
             ? `Создайте или войдите по номеру · 30 дней без активности — удаление`
-            : `Номер · короткий дополняется нулями · 30 дней без активности — удаление`;
+            : `Номер без нулей · 2 и 000002 — одна комната · 30 дней без активности — удаление`;
     }
     if (dmDialogClose) {
       dmDialogClose.textContent = hubRequirePick
@@ -5466,14 +5477,14 @@
       if (res.remapped && preferredRaw) {
         notify(
           joinKey
-            ? `Номер ${preferredRaw} занят · выдан ${res.code} · для других ключ ${joinKey}`
-            : `Номер ${preferredRaw} занят · выдан ${res.code} · для других свободный`
+            ? `Номер ${formatRoomCodeDisplay(preferredRaw)} занят · выдан ${formatRoomCodeDisplay(res.code)} · для других ключ ${joinKey}`
+            : `Номер ${formatRoomCodeDisplay(preferredRaw)} занят · выдан ${formatRoomCodeDisplay(res.code)} · для других свободный`
         );
       } else {
         notify(
           joinKey
-            ? `Номер ${res.code} · для других ключ ${joinKey}`
-            : `Номер ${res.code} · для других свободный`
+            ? `Номер ${formatRoomCodeDisplay(res.code)} · для других ключ ${joinKey}`
+            : `Номер ${formatRoomCodeDisplay(res.code)} · для других свободный`
         );
       }
     });
@@ -5540,7 +5551,7 @@
     });
   }
   bindCreateJoinButtons();
-  function padRoomCodeField(el) {
+  function formatRoomCodeField(el) {
     if (!el) return;
     const digits = String(el.value || "").replace(/\D/g, "").slice(0, 6);
     if (!digits) {
@@ -5548,7 +5559,7 @@
       return;
     }
     const padded = normalizeDmCodeLocal(digits);
-    if (padded.length === 6) el.value = padded;
+    if (padded.length === 6) el.value = formatRoomCodeDisplay(padded);
     else if (el.value !== digits) el.value = digits;
   }
 
@@ -5556,12 +5567,12 @@
     const digits = (dmCodeInput.value || "").replace(/\D/g, "").slice(0, 6);
     if (dmCodeInput.value !== digits) dmCodeInput.value = digits;
   });
-  dmCodeInput?.addEventListener("blur", () => padRoomCodeField(dmCodeInput));
+  dmCodeInput?.addEventListener("blur", () => formatRoomCodeField(dmCodeInput));
   dmCreateCode?.addEventListener("input", () => {
     const digits = (dmCreateCode.value || "").replace(/\D/g, "").slice(0, 6);
     if (dmCreateCode.value !== digits) dmCreateCode.value = digits;
   });
-  dmCreateCode?.addEventListener("blur", () => padRoomCodeField(dmCreateCode));
+  dmCreateCode?.addEventListener("blur", () => formatRoomCodeField(dmCreateCode));
   dmCreateJoinKey?.addEventListener("input", () => {
     const digits = normalizeRoomKeyLocal(dmCreateJoinKey.value);
     if (dmCreateJoinKey.value !== digits) dmCreateJoinKey.value = digits;
@@ -5571,7 +5582,7 @@
     if (dmJoinKey.value !== digits) dmJoinKey.value = digits;
   });
   const roomDeleteCodeEl = document.getElementById("room-delete-code");
-  roomDeleteCodeEl?.addEventListener("blur", () => padRoomCodeField(roomDeleteCodeEl));
+  roomDeleteCodeEl?.addEventListener("blur", () => formatRoomCodeField(roomDeleteCodeEl));
   dmCodeInput?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -5667,7 +5678,7 @@
     if (roomConfirmAdminKey) roomConfirmAdminKey.value = accountPinForRoom(dmCode);
     if (roomNewJoinKey) roomNewJoinKey.value = roomKeyed ? loadRoomKey(dmCode) || "" : "";
     if (roomDeleteCode) {
-      roomDeleteCode.value = dmCode;
+      roomDeleteCode.value = formatRoomCodeDisplay(dmCode);
       roomDeleteCode.readOnly = true;
     }
     if (roomDeleteKey) roomDeleteKey.value = accountPinForRoom(dmCode);
@@ -5808,11 +5819,11 @@
     const code = normalizeDmCodeLocal(roomDeleteCode?.value || "");
     const key = normalizeRoomKeyLocal(roomDeleteKey?.value || "");
     if (code.length !== 6) {
-      showRoomAdminPanelError("Нужен номер комнаты (6 цифр)");
+      showRoomAdminPanelError("Нужен номер комнаты");
       return;
     }
     if (!isAdmin && key.length !== 4) {
-      showRoomAdminPanelError("Для удаления нужны номер (6) и пин аккаунта (4)");
+      showRoomAdminPanelError("Для удаления нужны номер и пин аккаунта (4)");
       return;
     }
     if (code !== dmCode) {
@@ -5822,7 +5833,7 @@
     void (async () => {
       const ok = await askConfirm({
         title: "Удалить комнату?",
-        text: `Комната ${code} пропадёт навсегда.\nСообщения и участники тоже.`,
+        text: `Комната ${formatRoomCodeDisplay(code)} пропадёт навсегда.\nСообщения и участники тоже.`,
         okLabel: "Удалить навсегда",
       });
       if (!ok) return;
@@ -5834,7 +5845,7 @@
         forgetDmRoom(code);
         roomAdminPanel?.close();
         leaveDmMode({ quiet: true, openHub: true });
-        notify(`Комната ${code} удалена навсегда`);
+        notify(`Комната ${formatRoomCodeDisplay(code)} удалена навсегда`);
       });
     })();
   });
@@ -5864,11 +5875,12 @@
   });
   dmCopyBtn?.addEventListener("click", async () => {
     if (!dmCode) return;
+    const shown = formatRoomCodeDisplay(dmCode);
     try {
-      await navigator.clipboard.writeText(dmCode);
-      notify(`Код ${dmCode} скопирован`)
+      await navigator.clipboard.writeText(shown);
+      notify(`Номер ${shown} скопирован`)
     } catch {
-      notify(`Код: ${dmCode}`)
+      notify(`Номер: ${shown}`)
     }
   });
 
