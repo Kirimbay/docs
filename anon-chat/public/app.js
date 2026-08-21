@@ -1727,7 +1727,11 @@
     const nodes = feed.querySelectorAll(".msg[data-id]");
     if (nodes.length !== list.length) return false;
     for (let i = 0; i < list.length; i += 1) {
-      if (nodes[i].dataset.id !== list[i]?.id) return false;
+      const msg = list[i];
+      const node = nodes[i];
+      if (!msg || node.dataset.id !== msg.id) return false;
+      // Pin / unpin keeps the same ids — must still redraw badges and red frame.
+      if (Boolean(msg.pinned) !== node.classList.contains("pinned-item")) return false;
     }
     return true;
   }
@@ -2336,7 +2340,26 @@
         closeMsgActionMenu();
         const event = msg.pinned ? "admin:unpin" : "admin:pin";
         socket.emit(event, { id: msg.id }, (res) => {
-          if (!res?.ok) notify(res?.error || "Ошибка");
+          if (!res?.ok) {
+            notify(res?.error || "Ошибка");
+            return;
+          }
+          // chat:state follows; apply locally too so the badge appears even if
+          // the broadcast is delayed or coalesced.
+          const nextPinned = event === "admin:pin";
+          const inMessages = (lastState.messages || []).find((m) => m.id === msg.id);
+          if (inMessages) inMessages.pinned = nextPinned;
+          if (nextPinned) {
+            const pub = inMessages || msg;
+            pub.pinned = true;
+            lastState.pinned = [
+              pub,
+              ...(lastState.pinned || []).filter((m) => m.id !== msg.id),
+            ].slice(0, 20);
+          } else {
+            lastState.pinned = (lastState.pinned || []).filter((m) => m.id !== msg.id);
+          }
+          renderAll(lastState, { force: true, briefPin: true });
         });
       });
       menu.append(pinBtn);
@@ -3090,6 +3113,7 @@
     }
 
     const stick = pinToLatestOnce || isNearBottom(80);
+    const scrollTop = feed.scrollTop;
     pinToLatestOnce = false;
 
     feed.replaceChildren();
@@ -3102,6 +3126,7 @@
     if (stick) {
       schedulePinToLatest({ brief: briefPin });
     } else {
+      feed.scrollTop = scrollTop;
       updateJumpBottom();
     }
   }
