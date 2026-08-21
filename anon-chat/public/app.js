@@ -2583,6 +2583,84 @@
     return el;
   }
 
+  function rewriteAuthorInMessages(list, fromName, toName) {
+    if (!Array.isArray(list) || !fromName || !toName) return false;
+    let touched = false;
+    for (const msg of list) {
+      if (!msg) continue;
+      if (nameEquals(msg.name, fromName)) {
+        msg.name = toName;
+        touched = true;
+      }
+      if (msg.reply && nameEquals(msg.reply.name, fromName)) {
+        msg.reply.name = toName;
+        touched = true;
+      }
+      if (msg.reactions && typeof msg.reactions === "object") {
+        for (const emoji of Object.keys(msg.reactions)) {
+          const names = msg.reactions[emoji];
+          if (!Array.isArray(names)) continue;
+          let localTouch = false;
+          const mapped = names.map((n) => {
+            if (nameEquals(n, fromName)) {
+              localTouch = true;
+              return toName;
+            }
+            return n;
+          });
+          if (localTouch) {
+            msg.reactions[emoji] = [...new Set(mapped)];
+            if (!msg.reactions[emoji].length) delete msg.reactions[emoji];
+            touched = true;
+          }
+        }
+      }
+    }
+    return touched;
+  }
+
+  function applyAuthorRename(fromName, toName) {
+    if (!fromName || !toName || nameEquals(fromName, toName)) return;
+    const stick = isNearBottom(80);
+    const scrollTop = feed.scrollTop;
+    const touchedMessages = rewriteAuthorInMessages(lastState.messages, fromName, toName);
+    const touchedPins = rewriteAuthorInMessages(lastState.pinned, fromName, toName);
+
+    // Remembered DM peers + pending invites that still show the old nick.
+    try {
+      const rooms = loadDmRooms();
+      let roomsChanged = false;
+      for (const room of rooms) {
+        if (room.peer && nameEquals(room.peer, fromName)) {
+          room.peer = toName;
+          roomsChanged = true;
+        }
+      }
+      if (roomsChanged) saveDmRooms(rooms);
+    } catch {
+      /* ignore */
+    }
+    let invitesChanged = false;
+    for (const inv of pendingInvites) {
+      if (inv?.from && nameEquals(inv.from, fromName)) {
+        inv.from = toName;
+        invitesChanged = true;
+      }
+    }
+
+    if (touchedMessages || touchedPins) {
+      renderAll(lastState);
+      if (!stick) {
+        feed.scrollTop = scrollTop;
+        updateJumpBottom();
+      }
+    } else {
+      updatePinBar();
+    }
+    if (invitesChanged) renderInvitesList();
+    if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+  }
+
   function renderAll(state) {
     closeAllReactMenus();
     document.querySelectorAll("body > .msg-react-menu, body > .msg-action-menu").forEach((m) => m.remove());
@@ -2807,6 +2885,7 @@
       notify("Введите имя")
       return;
     }
+    const previousName = myName;
     socket.emit("chat:rename", { name: next }, (res) => {
       if (!res?.ok) {
         notify(res?.error || "Не сменилось")
@@ -2816,7 +2895,7 @@
       saveName(myName);
       syncMeBtn();
       renameDialog?.close();
-      renderAll(lastState);
+      applyAuthorRename(res.from || previousName, res.name);
     });
   }
 
@@ -3232,6 +3311,11 @@
     } catch {
       notify(`Код: ${dmCode}`)
     }
+  });
+
+  socket.on("chat:author-renamed", ({ from, to } = {}) => {
+    if (!from || !to) return;
+    applyAuthorRename(from, to);
   });
 
   socket.on("chat:state", (state) => {

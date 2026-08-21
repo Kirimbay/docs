@@ -236,6 +236,61 @@ function isNameTaken(name, exceptSocketId = null) {
   return findSocketIdsWithName(name, exceptSocketId).length > 0;
 }
 
+function rewriteStoredAuthorName(oldName, newName) {
+  const oldKey = nameKey(oldName);
+  const nextName = sanitizeName(newName);
+  if (!oldKey || !nextName || oldKey === nameKey(nextName)) return 0;
+
+  let changed = 0;
+
+  const rewriteList = (list) => {
+    if (!Array.isArray(list)) return;
+    for (const msg of list) {
+      if (!msg || typeof msg !== "object") continue;
+      if (nameKey(msg.name) === oldKey) {
+        msg.name = nextName;
+        changed += 1;
+      }
+      if (msg.reply && typeof msg.reply === "object" && nameKey(msg.reply.name) === oldKey) {
+        msg.reply.name = nextName;
+        changed += 1;
+      }
+      if (msg.reactions && typeof msg.reactions === "object") {
+        let reacted = false;
+        for (const emoji of Object.keys(msg.reactions)) {
+          const names = msg.reactions[emoji];
+          if (!Array.isArray(names)) continue;
+          let touch = false;
+          const mapped = names.map((n) => {
+            if (nameKey(n) === oldKey) {
+              touch = true;
+              return nextName;
+            }
+            return n;
+          });
+          if (touch) {
+            reacted = true;
+            const uniq = [...new Set(mapped.filter((n) => typeof n === "string" && n.trim()))];
+            if (uniq.length) msg.reactions[emoji] = uniq;
+            else delete msg.reactions[emoji];
+          }
+        }
+        if (reacted) {
+          msg.reactions = normalizeReactions(msg.reactions);
+          changed += 1;
+        }
+      }
+    }
+  };
+
+  rewriteList(store.messages);
+  ensureRooms();
+  for (const room of Object.values(store.rooms || {})) {
+    rewriteList(room?.messages);
+  }
+  return changed;
+}
+
 function uniqueRandomName(extraExclude = []) {
   const taken = new Set([...online.values()].map((u) => nameKey(u.name)));
   for (const n of extraExclude) {
@@ -689,11 +744,19 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Имя уже занято — выберите другое" });
       return;
     }
+    const previousName = user.name;
+    if (nameKey(previousName) === nameKey(name)) {
+      if (typeof ack === "function") ack({ ok: true, name: previousName, from: previousName });
+      return;
+    }
     user.name = name;
     socket.data.name = name;
+    const rewritten = rewriteStoredAuthorName(previousName, name);
+    if (rewritten) saveStore(store);
     emitChatPresence();
     if (user.roomCode) emitDmPresence(user.roomCode);
-    if (typeof ack === "function") ack({ ok: true, name });
+    io.emit("chat:author-renamed", { from: previousName, to: name });
+    if (typeof ack === "function") ack({ ok: true, name, from: previousName });
   });
 
   socket.on("admin:login", (payload = {}, ack) => {
