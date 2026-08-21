@@ -108,6 +108,7 @@
   const LAST_DEST_PUBLIC = "public";
   const PUBLIC_ROOM_CODE = "000000";
   const SESSION_LIVE_KEY = "sarafan_session_live";
+  const UI_VIEW_KEY = "sarafan_ui_view";
   const CLIENT_ID_KEY = "sarafan_client_id";
   const PUBLIC_CHAT_LABEL_DEFAULT = "Сарафан ВПН";
   const MAX_DM_ROOMS = 24;
@@ -713,8 +714,32 @@
   function clearSessionLive() {
     try {
       sessionStorage.removeItem(SESSION_LIVE_KEY);
+      sessionStorage.removeItem(UI_VIEW_KEY);
     } catch {
       /* ignore */
+    }
+  }
+
+  /** @param {"hub" | "room" | ""} view */
+  function setUiView(view) {
+    try {
+      if (view === "hub" || view === "room") {
+        sessionStorage.setItem(UI_VIEW_KEY, view);
+      } else {
+        sessionStorage.removeItem(UI_VIEW_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** @returns {"hub" | "room" | ""} */
+  function loadUiView() {
+    try {
+      const view = sessionStorage.getItem(UI_VIEW_KEY);
+      return view === "hub" || view === "room" ? view : "";
+    } catch {
+      return "";
     }
   }
 
@@ -1624,6 +1649,36 @@
   }
 
   function resumeLastDestination() {
+    // Stay on the screen the user was looking at (chat list vs room).
+    if (loadUiView() === "hub") {
+      const activeCode = loadDmCode();
+      if (
+        activeCode.length === 6 &&
+        !(accessRoomsOnly && isPublicRoomCode(activeCode))
+      ) {
+        socket.emit(
+          "dm:join",
+          { code: activeCode, key: loadRoomKey(activeCode) || undefined },
+          (res) => {
+            if (res?.ok) {
+              enterDmMode(res);
+              setUiView("hub");
+              openDmDialog({ requirePick: false });
+              return;
+            }
+            saveDmCode("");
+            openDmDialog({
+              requirePick: Boolean(accessRoomsOnly || !loadDmRooms().length),
+            });
+          }
+        );
+        return;
+      }
+      openDmDialog({
+        requirePick: Boolean(accessRoomsOnly || !loadDmRooms().length),
+      });
+      return;
+    }
     const dest = loadLastDest();
     if (accessRoomsOnly && (!dest || isPublicRoomCode(dest.code))) {
       openDmDialog({ requirePick: true });
@@ -1669,6 +1724,8 @@
   function openDmDialog({ requirePick = false } = {}) {
     if (!dmDialog) return;
     hubRequirePick = Boolean(requirePick);
+    markSessionLive();
+    setUiView("hub");
     showDmDialogError("");
     syncDmDialogChrome();
     if (isAdmin) {
@@ -2336,6 +2393,7 @@
     });
     if (dmDialog.open) dmDialog.close();
     dmDialog.classList.remove("is-leaving");
+    setUiView(dmCode ? "room" : "hub");
   }
 
   function lockPageScroll() {
