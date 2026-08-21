@@ -382,6 +382,17 @@
       </div>
     </dialog>
 
+    <dialog id="confirm-dialog" class="dialog sheet-top confirm-dialog">
+      <div class="dialog-body">
+        <h2 id="confirm-dialog-title">Подтвердите</h2>
+        <p id="confirm-dialog-text" class="confirm-dialog-text"></p>
+        <div class="dialog-actions confirm-dialog-actions">
+          <button type="button" id="confirm-cancel-btn" class="ghost">Отмена</button>
+          <button type="button" id="confirm-ok-btn" class="confirm-danger-btn">Удалить</button>
+        </div>
+      </div>
+    </dialog>
+
     <dialog id="admin-dialog" class="dialog sheet-top">
       <div class="dialog-body">
         <h2>Админ</h2>
@@ -406,6 +417,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=170"></script>
+    <script src="/app.js?v=171"></script>
   </body>
 </html>

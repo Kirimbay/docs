@@ -67,6 +67,11 @@
   const hubBulkBarCount = $("#hub-bulk-bar-count");
   const hubBulkCancelBtn = $("#hub-bulk-cancel-btn");
   const hubBulkDeleteBtn = $("#hub-bulk-delete-btn");
+  const confirmDialog = $("#confirm-dialog");
+  const confirmDialogTitle = $("#confirm-dialog-title");
+  const confirmDialogText = $("#confirm-dialog-text");
+  const confirmCancelBtn = $("#confirm-cancel-btn");
+  const confirmOkBtn = $("#confirm-ok-btn");
   const onlineDialog = $("#online-dialog");
   const onlineList = $("#online-list");
   const onlineCloseBtn = $("#online-close-btn");
@@ -682,6 +687,54 @@
     hubRoomTap = { code: "", count: 0, timer: null };
   }
 
+  /** In-app confirm (chat style) instead of browser alert. */
+  let confirmResolver = null;
+  function closeConfirmDialog(result) {
+    const resolve = confirmResolver;
+    confirmResolver = null;
+    try {
+      confirmDialog?.close();
+    } catch {
+      /* ignore */
+    }
+    if (typeof resolve === "function") resolve(Boolean(result));
+  }
+
+  function askConfirm({
+    title = "Подтвердите",
+    text = "",
+    okLabel = "Удалить",
+    cancelLabel = "Отмена",
+  } = {}) {
+    return new Promise((resolve) => {
+      if (!confirmDialog || !confirmOkBtn) {
+        resolve(false);
+        return;
+      }
+      if (confirmResolver) closeConfirmDialog(false);
+      confirmResolver = resolve;
+      if (confirmDialogTitle) confirmDialogTitle.textContent = title;
+      if (confirmDialogText) confirmDialogText.textContent = text;
+      confirmOkBtn.textContent = okLabel || "Удалить";
+      if (confirmCancelBtn) confirmCancelBtn.textContent = cancelLabel || "Отмена";
+      try {
+        if (!confirmDialog.open) confirmDialog.showModal();
+      } catch {
+        closeConfirmDialog(false);
+      }
+    });
+  }
+
+  confirmCancelBtn?.addEventListener("click", () => closeConfirmDialog(false));
+  confirmOkBtn?.addEventListener("click", () => closeConfirmDialog(true));
+  confirmDialog?.addEventListener("cancel", (e) => {
+    e.preventDefault();
+    closeConfirmDialog(false);
+  });
+  confirmDialog?.addEventListener("close", () => {
+    if (confirmResolver) closeConfirmDialog(false);
+  });
+
   function syncHubBulkBar() {
     if (!hubBulkBar) return;
     const n = hubBulkSelectedCodes.size;
@@ -768,15 +821,18 @@
       const kind = roomDeleteKind(byCode.get(c) || { code: c });
       return kind === "owned" || kind === "admin";
     }).length;
-    const ok = window.confirm(
-      codes.length === 1
-        ? foreverN
-          ? `Точно удалить комнату ${codes[0]} навсегда?\nСообщения и участники пропадут.`
-          : `Убрать комнату ${codes[0]} из списка?`
-        : foreverN
-          ? `Точно удалить ${codes.length} комнат?\nСвои (${foreverN}) пропадут навсегда.`
-          : `Убрать ${codes.length} комнат из списка?`
-    );
+    const ok = await askConfirm({
+      title: foreverN ? "Удалить комнату?" : "Убрать из списка?",
+      text:
+        codes.length === 1
+          ? foreverN
+            ? `Комната ${codes[0]} пропадёт навсегда.\nСообщения и участники тоже.`
+            : `Убрать комнату ${codes[0]} из списка?`
+          : foreverN
+            ? `Удалить ${codes.length} комнат?\nСвои (${foreverN}) пропадут навсегда.`
+            : `Убрать ${codes.length} комнат из списка?`,
+      okLabel: foreverN ? "Удалить навсегда" : "Убрать",
+    });
     if (!ok) return;
 
     const pin = normalizeRoomKeyLocal(loadPin() || "");
@@ -1993,43 +2049,48 @@
           }
           if (forgetArmedCode === room.code) {
             clearForgetArm();
-            if (destroyForeign) {
-              if (
-                !window.confirm(
-                  `Точно удалить комнату ${room.code} навсегда?\nСообщения и участники пропадут.`
-                )
-              ) {
+            void (async () => {
+              if (destroyForeign) {
+                const ok = await askConfirm({
+                  title: "Удалить комнату?",
+                  text: `Комната ${room.code} пропадёт навсегда.\nСообщения и участники тоже.`,
+                  okLabel: "Удалить навсегда",
+                });
+                if (!ok) return;
+                socket.emit("room:delete", { code: room.code }, (res) => {
+                  if (!res?.ok) {
+                    notify(res?.error || "Не удалилось");
+                    return;
+                  }
+                  adminRoomCatalog = adminRoomCatalog.filter((r) => r.code !== room.code);
+                  forgetDmRoom(room.code);
+                  expandedDmRoomCodes.delete(room.code);
+                  if (dmCode === room.code) leaveDmMode({ quiet: true, openHub: true });
+                  renderDmRoomsList({ skipRefresh: true });
+                  notify(`Комната ${room.code} удалена`);
+                });
                 return;
               }
-              socket.emit("room:delete", { code: room.code }, (res) => {
-                if (!res?.ok) {
-                  notify(res?.error || "Не удалилось");
-                  return;
-                }
-                adminRoomCatalog = adminRoomCatalog.filter((r) => r.code !== room.code);
-                forgetDmRoom(room.code);
-                expandedDmRoomCodes.delete(room.code);
-                if (dmCode === room.code) leaveDmMode({ quiet: true, openHub: true });
-                renderDmRoomsList({ skipRefresh: true });
-                notify(`Комната ${room.code} удалена`);
+              if (destroyOwned) {
+                const ok = await askConfirm({
+                  title: "Удалить комнату?",
+                  text: `Комната ${room.code} пропадёт навсегда.\nСообщения и участники тоже.`,
+                  okLabel: "Удалить навсегда",
+                });
+                if (!ok) return;
+                destroyOwnedRoomFromHub(room.code);
+                return;
+              }
+              const ok = await askConfirm({
+                title: "Убрать из списка?",
+                text: `Убрать комнату ${room.code} из списка?`,
+                okLabel: "Убрать",
               });
-              return;
-            }
-            if (destroyOwned) {
-              if (
-                !window.confirm(
-                  `Точно удалить комнату ${room.code} навсегда?\nСообщения и участники пропадут.`
-                )
-              ) {
-                return;
-              }
-              destroyOwnedRoomFromHub(room.code);
-              return;
-            }
-            if (!window.confirm(`Убрать комнату ${room.code} из списка?`)) return;
-            forgetDmRoom(room.code);
-            expandedDmRoomCodes.delete(room.code);
-            renderDmRoomsList({ skipRefresh: true });
+              if (!ok) return;
+              forgetDmRoom(room.code);
+              expandedDmRoomCodes.delete(room.code);
+              renderDmRoomsList({ skipRefresh: true });
+            })();
             return;
           }
           clearForgetArm();
@@ -2524,20 +2585,27 @@
           banBtn.addEventListener("click", (e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (!window.confirm(`Заблокировать «${person.name}» на этом устройстве?`)) return;
-            socket.emit(
-              "admin:ban",
-              { socketId: person.id, clientId: person.clientId, reason: "Бан админом" },
-              (res) => {
-                if (!res?.ok) {
-                  notify(res?.error || "Не заблокировалось");
-                  return;
+            void (async () => {
+              const ok = await askConfirm({
+                title: "Заблокировать?",
+                text: `Заблокировать «${person.name}» на этом устройстве?`,
+                okLabel: "Заблокировать",
+              });
+              if (!ok) return;
+              socket.emit(
+                "admin:ban",
+                { socketId: person.id, clientId: person.clientId, reason: "Бан админом" },
+                (res) => {
+                  if (!res?.ok) {
+                    notify(res?.error || "Не заблокировалось");
+                    return;
+                  }
+                  notify(`${person.name} заблокирован`);
+                  lastPeople = lastPeople.filter((p) => p.id !== person.id);
+                  renderOnlineList();
                 }
-                notify(`${person.name} заблокирован`);
-                lastPeople = lastPeople.filter((p) => p.id !== person.id);
-                renderOnlineList();
-              }
-            );
+              );
+            })();
           });
 
           tools.append(roomsOnlyBtn, banBtn);
@@ -5836,23 +5904,24 @@
       showRoomAdminPanelError("Номер не совпадает с этой комнатой");
       return;
     }
-    if (
-      !window.confirm(
-        `Точно удалить комнату ${code} навсегда?\nСообщения и участники пропадут.`
-      )
-    ) {
-      return;
-    }
-    socket.emit("room:delete", { code, key: isAdmin ? key || undefined : key }, (res) => {
-      if (!res?.ok) {
-        showRoomAdminPanelError(res?.error || "Не удалилось");
-        return;
-      }
-      forgetDmRoom(code);
-      roomAdminPanel?.close();
-      leaveDmMode({ quiet: true, openHub: true });
-      notify(`Комната ${code} удалена навсегда`);
-    });
+    void (async () => {
+      const ok = await askConfirm({
+        title: "Удалить комнату?",
+        text: `Комната ${code} пропадёт навсегда.\nСообщения и участники тоже.`,
+        okLabel: "Удалить навсегда",
+      });
+      if (!ok) return;
+      socket.emit("room:delete", { code, key: isAdmin ? key || undefined : key }, (res) => {
+        if (!res?.ok) {
+          showRoomAdminPanelError(res?.error || "Не удалилось");
+          return;
+        }
+        forgetDmRoom(code);
+        roomAdminPanel?.close();
+        leaveDmMode({ quiet: true, openHub: true });
+        notify(`Комната ${code} удалена навсегда`);
+      });
+    })();
   });
   dmDialog?.addEventListener("close", () => {
     clearForgetArm();

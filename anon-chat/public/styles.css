@@ -3024,6 +3024,59 @@ body.keyboard-open .pins-dialog.dialog {
   gap: 0.5rem;
 }
 
+.confirm-dialog .dialog-body {
+  gap: 0.75rem;
+}
+
+.confirm-dialog-text {
+  margin: 0;
+  white-space: pre-line;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.confirm-dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 0.5rem;
+  justify-content: stretch;
+}
+
+.confirm-dialog-actions .ghost {
+  justify-self: stretch;
+  width: 100%;
+}
+
+.confirm-danger-btn,
+#confirm-ok-btn {
+  width: 100%;
+  margin: 0;
+  padding: 0.78rem 1rem;
+  border: 1px solid #8f1d14;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f04438, #b42318);
+  color: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 6px 18px rgba(180, 35, 24, 0.35);
+}
+
+.confirm-danger-btn:hover,
+#confirm-ok-btn:hover {
+  background: linear-gradient(180deg, #ff5a4d, #d92d20);
+}
+
+.confirm-danger-btn:active,
+#confirm-ok-btn:active {
+  background: #912018;
+  box-shadow: none;
+}
+
 .logout-btn {
   width: 100%;
   margin-top: 0.85rem;
