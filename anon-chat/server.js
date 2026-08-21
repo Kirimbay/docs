@@ -23,6 +23,8 @@ const ACCESS_PATH = path.join(DATA_DIR, "access.json");
 const VAPID_PATH = path.join(DATA_DIR, "vapid.json");
 const PUSH_SUBS_PATH = path.join(DATA_DIR, "push-subs.json");
 const PUBLIC_CHAT_LABEL = "Сарафан ВПН";
+/** Reserved pin for the former public feed — same rules as any other room. */
+const PUBLIC_ROOM_CODE = "000000";
 const CLIENT_ID_RE = /^[a-zA-Z0-9_-]{8,80}$/;
 const MAX_MESSAGES = 5000;
 const MAX_NAME_LEN = 24;
@@ -205,7 +207,96 @@ function saveStore(store) {
   fs.renameSync(tmp, STORE_PATH);
 }
 
+function isPublicRoomCode(code) {
+  return String(code || "") === PUBLIC_ROOM_CODE;
+}
+
+function ensurePublicRoom(data = store) {
+  if (!data.rooms || typeof data.rooms !== "object") data.rooms = {};
+  let room = data.rooms[PUBLIC_ROOM_CODE];
+  if (!room || typeof room !== "object") {
+    room = {
+      code: PUBLIC_ROOM_CODE,
+      createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+      createdBy: PUBLIC_CHAT_LABEL,
+      label: PUBLIC_CHAT_LABEL,
+      participants: [],
+      messages: [],
+      pinnedIds: [],
+    };
+    data.rooms[PUBLIC_ROOM_CODE] = room;
+  }
+  if (!Array.isArray(room.messages)) room.messages = [];
+  if (!Array.isArray(room.pinnedIds)) room.pinnedIds = [];
+  if (!Array.isArray(room.participants)) room.participants = [];
+  if (!room.label) room.label = PUBLIC_CHAT_LABEL;
+  if (!room.code) room.code = PUBLIC_ROOM_CODE;
+  return room;
+}
+
+/** One-time: move legacy top-level public feed into room 000000. */
+function migratePublicFeedIntoRooms(data) {
+  ensurePublicRoom(data);
+  const room = data.rooms[PUBLIC_ROOM_CODE];
+  const legacyMessages = Array.isArray(data.messages) ? data.messages : [];
+  const legacyPins = Array.isArray(data.pinnedIds) ? data.pinnedIds : [];
+  let changed = false;
+
+  if (legacyMessages.length) {
+    if (!room.messages.length) {
+      room.messages = legacyMessages;
+    } else {
+      const have = new Set(room.messages.map((m) => m?.id).filter(Boolean));
+      for (const msg of legacyMessages) {
+        if (msg?.id && !have.has(msg.id)) {
+          room.messages.push(msg);
+          have.add(msg.id);
+        }
+      }
+    }
+    data.messages = [];
+    changed = true;
+  }
+
+  if (legacyPins.length) {
+    const have = new Set(room.pinnedIds);
+    for (const id of legacyPins) {
+      if (id && !have.has(id)) {
+        room.pinnedIds.push(id);
+        have.add(id);
+      }
+    }
+    data.pinnedIds = [];
+    changed = true;
+  }
+
+  // Ensure every room has pinnedIds (unified model).
+  for (const r of Object.values(data.rooms)) {
+    if (!r || typeof r !== "object") continue;
+    if (!Array.isArray(r.pinnedIds)) {
+      r.pinnedIds = [];
+      changed = true;
+    }
+    if (!Array.isArray(r.messages)) {
+      r.messages = [];
+      changed = true;
+    }
+  }
+
+  if (room.messages.length > MAX_MESSAGES) {
+    room.messages = room.messages.slice(-MAX_MESSAGES);
+    changed = true;
+  }
+
+  return changed;
+}
+
 let store = loadStore();
+if (migratePublicFeedIntoRooms(store)) {
+  saveStore(store);
+  console.log(`Migrated public feed into room ${PUBLIC_ROOM_CODE}`);
+}
 
 function loadAccess() {
   try {
@@ -334,39 +425,22 @@ function emptyPublicSnapshot() {
   return { messages: [], pinned: [] };
 }
 
-function emitPublicChatState(state) {
-  for (const [id, sock] of io.sockets.sockets) {
-    const u = online.get(id);
-    if (u && isRoomsOnlyClient(u.clientId)) {
-      sock.emit("chat:state", emptyPublicSnapshot());
-    } else {
-      sock.emit("chat:state", state);
-    }
-  }
+function emitRoomState(code) {
+  const snap = roomSnapshot(code);
+  if (!snap) return;
+  io.to(roomChannel(code)).emit("dm:state", snap);
 }
 
-function emitPublicChatMessage(pub) {
-  for (const [id, sock] of io.sockets.sockets) {
-    const u = online.get(id);
-    if (u && isRoomsOnlyClient(u.clientId)) continue;
-    sock.emit("chat:message", pub);
-  }
+function emitRoomMessage(code, pub) {
+  io.to(roomChannel(code)).emit("dm:message", pub);
 }
 
-function emitPublicMessageUpdate(pub) {
-  for (const [id, sock] of io.sockets.sockets) {
-    const u = online.get(id);
-    if (u && isRoomsOnlyClient(u.clientId)) continue;
-    sock.emit("chat:message-update", pub);
-  }
+function emitRoomMessageUpdate(code, pub) {
+  io.to(roomChannel(code)).emit("dm:message-update", pub);
 }
 
-function emitPublicMessageRemoved(payload) {
-  for (const [id, sock] of io.sockets.sockets) {
-    const u = online.get(id);
-    if (u && isRoomsOnlyClient(u.clientId)) continue;
-    sock.emit("chat:message-removed", payload);
-  }
+function emitRoomMessageRemoved(code, payload) {
+  io.to(roomChannel(code)).emit("chat:message-removed", payload);
 }
 
 function loadOrCreateVapid() {
@@ -641,7 +715,7 @@ function rewriteStoredAuthorName(oldName, newName) {
     }
   };
 
-  rewriteList(store.messages);
+  rewriteList(store.messages); // legacy no-op after migration
   ensureRooms();
   for (const room of Object.values(store.rooms || {})) {
     rewriteList(room?.messages);
@@ -707,14 +781,15 @@ function normalizeReactions(raw) {
   return out;
 }
 
-function publicMessage(msg) {
+function serializeMessage(msg, pinnedIds = []) {
+  const pins = Array.isArray(pinnedIds) ? pinnedIds : [];
   return {
     id: msg.id,
     name: msg.name,
     text: msg.text || "",
     imageUrl: msg.imageUrl || null,
     createdAt: msg.createdAt,
-    pinned: store.pinnedIds.includes(msg.id),
+    pinned: pins.includes(msg.id),
     admin: Boolean(msg.admin),
     reply: msg.reply
       ? {
@@ -727,43 +802,32 @@ function publicMessage(msg) {
   };
 }
 
-function publicRoomMessage(msg) {
-  return {
-    id: msg.id,
-    name: msg.name,
-    text: msg.text || "",
-    imageUrl: msg.imageUrl || null,
-    createdAt: msg.createdAt,
-    pinned: false,
-    admin: Boolean(msg.admin),
-    reply: msg.reply
-      ? {
-          id: msg.reply.id,
-          name: msg.reply.name,
-          text: msg.reply.text || "",
-        }
-      : null,
-    reactions: normalizeReactions(msg.reactions),
-  };
+/** @deprecated legacy alias — everything is a room now */
+function publicMessage(msg) {
+  ensurePublicRoom();
+  return serializeMessage(msg, store.rooms[PUBLIC_ROOM_CODE]?.pinnedIds || []);
+}
+
+function publicRoomMessage(msg, code = "") {
+  ensureRooms();
+  const room = code ? store.rooms[code] : null;
+  return serializeMessage(msg, room?.pinnedIds || []);
 }
 
 function snapshot() {
-  const pinned = store.pinnedIds
-    .map((id) => store.messages.find((m) => m.id === id))
-    .filter(Boolean)
-    .map(publicMessage);
-  const messages = store.messages.map(publicMessage);
-  return { messages, pinned };
+  // Compatibility: empty until the client joins a room by pin.
+  return emptyPublicSnapshot();
 }
 
 const ROOM_CODE_ALPHABET = "0123456789";
 const ROOM_CODE_LENGTH = 6;
 const MAX_ROOM_CODES = 10 ** ROOM_CODE_LENGTH; // 1_000_000: 000000–999999
-const MAX_ROOM_MESSAGES = 5000;
-const MAX_ROOM_MEMBERS = 100;
+const MAX_ROOM_MESSAGES = MAX_MESSAGES;
+const MAX_ROOM_MEMBERS = 5000;
 
 function ensureRooms() {
   if (!store.rooms || typeof store.rooms !== "object") store.rooms = {};
+  ensurePublicRoom();
 }
 
 function roomCodeCount() {
@@ -774,10 +838,12 @@ function roomCodeCount() {
 /** @returns {string|null} unique 6-digit pin, or null if the pool is exhausted */
 function generateRoomCode() {
   ensureRooms();
+  // Public room always occupies 000000.
   if (roomCodeCount() >= MAX_ROOM_CODES) return null;
 
   for (let attempt = 0; attempt < 64; attempt += 1) {
     const code = String(Math.floor(Math.random() * MAX_ROOM_CODES)).padStart(ROOM_CODE_LENGTH, "0");
+    if (code === PUBLIC_ROOM_CODE) continue;
     if (!store.rooms[code]) return code;
   }
 
@@ -785,6 +851,7 @@ function generateRoomCode() {
   const start = Math.floor(Math.random() * MAX_ROOM_CODES);
   for (let i = 0; i < MAX_ROOM_CODES; i += 1) {
     const code = String((start + i) % MAX_ROOM_CODES).padStart(ROOM_CODE_LENGTH, "0");
+    if (code === PUBLIC_ROOM_CODE) continue;
     if (!store.rooms[code]) return code;
   }
   return null;
@@ -844,10 +911,16 @@ function roomSnapshot(code) {
   ensureRooms();
   const room = store.rooms[code];
   if (!room) return null;
+  if (!Array.isArray(room.pinnedIds)) room.pinnedIds = [];
+  const pinned = room.pinnedIds
+    .map((id) => (room.messages || []).find((m) => m.id === id))
+    .filter(Boolean)
+    .map((m) => publicRoomMessage(m, code));
   return {
     code,
-    messages: (room.messages || []).map(publicRoomMessage),
-    pinned: [],
+    label: isPublicRoomCode(code) ? PUBLIC_CHAT_LABEL : room.label || "",
+    messages: (room.messages || []).map((m) => publicRoomMessage(m, code)),
+    pinned,
   };
 }
 
@@ -989,7 +1062,9 @@ function roomListMeta(code, exceptName = "", sinceId = "") {
   return {
     code,
     exists: true,
-    peer,
+    label: isPublicRoomCode(code) ? PUBLIC_CHAT_LABEL : room.label || "",
+    public: isPublicRoomCode(code),
+    peer: isPublicRoomCode(code) ? PUBLIC_CHAT_LABEL : peer,
     names,
     messageCount: messages.length,
     unread: unreadSince(messages, sinceId),
@@ -1037,9 +1112,7 @@ function kickSocketsFromRoom(code) {
     if (!sock) continue;
     leaveDmRoom(sock);
     sock.emit("dm:room-gone", { code, reason: "inactive" });
-    const user = online.get(socketId);
-    const roomsOnly = user && isRoomsOnlyClient(user.clientId);
-    sock.emit("chat:state", roomsOnly ? emptyPublicSnapshot() : snapshot());
+    sock.emit("chat:state", emptyPublicSnapshot());
   }
 }
 
@@ -1048,6 +1121,7 @@ function pruneInactiveRooms({ persist = true } = {}) {
   const now = Date.now();
   const removed = [];
   for (const [code, room] of Object.entries(store.rooms)) {
+    if (isPublicRoomCode(code)) continue;
     const last = roomLastActiveMs(room);
     // Empty brand-new rooms without timestamps: treat createdAt/now missing as stale only if no activity clue.
     const ageBase = last || Date.parse(String(room?.createdAt || "")) || 0;
@@ -1347,8 +1421,8 @@ io.on("connection", (socket) => {
       rememberAccessName("bans", clientId, name);
     }
     emitChatPresence();
-    // Fresh snapshot after join so the client can pin to latest once visible.
-    socket.emit("chat:state", roomsOnly ? emptyPublicSnapshot() : snapshot());
+    // Messages live in rooms — client must join by pin (incl. 000000).
+    socket.emit("chat:state", emptyPublicSnapshot());
     if (typeof ack === "function") {
       ack({
         ok: true,
@@ -1357,6 +1431,7 @@ io.on("connection", (socket) => {
         previousName: asAdmin ? previousName : null,
         roomsOnly,
         publicLabel: PUBLIC_CHAT_LABEL,
+        publicRoomCode: PUBLIC_ROOM_CODE,
       });
     }
   });
@@ -1565,6 +1640,7 @@ io.on("connection", (socket) => {
       createdBy: user.name,
       participants: [user.name],
       messages: [],
+      pinnedIds: [],
     };
     saveStore(store);
     socket.join(roomChannel(code));
@@ -1576,8 +1652,9 @@ io.on("connection", (socket) => {
       ack({
         ok: true,
         code,
+        label: snap?.label || "",
         messages: snap.messages,
-        pinned: [],
+        pinned: snap.pinned || [],
         count: roomOnlineCount(code),
         names: roomMemberNames(code),
         participants: roomParticipantNames(code),
@@ -1633,6 +1710,7 @@ io.on("connection", (socket) => {
         createdBy: user.name,
         participants: [user.name],
         messages: [],
+        pinnedIds: [],
       };
       created = true;
       socket.join(roomChannel(code));
@@ -1653,8 +1731,9 @@ io.on("connection", (socket) => {
       ack({
         ok: true,
         code,
+        label: snap?.label || "",
         messages: snap.messages,
-        pinned: [],
+        pinned: snap?.pinned || [],
         count: roomOnlineCount(code),
         names: roomMemberNames(code),
         participants: roomParticipantNames(code),
@@ -1724,29 +1803,38 @@ io.on("connection", (socket) => {
       return;
     }
     ensureRooms();
+    if (isPublicRoomCode(code) && !asAdmin && isRoomsOnlyClient(user.clientId)) {
+      if (typeof ack === "function") {
+        ack({ ok: false, error: `${PUBLIC_CHAT_LABEL} недоступен для этого устройства` });
+      }
+      return;
+    }
     const room = store.rooms[code];
     if (!room) {
       if (typeof ack === "function") ack({ ok: false, error: "Чат не найден — проверьте код" });
       return;
     }
+    const ackJoin = (snap) => {
+      if (typeof ack !== "function") return;
+      ack({
+        ok: true,
+        code,
+        label: snap?.label || "",
+        public: isPublicRoomCode(code),
+        messages: snap.messages,
+        pinned: snap.pinned || [],
+        count: roomOnlineCount(code),
+        names: roomMemberNames(code),
+        participants: roomParticipantNames(code),
+        maxMembers: MAX_ROOM_MEMBERS,
+        ghost: asAdmin,
+      });
+    };
     if (socket.data.roomCode === code) {
       touchRoom(code, { persist: true });
       // Admins watch invisibly — do not join the visible roster.
       if (!asAdmin) rememberRoomParticipant(code, user.name);
-      const snap = roomSnapshot(code);
-      if (typeof ack === "function") {
-        ack({
-          ok: true,
-          code,
-          messages: snap.messages,
-          pinned: [],
-          count: roomOnlineCount(code),
-          names: roomMemberNames(code),
-          participants: roomParticipantNames(code),
-          maxMembers: MAX_ROOM_MEMBERS,
-          ghost: asAdmin,
-        });
-      }
+      ackJoin(roomSnapshot(code));
       return;
     }
     leaveDmRoom(socket);
@@ -1768,20 +1856,7 @@ io.on("connection", (socket) => {
     socket.data.roomCode = code;
     socket.data.roomGhost = asAdmin;
     user.roomCode = code;
-    const snap = roomSnapshot(code);
-    if (typeof ack === "function") {
-      ack({
-        ok: true,
-        code,
-        messages: snap.messages,
-        pinned: [],
-        count: roomOnlineCount(code),
-        names: roomMemberNames(code),
-        participants: roomParticipantNames(code),
-        maxMembers: MAX_ROOM_MEMBERS,
-        ghost: asAdmin,
-      });
-    }
+    ackJoin(roomSnapshot(code));
     emitDmPresence(code);
   });
 
@@ -1789,9 +1864,7 @@ io.on("connection", (socket) => {
     const code = socket.data.roomCode;
     leaveDmRoom(socket);
     if (typeof ack === "function") ack({ ok: true, code: code || null });
-    const user = online.get(socket.id);
-    const roomsOnly = user && isRoomsOnlyClient(user.clientId);
-    socket.emit("chat:state", roomsOnly ? emptyPublicSnapshot() : snapshot());
+    socket.emit("chat:state", emptyPublicSnapshot());
   });
 
   socket.on("chat:message", (payload = {}, ack) => {
@@ -1814,16 +1887,19 @@ io.on("connection", (socket) => {
     }
 
     const roomCode = socket.data.roomCode || null;
-    if (!roomCode && isRoomsOnlyClient(user.clientId)) {
+    if (!roomCode) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите в комнату по пину" });
+      return;
+    }
+    if (isPublicRoomCode(roomCode) && isRoomsOnlyClient(user.clientId)) {
       if (typeof ack === "function") {
         ack({ ok: false, error: `${PUBLIC_CHAT_LABEL} недоступен для этого устройства` });
       }
       return;
     }
-    const messageList = roomCode
-      ? (ensureRooms(), store.rooms[roomCode] ? store.rooms[roomCode].messages : null)
-      : store.messages;
-    if (roomCode && !messageList) {
+    ensureRooms();
+    const messageList = store.rooms[roomCode] ? store.rooms[roomCode].messages : null;
+    if (!messageList) {
       if (typeof ack === "function") ack({ ok: false, error: "Чат не найден" });
       return;
     }
@@ -1852,28 +1928,63 @@ io.on("connection", (socket) => {
       createdAt: new Date().toISOString(),
     };
     messageList.push(msg);
-    if (roomCode) {
-      touchRoom(roomCode);
-      rememberRoomParticipant(roomCode, msg.name);
-    }
-    const maxLen = roomCode ? MAX_ROOM_MESSAGES : MAX_MESSAGES;
-    if (messageList.length > maxLen) {
-      const removed = messageList.splice(0, messageList.length - maxLen);
-      if (!roomCode) {
-        const keep = new Set(store.messages.map((m) => m.id));
-        store.pinnedIds = store.pinnedIds.filter((id) => keep.has(id));
-      }
+    touchRoom(roomCode);
+    rememberRoomParticipant(roomCode, msg.name);
+    const room = store.rooms[roomCode];
+    if (!Array.isArray(room.pinnedIds)) room.pinnedIds = [];
+    if (messageList.length > MAX_ROOM_MESSAGES) {
+      const removed = messageList.splice(0, messageList.length - MAX_ROOM_MESSAGES);
+      const keep = new Set(messageList.map((m) => m.id));
+      room.pinnedIds = room.pinnedIds.filter((id) => keep.has(id));
       for (const old of removed) {
-        if (old.imageUrl && (roomCode || !store.pinnedIds.includes(old.id))) {
+        if (old.imageUrl && !room.pinnedIds.includes(old.id)) {
           const file = path.join(UPLOAD_DIR, path.basename(old.imageUrl));
           fs.promises.unlink(file).catch(() => {});
         }
       }
     }
     saveStore(store);
-    if (roomCode) {
-      const pub = publicRoomMessage(msg);
-      io.to(roomChannel(roomCode)).emit("dm:message", pub);
+    const pub = publicRoomMessage(msg, roomCode);
+    emitRoomMessage(roomCode, pub);
+
+    if (isPublicRoomCode(roomCode)) {
+      // Fan-out like the old public chat (notifyPublic prefs).
+      if (msg.reply?.name && nameKey(msg.reply.name) !== nameKey(msg.name)) {
+        void pushToName(
+          msg.reply.name,
+          {
+            title: `${msg.name} ответил`,
+            body: previewPushBody(msg),
+            tag: `reply-${msg.reply.id || msg.id}`,
+            id: msg.id,
+            url: "/",
+            badge: 1,
+            kind: "public",
+            roomCode,
+          },
+          "public"
+        );
+      } else {
+        const authorKey = nameKey(msg.name);
+        const targets = pushSubs.filter(
+          (s) => nameKey(s.name) && nameKey(s.name) !== authorKey && wantsPublicPush(s)
+        );
+        void Promise.all(
+          targets.map((s) =>
+            sendWebPush(s, {
+              title: msg.name || PUBLIC_CHAT_LABEL,
+              body: previewPushBody(msg),
+              tag: `msg-${msg.id}`,
+              id: msg.id,
+              url: "/",
+              badge: 1,
+              kind: "public",
+              roomCode,
+            })
+          )
+        );
+      }
+    } else {
       const targets = roomPushNames(roomCode, msg.name);
       for (const name of targets) {
         void pushToName(
@@ -1891,45 +2002,6 @@ io.on("connection", (socket) => {
           "dm"
         );
       }
-      if (typeof ack === "function") ack({ ok: true, id: msg.id });
-      return;
-    }
-    const pub = publicMessage(msg);
-    emitPublicChatMessage(pub);
-    // Push: replies go to the quoted author; otherwise ping every other subscriber
-    // so Home Screen installs still get alerts when the chat is closed.
-    if (msg.reply?.name && nameKey(msg.reply.name) !== nameKey(msg.name)) {
-      void pushToName(
-        msg.reply.name,
-        {
-          title: `${msg.name} ответил`,
-          body: previewPushBody(msg),
-          tag: `reply-${msg.reply.id || msg.id}`,
-          id: msg.id,
-          url: "/",
-          badge: 1,
-          kind: "public",
-        },
-        "public"
-      );
-    } else {
-      const authorKey = nameKey(msg.name);
-      const targets = pushSubs.filter(
-        (s) => nameKey(s.name) && nameKey(s.name) !== authorKey && wantsPublicPush(s)
-      );
-      void Promise.all(
-        targets.map((s) =>
-          sendWebPush(s, {
-            title: msg.name || "Сарафан",
-            body: previewPushBody(msg),
-            tag: `msg-${msg.id}`,
-            id: msg.id,
-            url: "/",
-            badge: 1,
-            kind: "public",
-          })
-        )
-      );
     }
     if (typeof ack === "function") ack({ ok: true, id: msg.id });
   });
@@ -1947,13 +2019,12 @@ io.on("connection", (socket) => {
       return;
     }
     const roomCode = socket.data.roomCode || null;
-    let msg = null;
-    if (roomCode) {
-      ensureRooms();
-      msg = store.rooms[roomCode]?.messages?.find((m) => m.id === id) || null;
-    } else {
-      msg = store.messages.find((m) => m.id === id) || null;
+    if (!roomCode) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите в комнату" });
+      return;
     }
+    ensureRooms();
+    const msg = store.rooms[roomCode]?.messages?.find((m) => m.id === id) || null;
     if (!msg) {
       if (typeof ack === "function") ack({ ok: false, error: "Сообщение не найдено" });
       return;
@@ -1972,14 +2043,8 @@ io.on("connection", (socket) => {
     else delete msg.reactions[emoji];
     msg.reactions = normalizeReactions(msg.reactions);
     saveStore(store);
-    if (roomCode) {
-      const pub = publicRoomMessage(msg);
-      io.to(roomChannel(roomCode)).emit("dm:message-update", pub);
-      if (typeof ack === "function") ack({ ok: true, message: pub, added });
-      return;
-    }
-    const pub = publicMessage(msg);
-    emitPublicMessageUpdate(pub);
+    const pub = publicRoomMessage(msg, roomCode);
+    emitRoomMessageUpdate(roomCode, pub);
     if (typeof ack === "function") ack({ ok: true, message: pub, added });
   });
 
@@ -1988,18 +2053,30 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа" });
       return;
     }
+    const roomCode = socket.data.roomCode || null;
+    if (!roomCode) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите в комнату" });
+      return;
+    }
+    ensureRooms();
+    const room = store.rooms[roomCode];
+    if (!room) {
+      if (typeof ack === "function") ack({ ok: false, error: "Чат не найден" });
+      return;
+    }
+    if (!Array.isArray(room.pinnedIds)) room.pinnedIds = [];
     const id = payload.id;
-    const msg = store.messages.find((m) => m.id === id);
+    const msg = (room.messages || []).find((m) => m.id === id);
     if (!msg) {
       if (typeof ack === "function") ack({ ok: false, error: "Сообщение не найдено" });
       return;
     }
-    if (!store.pinnedIds.includes(id)) {
-      store.pinnedIds.unshift(id);
-      store.pinnedIds = store.pinnedIds.slice(0, 20);
+    if (!room.pinnedIds.includes(id)) {
+      room.pinnedIds.unshift(id);
+      room.pinnedIds = room.pinnedIds.slice(0, 20);
       saveStore(store);
     }
-    emitPublicChatState(snapshot());
+    emitRoomState(roomCode);
     if (typeof ack === "function") ack({ ok: true });
   });
 
@@ -2008,9 +2085,21 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа" });
       return;
     }
-    store.pinnedIds = store.pinnedIds.filter((id) => id !== payload.id);
+    const roomCode = socket.data.roomCode || null;
+    if (!roomCode) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите в комнату" });
+      return;
+    }
+    ensureRooms();
+    const room = store.rooms[roomCode];
+    if (!room) {
+      if (typeof ack === "function") ack({ ok: false, error: "Чат не найден" });
+      return;
+    }
+    if (!Array.isArray(room.pinnedIds)) room.pinnedIds = [];
+    room.pinnedIds = room.pinnedIds.filter((id) => id !== payload.id);
     saveStore(store);
-    emitPublicChatState(snapshot());
+    emitRoomState(roomCode);
     if (typeof ack === "function") ack({ ok: true });
   });
 
@@ -2080,14 +2169,10 @@ io.on("connection", (socket) => {
       const sock = io.sockets.sockets.get(id);
       if (!u || !sock) continue;
       notifyAccessUpdate(id);
-      if (on) {
-        // Pull them out of the public feed if they were there.
-        if (!u.roomCode) {
-          leaveDmRoom(sock);
-          sock.emit("chat:state", emptyPublicSnapshot());
-        }
-      } else {
-        if (!u.roomCode) sock.emit("chat:state", snapshot());
+      if (on && isPublicRoomCode(u.roomCode)) {
+        leaveDmRoom(sock);
+        sock.emit("chat:state", emptyPublicSnapshot());
+        sock.emit("access:forced-hub", { reason: "public-hidden" });
       }
     }
     emitChatPresence();
@@ -2097,6 +2182,7 @@ io.on("connection", (socket) => {
         clientId,
         roomsOnly: on,
         publicLabel: PUBLIC_CHAT_LABEL,
+        publicRoomCode: PUBLIC_ROOM_CODE,
       });
     }
   });
@@ -2121,41 +2207,31 @@ io.on("connection", (socket) => {
       return;
     }
     const roomCode = socket.data.roomCode || null;
-    if (roomCode) {
-      ensureRooms();
-      const room = store.rooms[roomCode];
-      if (!room) {
-        if (typeof ack === "function") ack({ ok: false, error: "Чат не найден" });
-        return;
-      }
-      const idx = room.messages.findIndex((m) => m.id === payload.id);
-      if (idx === -1) {
-        if (typeof ack === "function") ack({ ok: false, error: "Сообщение не найдено" });
-        return;
-      }
-      const [removed] = room.messages.splice(idx, 1);
-      saveStore(store);
-      if (removed.imageUrl) {
-        const file = path.join(UPLOAD_DIR, path.basename(removed.imageUrl));
-        fs.promises.unlink(file).catch(() => {});
-      }
-      io.to(roomChannel(roomCode)).emit("chat:message-removed", { id: removed.id });
-      if (typeof ack === "function") ack({ ok: true, id: removed.id });
+    if (!roomCode) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите в комнату" });
       return;
     }
-    const idx = store.messages.findIndex((m) => m.id === payload.id);
+    ensureRooms();
+    const room = store.rooms[roomCode];
+    if (!room) {
+      if (typeof ack === "function") ack({ ok: false, error: "Чат не найден" });
+      return;
+    }
+    const idx = room.messages.findIndex((m) => m.id === payload.id);
     if (idx === -1) {
       if (typeof ack === "function") ack({ ok: false, error: "Сообщение не найдено" });
       return;
     }
-    const [removed] = store.messages.splice(idx, 1);
-    store.pinnedIds = store.pinnedIds.filter((id) => id !== payload.id);
+    const [removed] = room.messages.splice(idx, 1);
+    if (Array.isArray(room.pinnedIds)) {
+      room.pinnedIds = room.pinnedIds.filter((id) => id !== payload.id);
+    }
     saveStore(store);
     if (removed.imageUrl) {
       const file = path.join(UPLOAD_DIR, path.basename(removed.imageUrl));
       fs.promises.unlink(file).catch(() => {});
     }
-    emitPublicMessageRemoved({ id: removed.id });
+    emitRoomMessageRemoved(roomCode, { id: removed.id });
     if (typeof ack === "function") ack({ ok: true, id: removed.id });
   });
 
