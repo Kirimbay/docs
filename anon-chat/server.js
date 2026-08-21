@@ -257,16 +257,40 @@ function savePushSubs(list) {
   fs.renameSync(tmp, PUSH_SUBS_PATH);
 }
 
-/** @type {{endpoint:string,keys:object,name:string,updatedAt:string}[]} */
+/** @type {{endpoint:string,keys:object,name:string,notifyPublic?:boolean,notifyDm?:boolean,updatedAt:string}[]} */
 let pushSubs = loadPushSubs();
 
-function upsertPushSub(subscription, name) {
+function normalizeNotifyFlag(value, fallback = true) {
+  if (typeof value === "boolean") return value;
+  if (value === 0 || value === "0" || value === "false") return false;
+  if (value === 1 || value === "1" || value === "true") return true;
+  return fallback;
+}
+
+function wantsPublicPush(sub) {
+  return normalizeNotifyFlag(sub?.notifyPublic, true);
+}
+
+function wantsDmPush(sub) {
+  return normalizeNotifyFlag(sub?.notifyDm, true);
+}
+
+function upsertPushSub(subscription, name, prefs = {}) {
   if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
     return { ok: false, error: "Некорректная подписка" };
   }
   const nick = sanitizeName(name) || "";
   const now = new Date().toISOString();
   const idx = pushSubs.findIndex((s) => s.endpoint === subscription.endpoint);
+  const prev = idx >= 0 ? pushSubs[idx] : null;
+  const notifyPublic =
+    prefs.notifyPublic === undefined
+      ? normalizeNotifyFlag(prev?.notifyPublic, true)
+      : normalizeNotifyFlag(prefs.notifyPublic, true);
+  const notifyDm =
+    prefs.notifyDm === undefined
+      ? normalizeNotifyFlag(prev?.notifyDm, true)
+      : normalizeNotifyFlag(prefs.notifyDm, true);
   const row = {
     endpoint: subscription.endpoint,
     keys: {
@@ -274,6 +298,8 @@ function upsertPushSub(subscription, name) {
       auth: subscription.keys.auth,
     },
     name: nick,
+    notifyPublic,
+    notifyDm,
     updatedAt: now,
   };
   if (idx >= 0) pushSubs[idx] = row;
@@ -283,7 +309,7 @@ function upsertPushSub(subscription, name) {
     pushSubs = pushSubs.slice(0, 2000);
   }
   savePushSubs(pushSubs);
-  return { ok: true };
+  return { ok: true, notifyPublic, notifyDm };
 }
 
 function removePushSub(endpoint) {
@@ -326,16 +352,26 @@ async function sendWebPush(sub, payload) {
   }
 }
 
-async function pushToName(name, payload) {
+async function pushToName(name, payload, kind = "any") {
   if (!name) return 0;
   const key = nameKey(name);
-  const targets = pushSubs.filter((s) => nameKey(s.name) === key);
+  const targets = pushSubs.filter((s) => {
+    if (nameKey(s.name) !== key) return false;
+    if (kind === "dm") return wantsDmPush(s);
+    if (kind === "public") return wantsPublicPush(s);
+    return true;
+  });
   const results = await Promise.all(targets.map((s) => sendWebPush(s, payload)));
   return results.filter(Boolean).length;
 }
 
-async function pushToAll(payload) {
-  const results = await Promise.all(pushSubs.map((s) => sendWebPush(s, payload)));
+async function pushToAll(payload, kind = "any") {
+  const targets = pushSubs.filter((s) => {
+    if (kind === "dm") return wantsDmPush(s);
+    if (kind === "public") return wantsPublicPush(s);
+    return true;
+  });
+  const results = await Promise.all(targets.map((s) => sendWebPush(s, payload)));
   return results.filter(Boolean).length;
 }
 
@@ -757,9 +793,16 @@ app.get("/api/vapid-public-key", (_req, res) => {
 app.post("/api/push-subscribe", (req, res) => {
   const subscription = req.body?.subscription;
   const name = req.body?.name;
-  const result = upsertPushSub(subscription, name);
+  const result = upsertPushSub(subscription, name, {
+    notifyPublic: req.body?.notifyPublic,
+    notifyDm: req.body?.notifyDm,
+  });
   if (!result.ok) return res.status(400).json(result);
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    notifyPublic: result.notifyPublic,
+    notifyDm: result.notifyDm,
+  });
 });
 
 app.post("/api/push-unsubscribe", (req, res) => {
@@ -1046,14 +1089,18 @@ io.on("connection", (socket) => {
       typeof payload.body === "string" && payload.body.trim()
         ? payload.body.trim().slice(0, 120)
         : "Вас зовут в Сарафан";
-    const sent = await pushToAll({
-      title: "Сарафан",
-      body,
-      tag: "sarafan-ping-all",
-      url: "/",
-      badge: 1,
-      ping: true,
-    });
+    const sent = await pushToAll(
+      {
+        title: "Сарафан",
+        body,
+        tag: "sarafan-ping-all",
+        url: "/",
+        badge: 1,
+        ping: true,
+        kind: "ping",
+      },
+      "public"
+    );
     if (typeof ack === "function") ack({ ok: true, sent, subscribers: pushSubs.length });
   });
 
@@ -1307,14 +1354,20 @@ io.on("connection", (socket) => {
       io.to(roomChannel(roomCode)).emit("dm:message", pub);
       const peer = roomPeerFor(roomCode, msg.name);
       if (peer) {
-        void pushToName(peer, {
-          title: msg.name || "Вдвоём",
-          body: previewPushBody(msg),
-          tag: `dm-${roomCode}`,
-          id: msg.id,
-          url: "/",
-          badge: 1,
-        });
+        void pushToName(
+          peer,
+          {
+            title: msg.name || "Вдвоём",
+            body: previewPushBody(msg),
+            tag: `dm-${roomCode}`,
+            id: msg.id,
+            url: "/",
+            badge: 1,
+            kind: "dm",
+            roomCode,
+          },
+          "dm"
+        );
       }
       if (typeof ack === "function") ack({ ok: true, id: msg.id });
       return;
@@ -1324,17 +1377,24 @@ io.on("connection", (socket) => {
     // Push: replies go to the quoted author; otherwise ping every other subscriber
     // so Home Screen installs still get alerts when the chat is closed.
     if (msg.reply?.name && nameKey(msg.reply.name) !== nameKey(msg.name)) {
-      void pushToName(msg.reply.name, {
-        title: `${msg.name} ответил`,
-        body: previewPushBody(msg),
-        tag: `reply-${msg.reply.id || msg.id}`,
-        id: msg.id,
-        url: "/",
-        badge: 1,
-      });
+      void pushToName(
+        msg.reply.name,
+        {
+          title: `${msg.name} ответил`,
+          body: previewPushBody(msg),
+          tag: `reply-${msg.reply.id || msg.id}`,
+          id: msg.id,
+          url: "/",
+          badge: 1,
+          kind: "public",
+        },
+        "public"
+      );
     } else {
       const authorKey = nameKey(msg.name);
-      const targets = pushSubs.filter((s) => nameKey(s.name) && nameKey(s.name) !== authorKey);
+      const targets = pushSubs.filter(
+        (s) => nameKey(s.name) && nameKey(s.name) !== authorKey && wantsPublicPush(s)
+      );
       void Promise.all(
         targets.map((s) =>
           sendWebPush(s, {
@@ -1344,6 +1404,7 @@ io.on("connection", (socket) => {
             id: msg.id,
             url: "/",
             badge: 1,
+            kind: "public",
           })
         )
       );

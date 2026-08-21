@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=111" />
+    <link rel="stylesheet" href="/styles.css?v=112" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -59,7 +59,21 @@
           <button type="button" id="presence" class="presence" title="Кто онлайн">онлайн —</button>
         </div>
         <div class="topbar-actions">
-          <button type="button" id="notify-btn" class="ghost compact notify-btn" title="Уведомления" aria-label="Уведомления" aria-pressed="false">🔔</button>
+          <div class="notify-wrap">
+            <button type="button" id="notify-btn" class="ghost compact notify-btn" title="Уведомления" aria-label="Уведомления" aria-pressed="false" aria-haspopup="true" aria-expanded="false" aria-controls="notify-menu">🔔</button>
+            <div id="notify-menu" class="notify-menu" hidden role="menu" aria-label="Настройки уведомлений">
+              <p class="notify-menu-title">Уведомления</p>
+              <label class="notify-toggle">
+                <span>Общий чат</span>
+                <input id="notify-public" type="checkbox" role="menuitemcheckbox" checked />
+              </label>
+              <label class="notify-toggle">
+                <span>Вдвоём</span>
+                <input id="notify-dm" type="checkbox" role="menuitemcheckbox" checked />
+              </label>
+              <button type="button" id="notify-off-btn" class="ghost compact notify-off-btn">Выключить</button>
+            </div>
+          </div>
           <button type="button" id="invites-btn" class="ghost compact invites-btn" hidden title="Вас зовут вдвоём">
             <span class="invites-dot" aria-hidden="true"></span>
             <span class="invites-btn-label">вас зовут</span>
@@ -250,6 +264,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=111"></script>
+    <script src="/app.js?v=112"></script>
   </body>
 </html>

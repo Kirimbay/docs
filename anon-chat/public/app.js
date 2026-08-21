@@ -70,6 +70,10 @@
   const lightboxImg = $("#lightbox-img");
   const lightboxClose = $("#lightbox-close");
   const notifyBtn = $("#notify-btn");
+  const notifyMenu = $("#notify-menu");
+  const notifyPublicInput = $("#notify-public");
+  const notifyDmInput = $("#notify-dm");
+  const notifyOffBtn = $("#notify-off-btn");
   const pingAllBtn = $("#ping-all-btn");
 
   const socket = io({ autoConnect: true });
@@ -81,6 +85,8 @@
   const ADMIN_TOKEN_KEY = "sarafan_admin_token";
   const PREV_NAME_KEY = "sarafan_prev_name";
   const NOTIFY_KEY = "sarafan_notify";
+  const NOTIFY_PUBLIC_KEY = "sarafan_notify_public";
+  const NOTIFY_DM_KEY = "sarafan_notify_dm";
   const LIKE_EMOJI = "❤️";
   const REACTIONS = [
     { emoji: "😊", title: "смайл" },
@@ -3742,29 +3748,79 @@
 
   let swReg = null;
   let notifyEnabled = false;
+  let notifyPublic = true;
+  let notifyDm = true;
   let unreadBadge = 0;
 
-  function loadNotifyPref() {
+  function loadBoolPref(key, fallback = true) {
     try {
-      return localStorage.getItem(NOTIFY_KEY) !== "0";
+      const raw = localStorage.getItem(key);
+      if (raw === null) return fallback;
+      return raw !== "0";
     } catch {
-      return true;
+      return fallback;
     }
   }
 
-  function saveNotifyPref(on) {
+  function saveBoolPref(key, on) {
     try {
-      localStorage.setItem(NOTIFY_KEY, on ? "1" : "0");
+      localStorage.setItem(key, on ? "1" : "0");
     } catch {
       /* ignore */
     }
   }
 
+  function loadNotifyPref() {
+    return loadBoolPref(NOTIFY_KEY, true);
+  }
+
+  function saveNotifyPref(on) {
+    saveBoolPref(NOTIFY_KEY, on);
+  }
+
+  function loadNotifyChannels() {
+    notifyPublic = loadBoolPref(NOTIFY_PUBLIC_KEY, true);
+    notifyDm = loadBoolPref(NOTIFY_DM_KEY, true);
+  }
+
+  function saveNotifyChannels() {
+    saveBoolPref(NOTIFY_PUBLIC_KEY, notifyPublic);
+    saveBoolPref(NOTIFY_DM_KEY, notifyDm);
+  }
+
+  function syncNotifyMenuInputs() {
+    if (notifyPublicInput) notifyPublicInput.checked = notifyPublic;
+    if (notifyDmInput) notifyDmInput.checked = notifyDm;
+  }
+
+  function setNotifyMenuOpen(open) {
+    if (!notifyMenu || !notifyBtn) return;
+    notifyMenu.hidden = !open;
+    notifyBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function closeNotifyMenu() {
+    setNotifyMenuOpen(false);
+  }
+
   function syncNotifyBtn() {
     if (!notifyBtn) return;
-    notifyBtn.classList.toggle("is-on", notifyEnabled);
-    notifyBtn.setAttribute("aria-pressed", notifyEnabled ? "true" : "false");
-    notifyBtn.title = notifyEnabled ? "Уведомления включены" : "Включить уведомления";
+    const anyChannel = notifyPublic || notifyDm;
+    const on = notifyEnabled && anyChannel;
+    notifyBtn.classList.toggle("is-on", on);
+    notifyBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    if (!notifyEnabled) {
+      notifyBtn.title = "Включить уведомления";
+    } else if (!anyChannel) {
+      notifyBtn.title = "Уведомления выключены";
+    } else if (notifyPublic && notifyDm) {
+      notifyBtn.title = "Уведомления: общий и вдвоём";
+    } else if (notifyPublic) {
+      notifyBtn.title = "Уведомления: только общий чат";
+    } else {
+      notifyBtn.title = "Уведомления: только вдвоём";
+    }
+    syncNotifyMenuInputs();
   }
 
   async function setUnreadBadge(n) {
@@ -3826,7 +3882,12 @@
       await fetch("/api/push-subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subscription: sub.toJSON(), name: myName || "" }),
+        body: JSON.stringify({
+          subscription: sub.toJSON(),
+          name: myName || "",
+          notifyPublic,
+          notifyDm,
+        }),
       });
       return true;
     } catch (err) {
@@ -3835,7 +3896,7 @@
     }
   }
 
-  async function enableNotifications() {
+  async function enableNotifications({ openMenu = true } = {}) {
     if (isIos && !isStandalone) {
       notify(
         "iPhone: Safari → Поделиться → На экран «Домой» → открыть с иконки → снова 🔔. В Настройках → Сарафан включите Уведомления."
@@ -3865,18 +3926,25 @@
         return false;
       }
     }
+    if (!notifyPublic && !notifyDm) {
+      notifyPublic = true;
+      notifyDm = true;
+      saveNotifyChannels();
+    }
     await ensureServiceWorker();
     const pushed = await syncPushSubscription();
     notifyEnabled = true;
     saveNotifyPref(true);
     syncNotifyBtn();
     notify(pushed ? "Уведомления включены" : "Разрешено, но push пока недоступен");
+    if (openMenu) setNotifyMenuOpen(true);
     return true;
   }
 
   async function disableNotifications() {
     notifyEnabled = false;
     saveNotifyPref(false);
+    closeNotifyMenu();
     syncNotifyBtn();
     clearUnreadBadge();
     try {
@@ -3897,12 +3965,27 @@
     notify("Уведомления выключены");
   }
 
-  async function toggleNotifications() {
-    if (notifyEnabled && typeof Notification !== "undefined" && Notification.permission === "granted") {
+  async function applyNotifyChannels() {
+    saveNotifyChannels();
+    syncNotifyBtn();
+    if (!notifyPublic && !notifyDm) {
       await disableNotifications();
-    } else {
-      await enableNotifications();
+      return;
     }
+    if (!notifyEnabled) {
+      await enableNotifications({ openMenu: false });
+      return;
+    }
+    await syncPushSubscription();
+  }
+
+  async function onNotifyBtnClick() {
+    if (notifyEnabled && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      const open = Boolean(notifyMenu?.hidden);
+      setNotifyMenuOpen(open);
+      return;
+    }
+    await enableNotifications({ openMenu: true });
   }
 
   function noteIncomingMessage(msg) {
@@ -3916,8 +3999,35 @@
     bumpUnreadBadge();
   }
 
-  notifyBtn?.addEventListener("click", () => {
-    void toggleNotifications();
+  notifyBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void onNotifyBtnClick();
+  });
+
+  notifyPublicInput?.addEventListener("change", () => {
+    notifyPublic = Boolean(notifyPublicInput.checked);
+    void applyNotifyChannels();
+  });
+
+  notifyDmInput?.addEventListener("change", () => {
+    notifyDm = Boolean(notifyDmInput.checked);
+    void applyNotifyChannels();
+  });
+
+  notifyOffBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void disableNotifications();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!notifyMenu || notifyMenu.hidden) return;
+    const wrap = notifyBtn?.closest(".notify-wrap");
+    if (wrap && wrap.contains(event.target)) return;
+    closeNotifyMenu();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeNotifyMenu();
   });
 
   pingAllBtn?.addEventListener("click", () => {
@@ -3957,6 +4067,7 @@
     });
   }
 
+  loadNotifyChannels();
   notifyEnabled =
     loadNotifyPref() &&
     typeof Notification !== "undefined" &&
