@@ -3097,6 +3097,7 @@
 
   async function closeDmDialogSoft() {
     if (!dmDialog?.open) return;
+    if (hubPeopleOpen) setHubPeopleOpen(false);
     dmDialog.classList.add("is-leaving");
     await new Promise((resolve) => {
       let done = false;
