@@ -292,10 +292,19 @@
       forgetArmedTimer = null;
     }
     forgetArmedCode = null;
-    document.querySelectorAll(".dm-room-forget.armed").forEach((btn) => {
+    document.querySelectorAll(".dm-room-forget").forEach((btn) => {
+      const wasArmed = btn.classList.contains("armed");
       btn.classList.remove("armed");
       btn.title = "Нажмите дважды, чтобы убрать";
       btn.textContent = "×";
+      // Drop sticky focus/hover paint after the arm window ends (esp. iOS).
+      if (wasArmed || document.activeElement === btn) {
+        try {
+          btn.blur();
+        } catch {
+          /* ignore */
+        }
+      }
     });
   }
 
