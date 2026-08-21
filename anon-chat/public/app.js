@@ -850,7 +850,7 @@
     if (prev) {
       rememberDmRoom(prev, { active: false, peer, messageCount: count });
       saveDmCode("");
-      notify(`Снова общий чат · ${prev} в меню «Вдвоём»`);
+      notify(`Снова общий чат · ${prev} в меню «Комната»`);
     }
   }
 
@@ -919,7 +919,11 @@
       }
       if (person.name) res.invited = person.name;
       enterDmMode(res);
-      notify(`Приглашение ${person.name} · код ${res.code}`);
+      notify(
+        res.created === false
+          ? `${person.name} приглашён в комнату ${res.code}`
+          : `Приглашение ${person.name} · код ${res.code}`
+      );
     });
   }
 
@@ -983,7 +987,7 @@
     }
     invitesBtn.hidden = false;
     invitesBtn.classList.add("has-invites");
-    const label = n === 1 ? "Вас зовут вдвоём" : `Вас зовут · ${n}`;
+    const label = n === 1 ? "Вас зовут в комнату" : `Вас зовут · ${n}`;
     invitesBtn.title = label;
     invitesBtn.setAttribute("aria-label", label);
   }
@@ -3485,11 +3489,11 @@
   function syncDmBtn() {
     if (!dmBtn) return;
     if (dmCode) {
-      dmBtn.textContent = "Вдвоём";
+      dmBtn.textContent = "Комната";
       dmBtn.title = "Меню комнат · вы в комнате";
       dmBtn.classList.add("active");
     } else {
-      dmBtn.textContent = "Вдвоём";
+      dmBtn.textContent = "Комната";
       dmBtn.title = "Комната по коду · до 100 человек";
       dmBtn.classList.remove("active");
     }
@@ -3659,7 +3663,7 @@
     if (code) forgetDmRoom(code);
     if (dmCode && code && dmCode === code) {
       leaveDmMode();
-      notify("Чат вдвоём удалён · 90 дней без сообщений");
+      notify("Комната удалена · 90 дней без сообщений");
     }
   });
 
@@ -3797,11 +3801,11 @@
     } else if (!anyChannel) {
       notifyBtn.title = "Уведомления выключены";
     } else if (notifyPublic && notifyDm) {
-      notifyBtn.title = "Уведомления: общий и вдвоём";
+      notifyBtn.title = "Уведомления: общий и комнаты";
     } else if (notifyPublic) {
       notifyBtn.title = "Уведомления: только общий чат";
     } else {
-      notifyBtn.title = "Уведомления: только вдвоём";
+      notifyBtn.title = "Уведомления: только комнаты";
     }
     syncNotifyMenuInputs();
   }
