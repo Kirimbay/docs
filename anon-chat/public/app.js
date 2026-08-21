@@ -365,26 +365,73 @@
     if (bulkSelectedIds.size === 0) exitBulkSelectMode();
   }
 
+  function captureFeedAnchor(excludeIds) {
+    const excluded = excludeIds instanceof Set ? excludeIds : new Set(excludeIds || []);
+    const feedRect = feed.getBoundingClientRect();
+    const msgs = feed.querySelectorAll(".msg");
+    for (const el of msgs) {
+      const id = el.dataset.id;
+      if (!id || excluded.has(id)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.bottom > feedRect.top + 4 && r.top < feedRect.bottom - 4) {
+        return { id, offset: r.top - feedRect.top };
+      }
+    }
+    return {
+      scrollTop: feed.scrollTop,
+      maxScroll: Math.max(0, feed.scrollHeight - feed.clientHeight),
+    };
+  }
+
+  function restoreFeedAnchor(anchor) {
+    if (!anchor) return;
+    if (anchor.id) {
+      const el = feed.querySelector(`.msg[data-id="${CSS.escape(anchor.id)}"]`);
+      if (el) {
+        const feedRect = feed.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        feed.scrollTop += r.top - feedRect.top - anchor.offset;
+        return;
+      }
+    }
+    const max = Math.max(0, feed.scrollHeight - feed.clientHeight);
+    if (typeof anchor.scrollTop === "number") {
+      // Prefer staying near the previous viewport; clamp if content shrank.
+      feed.scrollTop = Math.min(anchor.scrollTop, max);
+    } else {
+      feed.scrollTop = max;
+    }
+  }
+
   function deleteBulkSelected() {
     if (!isAdmin || bulkDeleting) return;
     const ids = [...bulkSelectedIds];
     if (!ids.length) return;
     bulkDeleting = true;
     syncBulkBar();
-    let i = 0;
-    const next = () => {
-      if (i >= ids.length) {
-        exitBulkSelectMode();
-        return;
-      }
-      const id = ids[i++];
+
+    const exclude = new Set(ids);
+    const anchor = captureFeedAnchor(exclude);
+
+    // Instant batch remove — no per-bubble collapse (that stacked and scrolled the feed away).
+    for (const id of ids) {
+      removeMessageById(id, { animate: false, adjustScroll: false });
+    }
+    restoreFeedAnchor(anchor);
+    exitBulkSelectMode();
+    updatePinBar();
+    updateJumpBottom();
+
+    // Fire server deletes in parallel; DOM is already cleaned up.
+    let fail = null;
+    let pending = ids.length;
+    for (const id of ids) {
       socket.emit("admin:delete", { id }, (res) => {
-        if (res?.ok) removeMessageById(id);
-        else if (res?.error) notify(res.error);
-        next();
+        if (!res?.ok && res?.error) fail = res.error;
+        pending -= 1;
+        if (pending <= 0 && fail) notify(fail);
       });
-    };
-    next();
+    }
   }
 
   function loadSavedName() {
@@ -2124,8 +2171,11 @@
     );
   }
 
-  function removeMessageById(id) {
+  function removeMessageById(id, opts = {}) {
     if (!id) return;
+    const animate = opts.animate !== false;
+    const adjustScroll = opts.adjustScroll !== false;
+
     closeAllReactMenus();
     knownIds.delete(id);
     lastState.messages = (lastState.messages || []).filter((m) => m.id !== id);
@@ -2138,7 +2188,7 @@
     document.querySelectorAll("body > .msg-react-menu, body > .msg-action-menu").forEach((m) => m.remove());
     if (deleteArmedId === id) clearDeleteArm();
 
-    const el = feed.querySelector(`[data-id="${CSS.escape(id)}"]`);
+    const el = feed.querySelector(`.msg[data-id="${CSS.escape(id)}"]`);
     const finishChrome = () => {
       updatePinBar();
       updateJumpBottom();
@@ -2160,7 +2210,7 @@
     const startScroll = feed.scrollTop;
     // If the bubble sits above the viewport, shrink scroll with it so the
     // visible messages stay put while neighbors close the gap.
-    const anchorAbove = offsetTop + 1 < startScroll;
+    const anchorAbove = adjustScroll && offsetTop + 1 < startScroll;
     const scrollDelta = height + gap;
 
     const row = el.closest(".msg-swipe");
@@ -2170,7 +2220,7 @@
       finishChrome();
     };
 
-    if (reduceMotion || height < 1) {
+    if (!animate || reduceMotion || height < 1) {
       if (anchorAbove) {
         feed.scrollTop = Math.max(0, startScroll - scrollDelta);
       }
