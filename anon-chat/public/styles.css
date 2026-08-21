@@ -2929,7 +2929,8 @@ body.bulk-select-on .composer-shell {
 /* Form sheets dock to the top of the visual viewport (iOS keyboard-safe) */
 .dialog.sheet-top,
 #admin-dialog.dialog,
-#rename-dialog.dialog {
+#rename-dialog.dialog,
+#confirm-dialog.dialog {
   top: calc(var(--vv-top, 0px) + max(0.65rem, env(safe-area-inset-top, 0px)));
   left: 50%;
   right: auto;
