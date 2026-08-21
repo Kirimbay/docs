@@ -1681,6 +1681,11 @@ body.pins-focus-mode .feed .msg.pin-focus {
   color: #c8d8e6;
 }
 
+.msg-react-chip.is-static {
+  cursor: default;
+  pointer-events: none;
+}
+
 @keyframes pop-in {
   from {
     opacity: 0;
