@@ -710,6 +710,26 @@ button {
   box-sizing: border-box;
 }
 
+.dm-create-box .dm-action-fields input {
+  border-color: color-mix(in srgb, var(--dm-accent) 42%, var(--line));
+  background: color-mix(in srgb, var(--dm-accent) 10%, var(--bg-elev));
+}
+
+.dm-create-box .dm-action-fields input:focus {
+  border-color: color-mix(in srgb, var(--dm-accent) 70%, var(--line));
+}
+
+.dm-join-box .dm-action-fields input {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--ink-soft) 35%, var(--line));
+  background: var(--bg);
+}
+
+.dm-join-box .dm-action-fields input:focus {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--ink) 28%, var(--line));
+}
+
 .dm-action-btn,
 .dm-create-btn,
 .dm-dialog-footer #dm-join-btn,
@@ -736,6 +756,25 @@ button {
   -webkit-user-select: none;
   user-select: none;
   box-sizing: border-box;
+}
+
+.dm-dialog-footer #dm-create-btn {
+  background: color-mix(in srgb, var(--dm-accent) 88%, #fff);
+  border-color: transparent;
+  color: #102418;
+}
+
+.dm-dialog-footer #dm-join-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.dm-dialog-footer #dm-join-btn:hover,
+.dm-dialog-footer #dm-join-btn:active {
+  border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
 }
 
 .dm-action-btn:disabled,
@@ -1202,7 +1241,7 @@ button {
 
 .dm-people-wrap.is-open {
   flex: 0 1 auto;
-  max-height: min(52vh, 22rem);
+  max-height: min(58vh, 26rem);
   min-height: 0;
 }
 
@@ -1213,9 +1252,9 @@ button {
   gap: 0.65rem;
   width: 100%;
   margin: 0;
-  padding: 0.55rem 0.75rem;
+  padding: 0.4rem 0.65rem;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--bg-elev);
   color: var(--ink);
   font: inherit;
@@ -1226,14 +1265,14 @@ button {
 
 .dm-people-toggle-title {
   font-weight: 650;
-  font-size: 0.92rem;
+  font-size: 0.86rem;
 }
 
 .dm-people-toggle-meta {
   flex: 0 1 auto;
   min-width: 0;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1246,7 +1285,7 @@ button {
 .dm-people-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.28rem;
   min-height: 0;
   flex: 1 1 auto;
   overflow: hidden;
@@ -1266,13 +1305,13 @@ button {
   width: 100%;
   border: 1px solid var(--line);
   background: var(--bg-elev);
-  border-radius: 12px;
-  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  padding: 0.4rem 0.65rem;
   outline: none;
   color: var(--ink);
   font: inherit;
-  font-size: 0.95rem;
-  min-height: 2.5rem;
+  font-size: 0.88rem;
+  min-height: 2rem;
 }
 
 .dm-people-search-wrap input:focus {
@@ -1282,25 +1321,25 @@ button {
 .dm-people-list {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.15rem;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   min-height: 0;
   flex: 1 1 auto;
-  padding: 0.05rem 0 0.2rem;
+  padding: 0.05rem 0 0.15rem;
 }
 
 .dm-people-row {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.4rem;
   width: 100%;
   margin: 0;
-  padding: 0.55rem 0.7rem;
+  padding: 0.32rem 0.55rem;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--bg-elev);
   color: var(--ink);
   font: inherit;
@@ -1326,6 +1365,7 @@ button {
   flex: 1 1 auto;
   min-width: 0;
   font-weight: 600;
+  font-size: 0.86rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1333,7 +1373,7 @@ button {
 
 .dm-people-status {
   flex: 0 0 auto;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   color: var(--muted);
 }
 
@@ -1344,9 +1384,9 @@ button {
 
 .dm-people-empty {
   margin: 0;
-  padding: 0.35rem 0.3rem;
+  padding: 0.3rem 0.25rem;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
 }
 
 .dm-room-forget {
@@ -1404,34 +1444,33 @@ body.hub-bulk-select-on .dm-room-enter {
 
 body.keyboard-open #dm-dialog.dm-dialog.dialog,
 body.keyboard-open #dm-dialog.dm-dialog.dialog[open] {
-  top: var(--vv-top, 0px) !important;
+  /* Stay full-screen; keyboard overlays rooms instead of shrinking the hub. */
+  top: 0 !important;
   left: 0 !important;
   right: 0 !important;
   bottom: auto !important;
   transform: none !important;
   animation: none !important;
   width: 100% !important;
-  height: var(--app-height, 100dvh) !important;
-  max-height: var(--app-height, 100dvh) !important;
+  height: 100% !important;
+  max-height: 100% !important;
   margin: 0 !important;
 }
 
 body.keyboard-open .dm-dialog .dialog-body {
   gap: 0.28rem;
-  padding: max(0.3rem, env(safe-area-inset-top, 0px))
-    max(0.4rem, env(safe-area-inset-right, 0px))
-    max(0.35rem, env(safe-area-inset-bottom, 0px))
-    max(0.4rem, env(safe-area-inset-left, 0px));
   overflow: hidden;
 }
 
-body.keyboard-open .dm-dialog-footer {
-  padding-bottom: 0.15rem;
-}
-
-body.keyboard-open .dm-people-wrap.is-open {
-  flex: 0 1 auto;
-  max-height: none;
+body.keyboard-open .dm-dialog-footer.is-kb-lifted {
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.28);
+  padding-top: 0.4rem;
+  padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+  border-radius: 14px 14px 0 0;
 }
 
 body.keyboard-open .dm-dialog .dm-lead {

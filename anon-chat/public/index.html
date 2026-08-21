@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=186" />
+    <link rel="stylesheet" href="/styles.css?v=187" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -256,7 +256,7 @@
           <div class="dm-action-box dm-create-box">
             <div class="dm-action-fields">
               <label class="field dm-code-field">
-                <span class="visually-hidden">Номер комнаты</span>
+                <span class="visually-hidden">Новый номер</span>
                 <input
                   id="dm-create-code"
                   type="text"
@@ -264,12 +264,12 @@
                   pattern="[0-9]{1,6}"
                   maxlength="6"
                   autocomplete="off"
-                  placeholder="номер"
-                  aria-label="Номер комнаты"
+                  placeholder="новый"
+                  aria-label="Новый номер комнаты"
                 />
               </label>
               <label class="field dm-key-field">
-                <span class="visually-hidden">Ключ</span>
+                <span class="visually-hidden">Ключ для других</span>
                 <input
                   id="dm-create-join-key"
                   type="text"
@@ -277,8 +277,8 @@
                   pattern="[0-9]{4}"
                   maxlength="4"
                   autocomplete="off"
-                  placeholder="ключ"
-                  aria-label="Ключ комнаты"
+                  placeholder="ключ?"
+                  aria-label="Ключ для других"
                 />
               </label>
               <button type="button" id="dm-create-btn" class="primary dm-action-btn">Создать</button>
@@ -297,7 +297,7 @@
                   autocomplete="one-time-code"
                   autocapitalize="off"
                   spellcheck="false"
-                  placeholder="номер"
+                  placeholder="войти №"
                   aria-label="Номер комнаты"
                 />
               </label>
@@ -434,6 +434,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=186"></script>
+    <script src="/app.js?v=187"></script>
   </body>
 </html>

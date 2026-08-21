@@ -3087,6 +3087,7 @@
   async function closeDmDialogSoft() {
     if (!dmDialog?.open) return;
     if (hubPeopleOpen) setHubPeopleOpen(false);
+    clearHubFooterLift();
     dmDialog.classList.add("is-leaving");
     await new Promise((resolve) => {
       let done = false;
@@ -3238,19 +3239,20 @@
     if (!dmDialog?.open) return;
     syncViewportHeight();
     const vv = window.visualViewport;
+    const layoutH = Math.max(320, Math.round(window.innerHeight || 0));
     const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
-    const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight || 0);
-    const height = Math.max(240, vvH || Math.round(window.innerHeight || 0));
+    const vvH = vv ? Math.round(vv.height) : layoutH;
+    // How much of the layout viewport is covered by the keyboard / browser chrome.
+    const kbLift = Math.max(0, layoutH - (vvTop + vvH));
     const narrow = window.matchMedia("(max-width: 640px)").matches;
-    // iOS: no translateX(-50%) — it breaks taps with the keyboard open.
-    // Desktop: keep centered column like .app.
+    // Keep hub at full layout height so rooms stay put and the keyboard overlays them.
     dmDialog.style.setProperty("position", "fixed", "important");
     dmDialog.style.setProperty("inset", "auto", "important");
-    dmDialog.style.setProperty("top", `${vvTop}px`, "important");
+    dmDialog.style.setProperty("top", "0px", "important");
     dmDialog.style.setProperty("bottom", "auto", "important");
     dmDialog.style.setProperty("min-width", "0", "important");
-    dmDialog.style.setProperty("height", `${height}px`, "important");
-    dmDialog.style.setProperty("max-height", `${height}px`, "important");
+    dmDialog.style.setProperty("height", `${layoutH}px`, "important");
+    dmDialog.style.setProperty("max-height", `${layoutH}px`, "important");
     dmDialog.style.setProperty("margin", "0", "important");
     dmDialog.style.setProperty("translate", "none", "important");
     dmDialog.style.setProperty("animation", "none", "important");
@@ -3270,26 +3272,37 @@
       dmDialog.style.setProperty("max-width", `${appMax}px`, "important");
       dmDialog.style.setProperty("transform", "translateX(-50%)", "important");
     }
-    const hubScroll = document.getElementById("dm-hub-scroll");
+
     const active = document.activeElement;
     const actionFields = [dmCodeInput, dmCreateCode, dmCreateJoinKey, dmJoinKey].filter(Boolean);
-    if (actionFields.includes(active) && hubPeopleOpen) {
-      // Free space above the pinned footer while typing room number/key.
-      setHubPeopleOpen(false);
-    }
-    if (hubScroll && active && (actionFields.includes(active) || active === dmPeopleSearch)) {
-      try {
-        active.scrollIntoView({ block: "nearest", inline: "nearest" });
-      } catch {
-        /* ignore */
+    const actionFocused = actionFields.includes(active);
+    if (actionFocused && hubPeopleOpen) setHubPeopleOpen(false);
+
+    const footer = dmDialog.querySelector(".dm-dialog-footer");
+    if (footer) {
+      // Lift only Create/Join above the keyboard; rooms stay and get covered.
+      if (actionFocused && kbLift > 60) {
+        footer.style.transform = `translateY(-${kbLift}px)`;
+        footer.style.zIndex = "8";
+        footer.classList.add("is-kb-lifted");
+      } else {
+        footer.style.transform = "";
+        footer.style.zIndex = "";
+        footer.classList.remove("is-kb-lifted");
       }
     }
   }
 
-  function scrollHubActionIntoView(which) {
-    const btn = document.getElementById(which === "create" ? "dm-create-btn" : "dm-join-btn");
-    if (!btn) return;
+  function scrollHubActionIntoView(_which) {
     layoutDmDialog();
+  }
+
+  function clearHubFooterLift() {
+    const footer = dmDialog?.querySelector(".dm-dialog-footer");
+    if (!footer) return;
+    footer.style.transform = "";
+    footer.style.zIndex = "";
+    footer.classList.remove("is-kb-lifted");
   }
 
   function autoSize() {
@@ -6007,6 +6020,7 @@
   dmDialog?.addEventListener("close", () => {
     clearForgetArm();
     exitHubBulkSelectMode();
+    clearHubFooterLift();
     dmDialog.classList.remove("is-leaving");
     dmDialog.removeAttribute("style");
   });
