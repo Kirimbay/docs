@@ -752,9 +752,9 @@ button {
 
 .dm-dialog-footer #dm-create-btn,
 .dm-dialog-footer #dm-join-btn {
-  background: var(--bg-elev);
-  border: 1px solid var(--line);
-  color: var(--ink);
+  background: #4a4e53;
+  border: 1px solid #5c6167;
+  color: #e8eaed;
   font-weight: 600;
 }
 
@@ -762,8 +762,9 @@ button {
 .dm-dialog-footer #dm-create-btn:active,
 .dm-dialog-footer #dm-join-btn:hover,
 .dm-dialog-footer #dm-join-btn:active {
-  border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
-  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+  background: #5a5f65;
+  border-color: #6c7278;
+  color: #f2f3f5;
 }
 
 .dm-action-btn:disabled,
