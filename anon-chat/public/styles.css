@@ -367,10 +367,23 @@ button {
 
 .topbar-actions {
   display: flex;
-  gap: 0.35rem;
+  gap: 0.28rem;
   flex: 0 0 auto;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  align-items: center;
+  max-width: 58%;
+  min-width: 0;
+}
+
+.topbar-actions .ghost.compact {
+  flex: 0 0 auto;
+}
+
+#notify-btn {
+  min-width: 2.25rem;
+  padding-left: 0.55rem;
+  padding-right: 0.55rem;
 }
 
 .dm-bar {
@@ -1859,10 +1872,20 @@ body.pins-focus-mode .feed .msg.pin-focus {
 .composer {
   flex: 0 0 auto;
   z-index: 4;
-  /* Fill the home-indicator zone with app bg so standalone iOS isn't a dead gap. */
-  padding: 0.4rem var(--pad-x) max(0.28rem, var(--safe-bottom));
-  background: var(--bg);
-  border-top: 0;
+  /* Edge-to-edge bottom chrome — no floating empty strip above the home indicator. */
+  padding: 0.4rem var(--pad-x) 0;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+
+.composer-shell {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.2rem 0 max(0.45rem, var(--safe-bottom));
+  border-radius: 0;
+  border: 0;
+  background: transparent;
   min-width: 0;
 }
 
@@ -1931,16 +1954,6 @@ body.pins-focus-mode .feed .msg.pin-focus {
 body.bulk-select-on .composer-shell {
   opacity: 0.42;
   pointer-events: none;
-}
-
-.composer-shell {
-  display: grid;
-  gap: 0.28rem;
-  padding: 0.42rem 0.5rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--bg-elev);
-  min-width: 0;
 }
 
 .preview {
@@ -2700,7 +2713,11 @@ body.keyboard-open .pins-dialog.dialog {
   }
 
   .composer {
-    padding: 0.35rem var(--pad-x) max(0.22rem, var(--safe-bottom));
+    padding: 0.32rem var(--pad-x) 0;
+  }
+
+  .composer-shell {
+    padding: 0.12rem 0 max(0.35rem, var(--safe-bottom));
   }
 
   .composer-shell {

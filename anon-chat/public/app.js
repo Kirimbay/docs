@@ -1415,10 +1415,19 @@
     let height = window.innerHeight;
     let inset = 0;
     if (vv) {
-      height = Math.round(vv.height);
       const rawInset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-      inset = focused && rawInset > 60 ? rawInset : 0;
-      document.documentElement.style.setProperty("--vv-top", `${Math.round(vv.offsetTop || 0)}px`);
+      const keyboardOpen = focused && rawInset > 60;
+      if (keyboardOpen) {
+        // Shrink to the visible viewport above the keyboard.
+        height = Math.round(vv.height);
+        inset = rawInset;
+        document.documentElement.style.setProperty("--vv-top", `${Math.round(vv.offsetTop || 0)}px`);
+      } else {
+        // Fill the whole screen — vv.height alone leaves an empty strip under the composer on iOS PWA.
+        height = Math.round(window.innerHeight);
+        inset = 0;
+        document.documentElement.style.setProperty("--vv-top", "0px");
+      }
     } else {
       document.documentElement.style.setProperty("--vv-top", "0px");
     }
@@ -3871,7 +3880,7 @@
 
   function noteIncomingMessage(msg) {
     if (!msg || isOwnMessage(msg)) return;
-    const hidden = document.hidden || !document.hasFocus?.();
+    const hidden = document.hidden || (typeof document.hasFocus === "function" && !document.hasFocus());
     const away = hidden || !isNearBottom(120);
     if (!away) {
       clearUnreadBadge();
