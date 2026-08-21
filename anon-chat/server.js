@@ -2498,7 +2498,7 @@ io.on("connection", (socket) => {
     const code = normalizeRoomCode(payload.code);
     if (!code) {
       if (typeof ack === "function") {
-        ack({ ok: false, error: "Нужен номер из ровно 6 цифр (например 000543)" });
+        ack({ ok: false, error: "Введите номер комнаты цифрами", wrongCode: true });
       }
       return;
     }
@@ -2511,7 +2511,13 @@ io.on("connection", (socket) => {
     }
     const room = store.rooms[code];
     if (!room) {
-      if (typeof ack === "function") ack({ ok: false, error: "Чат не найден — проверьте номер" });
+      if (typeof ack === "function") {
+        ack({
+          ok: false,
+          error: "Номер комнаты неверный · такой комнаты нет",
+          wrongCode: true,
+        });
+      }
       return;
     }
 
@@ -2526,12 +2532,35 @@ io.on("connection", (socket) => {
       }
       if (roomAccessMode(room) === "keyed") {
         const joinHash = roomJoinKeyHash(room);
-        if (!joinHash || !key || hashRoomKey(key) !== joinHash) {
+        if (!joinHash) {
           if (typeof ack === "function") {
             ack({
               ok: false,
-              error: "Комната по ключу — введите 4 цифры",
+              error: "Комната закрыта · ключ ещё не задан",
               needsKey: true,
+              ...roomPublicFlags(room),
+            });
+          }
+          return;
+        }
+        if (!key || key.length !== 4) {
+          if (typeof ack === "function") {
+            ack({
+              ok: false,
+              error: "Номер верный · нужен ключ из 4 цифр",
+              needsKey: true,
+              ...roomPublicFlags(room),
+            });
+          }
+          return;
+        }
+        if (hashRoomKey(key) !== joinHash) {
+          if (typeof ack === "function") {
+            ack({
+              ok: false,
+              error: "Номер верный · ключ неверный",
+              needsKey: true,
+              wrongKey: true,
               ...roomPublicFlags(room),
             });
           }
