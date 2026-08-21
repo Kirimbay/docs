@@ -1568,13 +1568,13 @@ function roomListMeta(code, exceptName = "", sinceId = "") {
       maxMembers: MAX_ROOM_MEMBERS,
     };
   }
-  const names = roomParticipantNames(code);
+  const onlineNames = roomMemberNames(code);
   const exceptKey = nameKey(exceptName);
-  const others = names.filter((n) => nameKey(n) !== exceptKey);
+  const others = onlineNames.filter((n) => nameKey(n) !== exceptKey);
   let peer = "";
   if (others.length === 1) peer = others[0];
   else if (others.length > 1) peer = `${others[0]} +${others.length - 1}`;
-  else if (names.length) peer = names[0];
+  else if (onlineNames.length) peer = onlineNames[0];
   const messages = Array.isArray(room.messages) ? room.messages : [];
   const lastMessageId = messages.length ? String(messages[messages.length - 1]?.id || "") : "";
   return {
@@ -1586,7 +1586,9 @@ function roomListMeta(code, exceptName = "", sinceId = "") {
     closed: isRoomClosed(room),
     keyed: roomAccessMode(room) === "keyed",
     peer: isPublicRoomCode(code) ? PUBLIC_CHAT_LABEL : peer,
-    names,
+    // Only people currently in the room — not historical participants.
+    names: onlineNames,
+    participants: roomParticipantNames(code),
     messageCount: messages.length,
     unread: unreadSince(messages, sinceId),
     lastMessageId,

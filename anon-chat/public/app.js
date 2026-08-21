@@ -159,6 +159,8 @@
   let roomKeyed = false;
   /** @type {Map<string, "super" | "admin">} */
   let roomModerators = new Map();
+  /** @type {string[]} */
+  let lastRoomOnlineNames = [];
   /** Device-scoped restriction: hub hides public chat. */
   let accessRoomsOnly = false;
   let publicChatLabel = PUBLIC_CHAT_LABEL_DEFAULT;
@@ -1471,7 +1473,7 @@
     const list = Array.isArray(names)
       ? names.filter((n) => typeof n === "string" && n.trim()).map((n) => n.trim())
       : [];
-    if (!list.length) return "Пока никого";
+    if (!list.length) return dmCode ? "Никого онлайн" : "Пока никого";
     if (!collapsed || list.length <= 3) return list.join(", ");
     return `${list.slice(0, 3).join(", ")} +${list.length - 3}`;
   }
@@ -2163,7 +2165,9 @@
     const max = Number(maxMembers) > 0 ? Number(maxMembers) : 5000;
     dmBarPresence.textContent = `${n}/${max}`;
     if (!dmCode) return;
-    const roster = Array.isArray(participants) && participants.length ? participants : names;
+    // Live roster = who is in the room now (not historical participants).
+    const roster = Array.isArray(names) ? names.filter((x) => typeof x === "string" && x.trim()) : [];
+    lastRoomOnlineNames = roster;
     const modMap = new Map();
     if (Array.isArray(moderators)) {
       for (const m of moderators) {
@@ -2171,22 +2175,16 @@
         modMap.set(String(m.name), m.role === "super" ? "super" : "admin");
       }
     }
-    // Stash for online list / name chips while in this room.
     roomModerators = modMap;
     const peer = peerFromDmPayload({ names: roster, messages: lastState.messages || [] });
-    if (peer || (Array.isArray(roster) && roster.length)) {
-      rememberDmRoom(dmCode, {
-        peer: isPublicRoomCode(dmCode) ? publicChatLabel : peer,
-        names: isPublicRoomCode(dmCode)
-          ? [publicChatLabel]
-          : Array.isArray(roster)
-            ? roster
-            : undefined,
-        messageCount: Array.isArray(lastState.messages) ? lastState.messages.length : undefined,
-        lastReadId: lastMessageIdFromList(lastState.messages),
-        unread: 0,
-      });
-    }
+    rememberDmRoom(dmCode, {
+      peer: isPublicRoomCode(dmCode) ? publicChatLabel : peer,
+      names: isPublicRoomCode(dmCode) ? [publicChatLabel] : roster,
+      messageCount: Array.isArray(lastState.messages) ? lastState.messages.length : undefined,
+      lastReadId: lastMessageIdFromList(lastState.messages),
+      unread: 0,
+    });
+    if (onlineDialog?.open) renderOnlineList();
   }
 
   function enterDmMode(res, { watchOnly = false } = {}) {
@@ -2208,10 +2206,10 @@
       if (loadDmRooms().some((r) => r.code === res.code)) {
         markDmRoomRead(res.code, res.messages || [], {
           peer: isPublic ? publicChatLabel : peerFromDmPayload(res),
-          names: Array.isArray(res.participants)
-            ? res.participants
-            : Array.isArray(res.names)
-              ? res.names
+          names: Array.isArray(res.names)
+            ? res.names
+            : Array.isArray(res.participants)
+              ? res.participants
               : undefined,
         });
       }
@@ -2220,10 +2218,10 @@
         peer: isPublic ? publicChatLabel : peerFromDmPayload(res),
         names: isPublic
           ? [publicChatLabel]
-          : Array.isArray(res.participants)
-            ? res.participants
-            : Array.isArray(res.names)
-              ? res.names
+          : Array.isArray(res.names)
+            ? res.names
+            : Array.isArray(res.participants)
+              ? res.participants
               : undefined,
         messageCount: Array.isArray(res.messages) ? res.messages.length : 0,
         lastReadId: lastMessageIdFromList(res.messages),
@@ -2276,6 +2274,8 @@
     const snapshotMessages = lastState.messages || [];
     const wasSaved = prev ? loadDmRooms().some((r) => r.code === prev) : false;
     dmCode = null;
+    lastRoomOnlineNames = [];
+    roomModerators = new Map();
     clearRoomAdminState();
     // Keep room in the saved list; only clear "active session" code.
     saveDmCode("");
@@ -2296,6 +2296,7 @@
         markDmRoomRead(prev, snapshotMessages, {
           active: false,
           peer: isPublicRoomCode(prev) ? publicChatLabel : peer,
+          names: [],
         });
       } else if (isAdmin) {
         markAdminRoomRead(prev, snapshotMessages);
@@ -2473,13 +2474,24 @@
 
   function renderOnlineList() {
     if (!onlineList) return;
-    const people = lastPeople.filter((p) => p.name);
+    let people = lastPeople.filter((p) => p.name);
+    // Inside a room — show only who is currently in this room.
+    if (dmCode && lastRoomOnlineNames.length) {
+      const inRoom = new Set(
+        lastRoomOnlineNames.map((n) => String(n || "").trim().toLowerCase()).filter(Boolean)
+      );
+      people = people.filter((p) => inRoom.has(String(p.name || "").trim().toLowerCase()));
+    } else if (dmCode && !lastRoomOnlineNames.length) {
+      // Room is empty of visible members (or only you left and count is 0).
+      // Still show yourself if presence says you're online globally and count includes you.
+      people = people.filter((p) => p.id === socket.id);
+    }
     const prevFocus = onlineList.querySelector(":focus")?.dataset?.id || "";
     onlineList.replaceChildren();
     if (!people.length) {
       const empty = document.createElement("p");
       empty.className = "user-list-empty";
-      empty.textContent = "Пока никого онлайн";
+      empty.textContent = dmCode ? "В комнате никого онлайн" : "Пока никого онлайн";
       onlineList.append(empty);
       return;
     }
