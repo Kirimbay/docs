@@ -645,14 +645,74 @@ button {
 }
 
 .dm-room-row.is-keyed .dm-room-code::after {
-  content: " · ключ";
-  font-weight: 500;
-  font-size: 0.72em;
-  color: var(--ink-soft);
+  content: none;
+}
+
+.dm-room-key-icon {
+  margin-right: 0.28rem;
+  font-size: 0.85em;
+}
+
+.dm-room-row.is-open .dm-room-enter {
+  border-color: color-mix(in srgb, #3d9a6a 55%, var(--line));
+  background: color-mix(in srgb, #3d9a6a 14%, var(--bg-elev));
+}
+
+.dm-room-row.is-open .dm-room-code {
+  color: #6fcf97;
+}
+
+.dm-room-row.is-keyed .dm-room-enter,
+.dm-room-row.has-key:not(.is-owned) .dm-room-enter {
+  border-color: color-mix(in srgb, #d48806 55%, var(--line));
+  background: color-mix(in srgb, #e09a3e 14%, var(--bg-elev));
+}
+
+.dm-room-row.is-keyed .dm-room-code,
+.dm-room-row.has-key:not(.is-owned) .dm-room-code {
+  color: #e0a85a;
+}
+
+.dm-room-row.is-owned .dm-room-enter {
+  border-color: color-mix(in srgb, #4aa3d9 60%, var(--line));
+  background: color-mix(in srgb, #4aa3d9 16%, var(--bg-elev));
+}
+
+.dm-room-row.is-owned .dm-room-code {
+  color: #7ec8f0;
+}
+
+.dm-room-row.is-owned .dm-room-unread {
+  color: #9ad4f5;
 }
 
 .dm-room-row.is-closed {
   opacity: 0.72;
+}
+
+.msg.room-admin-msg {
+  border-color: color-mix(in srgb, #4aa3d9 45%, var(--line));
+  box-shadow: inset 3px 0 0 #4aa3d9;
+}
+
+.msg.room-admin-msg .msg-name,
+.msg-name.is-room-admin {
+  color: #7ec8f0;
+  font-weight: 650;
+}
+
+.msg-name.is-super {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.online-row-name.is-room-admin {
+  color: #7ec8f0;
+}
+
+.online-row-name.is-super {
+  color: var(--ok);
+  font-weight: 650;
 }
 
 .room-admin-hr {

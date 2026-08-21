@@ -117,6 +117,7 @@
   const NOTIFY_DM_KEY = "sarafan_notify_dm";
   const ADMIN_ROOM_READS_KEY = "sarafan_admin_room_reads";
   const ROOM_KEYS_KEY = "sarafan_room_keys";
+  const OWNED_ROOMS_KEY = "sarafan_owned_rooms";
   const MAX_ADMIN_ROOM_READS = 200;
   const LIKE_EMOJI = "❤️";
   const REACTIONS = [
@@ -135,6 +136,8 @@
   let roomAccess = "open";
   let roomClosed = false;
   let roomKeyed = false;
+  /** @type {Map<string, "super" | "admin">} */
+  let roomModerators = new Map();
   /** Device-scoped restriction: hub hides public chat. */
   let accessRoomsOnly = false;
   let publicChatLabel = PUBLIC_CHAT_LABEL_DEFAULT;
@@ -352,6 +355,45 @@
     const c = normalizeDmCodeLocal(code);
     const k = normalizeRoomKeyLocal(loadRoomKeys()[c] || "");
     return k.length === 4 ? k : "";
+  }
+
+  function loadOwnedRooms() {
+    try {
+      const raw = localStorage.getItem(OWNED_ROOMS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed)
+        ? parsed.map(normalizeDmCodeLocal).filter((c) => c.length === 6)
+        : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function markOwnedRoom(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return;
+    try {
+      const set = new Set(loadOwnedRooms());
+      set.add(c);
+      localStorage.setItem(OWNED_ROOMS_KEY, JSON.stringify([...set].slice(-MAX_DM_ROOMS)));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function isOwnedRoom(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (!c) return false;
+    if (dmCode === c && roomIsOwner) return true;
+    return loadOwnedRooms().includes(c);
+  }
+
+  function displayAuthorLabel(msg) {
+    const name = msg?.name || "";
+    if (msg?.admin || name === "АДМИН") return `${name || "АДМИН"} · супер`;
+    if (msg?.roomAdmin) return `${name} · админ`;
+    return name;
   }
 
   function syncRoomAdminUi() {
@@ -1213,10 +1255,13 @@
 
     for (const room of rooms) {
       const row = document.createElement("div");
+      const keyed = Boolean(room.keyed);
+      const owned = isOwnedRoom(room.code);
       row.className =
         "dm-room-row" +
         (room.foreign ? " is-foreign" : "") +
-        (room.keyed || loadRoomKey(room.code) ? " is-keyed" : "") +
+        (owned ? " is-owned" : keyed ? " is-keyed" : " is-open") +
+        (keyed ? " has-key" : "") +
         (room.closed ? " is-closed" : "") +
         (dmCode === room.code ? " is-current" : "");
       row.setAttribute("role", "listitem");
@@ -1230,22 +1275,42 @@
       enterBtn.type = "button";
       enterBtn.className = "dm-room-enter";
       const unread = dmCode === room.code ? 0 : Math.max(0, Number(room.unread) || 0);
-      enterBtn.title = room.foreign
-        ? unread
-          ? `Смотреть · ${newMessagesLabel(unread)}`
-          : `Смотреть комнату ${room.code}`
-        : unread
-          ? `Войти · ${newMessagesLabel(unread)}`
-          : `Войти в комнату ${room.code}`;
+      enterBtn.title = owned
+        ? `Ваша комната${keyed ? " · ключ" : ""}`
+        : keyed
+          ? `По ключу · ${room.code}`
+          : room.foreign
+            ? unread
+              ? `Смотреть · ${newMessagesLabel(unread)}`
+              : `Смотреть комнату ${room.code}`
+            : unread
+              ? `Войти · ${newMessagesLabel(unread)}`
+              : `Войти в комнату ${room.code}`;
 
       const codeEl = document.createElement("strong");
       codeEl.className = "dm-room-code";
-      codeEl.textContent = room.code;
+      if (keyed) {
+        const keyIcon = document.createElement("span");
+        keyIcon.className = "dm-room-key-icon";
+        keyIcon.setAttribute("aria-hidden", "true");
+        keyIcon.textContent = "🔑";
+        codeEl.append(keyIcon, document.createTextNode(room.code));
+      } else {
+        codeEl.textContent = room.code;
+      }
 
       const unreadEl = document.createElement("span");
       unreadEl.className = "dm-room-unread" + (unread > 0 ? " has-new" : "");
       unreadEl.textContent =
-        dmCode === room.code ? (room.foreign || isAdmin ? "смотр" : "вы здесь") : newMessagesLabel(unread);
+        dmCode === room.code
+          ? owned || isRoomAdmin
+            ? "админ"
+            : room.foreign || isAdmin
+              ? "смотр"
+              : "вы здесь"
+          : owned
+            ? "моя"
+            : newMessagesLabel(unread);
 
       enterBtn.append(codeEl, unreadEl);
       enterBtn.addEventListener("click", () =>
@@ -1369,13 +1434,22 @@
     dmDialogError.textContent = text || "";
   }
 
-  function updateDmPresence({ count, names, participants, maxMembers } = {}) {
+  function updateDmPresence({ count, names, participants, moderators, maxMembers } = {}) {
     if (!dmBarPresence) return;
     const n = Number(count) || 0;
     const max = Number(maxMembers) > 0 ? Number(maxMembers) : 5000;
     dmBarPresence.textContent = `${n}/${max}`;
     if (!dmCode) return;
     const roster = Array.isArray(participants) && participants.length ? participants : names;
+    const modMap = new Map();
+    if (Array.isArray(moderators)) {
+      for (const m of moderators) {
+        if (!m?.name) continue;
+        modMap.set(String(m.name), m.role === "super" ? "super" : "admin");
+      }
+    }
+    // Stash for online list / name chips while in this room.
+    roomModerators = modMap;
     const peer = peerFromDmPayload({ names: roster, messages: lastState.messages || [] });
     if (peer || (Array.isArray(roster) && roster.length)) {
       rememberDmRoom(dmCode, {
@@ -1402,6 +1476,7 @@
     publicStateBackup = null;
     dmCode = res.code;
     applyRoomFlags(res);
+    if (res.isOwner || res.roomAdmin) markOwnedRoom(res.code);
     removePendingInvite(res.code);
     const ghost = Boolean(watchOnly || res.ghost);
     const isPublic = isPublicRoomCode(res.code);
@@ -1672,7 +1747,18 @@
         main.className = "online-row-main";
         const name = document.createElement("span");
         name.className = "online-row-name";
-        name.textContent = person.name;
+        const modRole = roomModerators.get(person.name) || (person.name === "АДМИН" || isAdmin && isSelf ? "super" : "");
+        const selfRoomAdmin = isSelf && isRoomAdmin && !isAdmin;
+        const role = isSelf && isAdmin ? "super" : selfRoomAdmin ? "admin" : modRole;
+        if (role === "super") {
+          name.textContent = `${person.name} · супер`;
+          name.classList.add("is-super");
+        } else if (role === "admin") {
+          name.textContent = `${person.name} · админ`;
+          name.classList.add("is-room-admin");
+        } else {
+          name.textContent = person.name;
+        }
         const action = document.createElement("span");
         action.className = "online-row-action";
         action.textContent = isSelf
@@ -3352,6 +3438,7 @@
     if (isOwnMessage(msg)) el.classList.add("mine");
     if (msg.pinned) el.classList.add("pinned-item");
     if (msg.admin || msg.name === "АДМИН") el.classList.add("admin");
+    if (msg.roomAdmin) el.classList.add("room-admin-msg");
     if (bulkSelectOn && bulkSelectedIds.has(msg.id)) el.classList.add("msg-bulk-selected");
 
     const meta = document.createElement("div");
@@ -3359,8 +3446,10 @@
     const nameBtn = document.createElement("button");
     nameBtn.type = "button";
     nameBtn.className = "msg-name";
-    nameBtn.textContent = msg.name;
-    nameBtn.title = "Пригласить в комнату";
+    nameBtn.textContent = displayAuthorLabel(msg);
+    if (msg.admin || msg.name === "АДМИН") nameBtn.classList.add("is-super");
+    if (msg.roomAdmin) nameBtn.classList.add("is-room-admin");
+    nameBtn.title = msg.admin || msg.name === "АДМИН" ? "Супер-админ" : msg.roomAdmin ? "Админ комнаты" : "Пригласить в комнату";
     nameBtn.addEventListener("click", () => {
       const match = lastPeople.find((p) => p.name === msg.name && p.id !== socket.id);
       if (match) invitePerson(match);
@@ -4486,6 +4575,7 @@
         return;
       }
       saveRoomKey(res.code, key);
+      markOwnedRoom(res.code);
       if (dmCreateKey) dmCreateKey.value = "";
       enterDmMode(res);
       saveLastDest(res.code);
@@ -4561,6 +4651,7 @@
         return;
       }
       saveRoomKey(dmCode, key);
+      markOwnedRoom(dmCode);
       isRoomAdmin = true;
       roomIsOwner = true;
       applyRoomFlags(res);

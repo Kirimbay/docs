@@ -808,6 +808,7 @@ function serializeMessage(msg, pinnedIds = []) {
     createdAt: msg.createdAt,
     pinned: pins.includes(msg.id),
     admin: Boolean(msg.admin),
+    roomAdmin: Boolean(msg.roomAdmin),
     reply: msg.reply
       ? {
           id: msg.reply.id,
@@ -1228,12 +1229,33 @@ function pruneInactiveRooms({ persist = true } = {}) {
   return removed;
 }
 
+function roomModeratorRoles(code) {
+  /** @type {{ name: string, role: "super" | "admin" }[]} */
+  const out = [];
+  const seen = new Set();
+  for (const id of roomSocketIds(code)) {
+    const sock = io.sockets.sockets.get(id);
+    const u = online.get(id);
+    if (!sock || !u?.name) continue;
+    let role = null;
+    if (sock.data.isAdmin || u.isAdmin) role = "super";
+    else if (sock.data.roomAdmin && sock.data.roomAdminCode === code) role = "admin";
+    if (!role) continue;
+    const key = `${nameKey(u.name)}:${role}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ name: u.name, role });
+  }
+  return out;
+}
+
 function emitDmPresence(code) {
   io.to(roomChannel(code)).emit("dm:presence", {
     code,
     count: roomOnlineCount(code),
     names: roomMemberNames(code),
     participants: roomParticipantNames(code),
+    moderators: roomModeratorRoles(code),
     maxMembers: MAX_ROOM_MEMBERS,
   });
 }
@@ -2054,13 +2076,16 @@ io.on("connection", (socket) => {
     }
     socket.data.roomAdmin = true;
     socket.data.roomAdminCode = code;
+    emitDmPresence(code);
     if (typeof ack === "function") {
       ack({ ok: true, roomAdmin: true, isOwner: true, code, ...roomPublicFlags(room) });
     }
   });
 
   socket.on("room:admin-logout", (_payload, ack) => {
+    const code = socket.data.roomCode;
     clearRoomAdmin(socket);
+    if (code) emitDmPresence(code);
     if (typeof ack === "function") ack({ ok: true, roomAdmin: false });
   });
 
@@ -2307,14 +2332,19 @@ io.on("connection", (socket) => {
       }
     }
 
+    const asSuper = Boolean(user.isAdmin || socket.data.isAdmin);
+    const asRoomAdmin =
+      !asSuper &&
+      Boolean(socket.data.roomAdmin && socket.data.roomAdminCode === roomCode);
     const msg = {
       id: randomUUID(),
-      name: user.isAdmin || socket.data.isAdmin ? ADMIN_DISPLAY_NAME : user.name,
+      name: asSuper ? ADMIN_DISPLAY_NAME : user.name,
       text,
       imageUrl,
       reply,
       reactions: {},
-      admin: Boolean(user.isAdmin || socket.data.isAdmin),
+      admin: asSuper,
+      roomAdmin: asRoomAdmin,
       createdAt: new Date().toISOString(),
     };
     messageList.push(msg);
