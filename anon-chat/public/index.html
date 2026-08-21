@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=138" />
+    <link rel="stylesheet" href="/styles.css?v=139" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -228,6 +228,18 @@
                 <span>По ключу</span>
               </label>
             </div>
+            <label class="field dm-code-field">
+              <span>Желаемый номер · 6 цифр (необязательно)</span>
+              <input
+                id="dm-create-code"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                autocomplete="off"
+                placeholder="если занят — дадим свободный"
+              />
+            </label>
             <label class="field dm-key-field">
               <span>Пароль админа · 4 цифры (для «по ключу» — и вход)</span>
               <input
@@ -362,6 +374,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=138"></script>
+    <script src="/app.js?v=139"></script>
   </body>
 </html>

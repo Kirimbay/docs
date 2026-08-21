@@ -1756,7 +1756,19 @@ io.on("connection", (socket) => {
     }
     leaveDmRoom(socket);
     ensureRooms();
-    const code = generateRoomCode();
+    const preferred = normalizeRoomCode(payload.code);
+    let remapped = false;
+    let code = null;
+    if (
+      preferred &&
+      preferred !== PUBLIC_ROOM_CODE &&
+      !store.rooms[preferred]
+    ) {
+      code = preferred;
+    } else {
+      if (preferred) remapped = true;
+      code = generateRoomCode();
+    }
     if (!code) {
       if (typeof ack === "function") ack({ ok: false, error: "Нет свободных комнат" });
       return;
@@ -1790,6 +1802,8 @@ io.on("connection", (socket) => {
       ack({
         ok: true,
         code,
+        remapped: Boolean(remapped),
+        preferred: preferred || "",
         label: snap?.label || "",
         messages: snap.messages,
         pinned: snap.pinned || [],
