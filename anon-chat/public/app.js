@@ -442,6 +442,19 @@
     }
   }
 
+  function unmarkOwnedRoom(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (!c) return;
+    try {
+      localStorage.setItem(
+        OWNED_ROOMS_KEY,
+        JSON.stringify(loadOwnedRooms().filter((x) => x !== c))
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
   function isOwnedRoom(code) {
     const c = normalizeDmCodeLocal(code);
     if (!c) return false;
@@ -551,7 +564,9 @@
       }
     } else {
       if (deleteLead) {
-        deleteLead.textContent = "Чтобы удалить — введите номер комнаты и пин аккаунта";
+        deleteLead.textContent = dmCode
+          ? `Чтобы удалить — номер этой комнаты ${dmCode} и пин аккаунта`
+          : "Чтобы удалить — введите номер комнаты и пин аккаунта";
       }
       if (deleteKeyLabel) deleteKeyLabel.textContent = "Пин аккаунта";
       if (roomDeleteKey) {
@@ -1514,6 +1529,7 @@
     const c = normalizeDmCodeLocal(code);
     if (!c) return;
     saveDmRooms(loadDmRooms().filter((r) => r.code !== c));
+    unmarkOwnedRoom(c);
     if (loadDmCode() === c) saveDmCode("");
     clearRoomKey(c);
     if (socket.connected && !isAdmin && c !== PUBLIC_ROOM_CODE) {
@@ -1523,6 +1539,27 @@
         if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
       });
     }
+  }
+
+  function destroyOwnedRoomFromHub(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (!c) return;
+    const pin = normalizeRoomKeyLocal(loadPin() || "");
+    if (pin.length !== 4) {
+      notify("Нужен пин аккаунта, чтобы удалить свою комнату");
+      return;
+    }
+    socket.emit("room:delete", { code: c, key: pin }, (res) => {
+      if (!res?.ok) {
+        notify(res?.error || "Не удалилось");
+        return;
+      }
+      forgetDmRoom(c);
+      expandedDmRoomCodes.delete(c);
+      if (dmCode === c) leaveDmMode({ quiet: true, openHub: true });
+      renderDmRoomsList({ skipRefresh: true });
+      notify(`Комната ${c} удалена навсегда`);
+    });
   }
 
   function joinDmByCode(code, { fromList = false, watchOnly = false, key = "" } = {}) {
@@ -1731,17 +1768,19 @@
         forgetBtn.className = "dm-room-forget ghost compact";
         forgetBtn.dataset.code = room.code;
         const destroyForeign = Boolean(room.foreign && isAdmin);
+        const destroyOwned = Boolean(owned && !room.foreign);
+        const destroyForever = destroyForeign || destroyOwned;
         forgetBtn.setAttribute(
           "aria-label",
-          destroyForeign ? `Удалить комнату ${room.code}` : `Убрать ${room.code} из списка`
+          destroyForever ? `Удалить комнату ${room.code}` : `Убрать ${room.code} из списка`
         );
-        forgetBtn.title = destroyForeign
+        forgetBtn.title = destroyForever
           ? "Нажмите дважды, чтобы удалить комнату навсегда"
           : "Нажмите дважды, чтобы убрать";
         forgetBtn.textContent = "×";
         if (forgetArmedCode === room.code) {
           forgetBtn.classList.add("armed");
-          forgetBtn.title = destroyForeign ? "Ещё раз — удалить навсегда" : "Ещё раз — убрать";
+          forgetBtn.title = destroyForever ? "Ещё раз — удалить навсегда" : "Ещё раз — убрать";
         }
         forgetBtn.addEventListener("click", (e) => {
           e.preventDefault();
@@ -1763,6 +1802,10 @@
               });
               return;
             }
+            if (destroyOwned) {
+              destroyOwnedRoomFromHub(room.code);
+              return;
+            }
             forgetDmRoom(room.code);
             expandedDmRoomCodes.delete(room.code);
             renderDmRoomsList({ skipRefresh: true });
@@ -1771,7 +1814,7 @@
           clearForgetArm();
           forgetArmedCode = room.code;
           forgetBtn.classList.add("armed");
-          forgetBtn.title = destroyForeign ? "Ещё раз — удалить навсегда" : "Ещё раз — убрать";
+          forgetBtn.title = destroyForever ? "Ещё раз — удалить навсегда" : "Ещё раз — убрать";
           forgetArmedTimer = setTimeout(() => {
             if (forgetArmedCode !== room.code) return;
             clearForgetArm();
@@ -5413,7 +5456,10 @@
     if (roomNewAdminKey) roomNewAdminKey.value = "";
     if (roomConfirmAdminKey) roomConfirmAdminKey.value = accountPinForRoom(dmCode);
     if (roomNewJoinKey) roomNewJoinKey.value = roomKeyed ? loadRoomKey(dmCode) || "" : "";
-    if (roomDeleteCode) roomDeleteCode.value = "";
+    if (roomDeleteCode) {
+      roomDeleteCode.value = dmCode;
+      roomDeleteCode.readOnly = true;
+    }
     if (roomDeleteKey) roomDeleteKey.value = accountPinForRoom(dmCode);
     syncRoomAdminUi();
     roomAdminPanel?.showModal();

@@ -2894,22 +2894,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("room:delete", (payload = {}, ack) => {
-    if (!canModerateRoom(socket)) {
-      if (typeof ack === "function") ack({ ok: false, error: "Нужен режим админа" });
-      return;
-    }
     const code = normalizeRoomCode(payload.code);
     const key = normalizeRoomKey(payload.key);
     const current = socket.data.roomCode;
     if (!code || isPublicRoomCode(code)) {
       if (typeof ack === "function") ack({ ok: false, error: "Укажите номер комнаты" });
-      return;
-    }
-    // Super-admin may delete from the hub list without entering the room.
-    if (code !== current && !isSuperAdminSocket(socket)) {
-      if (typeof ack === "function") {
-        ack({ ok: false, error: "Номер не совпадает с текущей комнатой" });
-      }
       return;
     }
     ensureRooms();
@@ -2918,16 +2907,30 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Чат не найден" });
       return;
     }
-    if (!isRoomOwner(socket, room) && !isSuperAdminSocket(socket)) {
+    const superA = isSuperAdminSocket(socket);
+    const owner = isRoomOwner(socket, room);
+    // Owner may delete from hub with pin; room-admin / super-admin as before.
+    if (!superA && !canModerateRoom(socket) && !owner) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нужен режим админа" });
+      return;
+    }
+    if (!owner && !superA) {
       if (typeof ack === "function") ack({ ok: false, error: "Только создатель" });
       return;
     }
-    // Super-admin may delete any room without the owner's pin.
-    if (!isSuperAdminSocket(socket) && !verifyOwnerConfirmKey(socket, room, key)) {
-      if (typeof ack === "function") ack({ ok: false, error: "Неверный ключ — комната не удалена" });
+    // From hub list: owner/super may delete a room they are not currently inside.
+    if (code !== current && !superA && !owner) {
+      if (typeof ack === "function") {
+        ack({ ok: false, error: "Номер не совпадает с текущей комнатой" });
+      }
       return;
     }
-    // Foolproof: both number (already matched) and admin key verified.
+    // Super-admin may delete any room without the owner's pin.
+    if (!superA && !verifyOwnerConfirmKey(socket, room, key)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Неверный пин — комната не удалена" });
+      return;
+    }
+    // Foolproof: both number and owner pin verified.
     unlinkRoomImages(room);
     for (const id of roomSocketIds(code)) {
       const sock = io.sockets.sockets.get(id);
