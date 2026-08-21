@@ -3062,7 +3062,7 @@
 
     const refreshMine = renamingSelf || Boolean(myName && nameEquals(myName, toName));
     if (touchedMessages || touchedPins || refreshMine) {
-      renderAll(lastState);
+      renderAll(lastState, { force: true, briefPin: true });
       if (!stick) {
         feed.scrollTop = scrollTop;
         updateJumpBottom();
@@ -3074,7 +3074,7 @@
     if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
   }
 
-  function renderAll(state, { briefPin = false } = {}) {
+  function renderAll(state, { briefPin = false, force = false } = {}) {
     closeAllReactMenus();
     document.querySelectorAll("body > .msg-react-menu, body > .msg-action-menu").forEach((m) => m.remove());
     lastState = state || lastState;
@@ -3083,7 +3083,8 @@
     updatePinBar();
 
     // Same transcript already on screen (e.g. leave room → chat:state echo).
-    if (feedShowsMessages(messages)) {
+    // Skip only when ids match — not after author renames (names changed, ids did not).
+    if (!force && feedShowsMessages(messages)) {
       if (pinToLatestOnce) schedulePinToLatest({ brief: true });
       return;
     }
