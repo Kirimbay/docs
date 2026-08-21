@@ -2621,6 +2621,15 @@
 
   function applyAuthorRename(fromName, toName) {
     if (!fromName || !toName || nameEquals(fromName, toName)) return;
+
+    // Broadcast can arrive before the rename ack — keep myName in sync so .mine stays.
+    const renamingSelf = Boolean(myName && nameEquals(myName, fromName));
+    if (renamingSelf) {
+      myName = toName;
+      saveName(myName);
+      syncMeBtn();
+    }
+
     const stick = isNearBottom(80);
     const scrollTop = feed.scrollTop;
     const touchedMessages = rewriteAuthorInMessages(lastState.messages, fromName, toName);
@@ -2648,7 +2657,8 @@
       }
     }
 
-    if (touchedMessages || touchedPins) {
+    const refreshMine = renamingSelf || Boolean(myName && nameEquals(myName, toName));
+    if (touchedMessages || touchedPins || refreshMine) {
       renderAll(lastState);
       if (!stick) {
         feed.scrollTop = scrollTop;
