@@ -750,19 +750,16 @@ button {
   box-sizing: border-box;
 }
 
-.dm-dialog-footer #dm-create-btn {
-  background: color-mix(in srgb, var(--dm-accent) 88%, #fff);
-  border-color: transparent;
-  color: #102418;
-}
-
+.dm-dialog-footer #dm-create-btn,
 .dm-dialog-footer #dm-join-btn {
-  background: transparent;
+  background: var(--bg-elev);
   border: 1px solid var(--line);
   color: var(--ink);
   font-weight: 600;
 }
 
+.dm-dialog-footer #dm-create-btn:hover,
+.dm-dialog-footer #dm-create-btn:active,
 .dm-dialog-footer #dm-join-btn:hover,
 .dm-dialog-footer #dm-join-btn:active {
   border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
