@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=154" />
+    <link rel="stylesheet" href="/styles.css?v=155" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -223,68 +223,75 @@
           <h2 id="dm-dialog-title">Чаты</h2>
           <button type="button" id="dm-dialog-close" class="ghost compact">Готово</button>
         </div>
-        <p id="dm-lead" class="dm-lead">Номер 6 · ключ от комнаты 4 · без активности 30 дней — удаление</p>
+        <p id="dm-lead" class="dm-lead">Номер и ключ · 30 дней без активности — удаление</p>
         <div id="dm-rooms-wrap" class="dm-rooms-wrap">
           <div id="dm-rooms-list" class="dm-rooms-list" role="list"></div>
         </div>
         <div class="dm-dialog-footer">
-          <div class="dm-create-box">
-            <p class="dm-create-title">Новая комната</p>
-            <label class="field dm-code-field">
-              <span>Номер комнаты</span>
-              <input
-                id="dm-create-code"
-                type="text"
-                inputmode="numeric"
-                pattern="[0-9]{6}"
-                maxlength="6"
-                autocomplete="off"
-                placeholder="номер комнаты"
-              />
-            </label>
-            <label class="field dm-key-field">
-              <span>Ключ от комнаты</span>
-              <input
-                id="dm-create-join-key"
-                type="text"
-                inputmode="numeric"
-                pattern="[0-9]{4}"
-                maxlength="4"
-                autocomplete="off"
-                placeholder="ключ от комнаты · пусто = свободный вход"
-              />
-            </label>
-            <button type="button" id="dm-create-btn" class="primary dm-create-btn">Создать</button>
-          </div>
-          <label class="field dm-code-field">
-            <span>Номер · ровно 6 цифр</span>
-            <div class="name-row">
-              <input
-                id="dm-code-input"
-                type="text"
-                inputmode="numeric"
-                pattern="[0-9]{6}"
-                maxlength="6"
-                autocomplete="one-time-code"
-                autocapitalize="off"
-                spellcheck="false"
-                placeholder="000543"
-              />
-              <button type="button" id="dm-join-btn" class="ghost">Войти</button>
+          <div class="dm-action-box dm-create-box">
+            <p class="dm-action-title">Создать новую комнату</p>
+            <p class="dm-action-lead">Задайте номер и ключ — ключ только если комната закрытая</p>
+            <div class="dm-action-row">
+              <label class="field dm-code-field">
+                <span>Номер комнаты</span>
+                <input
+                  id="dm-create-code"
+                  type="text"
+                  inputmode="numeric"
+                  pattern="[0-9]{6}"
+                  maxlength="6"
+                  autocomplete="off"
+                  placeholder="введите номер"
+                />
+              </label>
+              <label class="field dm-key-field">
+                <span>Ключ</span>
+                <input
+                  id="dm-create-join-key"
+                  type="text"
+                  inputmode="numeric"
+                  pattern="[0-9]{4}"
+                  maxlength="4"
+                  autocomplete="off"
+                  placeholder="если закрытая"
+                />
+              </label>
+              <button type="button" id="dm-create-btn" class="primary dm-action-btn">Создать</button>
             </div>
-          </label>
-          <label class="field dm-key-field" id="dm-join-key-wrap">
-            <span>Ключ · 4 цифры (если комната закрыта на ключ)</span>
-            <input
-              id="dm-join-key"
-              type="text"
-              inputmode="numeric"
-              pattern="[0-9]{4}"
-              maxlength="4"
-              autocomplete="off"
-              placeholder="4821"
-            />
-          </label>
+          </div>
+          <div class="dm-action-box dm-join-box">
+            <p class="dm-action-title">Войти в существующую комнату</p>
+            <p class="dm-action-lead">Введите номер комнаты и ключ — если комната закрытая</p>
+            <div class="dm-action-row">
+              <label class="field dm-code-field">
+                <span>Номер комнаты</span>
+                <input
+                  id="dm-code-input"
+                  type="text"
+                  inputmode="numeric"
+                  pattern="[0-9]{6}"
+                  maxlength="6"
+                  autocomplete="one-time-code"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  placeholder="введите номер"
+                />
+              </label>
+              <label class="field dm-key-field" id="dm-join-key-wrap">
+                <span>Ключ</span>
+                <input
+                  id="dm-join-key"
+                  type="text"
+                  inputmode="numeric"
+                  pattern="[0-9]{4}"
+                  maxlength="4"
+                  autocomplete="off"
+                  placeholder="если закрытая"
+                />
+              </label>
+              <button type="button" id="dm-join-btn" class="primary dm-action-btn">Войти</button>
+            </div>
+          </div>
           <p id="dm-dialog-error" class="error" hidden></p>
         </div>
       </div>
@@ -391,6 +398,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=154"></script>
+    <script src="/app.js?v=155"></script>
   </body>
 </html>
