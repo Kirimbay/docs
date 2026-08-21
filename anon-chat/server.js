@@ -995,6 +995,7 @@ function getSocketAccountId(socket) {
 
 /** Confirm room owner action: account pin for account-owned rooms, else admin key. */
 function verifyOwnerConfirmKey(socket, room, key) {
+  if (isSuperAdminSocket(socket)) return true;
   const normalized = normalizeRoomKey(key);
   if (!normalized || !room) return false;
   const digest = hashAccountPin(normalized);
@@ -2496,7 +2497,8 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Только создатель" });
       return;
     }
-    if (!verifyOwnerConfirmKey(socket, room, key)) {
+    // Super-admin may delete any room without the owner's pin.
+    if (!isSuperAdminSocket(socket) && !verifyOwnerConfirmKey(socket, room, key)) {
       if (typeof ack === "function") ack({ ok: false, error: "Неверный ключ — комната не удалена" });
       return;
     }
@@ -2542,7 +2544,7 @@ io.on("connection", (socket) => {
 
     const roomCode = socket.data.roomCode || null;
     if (!roomCode) {
-      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите в комнату по пину" });
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите в комнату по номеру" });
       return;
     }
     if (isPublicRoomCode(roomCode) && isRoomsOnlyClient(user.clientId)) {

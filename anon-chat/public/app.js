@@ -454,7 +454,8 @@
   }
 
   function syncRoomAdminUi() {
-    document.body.classList.toggle("room-admin-on", Boolean(isRoomAdmin && !isAdmin));
+    const superInRoom = Boolean(isAdmin && dmCode && !isPublicRoomCode(dmCode));
+    document.body.classList.toggle("room-admin-on", Boolean((isRoomAdmin && !isAdmin) || superInRoom));
     const canOwn =
       Boolean(dmCode) &&
       !isPublicRoomCode(dmCode) &&
@@ -469,7 +470,14 @@
         : "Пин аккаунта · удаление и закрепы";
     }
     if (roomAdminPanelBtn) {
-      roomAdminPanelBtn.hidden = !(isRoomAdmin && !isAdmin && dmCode && !isPublicRoomCode(dmCode));
+      roomAdminPanelBtn.hidden = !(
+        dmCode &&
+        !isPublicRoomCode(dmCode) &&
+        (isRoomAdmin || isAdmin)
+      );
+      roomAdminPanelBtn.title = isAdmin
+        ? "Супер-админ · полный доступ к комнате"
+        : "Настройки комнаты";
     }
     if (roomCloseBtn) {
       roomCloseBtn.textContent = roomClosed
@@ -477,9 +485,13 @@
         : "Закрыть вход · выгнать всех";
     }
     if (roomAdminPanelLead && dmCode) {
-      roomAdminPanelLead.textContent = `Номер ${dmCode}${roomKeyed ? " · закрытая" : " · открытая"}${
-        roomClosed ? " · вход закрыт" : ""
-      }`;
+      roomAdminPanelLead.textContent = isAdmin
+        ? `Супер-админ · номер ${dmCode}${roomKeyed ? " · закрытая" : " · открытая"}${
+            roomClosed ? " · вход закрыт" : ""
+          }`
+        : `Номер ${dmCode}${roomKeyed ? " · закрытая" : " · открытая"}${
+            roomClosed ? " · вход закрыт" : ""
+          }`;
     }
     if (roomAccessStatus) {
       const key = dmCode ? loadRoomKey(dmCode) : "";
@@ -489,18 +501,19 @@
           : "Сейчас: закрытая · для других по ключу"
         : "Сейчас: открытая · для других свободный вход";
     }
+    const canTune = Boolean(isRoomAdmin || isAdmin);
     // Closed → open + change key; open → key field + close.
     if (roomMakeOpenBtn) {
       roomMakeOpenBtn.hidden = !roomKeyed;
-      roomMakeOpenBtn.disabled = !isRoomAdmin;
+      roomMakeOpenBtn.disabled = !canTune;
     }
     if (roomMakeKeyedBtn) {
       roomMakeKeyedBtn.hidden = Boolean(roomKeyed);
-      roomMakeKeyedBtn.disabled = !isRoomAdmin;
+      roomMakeKeyedBtn.disabled = !canTune;
     }
     if (roomChangeJoinKeyBtn) {
       roomChangeJoinKeyBtn.hidden = !roomKeyed;
-      roomChangeJoinKeyBtn.disabled = !isRoomAdmin;
+      roomChangeJoinKeyBtn.disabled = !canTune;
     }
     if (roomJoinKeyField) {
       roomJoinKeyField.hidden = false;
@@ -513,6 +526,28 @@
     const accessHint = $("#room-access-hint");
     if (accessHint) {
       accessHint.hidden = !roomKeyed;
+    }
+    const deleteKeyLabel = roomDeleteKey?.closest("label")?.querySelector("span");
+    const deleteLead = document.querySelector(".room-delete-lead");
+    if (isAdmin) {
+      if (deleteLead) {
+        deleteLead.textContent =
+          "Супер-админ: введите номер комнаты — пин владельца не нужен";
+      }
+      if (deleteKeyLabel) deleteKeyLabel.textContent = "Пин (необязательно)";
+      if (roomDeleteKey) {
+        roomDeleteKey.placeholder = "не нужен";
+        roomDeleteKey.closest("label").hidden = true;
+      }
+    } else {
+      if (deleteLead) {
+        deleteLead.textContent = "Чтобы удалить — введите номер комнаты и пин аккаунта";
+      }
+      if (deleteKeyLabel) deleteKeyLabel.textContent = "Пин аккаунта";
+      if (roomDeleteKey) {
+        roomDeleteKey.placeholder = "пин аккаунта";
+        roomDeleteKey.closest("label").hidden = false;
+      }
     }
   }
 
@@ -1400,7 +1435,7 @@
     const enterBtn = document.createElement("button");
     enterBtn.type = "button";
     enterBtn.className = "dm-room-enter";
-    enterBtn.title = here ? `Вы в «${publicChatLabel}»` : `Войти · пин ${PUBLIC_ROOM_CODE}`;
+    enterBtn.title = here ? `Вы в «${publicChatLabel}»` : `Войти · номер ${PUBLIC_ROOM_CODE}`;
 
     const codeEl = document.createElement("strong");
     codeEl.className = "dm-room-code";
@@ -1410,7 +1445,7 @@
     unreadEl.className = "dm-room-unread" + (here ? " has-new" : "");
     const saved = loadDmRooms().find((r) => r.code === PUBLIC_ROOM_CODE);
     const unread = here ? 0 : Math.max(0, Number(saved?.unread) || 0);
-    unreadEl.textContent = here ? "вы здесь" : unread ? newMessagesLabel(unread) : `пин ${PUBLIC_ROOM_CODE}`;
+    unreadEl.textContent = here ? "вы здесь" : unread ? newMessagesLabel(unread) : `номер ${PUBLIC_ROOM_CODE}`;
 
     enterBtn.append(codeEl, unreadEl);
     enterBtn.addEventListener("click", () => joinDmByCode(PUBLIC_ROOM_CODE, { fromList: true }));
@@ -1418,7 +1453,7 @@
     const namesBtn = document.createElement("button");
     namesBtn.type = "button";
     namesBtn.className = "dm-room-names";
-    namesBtn.textContent = `пин ${PUBLIC_ROOM_CODE} · как обычная комната`;
+    namesBtn.textContent = `номер ${PUBLIC_ROOM_CODE} · как обычная комната`;
     namesBtn.title = `Войти в «${publicChatLabel}» (${PUBLIC_ROOM_CODE})`;
     namesBtn.addEventListener("click", (e) => {
       e.preventDefault();
@@ -2164,7 +2199,7 @@
       name.textContent = invite.from || "Кто-то";
       const sub = document.createElement("span");
       sub.className = "invite-row-sub";
-      sub.textContent = "зовёт в комнату · без пина";
+      sub.textContent = "зовёт в комнату · по приглашению";
       meta.append(name, sub);
 
       const actions = document.createElement("div");
@@ -4160,7 +4195,7 @@
     if (uploading) return;
     if (!dmCode) {
       openDmDialog({ requirePick: true });
-      notify("Сначала войдите в комнату по пину");
+      notify("Сначала войдите в комнату по номеру");
       return;
     }
     const text = messageInput.value.trim();
@@ -4818,7 +4853,7 @@
       dmBtn.textContent = "Чаты";
       dmBtn.title = accessRoomsOnly
         ? "Только комнаты"
-        : `Комнаты по пину · ${publicChatLabel} = ${PUBLIC_ROOM_CODE}`;
+        : `Комнаты по номеру · ${publicChatLabel} = ${PUBLIC_ROOM_CODE}`;
       dmBtn.classList.remove("active");
     }
     if (dmDialog?.open) syncDmDialogChrome();
@@ -5131,7 +5166,11 @@
   roomDeleteBtn?.addEventListener("click", () => {
     const code = normalizeDmCodeLocal(roomDeleteCode?.value || "");
     const key = normalizeRoomKeyLocal(roomDeleteKey?.value || "");
-    if (code.length !== 6 || key.length !== 4) {
+    if (code.length !== 6) {
+      showRoomAdminPanelError("Нужен номер комнаты (6 цифр)");
+      return;
+    }
+    if (!isAdmin && key.length !== 4) {
       showRoomAdminPanelError("Для удаления нужны номер (6) и пин аккаунта (4)");
       return;
     }
@@ -5139,7 +5178,7 @@
       showRoomAdminPanelError("Номер не совпадает с этой комнатой");
       return;
     }
-    socket.emit("room:delete", { code, key }, (res) => {
+    socket.emit("room:delete", { code, key: isAdmin ? key || undefined : key }, (res) => {
       if (!res?.ok) {
         showRoomAdminPanelError(res?.error || "Не удалилось");
         return;
