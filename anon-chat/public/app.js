@@ -4851,7 +4851,9 @@
       notify(
         isPublicRoomCode(code)
           ? `«${publicChatLabel}» недоступен`
-          : /closed/i.test(String(payload.reason || ""))
+          : /deleted/i.test(String(payload.reason || ""))
+            ? "Комната удалена навсегда"
+            : /closed/i.test(String(payload.reason || ""))
             ? "Комната закрыта создателем"
             : "Комната удалена · 90 дней без сообщений"
       );
