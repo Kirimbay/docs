@@ -742,6 +742,17 @@ button {
   font-size: 0.8rem;
 }
 
+.room-access-hint {
+  margin: 0.1rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: color-mix(in srgb, #e0a85a 75%, var(--muted));
+}
+
+.room-access-hint[hidden] {
+  display: none !important;
+}
+
 /* Bubble-shaped actions in room settings — not round icon pills */
 #room-admin-panel .room-panel-btn {
   width: 100%;

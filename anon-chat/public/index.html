@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=146" />
+    <link rel="stylesheet" href="/styles.css?v=147" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -325,11 +325,15 @@
           <p class="room-access-title">Доступ в комнату</p>
           <p class="dm-lead" id="room-access-status">Сейчас: открытая · без ключа</p>
           <label class="field" id="room-join-key-field">
-            <span id="room-join-key-label">Ключ · 4 цифры</span>
-            <input id="room-new-join-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
+            <span id="room-join-key-label">Ключ комнаты</span>
+            <input id="room-new-join-key" type="text" inputmode="numeric" maxlength="4" placeholder="ключ комнаты" autocomplete="off" />
           </label>
           <button type="button" id="room-make-open-btn" class="room-panel-btn ghost">Открыть комнату · без ключа</button>
           <button type="button" id="room-make-keyed-btn" class="room-panel-btn primary">Закрыть комнату · по ключу</button>
+          <button type="button" id="room-change-join-key-btn" class="room-panel-btn ghost">Сменить ключ комнаты</button>
+          <p class="room-access-hint" id="room-access-hint">
+            Смена ключа: кто уже внутри остаётся. С другого устройства — нужен новый ключ.
+          </p>
         </section>
 
         <hr class="room-admin-hr" />
@@ -385,6 +389,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=146"></script>
+    <script src="/app.js?v=147"></script>
   </body>
 </html>

@@ -1977,7 +1977,10 @@ io.on("connection", (socket) => {
     }
 
     const key = normalizeRoomKey(payload.key);
-    if (!asAdmin && !isPublicRoomCode(code)) {
+    const alreadyHere = socket.data.roomCode === code;
+    // Already inside: stay even if the join key was just changed.
+    // Fresh join / other device: must present the current key.
+    if (!asAdmin && !isPublicRoomCode(code) && !alreadyHere) {
       if (isRoomClosed(room)) {
         if (typeof ack === "function") ack({ ok: false, error: "Комната закрыта" });
         return;
@@ -2229,6 +2232,7 @@ io.on("connection", (socket) => {
       room.access = "open";
       room.keyHash = "";
       saveStore(store);
+      io.to(roomChannel(code)).emit("room:flags", { code, ...roomPublicFlags(room) });
       if (typeof ack === "function") ack({ ok: true, ...roomPublicFlags(room) });
       return;
     }
@@ -2239,6 +2243,8 @@ io.on("connection", (socket) => {
     room.access = "keyed";
     room.keyHash = hashRoomKey(newKey);
     saveStore(store);
+    // Occupants stay; only new joins (incl. other devices) need the new key.
+    io.to(roomChannel(code)).emit("room:flags", { code, ...roomPublicFlags(room) });
     if (typeof ack === "function") ack({ ok: true, ...roomPublicFlags(room) });
   });
 

@@ -359,6 +359,20 @@
     if (dmCode === c) syncDmBarMeta();
   }
 
+  function clearRoomKey(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return;
+    try {
+      const map = loadRoomKeys();
+      if (!(c in map)) return;
+      delete map[c];
+      localStorage.setItem(ROOM_KEYS_KEY, JSON.stringify(map));
+    } catch {
+      /* ignore */
+    }
+    if (dmCode === c) syncDmBarMeta();
+  }
+
   function loadRoomKey(code) {
     const c = normalizeDmCodeLocal(code);
     const k = normalizeRoomKeyLocal(loadRoomKeys()[c] || "");
@@ -440,7 +454,7 @@
           : "Сейчас: закрытая · по ключу"
         : "Сейчас: открытая · без ключа";
     }
-    // Closed → only «open»; open → key field + «close».
+    // Closed → open + change key; open → key field + close.
     if (roomMakeOpenBtn) {
       roomMakeOpenBtn.hidden = !roomKeyed;
       roomMakeOpenBtn.disabled = !isRoomAdmin;
@@ -450,13 +464,20 @@
       roomMakeKeyedBtn.disabled = !isRoomAdmin;
     }
     if (roomChangeJoinKeyBtn) {
-      roomChangeJoinKeyBtn.hidden = true;
+      roomChangeJoinKeyBtn.hidden = !roomKeyed;
+      roomChangeJoinKeyBtn.disabled = !isRoomAdmin;
     }
     if (roomJoinKeyField) {
-      roomJoinKeyField.hidden = Boolean(roomKeyed);
+      roomJoinKeyField.hidden = false;
     }
     if (roomJoinKeyLabel) {
-      roomJoinKeyLabel.textContent = "Ключ · 4 цифры (чтобы закрыть комнату)";
+      roomJoinKeyLabel.textContent = roomKeyed
+        ? "Новый ключ комнаты"
+        : "Ключ комнаты";
+    }
+    const accessHint = $("#room-access-hint");
+    if (accessHint) {
+      accessHint.hidden = !roomKeyed;
     }
   }
 
@@ -1271,6 +1292,8 @@
         const err = res?.error || "Не удалось войти";
         showDmDialogError(err);
         if (res?.needsKey) {
+          clearRoomKey(c);
+          if (dmJoinKey) dmJoinKey.value = "";
           dmJoinKey?.focus();
         }
         if (/не найден|проверьте/i.test(err)) {
@@ -4897,7 +4920,7 @@
         applyRoomFlags(res);
         if (roomNewJoinKey) roomNewJoinKey.value = "";
         showRoomAdminPanelError("");
-        notify("Ключ входа обновлён");
+        notify(`Ключ комнаты обновлён · кто внутри остаётся · с другого устройства нужен новый ключ`);
         if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
       }
     );
@@ -5070,6 +5093,13 @@
   socket.on("dm:presence", (payload = {}) => {
     if (!dmCode || payload.code !== dmCode) return;
     updateDmPresence(payload);
+  });
+
+  socket.on("room:flags", (payload = {}) => {
+    if (!dmCode || payload.code !== dmCode) return;
+    applyRoomFlags(payload);
+    // Only the admin who set a new key has it in cache; others keep their session
+    // until they leave. Stale keys are cleared on the next failed join (needsKey).
   });
 
   socket.on("chat:message-update", (msg) => {
