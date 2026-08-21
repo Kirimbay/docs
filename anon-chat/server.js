@@ -2937,6 +2937,11 @@ io.on("connection", (socket) => {
       sock.emit("chat:state", emptyPublicSnapshot());
     }
     delete store.rooms[code];
+    ensureAccounts();
+    for (const acc of Object.values(store.accounts || {})) {
+      if (!acc || !Array.isArray(acc.hubRooms)) continue;
+      acc.hubRooms = acc.hubRooms.filter((row) => normalizeRoomCode(row?.code) !== code);
+    }
     saveStore(store, { flush: true });
     if (typeof ack === "function") ack({ ok: true, deleted: true, code });
   });

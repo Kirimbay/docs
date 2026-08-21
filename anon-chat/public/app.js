@@ -838,7 +838,7 @@
 
   /**
    * Apply account hub from server. With replace:true the list becomes the
-   * same on every device (plus Сарафан ВПН row kept locally).
+   * same on every device.
    */
   function applyKnownRoomsFromServer(rooms, accountPin, { markOwned = false, replace = false } = {}) {
     if (!Array.isArray(rooms)) return;
@@ -1532,7 +1532,7 @@
     const c = normalizeDmCodeLocal(code);
     if (dmCodeInput) dmCodeInput.value = c;
     if (c.length !== 6) {
-      showDmDialogError("Нужен номер из ровно 6 цифр (например 000543)");
+      showDmDialogError("Введите номер комнаты цифрами");
       return;
     }
     if (accessRoomsOnly && isPublicRoomCode(c)) {
@@ -1588,51 +1588,6 @@
     });
   }
 
-  function appendPublicChatRow(fragment) {
-    if (accessRoomsOnly) return;
-    const row = document.createElement("div");
-    const here = dmCode === PUBLIC_ROOM_CODE;
-    row.className = "dm-room-row is-public" + (here ? " is-current" : "");
-    row.setAttribute("role", "listitem");
-
-    const main = document.createElement("div");
-    main.className = "dm-room-main";
-
-    const enterBtn = document.createElement("button");
-    enterBtn.type = "button";
-    enterBtn.className = "dm-room-enter";
-    enterBtn.title = here ? `Вы в «${publicChatLabel}»` : `Войти · номер ${PUBLIC_ROOM_CODE}`;
-
-    const codeEl = document.createElement("strong");
-    codeEl.className = "dm-room-code";
-    codeEl.textContent = publicChatLabel;
-
-    const unreadEl = document.createElement("span");
-    const saved = loadDmRooms().find((r) => r.code === PUBLIC_ROOM_CODE);
-    const unread = here ? 0 : Math.max(0, Number(saved?.unread) || 0);
-    const msgCount = Math.max(0, Number(saved?.messageCount) || 0);
-    unreadEl.className = "dm-room-unread" + (unread > 0 ? " has-new" : "");
-    unreadEl.textContent = roomCountsLabel(msgCount, unread, { here });
-
-    enterBtn.append(codeEl, unreadEl);
-    enterBtn.addEventListener("click", () => joinDmByCode(PUBLIC_ROOM_CODE, { fromList: true }));
-
-    const namesBtn = document.createElement("button");
-    namesBtn.type = "button";
-    namesBtn.className = "dm-room-names";
-    namesBtn.textContent = `номер ${PUBLIC_ROOM_CODE} · как обычная комната`;
-    namesBtn.title = `Войти в «${publicChatLabel}» (${PUBLIC_ROOM_CODE})`;
-    namesBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      joinDmByCode(PUBLIC_ROOM_CODE, { fromList: true });
-    });
-
-    main.append(enterBtn, namesBtn);
-    row.append(main);
-    fragment.append(row);
-  }
-
   function renderDmRoomsList({ skipRefresh = false } = {}) {
     if (!dmRoomsList || !dmRoomsWrap) return;
     const rooms = roomsForDmList();
@@ -1640,7 +1595,6 @@
     dmRoomsList.replaceChildren();
 
     const frag = document.createDocumentFragment();
-    appendPublicChatRow(frag);
 
     if (rooms.length) {
       const heading = document.createElement("span");
@@ -2121,16 +2075,16 @@
           ? `Сейчас «${publicChatLabel}» · можно сменить`
           : `Сейчас комната ${dmCode} · можно сменить`
         : accessRoomsOnly
-          ? `Только комнаты · «${publicChatLabel}» скрыт · 30 дней без активности — удаление`
+          ? `Только комнаты · 30 дней без активности — удаление`
           : hubRequirePick
-            ? `Создайте или войдите · 30 дней без активности — удаление`
-            : `Номер и ключ · 30 дней без активности — удаление`;
+            ? `Создайте или войдите по номеру · 30 дней без активности — удаление`
+            : `Номер комнаты · короткий дополняется нулями · 30 дней без активности — удаление`;
     }
     if (dmDialogClose) {
       dmDialogClose.textContent = hubRequirePick
         ? accessRoomsOnly
           ? "Закрыть"
-          : `В ${PUBLIC_ROOM_CODE}`
+          : "В общий"
         : "Готово";
     }
     const createBox = document.querySelector(".dm-create-box");
@@ -5174,9 +5128,7 @@
       dmBtn.classList.add("active");
     } else {
       dmBtn.textContent = "Чаты";
-      dmBtn.title = accessRoomsOnly
-        ? "Только комнаты"
-        : `Комнаты по номеру · ${publicChatLabel} = ${PUBLIC_ROOM_CODE}`;
+      dmBtn.title = accessRoomsOnly ? "Только комнаты" : "Комнаты по номеру";
       dmBtn.classList.remove("active");
     }
     if (dmDialog?.open) syncDmDialogChrome();
@@ -5231,8 +5183,9 @@
       return;
     }
     const preferredRaw = normalizeDmCodeLocal(createCodeEl?.value || "");
+    if (preferredRaw.length === 6 && createCodeEl) createCodeEl.value = preferredRaw;
     if (String(createCodeEl?.value || "").replace(/\D/g, "") && preferredRaw.length !== 6) {
-      showDmDialogError("Номер комнаты — ровно 6 цифр, или оставьте пустым");
+      showDmDialogError("Введите номер комнаты цифрами или оставьте пустым");
       createCodeEl?.focus();
       return;
     }
@@ -5352,14 +5305,28 @@
     });
   }
   bindCreateJoinButtons();
+  function padRoomCodeField(el) {
+    if (!el) return;
+    const digits = String(el.value || "").replace(/\D/g, "").slice(0, 6);
+    if (!digits) {
+      if (el.value) el.value = "";
+      return;
+    }
+    const padded = normalizeDmCodeLocal(digits);
+    if (padded.length === 6) el.value = padded;
+    else if (el.value !== digits) el.value = digits;
+  }
+
   dmCodeInput?.addEventListener("input", () => {
     const digits = (dmCodeInput.value || "").replace(/\D/g, "").slice(0, 6);
     if (dmCodeInput.value !== digits) dmCodeInput.value = digits;
   });
+  dmCodeInput?.addEventListener("blur", () => padRoomCodeField(dmCodeInput));
   dmCreateCode?.addEventListener("input", () => {
     const digits = (dmCreateCode.value || "").replace(/\D/g, "").slice(0, 6);
     if (dmCreateCode.value !== digits) dmCreateCode.value = digits;
   });
+  dmCreateCode?.addEventListener("blur", () => padRoomCodeField(dmCreateCode));
   dmCreateJoinKey?.addEventListener("input", () => {
     const digits = normalizeRoomKeyLocal(dmCreateJoinKey.value);
     if (dmCreateJoinKey.value !== digits) dmCreateJoinKey.value = digits;
@@ -5368,6 +5335,8 @@
     const digits = normalizeRoomKeyLocal(dmJoinKey.value);
     if (dmJoinKey.value !== digits) dmJoinKey.value = digits;
   });
+  const roomDeleteCodeEl = document.getElementById("room-delete-code");
+  roomDeleteCodeEl?.addEventListener("blur", () => padRoomCodeField(roomDeleteCodeEl));
   dmCodeInput?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();

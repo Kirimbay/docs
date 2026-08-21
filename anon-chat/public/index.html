@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=165" />
+    <link rel="stylesheet" href="/styles.css?v=166" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -56,7 +56,7 @@
             pattern="[0-9]{4}"
             maxlength="4"
             autocomplete="current-password"
-            placeholder="4821"
+            placeholder="пин аккаунта"
           />
         </label>
         <button type="button" id="join-btn" class="primary">Войти</button>
@@ -91,7 +91,7 @@
             <span class="invites-dot" aria-hidden="true"></span>
             <span class="invites-btn-label">вас зовут</span>
           </button>
-          <button type="button" id="dm-btn" class="ghost compact" title="Комнаты по номеру · Сарафан ВПН = 000000">Чаты</button>
+          <button type="button" id="dm-btn" class="ghost compact" title="Комнаты по номеру">Чаты</button>
           <button type="button" id="me-btn" class="ghost compact me-btn" title="Ваше имя">…</button>
         </div>
       </header>
@@ -225,14 +225,14 @@
           <h2 id="dm-dialog-title">Чаты</h2>
           <button type="button" id="dm-dialog-close" class="ghost compact">Готово</button>
         </div>
-        <p id="dm-lead" class="dm-lead">Номер и ключ · 30 дней без активности — удаление</p>
+        <p id="dm-lead" class="dm-lead">Номер комнаты · короткий дополняется нулями · 30 дней без активности — удаление</p>
         <div id="dm-rooms-wrap" class="dm-rooms-wrap">
           <div id="dm-rooms-list" class="dm-rooms-list" role="list"></div>
         </div>
         <div class="dm-dialog-footer">
           <div class="dm-action-box dm-create-box">
             <p class="dm-action-title">Создать новую комнату</p>
-            <p class="dm-action-lead">Задайте номер и ключ — ключ только если комната закрытая</p>
+            <p class="dm-action-lead">Номер комнаты и ключ — ключ только для закрытой</p>
             <div class="dm-action-fields">
               <label class="field dm-code-field">
                 <span>Номер комнаты</span>
@@ -240,10 +240,10 @@
                   id="dm-create-code"
                   type="text"
                   inputmode="numeric"
-                  pattern="[0-9]{6}"
+                  pattern="[0-9]{1,6}"
                   maxlength="6"
                   autocomplete="off"
-                  placeholder="введите номер"
+                  placeholder="номер комнаты"
                 />
               </label>
               <label class="field dm-key-field">
@@ -255,7 +255,7 @@
                   pattern="[0-9]{4}"
                   maxlength="4"
                   autocomplete="off"
-                  placeholder="если закрытая"
+                  placeholder="ключ если закрытая"
                 />
               </label>
             </div>
@@ -263,7 +263,7 @@
           </div>
           <div class="dm-action-box dm-join-box">
             <p class="dm-action-title">Войти в существующую комнату</p>
-            <p class="dm-action-lead">Введите номер комнаты и ключ — если комната закрытая</p>
+            <p class="dm-action-lead">Номер комнаты и ключ — если комната закрытая</p>
             <div class="dm-action-fields">
               <label class="field dm-code-field">
                 <span>Номер комнаты</span>
@@ -271,12 +271,12 @@
                   id="dm-code-input"
                   type="text"
                   inputmode="numeric"
-                  pattern="[0-9]{6}"
+                  pattern="[0-9]{1,6}"
                   maxlength="6"
                   autocomplete="one-time-code"
                   autocapitalize="off"
                   spellcheck="false"
-                  placeholder="введите номер"
+                  placeholder="номер комнаты"
                 />
               </label>
               <label class="field dm-key-field" id="dm-join-key-wrap">
@@ -288,7 +288,7 @@
                   pattern="[0-9]{4}"
                   maxlength="4"
                   autocomplete="off"
-                  placeholder="если закрытая"
+                  placeholder="ключ если закрытая"
                 />
               </label>
             </div>
@@ -305,7 +305,7 @@
         <p class="dm-lead">Пин аккаунта · 4 цифры. Общаетесь от своего имени; здесь — удаление и закрепы.</p>
         <label class="field">
           <span>Пин аккаунта</span>
-          <input id="room-key-input" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="4821" autocomplete="off" />
+          <input id="room-key-input" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="пин аккаунта" autocomplete="off" />
         </label>
         <p id="room-key-error" class="error" hidden></p>
         <div class="dialog-actions">
@@ -322,7 +322,7 @@
 
         <label class="field">
           <span>Новый пин админа · 4 цифры</span>
-          <input id="room-new-admin-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
+          <input id="room-new-admin-key" type="text" inputmode="numeric" maxlength="4" placeholder="пин аккаунта" autocomplete="off" />
         </label>
         <label class="field">
           <span>Текущий пин аккаунта (подтверждение)</span>
@@ -400,6 +400,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=165"></script>
+    <script src="/app.js?v=166"></script>
   </body>
 </html>
