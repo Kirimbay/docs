@@ -3702,12 +3702,7 @@
   });
   dmDialog?.addEventListener("close", () => {
     clearForgetArm();
-    dmDialog.style.top = "";
-    dmDialog.style.bottom = "";
-    dmDialog.style.height = "";
-    dmDialog.style.maxHeight = "";
-    dmDialog.style.width = "";
-    dmDialog.style.transform = "";
+    dmDialog.removeAttribute("style");
   });
   dmCodeInput?.addEventListener("focus", () => keepDialogAboveKeyboard(dmDialog, dmCodeInput));
   dmCopyBtn?.addEventListener("click", async () => {

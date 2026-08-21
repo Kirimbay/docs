@@ -856,6 +856,7 @@ function emitDmPresence(code) {
     code,
     count: roomOnlineCount(code),
     names: roomMemberNames(code),
+    participants: roomParticipantNames(code),
     maxMembers: MAX_ROOM_MEMBERS,
   });
 }
@@ -1478,6 +1479,7 @@ io.on("connection", (socket) => {
           pinned: [],
           count: roomOnlineCount(code),
           names: roomMemberNames(code),
+          participants: roomParticipantNames(code),
           maxMembers: MAX_ROOM_MEMBERS,
         });
       }
