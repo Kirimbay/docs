@@ -1843,14 +1843,12 @@ body.admin-on #me-btn {
 
 .msg.msg-enter {
   animation: msg-enter var(--motion-slow) var(--ease-out) both;
-  will-change: transform, opacity;
 }
 
 .msg.msg-leaving {
   pointer-events: none;
   overflow: hidden;
   /* Height/opacity driven in JS for scroll-synced collapse — keep CSS calm. */
-  will-change: height, opacity, margin-bottom;
   transition: none;
 }
 

@@ -2728,6 +2728,9 @@
     document.body.scrollTop = 0;
   }
 
+  let viewportSyncRaf = 0;
+  let lastViewportKey = "";
+
   function syncViewportHeight() {
     // Avoid layout thrash / backdrop flicker while viewing a zoomed photo.
     if (lightbox?.open) return;
@@ -2745,19 +2748,32 @@
 
     let height = window.innerHeight;
     let inset = 0;
+    let vvTop = 0;
     if (vv) {
       height = Math.round(vv.height);
+      vvTop = Math.round(vv.offsetTop || 0);
       const rawInset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
       inset = focused && rawInset > 60 ? rawInset : 0;
-      document.documentElement.style.setProperty("--vv-top", `${Math.round(vv.offsetTop || 0)}px`);
-    } else {
-      document.documentElement.style.setProperty("--vv-top", "0px");
     }
 
+    const key = `${height}|${inset}|${vvTop}|${focused ? 1 : 0}`;
+    if (key === lastViewportKey) return;
+    lastViewportKey = key;
+
+    document.documentElement.style.setProperty("--vv-top", `${vvTop}px`);
     document.documentElement.style.setProperty("--app-height", `${height}px`);
     document.documentElement.style.setProperty("--kb-inset", `${inset}px`);
     document.body.classList.toggle("keyboard-open", inset > 80);
-    lockPageScroll();
+    // Only nudge page scroll when keyboard state changes meaningfully.
+    if (inset > 80 || focused) lockPageScroll();
+  }
+
+  function scheduleSyncViewportHeight() {
+    if (viewportSyncRaf) return;
+    viewportSyncRaf = requestAnimationFrame(() => {
+      viewportSyncRaf = 0;
+      syncViewportHeight();
+    });
   }
 
   let adminSheetFrozen = false;
@@ -2911,13 +2927,13 @@
   }
 
   syncViewportHeight();
-  window.addEventListener("resize", syncViewportHeight);
+  window.addEventListener("resize", scheduleSyncViewportHeight);
   window.addEventListener("orientationchange", () => {
-    setTimeout(syncViewportHeight, 150);
+    setTimeout(scheduleSyncViewportHeight, 150);
   });
   if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", syncViewportHeight);
-    window.visualViewport.addEventListener("scroll", syncViewportHeight);
+    window.visualViewport.addEventListener("resize", scheduleSyncViewportHeight);
+    window.visualViewport.addEventListener("scroll", scheduleSyncViewportHeight);
   }
 
   function syncMeBtn() {
@@ -4153,10 +4169,12 @@
 
     feed.replaceChildren();
     knownIds.clear();
+    const fragment = document.createDocumentFragment();
     for (const msg of messages) {
       knownIds.add(msg.id);
-      feed.append(renderMessage(msg));
+      fragment.append(renderMessage(msg));
     }
+    feed.append(fragment);
 
     if (stick) {
       schedulePinToLatest({ brief: briefPin });
@@ -5503,6 +5521,24 @@
     }
   });
 
+  socket.on("dm:pins", ({ code, pinned } = {}) => {
+    if (!dmCode || (code && code !== dmCode)) return;
+    const nextPinned = Array.isArray(pinned) ? pinned : [];
+    lastState.pinned = nextPinned;
+    const pinSet = new Set(nextPinned.map((p) => p?.id).filter(Boolean));
+    for (const msg of lastState.messages || []) {
+      const should = pinSet.has(msg.id);
+      if (Boolean(msg.pinned) === should) continue;
+      msg.pinned = should;
+      patchMessage(msg);
+    }
+    updatePinBar();
+    if (pinsDialog?.open) {
+      if (visiblePins().length) openPinsList();
+      else closePinsList();
+    }
+  });
+
   socket.on("chat:message-removed", ({ id } = {}) => {
     removeMessageById(id);
   });
@@ -5589,7 +5625,7 @@
     }
     updatePresenceChrome();
     if (onlineDialog?.open) renderOnlineList();
-    if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+    // Hub list does not show live presence counts — skip re-render on every tick.
   });
 
   socket.on("access:update", (payload = {}) => {

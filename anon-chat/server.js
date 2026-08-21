@@ -26,7 +26,9 @@ const PUBLIC_CHAT_LABEL = "Сарафан ВПН";
 /** Reserved pin for the former public feed — same rules as any other room. */
 const PUBLIC_ROOM_CODE = "000000";
 const CLIENT_ID_RE = /^[a-zA-Z0-9_-]{8,80}$/;
-const MAX_MESSAGES = 5000;
+const MAX_MESSAGES = 2000;
+/** How many recent messages to send on join / full state (store may keep more). */
+const SNAPSHOT_MESSAGES = 400;
 const MAX_NAME_LEN = 24;
 const MAX_TEXT_LEN = 2000;
 const MAX_ADMIN_TOKENS = 80;
@@ -204,12 +206,33 @@ function loadStore() {
 
 let storeSaveTimer = null;
 let storeSavePending = false;
+let storeWriteChain = Promise.resolve();
 
 function writeStoreSync(data) {
   const tmp = `${STORE_PATH}.tmp`;
-  // Compact JSON — less CPU/IO under chat load than pretty-print.
   fs.writeFileSync(tmp, JSON.stringify(data));
   fs.renameSync(tmp, STORE_PATH);
+}
+
+async function writeStoreAsync(data) {
+  const tmp = `${STORE_PATH}.tmp`;
+  const payload = JSON.stringify(data);
+  await fs.promises.writeFile(tmp, payload);
+  await fs.promises.rename(tmp, STORE_PATH);
+}
+
+function enqueueStoreWrite(data) {
+  storeWriteChain = storeWriteChain
+    .then(() => writeStoreAsync(data))
+    .catch((err) => {
+      console.error("Failed to save store:", err.message);
+      try {
+        writeStoreSync(data);
+      } catch (err2) {
+        console.error("Failed to save store (sync fallback):", err2.message);
+      }
+    });
+  return storeWriteChain;
 }
 
 /** Debounced persist; use { flush: true } for critical mutations / shutdown. */
@@ -229,20 +252,16 @@ function saveStore(data, { flush = false } = {}) {
     storeSaveTimer = null;
     if (!storeSavePending) return;
     storeSavePending = false;
-    try {
-      writeStoreSync(data);
-    } catch (err) {
-      console.error("Failed to save store:", err.message);
-    }
+    enqueueStoreWrite(data);
   }, 250);
 }
 
 function flushStoreOnExit() {
-  if (!storeSavePending && !storeSaveTimer) return;
   if (storeSaveTimer) {
     clearTimeout(storeSaveTimer);
     storeSaveTimer = null;
   }
+  if (!storeSavePending) return;
   storeSavePending = false;
   try {
     writeStoreSync(store);
@@ -860,15 +879,18 @@ function normalizeReactions(raw) {
   return out;
 }
 
-function serializeMessage(msg, pinnedIds = []) {
-  const pins = Array.isArray(pinnedIds) ? pinnedIds : [];
+function serializeMessage(msg, pinnedSet) {
+  const pins =
+    pinnedSet instanceof Set
+      ? pinnedSet
+      : new Set(Array.isArray(pinnedSet) ? pinnedSet : []);
   return {
     id: msg.id,
     name: msg.name,
     text: msg.text || "",
     imageUrl: msg.imageUrl || null,
     createdAt: msg.createdAt,
-    pinned: pins.includes(msg.id),
+    pinned: pins.has(msg.id),
     admin: Boolean(msg.admin),
     roomAdmin: Boolean(msg.roomAdmin),
     reply: msg.reply
@@ -892,6 +914,45 @@ function publicRoomMessage(msg, code = "") {
   ensureRooms();
   const room = code ? store.rooms[code] : null;
   return serializeMessage(msg, room?.pinnedIds || []);
+}
+
+function roomSnapshot(code) {
+  ensureRooms();
+  const room = store.rooms[code];
+  if (!room) return null;
+  if (!Array.isArray(room.pinnedIds)) room.pinnedIds = [];
+  const pinSet = new Set(room.pinnedIds);
+  const all = Array.isArray(room.messages) ? room.messages : [];
+  const windowed = all.length > SNAPSHOT_MESSAGES ? all.slice(-SNAPSHOT_MESSAGES) : all;
+  const byId = new Map(all.map((m) => [m.id, m]));
+  const pinned = room.pinnedIds
+    .map((id) => byId.get(id))
+    .filter(Boolean)
+    .map((m) => serializeMessage(m, pinSet));
+  return {
+    code,
+    label: isPublicRoomCode(code) ? PUBLIC_CHAT_LABEL : room.label || "",
+    messages: windowed.map((m) => serializeMessage(m, pinSet)),
+    pinned,
+  };
+}
+
+function emitRoomPins(code) {
+  ensureRooms();
+  const room = store.rooms[code];
+  if (!room) return;
+  if (!Array.isArray(room.pinnedIds)) room.pinnedIds = [];
+  const pinSet = new Set(room.pinnedIds);
+  const byId = new Map((room.messages || []).map((m) => [m.id, m]));
+  const pinned = room.pinnedIds
+    .map((id) => byId.get(id))
+    .filter(Boolean)
+    .map((m) => serializeMessage(m, pinSet));
+  io.to(roomChannel(code)).emit("dm:pins", {
+    code,
+    pinnedIds: [...room.pinnedIds],
+    pinned,
+  });
 }
 
 function snapshot() {
@@ -1166,23 +1227,6 @@ function roomMemberNames(code) {
   return names;
 }
 
-function roomSnapshot(code) {
-  ensureRooms();
-  const room = store.rooms[code];
-  if (!room) return null;
-  if (!Array.isArray(room.pinnedIds)) room.pinnedIds = [];
-  const pinned = room.pinnedIds
-    .map((id) => (room.messages || []).find((m) => m.id === id))
-    .filter(Boolean)
-    .map((m) => publicRoomMessage(m, code));
-  return {
-    code,
-    label: isPublicRoomCode(code) ? PUBLIC_CHAT_LABEL : room.label || "",
-    messages: (room.messages || []).map((m) => publicRoomMessage(m, code)),
-    pinned,
-  };
-}
-
 function roomPeerFor(code, exceptName = "") {
   ensureRooms();
   const room = store.rooms[code];
@@ -1256,10 +1300,13 @@ function roomParticipantNames(code) {
     const key = nameKey(n);
     if (key) map.set(key, n);
   }
-  for (const m of Array.isArray(room.messages) ? room.messages : []) {
-    if (isAdminName(m?.name) || m?.admin) continue;
-    const key = nameKey(m?.name);
-    if (key) map.set(key, m.name);
+  // Prefer maintained participants list — avoid scanning full message history.
+  if (!map.size) {
+    for (const m of Array.isArray(room.messages) ? room.messages : []) {
+      if (isAdminName(m?.name) || m?.admin) continue;
+      const key = nameKey(m?.name);
+      if (key) map.set(key, m.name);
+    }
   }
   if (room.createdBy && !isAdminName(room.createdBy)) {
     const createdKey = nameKey(room.createdBy);
@@ -1451,8 +1498,16 @@ function presencePayload(forSocket = null) {
 }
 
 function emitChatPresence() {
+  // One shared payload for everyone; only admins need per-socket enrichment.
+  const base = presencePayload(null);
+  let adminPayload = null;
   for (const sock of io.sockets.sockets.values()) {
-    sock.emit("chat:presence", presencePayload(sock));
+    if (sock.data?.isAdmin) {
+      if (!adminPayload) adminPayload = presencePayload(sock);
+      sock.emit("chat:presence", adminPayload);
+    } else {
+      sock.emit("chat:presence", base);
+    }
   }
 }
 
@@ -2827,7 +2882,8 @@ io.on("connection", (socket) => {
       room.pinnedIds = room.pinnedIds.slice(0, 20);
       saveStore(store);
     }
-    emitRoomState(roomCode);
+    emitRoomPins(roomCode);
+    emitRoomMessageUpdate(roomCode, publicRoomMessage(msg, roomCode));
     if (typeof ack === "function") ack({ ok: true });
   });
 
@@ -2848,9 +2904,12 @@ io.on("connection", (socket) => {
       return;
     }
     if (!Array.isArray(room.pinnedIds)) room.pinnedIds = [];
-    room.pinnedIds = room.pinnedIds.filter((id) => id !== payload.id);
+    const id = payload.id;
+    room.pinnedIds = room.pinnedIds.filter((x) => x !== id);
     saveStore(store);
-    emitRoomState(roomCode);
+    const msg = (room.messages || []).find((m) => m.id === id);
+    emitRoomPins(roomCode);
+    if (msg) emitRoomMessageUpdate(roomCode, publicRoomMessage(msg, roomCode));
     if (typeof ack === "function") ack({ ok: true });
   });
 
