@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=168" />
+    <link rel="stylesheet" href="/styles.css?v=169" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -96,11 +96,11 @@
       </header>
 
       <div id="dm-bar" class="dm-bar" hidden>
-        <span class="dm-bar-text"><span id="dm-bar-label">номер</span> <strong id="dm-bar-code"></strong></span>
+        <span class="dm-bar-text"><span id="dm-bar-label" class="visually-hidden">номер</span><strong id="dm-bar-code"></strong></span>
         <span id="dm-bar-presence" class="dm-bar-presence">1/5000</span>
         <button type="button" id="dm-copy-btn" class="ghost compact" title="Скопировать номер">Номер</button>
-        <button type="button" id="room-key-btn" class="ghost compact" hidden title="Режим админа комнаты">Режим админа</button>
-        <button type="button" id="room-admin-panel-btn" class="ghost compact" hidden title="Настройки комнаты">Настройки</button>
+        <button type="button" id="room-key-btn" class="ghost compact" hidden title="Режим админа комнаты">Админ</button>
+        <button type="button" id="room-admin-panel-btn" class="ghost compact" hidden title="Настройки комнаты">Ещё</button>
       </div>
 
       <button type="button" id="pins" class="pin-bar" hidden title="Нажмите — перейти. Удерживайте — список">
@@ -399,6 +399,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=168"></script>
+    <script src="/app.js?v=169"></script>
   </body>
 </html>

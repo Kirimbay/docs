@@ -456,12 +456,13 @@ button {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem var(--pad-x);
+  gap: 0.28rem;
+  padding: 0.18rem var(--pad-x);
+  min-height: 0;
   border-bottom: 1px solid var(--dm-line);
   background: var(--dm-bg);
   color: var(--dm-ink);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .dm-bar[hidden] {
@@ -471,18 +472,34 @@ button {
 .dm-bar-text {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 0.82rem;
+  font-size: 0.72rem;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dm-bar-text strong {
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--dm-accent);
+  font-weight: 650;
 }
 
 .dm-bar-presence {
   flex: 0 0 auto;
-  font-size: 0.75rem;
+  font-size: 0.68rem;
+  line-height: 1;
   color: var(--muted);
+  white-space: nowrap;
+}
+
+.dm-bar .ghost.compact {
+  flex: 0 0 auto;
+  padding: 0.22rem 0.45rem;
+  font-size: 0.7rem;
+  line-height: 1.1;
+  min-height: 0;
+  white-space: nowrap;
 }
 
 .dm-dialog.dialog {
@@ -3349,8 +3366,8 @@ body.keyboard-open .pins-dialog.dialog {
 }
 
 .dm-bar #dm-copy-btn {
-  font-size: 0.78rem;
-  padding: 0.4rem 0.55rem;
+  font-size: 0.7rem;
+  padding: 0.22rem 0.45rem;
   white-space: nowrap;
 }
 

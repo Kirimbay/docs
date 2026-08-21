@@ -466,7 +466,7 @@
       (roomIsOwner || isOwnedRoom(dmCode));
     if (roomKeyBtn) {
       roomKeyBtn.hidden = !canOwn;
-      roomKeyBtn.textContent = isRoomAdmin ? "Выйти из админки" : "Режим админа";
+      roomKeyBtn.textContent = isRoomAdmin ? "Выйти" : "Админ";
       roomKeyBtn.classList.toggle("active", isRoomAdmin);
       roomKeyBtn.title = isRoomAdmin
         ? "Выключить режим админа — снова обычный участник"
@@ -588,7 +588,7 @@
     if (!dmBar || dmBar.hidden || !dmCode) return;
     const isPublic = isPublicRoomCode(dmCode);
     if (dmBarLabel) {
-      dmBarLabel.textContent = isPublic ? "" : "комната";
+      dmBarLabel.textContent = "";
     }
     if (!dmBarCode) return;
     if (isPublic) {
@@ -597,12 +597,10 @@
     }
     if (roomKeyed) {
       const key = loadRoomKey(dmCode);
-      dmBarCode.textContent = key
-        ? `${dmCode} · для других ключ ${key}`
-        : `${dmCode} · для других по ключу`;
+      dmBarCode.textContent = key ? `${dmCode} · ключ ${key}` : `${dmCode} · по ключу`;
       return;
     }
-    dmBarCode.textContent = `${dmCode} · для других свободный`;
+    dmBarCode.textContent = dmCode;
   }
 
   function clearDeleteArm() {
