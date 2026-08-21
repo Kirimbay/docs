@@ -833,12 +833,18 @@
   }
 
   function applyOwnedRoomsFromServer(ownedRooms, accountPin) {
-    applyKnownRoomsFromServer(ownedRooms, accountPin, { markOwned: true });
+    applyKnownRoomsFromServer(ownedRooms, accountPin, { markOwned: true, replace: false });
   }
 
-  function applyKnownRoomsFromServer(rooms, accountPin, { markOwned = false } = {}) {
+  /**
+   * Apply account hub from server. With replace:true the list becomes the
+   * same on every device (plus Сарафан ВПН row kept locally).
+   */
+  function applyKnownRoomsFromServer(rooms, accountPin, { markOwned = false, replace = false } = {}) {
     if (!Array.isArray(rooms)) return;
     const pin = normalizeRoomKeyLocal(accountPin || loadPin() || "");
+    const publicRow = loadDmRooms().find((r) => r.code === PUBLIC_ROOM_CODE);
+    const built = [];
     for (const entry of rooms) {
       const code = normalizeDmCodeLocal(
         typeof entry === "string" ? entry : entry?.code || ""
@@ -846,15 +852,86 @@
       if (code.length !== 6 || code === PUBLIC_ROOM_CODE) continue;
       const isOwned = markOwned || Boolean(entry?.owned);
       if (isOwned) markOwnedRoom(code);
-      rememberDmRoom(code, {
-        active: false,
-        keyed: Boolean(entry?.keyed),
+      const joinKey = normalizeRoomKeyLocal(entry?.joinKey || entry?.key || "");
+      if (joinKey.length === 4) saveRoomKey(code, joinKey);
+      const row = {
+        code,
+        lastAt: Date.parse(String(entry?.lastActiveAt || "")) || Date.now(),
+        peer: "",
+        messageCount: Math.max(0, Number(entry?.messageCount) || 0),
+        lastReadId: "",
+        names: [],
+        unread: 0,
+        keyed: Boolean(entry?.keyed) || joinKey.length === 4,
         closed: Boolean(entry?.closed),
-        messageCount: Number(entry?.messageCount) || undefined,
-        lastActiveAt: entry?.lastActiveAt || undefined,
-      });
+      };
+      built.push(row);
       if (isOwned && pin.length === 4) saveAdminPin(code, pin);
     }
+    if (replace) {
+      const next = publicRow ? [publicRow, ...built.filter((r) => r.code !== PUBLIC_ROOM_CODE)] : built;
+      saveDmRooms(next);
+      return;
+    }
+    for (const row of built) {
+      rememberDmRoom(row.code, {
+        active: false,
+        keyed: row.keyed,
+        closed: row.closed,
+        messageCount: row.messageCount,
+      });
+    }
+  }
+
+  function syncHubRoomsToServer() {
+    if (!socket.connected || isAdmin) return;
+    const rooms = loadDmRooms()
+      .filter((r) => r.code && r.code !== PUBLIC_ROOM_CODE)
+      .map((r) => ({
+        code: r.code,
+        keyed: Boolean(r.keyed),
+        joinKey: loadRoomKey(r.code) || "",
+      }));
+    if (!rooms.length) return;
+    socket.emit("rooms:sync", { rooms }, (res) => {
+      if (!res?.ok) return;
+      applyKnownRoomsFromServer(
+        Array.isArray(res.knownRooms) ? res.knownRooms : rooms,
+        loadPin(),
+        { replace: true }
+      );
+      if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+    });
+  }
+
+  /** Cross-device hub: upload this phone's keys, then make local list match server. */
+  function pullHubFromServer(res, pin) {
+    const serverList = Array.isArray(res?.knownRooms)
+      ? res.knownRooms
+      : Array.isArray(res?.ownedRooms)
+        ? res.ownedRooms
+        : [];
+    const localPayload = loadDmRooms()
+      .filter((r) => r.code && r.code !== PUBLIC_ROOM_CODE)
+      .map((r) => ({
+        code: r.code,
+        keyed: Boolean(r.keyed),
+        joinKey: loadRoomKey(r.code) || "",
+      }));
+
+    const finish = (known) => {
+      applyKnownRoomsFromServer(known, pin, { replace: true });
+      if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+    };
+
+    if (!socket.connected || isAdmin || !localPayload.length) {
+      finish(serverList);
+      return;
+    }
+    socket.emit("rooms:sync", { rooms: localPayload }, (syncRes) => {
+      if (syncRes?.ok && Array.isArray(syncRes.knownRooms)) finish(syncRes.knownRooms);
+      else finish(serverList);
+    });
   }
 
   function normalizeDmCodeLocal(raw) {
@@ -1440,6 +1517,14 @@
     if (!c) return;
     saveDmRooms(loadDmRooms().filter((r) => r.code !== c));
     if (loadDmCode() === c) saveDmCode("");
+    clearRoomKey(c);
+    if (socket.connected && !isAdmin && c !== PUBLIC_ROOM_CODE) {
+      socket.emit("rooms:forget", { code: c }, (res) => {
+        if (!res?.ok || !Array.isArray(res.knownRooms)) return;
+        applyKnownRoomsFromServer(res.knownRooms, loadPin(), { replace: true });
+        if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+      });
+    }
   }
 
   function joinDmByCode(code, { fromList = false, watchOnly = false, key = "" } = {}) {
@@ -4312,12 +4397,7 @@
           if (adminToken) clearAdminToken();
           if (pin.length === 4) savePin(pin);
           saveName(res.name);
-          applyKnownRoomsFromServer(
-            Array.isArray(res.knownRooms) && res.knownRooms.length
-              ? res.knownRooms
-              : res.ownedRooms,
-            pin
-          );
+          pullHubFromServer(res, pin);
           enterChat(res.name, { admin: false });
         }
       }
@@ -5794,13 +5874,7 @@
             if (adminToken) clearAdminToken();
             if (isAdmin) setAdminUi(false, res.name);
             else syncMeBtn();
-            applyKnownRoomsFromServer(
-              Array.isArray(res.knownRooms) && res.knownRooms.length
-                ? res.knownRooms
-                : res.ownedRooms,
-              pin
-            );
-            if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+            pullHubFromServer(res, pin);
           }
           if (dmCode) {
             socket.emit("dm:join", { code: dmCode, key: loadRoomKey(dmCode) || undefined }, (dmRes) => {

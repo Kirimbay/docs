@@ -1101,42 +1101,107 @@ function dedupeAccountsByNick() {
 }
 
 function ownedRoomsForAccount(accountId) {
-  return knownRoomsForAccount(accountId, "").filter((r) => r.owned);
+  return hubRoomsForAccount(accountId).filter((r) => r.owned);
+}
+
+function ensureAccountHub(account) {
+  if (!account || typeof account !== "object") return [];
+  if (!Array.isArray(account.hubRooms)) account.hubRooms = [];
+  return account.hubRooms;
+}
+
+/** Persist a room on the account hub (cross-device list). */
+function pinAccountHubRoom(accountId, code, { keyed = false, joinKey = "" } = {}) {
+  if (!accountId) return false;
+  ensureAccounts();
+  const account = store.accounts[accountId];
+  if (!account) return false;
+  const c = normalizeRoomCode(code);
+  if (!c || isPublicRoomCode(c)) return false;
+  const list = ensureAccountHub(account);
+  const key = normalizeRoomKey(joinKey);
+  const idx = list.findIndex((row) => normalizeRoomCode(row?.code) === c);
+  const row = {
+    code: c,
+    keyed: Boolean(keyed) || key.length === 4,
+    joinKey: key.length === 4 ? key : idx >= 0 ? normalizeRoomKey(list[idx].joinKey) : "",
+    savedAt: new Date().toISOString(),
+  };
+  if (!row.keyed) row.joinKey = "";
+  if (idx >= 0) list.splice(idx, 1);
+  list.unshift(row);
+  if (list.length > 80) account.hubRooms = list.slice(0, 80);
+  return true;
+}
+
+function unpinAccountHubRoom(accountId, code) {
+  if (!accountId) return false;
+  ensureAccounts();
+  const account = store.accounts[accountId];
+  if (!account) return false;
+  const c = normalizeRoomCode(code);
+  const list = ensureAccountHub(account);
+  const next = list.filter((row) => normalizeRoomCode(row?.code) !== c);
+  if (next.length === list.length) return false;
+  account.hubRooms = next;
+  return true;
 }
 
 /**
- * Rooms this account should see in the hub: owned + joined (participants / authored).
- * Client localStorage alone is not enough after logout / new device.
+ * Hub list for this account: saved hubRooms ∪ owned/participated (migration).
+ * Includes joinKey so keyed rooms open on another device.
  */
-function knownRoomsForAccount(accountId, nick) {
+function hubRoomsForAccount(accountId, nick = "") {
+  ensureAccounts();
   ensureRooms();
-  const nickKey = nameKey(nick);
+  const account = accountId ? store.accounts[accountId] : null;
   const map = new Map();
 
-  const touch = (room, { owned = false, member = false } = {}) => {
-    if (!room?.code || isPublicRoomCode(room.code)) return;
-    const prev = map.get(room.code);
-    map.set(room.code, {
-      code: room.code,
-      owned: Boolean(prev?.owned || owned),
-      member: Boolean(prev?.member || member || owned),
+  const touch = (code, patch = {}) => {
+    const c = normalizeRoomCode(code);
+    if (!c || isPublicRoomCode(c)) return;
+    const room = store.rooms[c];
+    if (!room) return; // deleted rooms drop out of the hub
+    const prev = map.get(c) || {};
+    const joinKey = normalizeRoomKey(patch.joinKey || prev.joinKey || "");
+    map.set(c, {
+      code: c,
+      owned: Boolean(prev.owned || patch.owned || room.ownerAccountId === accountId),
+      member: Boolean(prev.member || patch.member || prev.owned || patch.owned),
+      keyed: typeof patch.keyed === "boolean" ? patch.keyed : roomPublicFlags(room).keyed,
+      joinKey: joinKey.length === 4 ? joinKey : prev.joinKey || "",
       messageCount: Array.isArray(room.messages) ? room.messages.length : 0,
       lastActiveAt: room.lastActiveAt || room.createdAt || "",
       ...roomPublicFlags(room),
     });
   };
 
-  for (const room of Object.values(store.rooms || {})) {
-    if (!room || typeof room !== "object") continue;
-    if (isPublicRoomCode(room.code)) continue;
-
-    if (accountId && room.ownerAccountId === accountId) {
-      touch(room, { owned: true, member: true });
-      continue;
+  // 1) Explicit hub list saved on the account (source of truth across devices).
+  if (account) {
+    for (const row of ensureAccountHub(account)) {
+      touch(row?.code, {
+        member: true,
+        keyed: Boolean(row?.keyed),
+        joinKey: row?.joinKey || "",
+      });
     }
+  }
 
-    let member = false;
-    if (nickKey) {
+  // 2) Always include owned rooms.
+  if (accountId) {
+    for (const room of Object.values(store.rooms || {})) {
+      if (!room || isPublicRoomCode(room.code)) continue;
+      if (room.ownerAccountId === accountId) touch(room.code, { owned: true, member: true });
+    }
+  }
+
+  // 3) Migrate: rooms where nick participated / wrote (older sessions before hubRooms).
+  const nickKey = nameKey(nick);
+  if (nickKey) {
+    for (const room of Object.values(store.rooms || {})) {
+      if (!room || isPublicRoomCode(room.code)) continue;
+      if (map.has(room.code)) continue;
+      let member = false;
       for (const n of ensureRoomParticipants(room)) {
         if (nameKey(n) === nickKey) {
           member = true;
@@ -1145,9 +1210,7 @@ function knownRoomsForAccount(accountId, nick) {
       }
       if (!member && nameKey(room.createdBy) === nickKey) member = true;
       if (!member && Array.isArray(room.messages) && room.messages.length) {
-        const slice = room.messages.slice(-300);
-        for (let i = slice.length - 1; i >= 0; i -= 1) {
-          const m = slice[i];
+        for (const m of room.messages.slice(-300)) {
           if (m?.admin || isAdminName(m?.name)) continue;
           if (nameKey(m?.name) === nickKey) {
             member = true;
@@ -1155,8 +1218,26 @@ function knownRoomsForAccount(accountId, nick) {
           }
         }
       }
+      if (member) {
+        touch(room.code, { member: true });
+      }
     }
-    if (member) touch(room, { member: true });
+  }
+
+  // Rebuild account.hubRooms as canonical cross-device list (drop deleted).
+  if (account && accountId) {
+    const sorted = [...map.values()].sort((a, b) => {
+      const ta = Date.parse(String(a.lastActiveAt || "")) || 0;
+      const tb = Date.parse(String(b.lastActiveAt || "")) || 0;
+      return tb - ta;
+    });
+    account.hubRooms = sorted.slice(0, 80).map((r) => ({
+      code: r.code,
+      keyed: Boolean(r.keyed),
+      joinKey: normalizeRoomKey(r.joinKey) || "",
+      savedAt: new Date().toISOString(),
+    }));
+    return sorted.slice(0, 80);
   }
 
   const list = [...map.values()];
@@ -1166,6 +1247,11 @@ function knownRoomsForAccount(accountId, nick) {
     return tb - ta;
   });
   return list.slice(0, 80);
+}
+
+/** @deprecated name kept for callers — same as hubRoomsForAccount */
+function knownRoomsForAccount(accountId, nick) {
+  return hubRoomsForAccount(accountId, nick);
 }
 
 /** Migrate legacy rooms owned by this clientId onto the account (once). */
@@ -1918,9 +2004,10 @@ io.on("connection", (socket) => {
     let knownRooms = [];
     if (accountId) {
       const claimed = clientId ? claimRoomsForAccount(accountId, clientId) : 0;
-      knownRooms = knownRoomsForAccount(accountId, name);
+      knownRooms = hubRoomsForAccount(accountId, name);
       ownedRooms = knownRooms.filter((r) => r.owned);
-      if (createdAccount || claimed) saveStore(store);
+      // Persist hub list / migration onto the account for other devices.
+      saveStore(store, { flush: Boolean(createdAccount || claimed) });
     }
     online.set(socket.id, {
       name,
@@ -2231,6 +2318,13 @@ io.on("connection", (socket) => {
       pinnedIds: [],
     };
     saveStore(store, { flush: true });
+    if (accountId && !asSuper) {
+      pinAccountHubRoom(accountId, code, {
+        keyed: roomAccess === "keyed",
+        joinKey: joinKey || "",
+      });
+      saveStore(store, { flush: true });
+    }
     socket.join(roomChannel(code));
     socket.data.roomCode = code;
     socket.data.roomGhost = false;
@@ -2472,7 +2566,17 @@ io.on("connection", (socket) => {
     if (socket.data.roomCode === code) {
       // Soft touch — debounce persist via saveStore; avoid sync rewrite on every resume.
       touchRoom(code, { persist: false });
-      if (!asAdmin) rememberRoomParticipant(code, user.name);
+      if (!asAdmin) {
+        rememberRoomParticipant(code, user.name);
+        const accountId = getSocketAccountId(socket);
+        if (accountId) {
+          pinAccountHubRoom(accountId, code, {
+            keyed: roomAccessMode(room) === "keyed",
+            joinKey: key,
+          });
+          saveStore(store);
+        }
+      }
       ackJoin(roomSnapshot(code));
       return;
     }
@@ -2489,6 +2593,13 @@ io.on("connection", (socket) => {
     touchRoom(code);
     if (!asAdmin) {
       rememberRoomParticipant(code, user.name);
+      const accountId = getSocketAccountId(socket);
+      if (accountId) {
+        pinAccountHubRoom(accountId, code, {
+          keyed: roomAccessMode(room) === "keyed",
+          joinKey: key,
+        });
+      }
       saveStore(store);
     }
     socket.join(roomChannel(code));
@@ -2497,6 +2608,59 @@ io.on("connection", (socket) => {
     user.roomCode = code;
     ackJoin(roomSnapshot(code));
     emitDmPresence(code);
+  });
+
+  /** Remove a room from this account's hub on all devices. */
+  socket.on("rooms:forget", (payload = {}, ack) => {
+    const accountId = getSocketAccountId(socket);
+    if (!accountId) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
+      return;
+    }
+    const code = normalizeRoomCode(payload.code);
+    if (!code) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нужен номер комнаты" });
+      return;
+    }
+    const changed = unpinAccountHubRoom(accountId, code);
+    if (changed) saveStore(store);
+    if (typeof ack === "function") {
+      ack({ ok: true, code, knownRooms: hubRoomsForAccount(accountId, socket.data.name || "") });
+    }
+  });
+
+  /**
+   * Upload local hub keys/codes from this device onto the account
+   * so another phone sees the same list + can open keyed rooms.
+   */
+  socket.on("rooms:sync", (payload = {}, ack) => {
+    const accountId = getSocketAccountId(socket);
+    if (!accountId) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
+      return;
+    }
+    const rows = Array.isArray(payload.rooms) ? payload.rooms : [];
+    let n = 0;
+    for (const row of rows.slice(0, 80)) {
+      const code = normalizeRoomCode(row?.code);
+      if (!code || isPublicRoomCode(code) || !store.rooms[code]) continue;
+      const joinKey = normalizeRoomKey(row?.joinKey || row?.key || "");
+      pinAccountHubRoom(accountId, code, {
+        keyed: Boolean(row?.keyed) || joinKey.length === 4 || roomAccessMode(store.rooms[code]) === "keyed",
+        joinKey,
+      });
+      n += 1;
+    }
+    if (n) saveStore(store, { flush: true });
+    const knownRooms = hubRoomsForAccount(accountId, socket.data.name || "");
+    if (typeof ack === "function") {
+      ack({
+        ok: true,
+        synced: n,
+        knownRooms,
+        ownedRooms: knownRooms.filter((r) => r.owned),
+      });
+    }
   });
 
   socket.on("room:admin-login", (payload = {}, ack) => {
