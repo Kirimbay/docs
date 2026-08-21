@@ -122,6 +122,146 @@
   let bulkSelectOn = false;
   let bulkDeleting = false;
 
+  function prefersTouchAdminDelete() {
+    try {
+      if (typeof matchMedia !== "function") return Boolean(navigator.maxTouchPoints > 0);
+      // iPhone / iPad / phones: finger primary, no hover.
+      return (
+        matchMedia("(pointer: coarse)").matches ||
+        (navigator.maxTouchPoints > 0 && matchMedia("(hover: none)").matches)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function requestAdminDelete(id) {
+    if (!id) return;
+    socket.emit("admin:delete", { id }, (res) => {
+      if (!res?.ok) {
+        notify(res?.error || "Ошибка");
+        return;
+      }
+      removeMessageById(id);
+    });
+  }
+
+  function resetMsgSwipe(wrap, animate) {
+    if (!wrap) return;
+    const bubble = wrap.querySelector(".msg");
+    wrap.classList.remove("is-swiping", "is-open");
+    if (bubble) {
+      bubble.style.transition = animate
+        ? "transform 200ms cubic-bezier(0.33, 1, 0.68, 1)"
+        : "none";
+      bubble.style.transform = "";
+    }
+  }
+
+  function closeOpenMsgSwipes(except) {
+    feed.querySelectorAll(".msg-swipe.is-open, .msg-swipe.is-swiping").forEach((wrap) => {
+      if (except && wrap === except) return;
+      resetMsgSwipe(wrap, true);
+    });
+  }
+
+  function bindAdminSwipeDelete(wrap, el, msg) {
+    const rail = wrap.querySelector(".msg-swipe-rail");
+    const MAX = 92;
+    const COMMIT = 56;
+    let start = null;
+    let axis = null;
+    let dx = 0;
+
+    const setOffset = (x, withTransition) => {
+      const open = x < -6;
+      wrap.classList.toggle("is-swiping", !withTransition && x !== 0);
+      wrap.classList.toggle("is-open", open);
+      el.style.transition = withTransition
+        ? "transform 200ms cubic-bezier(0.33, 1, 0.68, 1)"
+        : "none";
+      el.style.transform = x ? `translate3d(${x}px, 0, 0)` : "";
+      if (rail) {
+        rail.style.opacity = String(Math.min(1, Math.abs(x) / 36));
+      }
+    };
+
+    wrap.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (!isAdmin || bulkSelectOn) return;
+        if (e.pointerType === "mouse") return;
+        if (
+          e.target.closest(
+            "a, button, input, textarea, label, .msg-react-chip, .msg-admin-icon, .msg-quote, .msg-name"
+          )
+        ) {
+          return;
+        }
+        closeOpenMsgSwipes(wrap);
+        start = { x: e.clientX, y: e.clientY };
+        axis = null;
+        dx = 0;
+        try {
+          wrap.setPointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+      },
+      { passive: true }
+    );
+
+    wrap.addEventListener(
+      "pointermove",
+      (e) => {
+        if (!start) return;
+        const rawDx = e.clientX - start.x;
+        const rawDy = e.clientY - start.y;
+        if (!axis) {
+          if (Math.abs(rawDx) < 10 && Math.abs(rawDy) < 10) return;
+          axis = Math.abs(rawDx) > Math.abs(rawDy) * 1.2 ? "h" : "v";
+          if (axis === "v") {
+            start = null;
+            axis = null;
+            return;
+          }
+          // Cancel tap / long-press / copy on the bubble.
+          el.dataset.swipeIgnore = "1";
+          el.dispatchEvent(new CustomEvent("msg-swipe-cancel"));
+        }
+        if (axis !== "h") return;
+        if (e.cancelable) e.preventDefault();
+        // Only swipe left (reveal delete on the right).
+        dx = Math.min(0, Math.max(-MAX, rawDx));
+        setOffset(dx, false);
+      },
+      { passive: false }
+    );
+
+    const endSwipe = () => {
+      if (axis === "h") {
+        if (dx <= -COMMIT) {
+          setOffset(-MAX, true);
+          el.dataset.swipeIgnore = "1";
+          requestAdminDelete(msg.id);
+        } else {
+          resetMsgSwipe(wrap, true);
+        }
+      }
+      start = null;
+      axis = null;
+      dx = 0;
+    };
+
+    wrap.addEventListener("pointerup", endSwipe);
+    wrap.addEventListener("pointercancel", () => {
+      if (axis === "h") resetMsgSwipe(wrap, true);
+      start = null;
+      axis = null;
+      dx = 0;
+    });
+  }
+
   function clearDeleteArm() {
     if (deleteArmedTimer) {
       clearTimeout(deleteArmedTimer);
@@ -1825,9 +1965,19 @@
       enterBulkSelectMode(msg);
     };
 
+    el.addEventListener("msg-swipe-cancel", () => {
+      clearLong();
+      clearSingle();
+      start = null;
+      tapCount = 0;
+      menuOpened = false;
+      longPressed = false;
+    });
+
     el.addEventListener("pointerdown", (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
       if (interactive(e.target)) return;
+      if (el.dataset.swipeIgnore) delete el.dataset.swipeIgnore;
       longPressed = false;
       menuOpened = false;
       start = { x: e.clientX, y: e.clientY };
@@ -1858,6 +2008,12 @@
     });
 
     el.addEventListener("pointerup", (e) => {
+      if (el.dataset.swipeIgnore) {
+        delete el.dataset.swipeIgnore;
+        clearLong();
+        start = null;
+        return;
+      }
       const wasLong = longPressed;
       const hadStart = Boolean(start);
       const x = e.clientX;
@@ -1989,8 +2145,10 @@
     const anchorAbove = offsetTop + 1 < startScroll;
     const scrollDelta = height + gap;
 
+    const row = el.closest(".msg-swipe");
     const finish = () => {
-      if (el.isConnected) el.remove();
+      const node = row && row.isConnected ? row : el;
+      if (node.isConnected) node.remove();
       finishChrome();
     };
 
@@ -2002,6 +2160,14 @@
       return;
     }
 
+    el.style.transform = "";
+    el.style.transition = "none";
+    if (row) {
+      row.classList.remove("is-swiping", "is-open");
+      row.style.overflow = "hidden";
+      row.style.height = `${height}px`;
+      row.style.flexShrink = "0";
+    }
     el.classList.add("msg-leaving");
     el.style.height = `${height}px`;
     el.style.overflow = "hidden";
@@ -2029,9 +2195,14 @@
       }
       const t = Math.min(1, (now - t0) / DURATION);
       const e = ease(t);
-      el.style.height = `${height * (1 - e)}px`;
+      const h = height * (1 - e);
+      el.style.height = `${h}px`;
       el.style.marginBottom = `${-gap * e}px`;
       el.style.opacity = String(1 - e);
+      if (row) {
+        row.style.height = `${h}px`;
+        row.style.marginBottom = `${-gap * e}px`;
+      }
       if (anchorAbove) {
         feed.scrollTop = Math.max(0, startScroll - scrollDelta * e);
       }
@@ -2228,7 +2399,8 @@
       actions.append(pinBtn);
     }
 
-    if (isAdmin) {
+    // Desktop: double-tap ✕. On iPhone / touch: swipe left instead (avoids copy conflict).
+    if (isAdmin && !prefersTouchAdminDelete()) {
       const delBtn = document.createElement("button");
       delBtn.type = "button";
       delBtn.className = "msg-admin-icon danger msg-delete";
@@ -2240,13 +2412,7 @@
         e.stopPropagation();
         if (deleteArmedId === msg.id) {
           clearDeleteArm();
-          socket.emit("admin:delete", { id: msg.id }, (res) => {
-            if (!res?.ok) {
-              notify(res?.error || "Ошибка")
-              return;
-            }
-            removeMessageById(msg.id);
-          });
+          requestAdminDelete(msg.id);
           return;
         }
         // Only one ✕ can be armed; clear others first.
@@ -2264,6 +2430,19 @@
 
     if (actions.childElementCount) el.append(actions);
     bindMessageHold(el, msg);
+
+    if (isAdmin && prefersTouchAdminDelete()) {
+      const wrap = document.createElement("div");
+      wrap.className = "msg-swipe";
+      const rail = document.createElement("div");
+      rail.className = "msg-swipe-rail";
+      rail.setAttribute("aria-hidden", "true");
+      rail.textContent = "Удалить";
+      wrap.append(rail, el);
+      bindAdminSwipeDelete(wrap, el, msg);
+      return wrap;
+    }
+
     return el;
   }
 
@@ -2298,10 +2477,11 @@
     if (idx >= 0) lastState.messages[idx] = updated;
     const pinIdx = (lastState.pinned || []).findIndex((m) => m.id === updated.id);
     if (pinIdx >= 0) lastState.pinned[pinIdx] = updated;
-    const el = feed.querySelector(`[data-id="${updated.id}"]`);
+    const el = feed.querySelector(`.msg[data-id="${CSS.escape(updated.id)}"]`);
     if (!el) return;
+    const node = el.closest(".msg-swipe") || el;
     const next = renderMessage(updated);
-    el.replaceWith(next);
+    node.replaceWith(next);
   }
 
   function appendMessage(msg) {
@@ -2309,20 +2489,21 @@
     knownIds.add(msg.id);
     lastState.messages = [...(lastState.messages || []), msg];
     const nearBottom = isNearBottom(120);
-    const el = renderMessage(msg);
-    el.classList.add("msg-enter");
-    feed.append(el);
-    el.addEventListener(
+    const node = renderMessage(msg);
+    const bubble = node.classList.contains("msg") ? node : node.querySelector(".msg");
+    if (bubble) bubble.classList.add("msg-enter");
+    feed.append(node);
+    bubble?.addEventListener(
       "animationend",
       () => {
-        el.classList.remove("msg-enter");
+        bubble.classList.remove("msg-enter");
       },
       { once: true }
     );
     const stick = nearBottom || isOwnMessage(msg);
     if (stick) {
       scrollFeedToBottom(true);
-      const img = el.querySelector(".msg-photo");
+      const img = node.querySelector(".msg-photo");
       if (img && !img.complete) {
         img.addEventListener("load", () => scrollFeedToBottom(true), { once: true });
       }

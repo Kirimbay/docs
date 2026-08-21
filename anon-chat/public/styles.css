@@ -1764,6 +1764,48 @@ body.pins-focus-mode .feed .msg.pin-focus {
   box-shadow: inset 0 0 0 1px rgba(110, 168, 217, 0.35);
 }
 
+.msg-swipe {
+  position: relative;
+  display: block;
+  min-width: 0;
+  touch-action: pan-y;
+  isolation: isolate;
+}
+
+.msg-swipe-rail {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 5.75rem;
+  display: grid;
+  place-items: center;
+  padding: 0 0.55rem;
+  border-radius: var(--radius);
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.msg-swipe .msg {
+  position: relative;
+  z-index: 1;
+  will-change: transform;
+}
+
+.msg-swipe.is-swiping {
+  touch-action: none;
+}
+
+.msg-swipe.is-open .msg-swipe-rail,
+.msg-swipe.is-swiping .msg-swipe-rail {
+  opacity: 1;
+}
+
 .msg-admin-icon {
   flex: 0 0 auto;
   font-size: 0.72rem;
