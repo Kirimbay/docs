@@ -1304,7 +1304,7 @@
           closed: Boolean(r.closed),
           foreign: true,
         }))
-        .filter((r) => r.code);
+        .filter((r) => r.code.length === 6);
       // Keep saved-room meta fresh from the same payload.
       const byCode = new Map(res.rooms.map((r) => [normalizeDmCodeLocal(r.code), r]));
       const nextSaved = loadDmRooms()
