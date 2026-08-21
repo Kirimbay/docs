@@ -2415,20 +2415,24 @@ body.keyboard-open .pins-dialog.dialog {
   grid-area: unpin;
   align-self: center;
   flex: 0 0 auto;
-  width: 1.85rem;
-  height: 1.85rem;
-  min-width: 1.85rem;
-  margin: 0 0.1rem 0 0;
-  padding: 0;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 1.85rem;
+  margin: 0 0.15rem 0 0;
+  padding: 0.28rem 0.55rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: 10px;
   background: transparent;
   color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
 }
 
