@@ -1918,12 +1918,6 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
       return;
     }
-    if (user.isAdmin || socket.data.isAdmin) {
-      if (typeof ack === "function") {
-        ack({ ok: false, error: "Супер-админ смотрит комнаты, не создаёт свои" });
-      }
-      return;
-    }
     const accountId = getSocketAccountId(socket);
     ensureAccounts();
     const account = accountId ? store.accounts[accountId] : null;

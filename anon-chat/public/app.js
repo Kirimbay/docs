@@ -4965,10 +4965,6 @@
   });
   function createDmRoomFromForm() {
     showDmDialogError("");
-    if (isAdmin) {
-      showDmDialogError("Супер-админ смотрит комнаты, не создаёт свои");
-      return;
-    }
     const accountPin = normalizeRoomKeyLocal(loadPin() || "");
     if (accountPin.length !== 4) {
       showDmDialogError("Сначала войдите с пином аккаунта");

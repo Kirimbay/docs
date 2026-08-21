@@ -2945,7 +2945,8 @@ body.keyboard-open .pins-dialog.dialog {
   padding: max(0.45rem, env(safe-area-inset-top, 0px))
     var(--pad-x)
     max(0.45rem, env(safe-area-inset-bottom, 0px));
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
