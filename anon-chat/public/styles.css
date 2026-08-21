@@ -1811,6 +1811,73 @@ body.pins-focus-mode .feed .msg.pin-focus {
   min-width: 0;
 }
 
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  margin: 0 0 0.4rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(217, 106, 106, 0.45);
+  background: color-mix(in srgb, var(--danger) 14%, var(--bg-elev));
+  min-width: 0;
+}
+
+.bulk-bar[hidden] {
+  display: none !important;
+}
+
+.bulk-bar-count {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #f0c2bc;
+  min-width: 0;
+}
+
+.bulk-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.bulk-delete-btn {
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.42rem 0.85rem;
+  background: var(--danger);
+  color: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bulk-delete-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.msg.msg-bulk-selected {
+  outline: 1px solid rgba(217, 106, 106, 0.85);
+  box-shadow:
+    inset 3px 0 0 var(--danger),
+    0 0 0 1px rgba(217, 106, 106, 0.25);
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg-elev));
+}
+
+.msg.mine.msg-bulk-selected {
+  background: color-mix(in srgb, var(--danger) 12%, var(--mine));
+}
+
+body.bulk-select-on .composer-shell {
+  opacity: 0.42;
+  pointer-events: none;
+}
+
 .composer-shell {
   display: grid;
   gap: 0.28rem;

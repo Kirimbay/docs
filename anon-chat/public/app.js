@@ -2556,6 +2556,8 @@
   );
 
   previewClear.addEventListener("click", clearPreview);
+  bulkCancelBtn?.addEventListener("click", () => exitBulkSelectMode());
+  bulkDeleteBtn?.addEventListener("click", () => deleteBulkSelected());
 
   appToast?.addEventListener("click", (e) => {
     if (e.target === appToast || e.target.classList?.contains("app-toast-scrim") || e.target === appToastText) {
