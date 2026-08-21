@@ -1252,23 +1252,25 @@ button {
 }
 
 .dm-people-wrap.is-open {
-  /* Fixed shell: rooms below stay put whether the list is full or empty. */
-  flex: 0 0 auto;
-  height: min(48vh, 20rem);
-  max-height: min(58vh, 26rem);
-  min-height: 12rem;
-  overflow: hidden;
+  /* Rigid frame: size never depends on search hits / empty state. */
+  flex: 0 0 20rem !important;
+  width: 100%;
+  height: 20rem !important;
+  min-height: 20rem !important;
+  max-height: 20rem !important;
+  overflow: hidden !important;
 }
 
 .dm-people-wrap.is-open .dm-people-panel {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
   border: 1px solid color-mix(in srgb, var(--accent-fill) 22%, var(--line));
   border-radius: 12px;
   background: color-mix(in srgb, var(--bg-elev) 88%, var(--bg));
   padding: 0.35rem;
   gap: 0.25rem;
-  overflow: hidden;
+  overflow: hidden !important;
 }
 
 .dm-people-toggle {
@@ -1361,6 +1363,14 @@ button {
   padding: 0.05rem 0 0.1rem;
 }
 
+.dm-people-wrap.is-open .dm-people-list {
+  /* Inner scroller only — outer frame stays 20rem either way. */
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+}
+
 .dm-people-row {
   display: flex;
   align-items: center;
@@ -1420,7 +1430,9 @@ button {
   font-size: 0.74rem;
   text-align: center;
   flex: 1 1 auto;
+  align-self: stretch;
   min-height: 100%;
+  height: 100%;
   display: grid;
   place-items: center;
 }
