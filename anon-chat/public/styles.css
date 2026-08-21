@@ -1186,9 +1186,9 @@ body.admin-on #me-btn {
 }
 
 .msg.mine {
-  background: linear-gradient(180deg, #323538, #26282b);
+  background: var(--mine);
   border-color: var(--mine-line);
-  box-shadow: inset 3px 0 0 var(--mine-accent);
+  box-shadow: none;
   align-self: stretch;
   width: 100%;
   max-width: 100%;
@@ -1220,7 +1220,7 @@ body.admin-on #me-btn {
 }
 
 .msg.mine.admin {
-  background: linear-gradient(180deg, #2a3530, #222926);
+  background: #24302b;
   border-color: rgba(111, 191, 138, 0.5);
   box-shadow: inset 3px 0 0 var(--ok);
 }
@@ -1240,9 +1240,9 @@ body.admin-on #me-btn {
 }
 
 .msg.mine.pinned-item {
-  background: linear-gradient(180deg, #35383c, #292b2e);
-  border-color: #5a5e64;
-  box-shadow: inset 3px 0 0 var(--mine-accent), inset 0 0 0 1px rgba(217, 106, 106, 0.28);
+  background: #323538;
+  border-color: #6a3a3a;
+  box-shadow: inset 4px 0 0 #d96a6a;
 }
 
 .msg-pin-badge {
