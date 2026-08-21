@@ -1081,11 +1081,86 @@
     if (!pendingInvites.length) closeInvitesDialog();
   }
 
-  async function fetchRandomName(targetInput = nameInput) {
-    const res = await fetch("/api/random-name");
+  const RANDOM_NAME_FALLBACK = ["Барс", "Лис", "Сокол", "Туман", "Искра", "Парус", "Неон", "Кедр", "Роса", "Маяк"];
+  let randomNamePool = null;
+  let randomNameDeck = [];
+
+  function nameEquals(a, b) {
+    return (
+      String(a || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLocaleLowerCase("ru-RU") ===
+      String(b || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLocaleLowerCase("ru-RU")
+    );
+  }
+
+  function shuffleNames(list) {
+    const arr = [...list];
+    for (let i = arr.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function refillRandomNameDeck(avoid) {
+    const pool = randomNamePool?.length ? randomNamePool : RANDOM_NAME_FALLBACK;
+    let next = shuffleNames(pool);
+    if (avoid) {
+      const filtered = next.filter((n) => !nameEquals(n, avoid));
+      if (filtered.length) next = filtered;
+    }
+    randomNameDeck = next;
+  }
+
+  async function loadRandomNamePool() {
+    if (randomNamePool?.length) return randomNamePool;
+    const res = await fetch("/api/name-pool");
     const data = await res.json();
-    if (targetInput && data?.name) targetInput.value = data.name;
-    return data?.name || "";
+    const names = Array.isArray(data?.names)
+      ? data.names.map((n) => String(n || "").trim()).filter(Boolean)
+      : [];
+    randomNamePool = names.length ? names : RANDOM_NAME_FALLBACK;
+    return randomNamePool;
+  }
+
+  async function fetchRandomName(targetInput = nameInput) {
+    const current = (targetInput?.value || "").trim();
+    try {
+      await loadRandomNamePool();
+      if (!randomNameDeck.length) refillRandomNameDeck(current);
+
+      let next = null;
+      while (randomNameDeck.length) {
+        const candidate = randomNameDeck.pop();
+        if (!nameEquals(candidate, current)) {
+          next = candidate;
+          break;
+        }
+      }
+      if (!next) {
+        refillRandomNameDeck(current);
+        next = randomNameDeck.pop() || current;
+      }
+      if (targetInput && next) targetInput.value = next;
+      return next || "";
+    } catch {
+      if (!randomNamePool?.length) randomNamePool = RANDOM_NAME_FALLBACK;
+      if (!randomNameDeck.length) refillRandomNameDeck(current);
+      let next = randomNameDeck.pop();
+      if (!next || nameEquals(next, current)) {
+        refillRandomNameDeck(current);
+        next = randomNameDeck.pop() || current;
+      }
+      if (targetInput && next) targetInput.value = next;
+      return next || "";
+    }
   }
 
   function showGateError(text) {
@@ -2705,10 +2780,7 @@
   }
 
   randomBtn.addEventListener("click", () => {
-    fetchRandomName(nameInput).catch(() => {
-      const fallback = ["Барс", "Лис", "Сокол", "Туман", "Искра", "Парус", "Неон"];
-      nameInput.value = fallback[Math.floor(Math.random() * fallback.length)];
-    });
+    fetchRandomName(nameInput).catch(() => {});
   });
 
   function openRenameDialog() {
@@ -2938,10 +3010,7 @@
   pins.addEventListener("click", onPinBarClick);
 
   renameRandomBtn?.addEventListener("click", () => {
-    fetchRandomName(renameInput).catch(() => {
-      const fallback = ["Барс", "Лис", "Сокол", "Туман", "Искра", "Парус", "Неон"];
-      renameInput.value = fallback[Math.floor(Math.random() * fallback.length)];
-    });
+    fetchRandomName(renameInput).catch(() => {});
   });
   renameCancelBtn?.addEventListener("click", () => renameDialog?.close());
   renameApplyBtn?.addEventListener("click", applyRename);

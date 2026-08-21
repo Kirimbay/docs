@@ -236,8 +236,12 @@ function isNameTaken(name, exceptSocketId = null) {
   return findSocketIdsWithName(name, exceptSocketId).length > 0;
 }
 
-function uniqueRandomName() {
+function uniqueRandomName(extraExclude = []) {
   const taken = new Set([...online.values()].map((u) => nameKey(u.name)));
+  for (const n of extraExclude) {
+    const key = nameKey(n);
+    if (key) taken.add(key);
+  }
   const free = NAMES.filter((n) => !taken.has(nameKey(n)));
   if (free.length) return free[Math.floor(Math.random() * free.length)];
   for (let n = 0; n < 80; n += 1) {
@@ -541,8 +545,25 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/random-name", (_req, res) => {
-  res.json({ name: uniqueRandomName() });
+app.get("/api/name-pool", (_req, res) => {
+  res.json({ names: NAMES.slice() });
+});
+
+app.get("/api/random-name", (req, res) => {
+  const raw = req.query?.exclude;
+  const exclude = [];
+  if (typeof raw === "string" && raw.trim()) {
+    for (const part of raw.split(",")) {
+      const n = sanitizeName(part);
+      if (n) exclude.push(n);
+    }
+  } else if (Array.isArray(raw)) {
+    for (const part of raw) {
+      const n = sanitizeName(String(part || ""));
+      if (n) exclude.push(n);
+    }
+  }
+  res.json({ name: uniqueRandomName(exclude) });
 });
 
 app.post("/api/upload", (req, res) => {
