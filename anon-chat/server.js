@@ -373,6 +373,13 @@ if (migratePublicFeedIntoRooms(store)) {
   saveStore(store);
   console.log(`Migrated public feed into room ${PUBLIC_ROOM_CODE}`);
 }
+{
+  const removed = dedupeAccountsByNick();
+  if (removed) {
+    saveStore(store, { flush: true });
+    console.log(`Removed ${removed} duplicate nick account(s)`);
+  }
+}
 
 function loadAccess() {
   try {
@@ -1050,17 +1057,47 @@ function isAccountNickTaken(nick, exceptAccountId = null) {
 
 function createAccount(nick, pin) {
   ensureAccounts();
+  const clean = sanitizeName(nick);
+  if (!clean) return null;
+  // Atomic uniqueness: never create a second account for the same nick.
+  if (isAccountNickTaken(clean)) return null;
   const pinHash = hashAccountPin(pin);
   if (!pinHash) return null;
   const id = randomUUID();
   const account = {
     id,
-    nick: sanitizeName(nick),
+    nick: clean,
     pinHash,
     createdAt: new Date().toISOString(),
   };
   store.accounts[id] = account;
   return account;
+}
+
+/** One-time / boot: collapse duplicate nicks (race leftovers). Keep oldest. */
+function dedupeAccountsByNick() {
+  ensureAccounts();
+  const byKey = new Map();
+  const removeIds = [];
+  const list = Object.values(store.accounts).filter((a) => a && a.id);
+  list.sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+  for (const acc of list) {
+    const key = nameKey(acc.nick);
+    if (!key) continue;
+    if (!byKey.has(key)) {
+      byKey.set(key, acc);
+      continue;
+    }
+    const keep = byKey.get(key);
+    removeIds.push(acc.id);
+    // Re-point rooms owned by the duplicate to the kept account.
+    ensureRooms();
+    for (const room of Object.values(store.rooms || {})) {
+      if (room?.ownerAccountId === acc.id) room.ownerAccountId = keep.id;
+    }
+  }
+  for (const id of removeIds) delete store.accounts[id];
+  return removeIds.length;
 }
 
 function ownedRoomsForAccount(accountId) {
@@ -1784,17 +1821,48 @@ io.on("connection", (socket) => {
         // Keep stored nick casing from account.
         name = account.nick || custom;
       } else {
-        account = createAccount(custom, pin);
-        if (!account) {
+        // Nick must be free among accounts; refuse if a race already claimed it.
+        if (isAccountNickTaken(custom)) {
           if (typeof ack === "function") {
-            ack({ ok: false, error: "Нужен пин из 4 цифр" });
+            ack({ ok: false, error: "Имя уже занято — выберите другое" });
           }
           return;
         }
-        createdAccount = true;
-        name = account.nick;
+        account = createAccount(custom, pin);
+        if (!account) {
+          // Lost the race — retry as login against the winner.
+          const raced = findAccountByNick(custom);
+          if (raced && hashAccountPin(pin) === raced.pinHash) {
+            account = raced;
+            name = raced.nick || custom;
+          } else if (raced) {
+            if (typeof ack === "function") {
+              ack({ ok: false, error: "Неверный пин" });
+            }
+            return;
+          } else {
+            if (typeof ack === "function") {
+              ack({ ok: false, error: "Не удалось создать аккаунт" });
+            }
+            return;
+          }
+        } else {
+          createdAccount = true;
+          name = account.nick;
+        }
       }
       accountId = account.id;
+      // Extra guard: never allow two live sessions with the same nick from different accounts.
+      for (const [id, u] of online) {
+        if (id === socket.id) continue;
+        if (nameKey(u.name) !== nameKey(name)) continue;
+        if (u.accountId && accountId && u.accountId !== accountId) {
+          if (typeof ack === "function") {
+            ack({ ok: false, error: "Имя уже в сети под другим аккаунтом" });
+          }
+          return;
+        }
+      }
     }
 
     // One connection per nick: replace older tab/device with the same name.

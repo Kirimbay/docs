@@ -2980,6 +2980,18 @@ body.keyboard-open .pins-dialog.dialog {
   gap: 0.5rem;
 }
 
+.logout-btn,
+.gate-switch-btn {
+  width: 100%;
+  margin-top: 0.85rem;
+}
+
+.danger-outline {
+  border: 1px solid rgba(212, 103, 90, 0.45) !important;
+  color: #ffb4ab !important;
+  background: rgba(212, 103, 90, 0.1) !important;
+}
+
 .user-list {
   display: grid;
   gap: 0.35rem;

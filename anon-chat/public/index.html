@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=162" />
+    <link rel="stylesheet" href="/styles.css?v=163" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -60,6 +60,7 @@
           />
         </label>
         <button type="button" id="join-btn" class="primary">Войти</button>
+        <button type="button" id="gate-switch-btn" class="ghost gate-switch-btn">Другой аккаунт</button>
         <p id="gate-error" class="error" hidden></p>
       </div>
     </section>
@@ -201,8 +202,8 @@
 
     <dialog id="rename-dialog" class="dialog sheet-top">
       <div class="dialog-body">
-        <h2>Сменить имя</h2>
-        <p>Введите своё или нажмите «Случайное».</p>
+        <h2>Профиль</h2>
+        <p>Сменить имя или выйти из аккаунта на этом устройстве.</p>
         <label class="field">
           <span>Имя в чате</span>
           <div class="name-row">
@@ -214,6 +215,7 @@
           <button type="button" id="rename-cancel-btn" class="ghost">Отмена</button>
           <button type="button" id="rename-apply-btn" class="primary">Сохранить</button>
         </div>
+        <button type="button" id="logout-btn" class="ghost danger-outline logout-btn">Выйти</button>
       </div>
     </dialog>
 
@@ -398,6 +400,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=162"></script>
+    <script src="/app.js?v=163"></script>
   </body>
 </html>

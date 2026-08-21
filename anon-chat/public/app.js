@@ -39,6 +39,7 @@
   const renameRandomBtn = $("#rename-random-btn");
   const renameCancelBtn = $("#rename-cancel-btn");
   const renameApplyBtn = $("#rename-apply-btn");
+  const logoutBtn = $("#logout-btn");
   const meBtn = $("#me-btn");
   const dmBtn = $("#dm-btn");
   const dmBar = $("#dm-bar");
@@ -2940,7 +2941,11 @@
     if (!meBtn) return;
     const label = myName || "…";
     meBtn.textContent = label;
-    meBtn.title = isAdmin ? `Вы: ${myName}` : myName ? `Вы: ${myName} · нажмите, чтобы сменить` : "Ваше имя";
+    meBtn.title = isAdmin
+      ? `Вы: ${myName} · профиль / выйти`
+      : myName
+        ? `Вы: ${myName} · профиль / выйти`
+        : "Ваше имя";
     meBtn.classList.toggle("is-admin", isAdmin);
   }
 
@@ -4389,17 +4394,25 @@
   });
 
   function openRenameDialog() {
-    if (isAdmin) {
-      notify("В админке имя всегда АДМИН")
-      return;
-    }
     if (!renameDialog || !renameInput) return;
-    renameInput.value = myName || "";
+    if (isAdmin) {
+      // Super-admin: profile sheet is logout-only (name is always АДМИН).
+      renameInput.value = "АДМИН";
+      renameInput.disabled = true;
+      if (renameApplyBtn) renameApplyBtn.hidden = true;
+      if (renameRandomBtn) renameRandomBtn.hidden = true;
+    } else {
+      renameInput.disabled = false;
+      renameInput.value = myName || "";
+      if (renameApplyBtn) renameApplyBtn.hidden = false;
+      if (renameRandomBtn) renameRandomBtn.hidden = false;
+    }
     renameDialog.showModal();
     layoutFormDialog(renameDialog);
     // Focus after layout; do not select-all (iOS showed blue handles as if user selected).
     requestAnimationFrame(() => {
       layoutFormDialog(renameDialog);
+      if (isAdmin) return;
       try {
         renameInput.focus({ preventScroll: true });
       } catch {
@@ -4413,6 +4426,41 @@
       }
       keepDialogAboveKeyboard(renameDialog, renameInput);
     });
+  }
+
+  function logoutToGate({ keepName = false } = {}) {
+    const token = loadAdminToken();
+    const finish = () => {
+      clearAdminToken();
+      if (!keepName) {
+        savePin("");
+        try {
+          localStorage.removeItem(NAME_KEY);
+        } catch {
+          /* ignore */
+        }
+        if (nameInput) nameInput.value = "";
+        if (pinInput) pinInput.value = "";
+      } else {
+        savePin("");
+        if (pinInput) pinInput.value = "";
+      }
+      clearSessionLive();
+      renameDialog?.close();
+      adminDialog?.close();
+      leaveToGate("");
+      showGateError("");
+      notify("Вы вышли · войдите снова");
+    };
+    if (isAdmin && token) {
+      socket.emit("admin:logout", { token, name: loadPrevName() }, () => finish());
+      return;
+    }
+    if (dmCode) {
+      socket.emit("dm:leave", {}, () => finish());
+      return;
+    }
+    finish();
   }
 
   function applyRename() {
@@ -4964,15 +5012,33 @@
       meTapCount = 0;
     }, ME_TAP_WINDOW_MS);
 
-    // Single (or short) tap → rename; multi-tap streak for admin cancels this.
-    if (!isAdmin) {
-      meRenameTimer = setTimeout(() => {
-        if (meTapCount === 1) {
-          meTapCount = 0;
-          openRenameDialog();
-        }
-      }, ME_RENAME_DELAY_MS);
+    // Single tap → profile (rename + logout). Works for super-admin too.
+    meRenameTimer = setTimeout(() => {
+      if (meTapCount === 1) {
+        meTapCount = 0;
+        openRenameDialog();
+      }
+    }, ME_RENAME_DELAY_MS);
+  });
+
+  logoutBtn?.addEventListener("click", () => {
+    logoutToGate({ keepName: false });
+  });
+  const gateSwitchBtn = $("#gate-switch-btn");
+  gateSwitchBtn?.addEventListener("click", () => {
+    clearAdminToken();
+    savePin("");
+    try {
+      localStorage.removeItem(NAME_KEY);
+    } catch {
+      /* ignore */
     }
+    clearSessionLive();
+    if (nameInput) nameInput.value = "";
+    if (pinInput) pinInput.value = "";
+    showGateError("");
+    nameInput?.focus();
+    notify("Можно войти другим ником и пином");
   });
 
   adminPassword?.addEventListener("focus", () => {
