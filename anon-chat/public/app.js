@@ -87,6 +87,9 @@
   const roomChangeAdminKeyBtn = $("#room-change-admin-key-btn");
   const roomNewJoinKey = $("#room-new-join-key");
   const roomChangeJoinKeyBtn = $("#room-change-join-key-btn");
+  const roomMakeOpenBtn = $("#room-make-open-btn");
+  const roomMakeKeyedBtn = $("#room-make-keyed-btn");
+  const roomAccessStatus = $("#room-access-status");
   const roomDeleteCode = $("#room-delete-code");
   const roomDeleteKey = $("#room-delete-key");
   const roomDeleteBtn = $("#room-delete-btn");
@@ -418,12 +421,33 @@
       roomAdminPanelBtn.hidden = !(isRoomAdmin && !isAdmin && dmCode && !isPublicRoomCode(dmCode));
     }
     if (roomCloseBtn) {
-      roomCloseBtn.textContent = roomClosed ? "Открыть вход в комнату" : "Закрыть вход в комнату";
+      roomCloseBtn.textContent = roomClosed
+        ? "Открыть вход снова"
+        : "Закрыть вход · выгнать всех";
     }
     if (roomAdminPanelLead && dmCode) {
-      roomAdminPanelLead.textContent = `Номер ${dmCode}${roomKeyed ? " · по ключу" : " · свободная"}${
+      roomAdminPanelLead.textContent = `Номер ${dmCode}${roomKeyed ? " · закрытая" : " · открытая"}${
         roomClosed ? " · вход закрыт" : ""
       }`;
+    }
+    if (roomAccessStatus) {
+      const key = dmCode ? loadRoomKey(dmCode) : "";
+      roomAccessStatus.textContent = roomKeyed
+        ? key
+          ? `Сейчас: закрытая · ключ ${key}`
+          : "Сейчас: закрытая · по ключу"
+        : "Сейчас: открытая · без ключа";
+    }
+    if (roomMakeOpenBtn) {
+      roomMakeOpenBtn.hidden = !roomKeyed;
+      roomMakeOpenBtn.disabled = !isRoomAdmin;
+    }
+    if (roomMakeKeyedBtn) {
+      roomMakeKeyedBtn.hidden = Boolean(roomKeyed);
+      roomMakeKeyedBtn.disabled = !isRoomAdmin;
+    }
+    if (roomChangeJoinKeyBtn) {
+      roomChangeJoinKeyBtn.hidden = !roomKeyed;
     }
   }
 
@@ -434,6 +458,9 @@
     if (typeof res.closed === "boolean") roomClosed = res.closed;
     if (typeof res.keyed === "boolean") roomKeyed = res.keyed;
     else roomKeyed = roomAccess === "keyed";
+    if (dmCode && !isPublicRoomCode(dmCode)) {
+      rememberDmRoom(dmCode, { keyed: roomKeyed, closed: roomClosed });
+    }
     syncRoomAdminUi();
     syncDmBarMeta();
   }
@@ -858,6 +885,7 @@
                 : [],
               unread: Math.max(0, Number(item?.unread) || 0),
               keyed: Boolean(item?.keyed),
+              closed: Boolean(item?.closed),
             }))
             .filter((item) => item.code.length === 6);
         }
@@ -982,7 +1010,7 @@
 
   function rememberDmRoom(
     code,
-    { active = true, peer, messageCount, lastReadId, names, unread, keyed } = {}
+    { active = true, peer, messageCount, lastReadId, names, unread, keyed, closed } = {}
   ) {
     const c = normalizeDmCodeLocal(code);
     if (c.length !== 6) return;
@@ -1013,6 +1041,7 @@
           ? 0
           : prev?.unread || 0;
     const nextKeyed = typeof keyed === "boolean" ? keyed : Boolean(prev?.keyed);
+    const nextClosed = typeof closed === "boolean" ? closed : Boolean(prev?.closed);
     rooms.unshift({
       code: c,
       lastAt: Date.now(),
@@ -1022,6 +1051,7 @@
       names: nextNames,
       unread: nextUnread,
       keyed: nextKeyed,
+      closed: nextClosed,
     });
     saveDmRooms(rooms);
     if (active) saveDmCode(c);
@@ -1146,6 +1176,8 @@
             lastReadId: isCurrent
               ? meta.lastMessageId || room.lastReadId || ""
               : room.lastReadId || "",
+            keyed: typeof meta.keyed === "boolean" ? Boolean(meta.keyed) : Boolean(room.keyed),
+            closed: typeof meta.closed === "boolean" ? Boolean(meta.closed) : Boolean(room.closed),
           };
         })
         .filter(Boolean);
@@ -1188,6 +1220,8 @@
               lastReadId: isCurrent
                 ? meta.lastMessageId || room.lastReadId || ""
                 : room.lastReadId || "",
+              keyed: typeof meta.keyed === "boolean" ? Boolean(meta.keyed) : Boolean(room.keyed),
+              closed: typeof meta.closed === "boolean" ? Boolean(meta.closed) : Boolean(room.closed),
             };
           })
           .filter(Boolean);
@@ -1328,7 +1362,9 @@
       enterBtn.className = "dm-room-enter";
       const unread = dmCode === room.code ? 0 : Math.max(0, Number(room.unread) || 0);
       enterBtn.title = owned
-        ? `Ваша комната${keyed ? " · ключ" : ""}`
+        ? keyed
+          ? `Ваша · закрытая${loadRoomKey(room.code) ? ` · ключ ${loadRoomKey(room.code)}` : ""}`
+          : "Ваша · открытая · без ключа"
         : keyed
           ? `По ключу · ${room.code}`
           : room.foreign
@@ -1353,16 +1389,27 @@
 
       const unreadEl = document.createElement("span");
       unreadEl.className = "dm-room-unread" + (unread > 0 ? " has-new" : "");
-      unreadEl.textContent =
-        dmCode === room.code
-          ? owned || isRoomAdmin
-            ? "админ"
-            : room.foreign || isAdmin
+      if (owned) {
+        const key = loadRoomKey(room.code);
+        const access = keyed
+          ? key
+            ? `админ · ключ ${key}`
+            : "админ · закрытая"
+          : "админ · без ключа";
+        unreadEl.textContent =
+          dmCode === room.code
+            ? access
+            : unread
+              ? `${access} · ${newMessagesLabel(unread)}`
+              : access;
+      } else {
+        unreadEl.textContent =
+          dmCode === room.code
+            ? room.foreign || isAdmin
               ? "смотр"
               : "вы здесь"
-          : owned
-            ? "моя"
             : newMessagesLabel(unread);
+      }
 
       enterBtn.append(codeEl, unreadEl);
       enterBtn.addEventListener("click", () =>
@@ -1373,12 +1420,23 @@
       namesBtn.type = "button";
       namesBtn.className = "dm-room-names";
       const fullNames = Array.isArray(room.names) ? room.names : [];
-      namesBtn.textContent = namesLabel(fullNames, { collapsed: !expanded });
+      const accessHint = owned
+        ? keyed
+          ? "комната закрытая · "
+          : "комната открытая · "
+        : keyed
+          ? "по ключу · "
+          : "";
+      namesBtn.textContent = accessHint + namesLabel(fullNames, { collapsed: !expanded });
       namesBtn.title = fullNames.length
         ? expanded
           ? "Свернуть список"
           : "Показать всех"
-        : "Пока никого";
+        : owned
+          ? keyed
+            ? "Комната закрытая · по ключу"
+            : "Комната открытая · без ключа"
+          : "Пока никого";
       namesBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
       namesBtn.addEventListener("click", (e) => {
         e.preventDefault();
@@ -4776,7 +4834,7 @@
     showRoomAdminPanelError("");
     if (roomNewAdminKey) roomNewAdminKey.value = "";
     if (roomConfirmAdminKey) roomConfirmAdminKey.value = loadRoomKey(dmCode) || "";
-    if (roomNewJoinKey) roomNewJoinKey.value = roomKeyed ? "" : "";
+    if (roomNewJoinKey) roomNewJoinKey.value = roomKeyed ? loadRoomKey(dmCode) || "" : "";
     if (roomDeleteCode) roomDeleteCode.value = "";
     if (roomDeleteKey) roomDeleteKey.value = "";
     syncRoomAdminUi();
@@ -4813,20 +4871,79 @@
       showRoomAdminPanelError("Подтвердите паролем админа (4 цифры)");
       return;
     }
-    const payload =
-      newKey.length === 4
-        ? { currentKey, newKey, access: "keyed" }
-        : { currentKey, access: "open" };
-    socket.emit("room:change-join-key", payload, (res) => {
+    if (newKey.length !== 4) {
+      showRoomAdminPanelError("Новый ключ входа — ровно 4 цифры");
+      roomNewJoinKey?.focus();
+      return;
+    }
+    socket.emit(
+      "room:change-join-key",
+      { currentKey, newKey, access: "keyed" },
+      (res) => {
+        if (!res?.ok) {
+          showRoomAdminPanelError(res?.error || "Не сменилось");
+          return;
+        }
+        saveRoomKey(dmCode, newKey);
+        applyRoomFlags(res);
+        if (roomNewJoinKey) roomNewJoinKey.value = "";
+        showRoomAdminPanelError("");
+        notify("Ключ входа обновлён");
+        if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+      }
+    );
+  });
+
+  roomMakeOpenBtn?.addEventListener("click", () => {
+    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || loadRoomKey(dmCode) || "");
+    if (currentKey.length !== 4) {
+      showRoomAdminPanelError("Подтвердите паролем админа (4 цифры) сверху");
+      roomConfirmAdminKey?.focus();
+      return;
+    }
+    socket.emit("room:change-join-key", { currentKey, access: "open" }, (res) => {
       if (!res?.ok) {
-        showRoomAdminPanelError(res?.error || "Не сменилось");
+        showRoomAdminPanelError(res?.error || "Не открылось");
         return;
       }
-      if (newKey.length === 4) saveRoomKey(dmCode, newKey);
       applyRoomFlags(res);
       showRoomAdminPanelError("");
-      notify(res.keyed ? "Ключ входа обновлён" : "Комната снова свободная (без ключа входа)");
+      notify("Комната открыта · без ключа");
+      if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
     });
+  });
+
+  roomMakeKeyedBtn?.addEventListener("click", () => {
+    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || loadRoomKey(dmCode) || "");
+    const newKey = normalizeRoomKeyLocal(
+      roomNewJoinKey?.value || loadRoomKey(dmCode) || roomConfirmAdminKey?.value || ""
+    );
+    if (currentKey.length !== 4) {
+      showRoomAdminPanelError("Подтвердите паролем админа (4 цифры) сверху");
+      roomConfirmAdminKey?.focus();
+      return;
+    }
+    if (newKey.length !== 4) {
+      showRoomAdminPanelError("Укажите ключ входа из 4 цифр");
+      roomNewJoinKey?.focus();
+      return;
+    }
+    socket.emit(
+      "room:change-join-key",
+      { currentKey, newKey, access: "keyed" },
+      (res) => {
+        if (!res?.ok) {
+          showRoomAdminPanelError(res?.error || "Не закрылось");
+          return;
+        }
+        saveRoomKey(dmCode, newKey);
+        applyRoomFlags(res);
+        if (roomNewJoinKey) roomNewJoinKey.value = "";
+        showRoomAdminPanelError("");
+        notify(`Комната закрыта · ключ ${newKey}`);
+        if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+      }
+    );
   });
 
   roomCloseBtn?.addEventListener("click", () => {

@@ -721,6 +721,38 @@ button {
   margin: 0.75rem 0;
 }
 
+.room-access-zone {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.65rem 0.75rem 0.75rem;
+  border: 1px solid color-mix(in srgb, #d48806 40%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, #e09a3e 10%, var(--bg-elev));
+}
+
+.room-access-title {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #e0a85a;
+}
+
+.room-access-zone .dm-lead {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.room-access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.room-access-actions .primary,
+.room-access-actions .ghost {
+  flex: 1 1 auto;
+}
+
 .room-delete-zone {
   display: grid;
   gap: 0.45rem;

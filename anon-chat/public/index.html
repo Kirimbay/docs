@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=142" />
+    <link rel="stylesheet" href="/styles.css?v=143" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -321,15 +321,23 @@
 
         <hr class="room-admin-hr" />
 
-        <label class="field">
-          <span>Ключ входа в комнату (4 цифры) · пусто = свободная</span>
-          <input id="room-new-join-key" type="text" inputmode="numeric" maxlength="4" placeholder="или пусто" autocomplete="off" />
-        </label>
-        <button type="button" id="room-change-join-key-btn" class="ghost compact">Сменить ключ входа</button>
+        <section class="room-access-zone" aria-label="Открыть или закрыть комнату">
+          <p class="room-access-title">Доступ в комнату</p>
+          <p class="dm-lead" id="room-access-status">Сейчас: открытая · без ключа</p>
+          <label class="field">
+            <span>Ключ входа (4 цифры) — нужен, чтобы закрыть комнату</span>
+            <input id="room-new-join-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
+          </label>
+          <div class="room-access-actions">
+            <button type="button" id="room-make-open-btn" class="ghost compact">Открыть · без ключа</button>
+            <button type="button" id="room-make-keyed-btn" class="primary compact">Закрыть · по ключу</button>
+          </div>
+          <button type="button" id="room-change-join-key-btn" class="ghost compact">Сменить ключ входа</button>
+        </section>
 
         <hr class="room-admin-hr" />
 
-        <button type="button" id="room-close-btn" class="ghost compact">Закрыть вход в комнату</button>
+        <button type="button" id="room-close-btn" class="ghost compact">Закрыть вход · выгнать всех</button>
 
         <hr class="room-admin-hr" />
 
@@ -380,6 +388,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=142"></script>
+    <script src="/app.js?v=143"></script>
   </body>
 </html>
