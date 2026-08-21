@@ -1782,6 +1782,7 @@
           enterDmMode(res);
           return;
         }
+        if (res?.needsKey) clearRoomKey(dest.code);
         saveLastDest("");
         if (/не найден|проверьте код/i.test(res?.error || "")) forgetDmRoom(dest.code);
         openDmDialog({ requirePick: true });
