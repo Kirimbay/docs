@@ -1418,13 +1418,17 @@
       const rawInset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
       const keyboardOpen = focused && rawInset > 60;
       if (keyboardOpen) {
-        // Shrink to the visible viewport above the keyboard.
         height = Math.round(vv.height);
         inset = rawInset;
         document.documentElement.style.setProperty("--vv-top", `${Math.round(vv.offsetTop || 0)}px`);
       } else {
-        // Fill the whole screen — vv.height alone leaves an empty strip under the composer on iOS PWA.
-        height = Math.round(window.innerHeight);
+        // Take the tallest reliable measure so standalone iOS cannot leave a hole under the composer.
+        const vvSpan = Math.round((vv.height || 0) + (vv.offsetTop || 0));
+        height = Math.max(
+          window.innerHeight || 0,
+          document.documentElement.clientHeight || 0,
+          vvSpan
+        );
         inset = 0;
         document.documentElement.style.setProperty("--vv-top", "0px");
       }

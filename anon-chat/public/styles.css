@@ -54,13 +54,16 @@ body {
   margin: 0;
   width: 100%;
   height: 100%;
+  /* iOS PWA: dvh alone often leaves a black hole under the composer. */
   height: 100dvh;
+  height: -webkit-fill-available;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
 
 html {
   overflow: hidden;
+  background: var(--bg);
 }
 
 body {
@@ -72,7 +75,11 @@ body {
   position: fixed;
   inset: 0;
   width: 100%;
-  height: auto;
+  min-height: 100%;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+  height: 100%;
+  height: -webkit-fill-available;
   max-height: none;
   transition:
     background-color var(--motion) var(--ease-soft),
@@ -83,6 +90,7 @@ body.keyboard-open {
   --safe-bottom: 0px;
   height: var(--app-height, 100dvh);
   max-height: var(--app-height, 100dvh);
+  min-height: 0;
   top: 0;
   right: 0;
   left: 0;
@@ -91,6 +99,10 @@ body.keyboard-open {
 
 body.keyboard-open .composer {
   padding-bottom: 0.28rem;
+}
+
+body.keyboard-open .composer::after {
+  display: none;
 }
 
 button,
@@ -293,12 +305,11 @@ button {
 .app {
   position: fixed;
   inset: 0;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
   width: 100%;
-  height: auto;
+  height: 100%;
+  height: -webkit-fill-available;
+  min-height: 100%;
+  min-height: -webkit-fill-available;
   max-height: none;
   max-width: var(--app-max);
   margin: 0 auto;
@@ -316,6 +327,7 @@ body.keyboard-open .app {
   bottom: auto;
   height: var(--app-height, 100dvh);
   max-height: var(--app-height, 100dvh);
+  min-height: 0;
 }
 
 .app[hidden] {
@@ -1887,13 +1899,28 @@ body.pins-focus-mode .feed .msg.pin-focus {
 }
 
 .composer {
+  position: relative;
   flex: 0 0 auto;
   z-index: 4;
-  /* Tight bottom bar: only the system home-indicator inset, nothing extra. */
-  padding: 0.32rem var(--pad-x) env(safe-area-inset-bottom, 0px);
+  /* Only system home-indicator inset — paint continues below via ::after. */
+  padding: 0.3rem var(--pad-x) env(safe-area-inset-bottom, 0px);
   background: var(--bg-elev);
   border-top: 1px solid var(--line);
   min-width: 0;
+}
+
+/* Cover any iOS PWA “black hole” under the app with the same chrome color. */
+.composer::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--bg-elev);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .composer-shell {
@@ -2730,7 +2757,7 @@ body.keyboard-open .pins-dialog.dialog {
   }
 
   .composer {
-    padding: 0.28rem var(--pad-x) env(safe-area-inset-bottom, 0px);
+    padding: 0.26rem var(--pad-x) env(safe-area-inset-bottom, 0px);
   }
 
   .composer-shell {
