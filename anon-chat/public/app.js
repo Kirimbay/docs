@@ -1563,7 +1563,7 @@
     }
 
     // Own messages: reply/copy only — no self-reactions.
-    if (msg.name !== myName) {
+    if (!isOwnMessage(msg)) {
       const reacts = document.createElement("div");
       reacts.className = "msg-action-reacts";
       reacts.setAttribute("role", "group");
@@ -1887,7 +1887,7 @@
     const prev =
       (lastState.messages || []).find((m) => m.id === msgId) ||
       (lastState.pinned || []).find((m) => m.id === msgId);
-    if (prev?.name && prev.name === myName) {
+    if (prev && isOwnMessage(prev)) {
       notify("На своё сообщение реакцию не ставят");
       return;
     }
@@ -1922,12 +1922,18 @@
     setTimeout(() => chip.classList.remove("react-pop"), 420);
   }
 
+  function isOwnMessage(msg) {
+    const name = typeof msg?.name === "string" ? msg.name.trim() : "";
+    const me = typeof myName === "string" ? myName.trim() : "";
+    return Boolean(name && me && name === me);
+  }
+
   function renderMessage(msg) {
     const el = document.createElement("article");
     el.className = "msg";
     el.dataset.id = msg.id;
     el.dataset.name = msg.name;
-    if (msg.name === myName) el.classList.add("mine");
+    if (isOwnMessage(msg)) el.classList.add("mine");
     if (msg.pinned) el.classList.add("pinned-item");
     if (msg.admin || msg.name === "АДМИН") el.classList.add("admin");
 
@@ -2023,7 +2029,7 @@
 
     const activeWrap = document.createElement("div");
     activeWrap.className = "msg-reacts-active";
-    const isOwn = msg.name === myName;
+    const isOwn = isOwnMessage(msg);
     for (const { emoji, title } of REACTIONS) {
       const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
       if (!reactors.length) continue;
@@ -2169,6 +2175,8 @@
     if (admin) setAdminUi(true, name);
     else if (isAdmin) setAdminUi(false);
     else syncMeBtn();
+    // chat:state may have rendered before we knew our name — refresh .mine
+    if (lastState?.messages?.length) renderAll(lastState);
     pinToLatestOnce = true;
     syncViewportHeight();
     // Don't steal focus immediately — keyboard resize fights the first pin-to-bottom.
@@ -2753,7 +2761,10 @@
     // State often arrives while the gate is up; scrolling a hidden feed is lost
     // when #app becomes visible, so remember to land on the newest messages.
     if (app.hidden) pinToLatestOnce = true;
-    renderAll(state);
+    lastState = state || lastState;
+    // Prefer painting after we know myName so own bubbles get .mine.
+    if (!myName) return;
+    renderAll(lastState);
     if (pinsDialog?.open) {
       if (visiblePins().length) openPinsList();
       else closePinsList();

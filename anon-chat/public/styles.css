@@ -1187,7 +1187,7 @@ body.admin-on #me-btn {
 
 .msg.mine {
   background: var(--mine);
-  border-color: var(--mine-line);
+  border: 1px solid var(--line);
   box-shadow: none;
   align-self: stretch;
   width: 100%;
