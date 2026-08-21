@@ -1250,8 +1250,12 @@
     const peer = peerFromDmPayload({ names: roster, messages: lastState.messages || [] });
     if (peer || (Array.isArray(roster) && roster.length)) {
       rememberDmRoom(dmCode, {
-        peer,
-        names: Array.isArray(roster) ? roster : undefined,
+        peer: isPublicRoomCode(dmCode) ? publicChatLabel : peer,
+        names: isPublicRoomCode(dmCode)
+          ? [publicChatLabel]
+          : Array.isArray(roster)
+            ? roster
+            : undefined,
         messageCount: Array.isArray(lastState.messages) ? lastState.messages.length : undefined,
         lastReadId: lastMessageIdFromList(lastState.messages),
         unread: 0,

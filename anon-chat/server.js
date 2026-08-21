@@ -718,7 +718,24 @@ function rewriteStoredAuthorName(oldName, newName) {
   rewriteList(store.messages); // legacy no-op after migration
   ensureRooms();
   for (const room of Object.values(store.rooms || {})) {
-    rewriteList(room?.messages);
+    if (!room || typeof room !== "object") continue;
+    rewriteList(room.messages);
+    if (Array.isArray(room.participants)) {
+      let touched = false;
+      room.participants = room.participants.map((n) => {
+        if (nameKey(n) !== oldKey) return n;
+        touched = true;
+        return nextName;
+      });
+      if (touched) {
+        room.participants = [...new Set(room.participants.filter(Boolean))];
+        changed += 1;
+      }
+    }
+    if (nameKey(room.createdBy) === oldKey) {
+      room.createdBy = nextName;
+      changed += 1;
+    }
   }
   return changed;
 }
