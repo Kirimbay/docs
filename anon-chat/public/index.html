@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=166" />
+    <link rel="stylesheet" href="/styles.css?v=167" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -225,17 +225,15 @@
           <h2 id="dm-dialog-title">Чаты</h2>
           <button type="button" id="dm-dialog-close" class="ghost compact">Готово</button>
         </div>
-        <p id="dm-lead" class="dm-lead">Номер комнаты · короткий дополняется нулями · 30 дней без активности — удаление</p>
+        <p id="dm-lead" class="dm-lead">Короткий номер дополняется нулями · 30 дней без активности — удаление</p>
         <div id="dm-rooms-wrap" class="dm-rooms-wrap">
           <div id="dm-rooms-list" class="dm-rooms-list" role="list"></div>
         </div>
         <div class="dm-dialog-footer">
           <div class="dm-action-box dm-create-box">
-            <p class="dm-action-title">Создать новую комнату</p>
-            <p class="dm-action-lead">Номер комнаты и ключ — ключ только для закрытой</p>
             <div class="dm-action-fields">
               <label class="field dm-code-field">
-                <span>Номер комнаты</span>
+                <span class="visually-hidden">Номер комнаты</span>
                 <input
                   id="dm-create-code"
                   type="text"
@@ -243,11 +241,12 @@
                   pattern="[0-9]{1,6}"
                   maxlength="6"
                   autocomplete="off"
-                  placeholder="номер комнаты"
+                  placeholder="номер"
+                  aria-label="Номер комнаты"
                 />
               </label>
               <label class="field dm-key-field">
-                <span>Ключ</span>
+                <span class="visually-hidden">Ключ</span>
                 <input
                   id="dm-create-join-key"
                   type="text"
@@ -255,18 +254,17 @@
                   pattern="[0-9]{4}"
                   maxlength="4"
                   autocomplete="off"
-                  placeholder="ключ если закрытая"
+                  placeholder="ключ"
+                  aria-label="Ключ комнаты"
                 />
               </label>
+              <button type="button" id="dm-create-btn" class="primary dm-action-btn">Создать</button>
             </div>
-            <button type="button" id="dm-create-btn" class="primary dm-action-btn">Создать</button>
           </div>
           <div class="dm-action-box dm-join-box">
-            <p class="dm-action-title">Войти в существующую комнату</p>
-            <p class="dm-action-lead">Номер комнаты и ключ — если комната закрытая</p>
             <div class="dm-action-fields">
               <label class="field dm-code-field">
-                <span>Номер комнаты</span>
+                <span class="visually-hidden">Номер комнаты</span>
                 <input
                   id="dm-code-input"
                   type="text"
@@ -276,11 +274,12 @@
                   autocomplete="one-time-code"
                   autocapitalize="off"
                   spellcheck="false"
-                  placeholder="номер комнаты"
+                  placeholder="номер"
+                  aria-label="Номер комнаты"
                 />
               </label>
               <label class="field dm-key-field" id="dm-join-key-wrap">
-                <span>Ключ</span>
+                <span class="visually-hidden">Ключ</span>
                 <input
                   id="dm-join-key"
                   type="text"
@@ -288,11 +287,12 @@
                   pattern="[0-9]{4}"
                   maxlength="4"
                   autocomplete="off"
-                  placeholder="ключ если закрытая"
+                  placeholder="ключ"
+                  aria-label="Ключ комнаты"
                 />
               </label>
+              <button type="button" id="dm-join-btn" class="primary dm-action-btn">Войти</button>
             </div>
-            <button type="button" id="dm-join-btn" class="primary dm-action-btn">Войти</button>
           </div>
           <p id="dm-dialog-error" class="error" hidden></p>
         </div>
@@ -400,6 +400,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=166"></script>
+    <script src="/app.js?v=167"></script>
   </body>
 </html>
