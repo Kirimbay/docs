@@ -753,7 +753,7 @@
     }
     if (hubBulkDeleteBtn) {
       hubBulkDeleteBtn.disabled = n === 0 || hubBulkDeleting;
-      hubBulkDeleteBtn.textContent = n > 0 ? `Удалить · ${n}` : "Удалить";
+      hubBulkDeleteBtn.textContent = n > 0 ? `Убрать · ${n}` : "Убрать";
     }
   }
 
@@ -782,7 +782,7 @@
     } catch {
       /* ignore */
     }
-    notify("Режим удаления · отметьте комнаты", { dim: true, clearMs: 1800 });
+    notify("Режим выбора · отметьте комнаты, чтобы убрать", { dim: true, clearMs: 1800 });
   }
 
   function toggleHubBulkRoom(code, rowEl) {
@@ -802,8 +802,9 @@
 
   function roomDeleteKind(room) {
     if (!room) return "forget";
+    // Only super-admin deletes foreign rooms from the hub ×.
+    // Regular users (incl. owners) only «убрать» — permanent delete is in settings.
     if (room.foreign && isAdmin) return "admin";
-    if (isOwnedRoom(room.code) && !room.foreign) return "owned";
     return "forget";
   }
 
@@ -822,7 +823,7 @@
     const byCode = new Map(roomsForDmList().map((r) => [r.code, r]));
     const foreverN = codes.filter((c) => {
       const kind = roomDeleteKind(byCode.get(c) || { code: c });
-      return kind === "owned" || kind === "admin";
+      return kind === "admin";
     }).length;
     const ok = await askConfirm({
       title: foreverN ? "Удалить комнату?" : "Убрать из списка?",
@@ -832,17 +833,11 @@
             ? `Комната ${codes[0]} пропадёт навсегда.\nСообщения и участники тоже.`
             : `Убрать комнату ${codes[0]} из списка?`
           : foreverN
-            ? `Удалить ${codes.length} комнат?\nСвои (${foreverN}) пропадут навсегда.`
+            ? `Удалить ${codes.length} комнат?\nВыбранные чужие пропадут навсегда.`
             : `Убрать ${codes.length} комнат из списка?`,
       okLabel: foreverN ? "Удалить навсегда" : "Убрать",
     });
     if (!ok) return;
-
-    const pin = normalizeRoomKeyLocal(loadPin() || "");
-    if (foreverN && !isAdmin && pin.length !== 4) {
-      notify("Нужен пин аккаунта, чтобы удалить свои комнаты");
-      return;
-    }
 
     hubBulkDeleting = true;
     syncHubBulkBar();
@@ -860,19 +855,6 @@
         adminRoomCatalog = adminRoomCatalog.filter((r) => r.code !== code);
         forgetDmRoom(code);
         expandedDmRoomCodes.delete(code);
-        if (dmCode === code) leaveDmMode({ quiet: true, openHub: true });
-        deleted += 1;
-        continue;
-      }
-      if (kind === "owned") {
-        const res = await emitRoomDelete(code, { key: pin });
-        if (!res?.ok) {
-          failed += 1;
-          continue;
-        }
-        forgetDmRoom(code);
-        expandedDmRoomCodes.delete(code);
-        if (dmCode === code) leaveDmMode({ quiet: true, openHub: true });
         deleted += 1;
         continue;
       }
@@ -882,10 +864,10 @@
     }
     exitHubBulkSelectMode();
     renderDmRoomsList({ skipRefresh: true });
-    if (failed && deleted) notify(`Удалено ${deleted} · не вышло ${failed}`);
-    else if (failed) notify("Не удалилось");
-    else if (deleted === 1) notify(`Комната ${codes[0]} удалена`);
-    else notify(`Удалено комнат: ${deleted}`);
+    if (failed && deleted) notify(`Готово ${deleted} · не вышло ${failed}`);
+    else if (failed) notify("Не получилось");
+    else if (deleted === 1) notify(foreverN ? `Комната ${codes[0]} удалена` : `Комната ${codes[0]} убрана`);
+    else notify(foreverN ? `Удалено комнат: ${deleted}` : `Убрано комнат: ${deleted}`);
   }
 
   function handleHubRoomEnterTap(room) {
@@ -1780,10 +1762,12 @@
   function forgetDmRoom(code) {
     const c = normalizeDmCodeLocal(code);
     if (!c) return;
+    const wasHere = dmCode === c;
     saveDmRooms(loadDmRooms().filter((r) => r.code !== c));
     unmarkOwnedRoom(c);
     if (loadDmCode() === c) saveDmCode("");
     clearRoomKey(c);
+    if (wasHere) leaveDmMode({ quiet: true, openHub: true });
     if (socket.connected && !isAdmin && c !== PUBLIC_ROOM_CODE) {
       socket.emit("rooms:forget", { code: c }, (res) => {
         if (!res?.ok || !Array.isArray(res.knownRooms)) return;
@@ -2031,20 +2015,20 @@
         forgetBtn.className = "dm-room-forget ghost compact";
         forgetBtn.dataset.code = room.code;
         const destroyForeign = Boolean(room.foreign && isAdmin);
-        const destroyOwned = Boolean(owned && !room.foreign);
-        const destroyForever = destroyForeign || destroyOwned;
         forgetBtn.hidden = hubBulkSelectOn;
         forgetBtn.setAttribute(
           "aria-label",
-          destroyForever ? `Удалить комнату ${room.code}` : `Убрать ${room.code} из списка`
+          destroyForeign ? `Удалить комнату ${room.code}` : `Убрать ${room.code} из списка`
         );
-        forgetBtn.title = destroyForever
-          ? "Нажмите дважды — спросим подтверждение"
-          : "Нажмите дважды — спросим подтверждение";
+        forgetBtn.title = destroyForeign
+          ? "Нажмите дважды — удалить навсегда"
+          : "Нажмите дважды — убрать из списка";
         forgetBtn.textContent = "×";
         if (forgetArmedCode === room.code) {
           forgetBtn.classList.add("armed");
-          forgetBtn.title = "Ещё раз — подтвердить удаление";
+          forgetBtn.title = destroyForeign
+            ? "Ещё раз — подтвердить удаление"
+            : "Ещё раз — убрать";
         }
         forgetBtn.addEventListener("click", (e) => {
           e.preventDefault();
@@ -2071,20 +2055,9 @@
                   adminRoomCatalog = adminRoomCatalog.filter((r) => r.code !== room.code);
                   forgetDmRoom(room.code);
                   expandedDmRoomCodes.delete(room.code);
-                  if (dmCode === room.code) leaveDmMode({ quiet: true, openHub: true });
                   renderDmRoomsList({ skipRefresh: true });
                   notify(`Комната ${room.code} удалена`);
                 });
-                return;
-              }
-              if (destroyOwned) {
-                const ok = await askConfirm({
-                  title: "Удалить комнату?",
-                  text: `Комната ${room.code} пропадёт навсегда.\nСообщения и участники тоже.`,
-                  okLabel: "Удалить навсегда",
-                });
-                if (!ok) return;
-                destroyOwnedRoomFromHub(room.code);
                 return;
               }
               const ok = await askConfirm({
@@ -2096,13 +2069,16 @@
               forgetDmRoom(room.code);
               expandedDmRoomCodes.delete(room.code);
               renderDmRoomsList({ skipRefresh: true });
+              notify(`Комната ${room.code} убрана`);
             })();
             return;
           }
           clearForgetArm();
           forgetArmedCode = room.code;
           forgetBtn.classList.add("armed");
-          forgetBtn.title = "Ещё раз — подтвердить удаление";
+          forgetBtn.title = destroyForeign
+            ? "Ещё раз — подтвердить удаление"
+            : "Ещё раз — убрать";
           forgetArmedTimer = setTimeout(() => {
             if (forgetArmedCode !== room.code) return;
             clearForgetArm();

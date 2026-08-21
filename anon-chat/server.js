@@ -1110,6 +1110,47 @@ function ensureAccountHub(account) {
   return account.hubRooms;
 }
 
+function ensureAccountHubHidden(account) {
+  if (!account || typeof account !== "object") return [];
+  if (!Array.isArray(account.hubHidden)) account.hubHidden = [];
+  return account.hubHidden;
+}
+
+function isHubHidden(account, code) {
+  const c = normalizeRoomCode(code);
+  if (!c || !account) return false;
+  return ensureAccountHubHidden(account).some((row) => normalizeRoomCode(row) === c);
+}
+
+function hideAccountHubRoom(accountId, code) {
+  if (!accountId) return false;
+  ensureAccounts();
+  const account = store.accounts[accountId];
+  if (!account) return false;
+  const c = normalizeRoomCode(code);
+  if (!c || isPublicRoomCode(c)) return false;
+  unpinAccountHubRoom(accountId, c);
+  const hidden = ensureAccountHubHidden(account);
+  if (!hidden.some((row) => normalizeRoomCode(row) === c)) {
+    hidden.unshift(c);
+    if (hidden.length > 120) account.hubHidden = hidden.slice(0, 120);
+  }
+  return true;
+}
+
+function unhideAccountHubRoom(accountId, code) {
+  if (!accountId) return false;
+  ensureAccounts();
+  const account = store.accounts[accountId];
+  if (!account) return false;
+  const c = normalizeRoomCode(code);
+  const hidden = ensureAccountHubHidden(account);
+  const next = hidden.filter((row) => normalizeRoomCode(row) !== c);
+  if (next.length === hidden.length) return false;
+  account.hubHidden = next;
+  return true;
+}
+
 /** Persist a room on the account hub (cross-device list). */
 function pinAccountHubRoom(accountId, code, { keyed = false, joinKey = "" } = {}) {
   if (!accountId) return false;
@@ -1118,6 +1159,7 @@ function pinAccountHubRoom(accountId, code, { keyed = false, joinKey = "" } = {}
   if (!account) return false;
   const c = normalizeRoomCode(code);
   if (!c || isPublicRoomCode(c)) return false;
+  unhideAccountHubRoom(accountId, c);
   const list = ensureAccountHub(account);
   const key = normalizeRoomKey(joinKey);
   const idx = list.findIndex((row) => normalizeRoomCode(row?.code) === c);
@@ -1160,6 +1202,7 @@ function hubRoomsForAccount(accountId, nick = "") {
   const touch = (code, patch = {}) => {
     const c = normalizeRoomCode(code);
     if (!c || isPublicRoomCode(c)) return;
+    if (isHubHidden(account, c) && !patch.forceShow) return;
     const room = store.rooms[c];
     if (!room) return; // deleted rooms drop out of the hub
     const prev = map.get(c) || {};
@@ -1183,11 +1226,12 @@ function hubRoomsForAccount(accountId, nick = "") {
         member: true,
         keyed: Boolean(row?.keyed),
         joinKey: row?.joinKey || "",
+        forceShow: true,
       });
     }
   }
 
-  // 2) Always include owned rooms.
+  // 2) Include owned rooms unless the user hid them with × (убрать).
   if (accountId) {
     for (const room of Object.values(store.rooms || {})) {
       if (!room || isPublicRoomCode(room.code)) continue;
@@ -2639,7 +2683,7 @@ io.on("connection", (socket) => {
     emitDmPresence(code);
   });
 
-  /** Remove a room from this account's hub on all devices. */
+  /** Remove a room from this account's hub on all devices (убрать, not delete). */
   socket.on("rooms:forget", (payload = {}, ack) => {
     const accountId = getSocketAccountId(socket);
     if (!accountId) {
@@ -2651,10 +2695,20 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Нужен номер комнаты" });
       return;
     }
-    const changed = unpinAccountHubRoom(accountId, code);
-    if (changed) saveStore(store);
+    const wasHere = socket.data.roomCode === code;
+    hideAccountHubRoom(accountId, code);
+    if (wasHere) {
+      leaveDmRoom(socket);
+      socket.emit("chat:state", emptyPublicSnapshot());
+    }
+    saveStore(store);
     if (typeof ack === "function") {
-      ack({ ok: true, code, knownRooms: hubRoomsForAccount(accountId, socket.data.name || "") });
+      ack({
+        ok: true,
+        code,
+        left: wasHere,
+        knownRooms: hubRoomsForAccount(accountId, socket.data.name || ""),
+      });
     }
   });
 
