@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=190" />
+    <link rel="stylesheet" href="/styles.css?v=191" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -264,12 +264,12 @@
                   pattern="[0-9]{1,6}"
                   maxlength="6"
                   autocomplete="off"
-                  placeholder="новый"
-                  aria-label="Новый номер комнаты"
+                  placeholder="номер"
+                  aria-label="Номер комнаты"
                 />
               </label>
               <label class="field dm-key-field">
-                <span class="visually-hidden">Ключ для других</span>
+                <span class="visually-hidden">Ключ</span>
                 <input
                   id="dm-create-join-key"
                   type="text"
@@ -277,8 +277,8 @@
                   pattern="[0-9]{4}"
                   maxlength="4"
                   autocomplete="off"
-                  placeholder="ключ?"
-                  aria-label="Ключ для других"
+                  placeholder="ключ"
+                  aria-label="Ключ комнаты"
                 />
               </label>
               <button type="button" id="dm-create-btn" class="primary dm-action-btn">Создать</button>
@@ -297,7 +297,7 @@
                   autocomplete="one-time-code"
                   autocapitalize="off"
                   spellcheck="false"
-                  placeholder="войти №"
+                  placeholder="номер"
                   aria-label="Номер комнаты"
                 />
               </label>
@@ -434,6 +434,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=190"></script>
+    <script src="/app.js?v=191"></script>
   </body>
 </html>
