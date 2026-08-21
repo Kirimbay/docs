@@ -1617,7 +1617,7 @@
         const unpinBtn = document.createElement("button");
         unpinBtn.type = "button";
         unpinBtn.className = "pins-unpin";
-        unpinBtn.textContent = "📌";
+        unpinBtn.textContent = "Открепить";
         unpinBtn.title = "Нажмите дважды, чтобы открепить";
         unpinBtn.setAttribute("aria-label", "Открепить");
         if (unpinArmedId === msg.id) unpinBtn.classList.add("armed");
@@ -1797,6 +1797,24 @@
         copyBubbleText(msg);
       });
       menu.append(copyBtn);
+    }
+
+    if (isAdmin && !dmCode) {
+      const pinBtn = document.createElement("button");
+      pinBtn.type = "button";
+      pinBtn.className = "msg-action-reply";
+      pinBtn.setAttribute("role", "menuitem");
+      pinBtn.textContent = msg.pinned ? "Открепить" : "Закрепить";
+      pinBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMsgActionMenu();
+        const event = msg.pinned ? "admin:unpin" : "admin:pin";
+        socket.emit(event, { id: msg.id }, (res) => {
+          if (!res?.ok) notify(res?.error || "Ошибка");
+        });
+      });
+      menu.append(pinBtn);
     }
 
     // Own messages: reply/copy only — no self-reactions.
@@ -2383,21 +2401,6 @@
       activeWrap.append(chip);
     }
     if (activeWrap.childElementCount) actions.append(activeWrap);
-
-    if (isAdmin && !dmCode) {
-      const pinBtn = document.createElement("button");
-      pinBtn.type = "button";
-      pinBtn.textContent = "📌";
-      pinBtn.title = msg.pinned ? "Открепить" : "Закрепить";
-      pinBtn.className = "msg-admin-icon";
-      pinBtn.addEventListener("click", () => {
-        const event = msg.pinned ? "admin:unpin" : "admin:pin";
-        socket.emit(event, { id: msg.id }, (res) => {
-          if (!res?.ok) notify(res?.error || "Ошибка")
-        });
-      });
-      actions.append(pinBtn);
-    }
 
     // Desktop: double-tap ✕. On iPhone / touch: swipe left instead (avoids copy conflict).
     if (isAdmin && !prefersTouchAdminDelete()) {
