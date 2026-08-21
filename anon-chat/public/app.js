@@ -763,7 +763,7 @@
         return;
       }
       enterDmMode(res);
-      dmDialog?.close();
+      void closeDmDialogSoft();
     });
   }
 
@@ -956,9 +956,7 @@
     if (dmBar) dmBar.hidden = false;
     if (dmBarCode) dmBarCode.textContent = res.code;
     clearReply();
-    pinToLatestOnce = true;
-    renderAll({ messages: res.messages || [], pinned: [] });
-    schedulePinToLatest();
+    renderAll({ messages: res.messages || [], pinned: [] }, { briefPin: true });
     updateDmPresence(res);
     if (messageInput) messageInput.placeholder = "Написать в комнату…";
     notify(
@@ -983,7 +981,14 @@
     if (dmBar) dmBar.hidden = true;
     if (messageInput) messageInput.placeholder = "Написать сообщение…";
     clearReply();
-    pinToLatestOnce = true;
+    // Restore public feed under the dialog before it closes — avoids a blank
+    // flash and a second hard rebuild when chat:state arrives with the same data.
+    if (publicStateBackup) {
+      renderAll(publicStateBackup, { briefPin: true });
+      publicStateBackup = null;
+    } else {
+      schedulePinToLatest({ brief: true });
+    }
     socket.emit("dm:leave", {}, () => {
       /* chat:state follows from server */
     });
@@ -1530,7 +1535,7 @@
     jumpBottomBtn.hidden = true;
   }
 
-  function schedulePinToLatest() {
+  function schedulePinToLatest({ brief = false } = {}) {
     pinToLatestOnce = true;
     const run = () => {
       if (app.hidden) return;
@@ -1541,6 +1546,10 @@
       run();
       requestAnimationFrame(run);
     });
+    if (brief) {
+      setTimeout(run, 80);
+      return;
+    }
     setTimeout(run, 60);
     setTimeout(run, 220);
     setTimeout(run, 480);
@@ -1549,6 +1558,33 @@
       if (img.complete) return;
       img.addEventListener("load", run, { once: true });
     });
+  }
+
+  function feedShowsMessages(messages) {
+    const list = Array.isArray(messages) ? messages : [];
+    const nodes = feed.querySelectorAll(".msg[data-id]");
+    if (nodes.length !== list.length) return false;
+    for (let i = 0; i < list.length; i += 1) {
+      if (nodes[i].dataset.id !== list[i]?.id) return false;
+    }
+    return true;
+  }
+
+  async function closeDmDialogSoft() {
+    if (!dmDialog?.open) return;
+    dmDialog.classList.add("is-leaving");
+    await new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        resolve();
+      };
+      dmDialog.addEventListener("transitionend", finish, { once: true });
+      setTimeout(finish, 180);
+    });
+    if (dmDialog.open) dmDialog.close();
+    dmDialog.classList.remove("is-leaving");
   }
 
   function lockPageScroll() {
@@ -2857,13 +2893,19 @@
     if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
   }
 
-  function renderAll(state) {
+  function renderAll(state, { briefPin = false } = {}) {
     closeAllReactMenus();
     document.querySelectorAll("body > .msg-react-menu, body > .msg-action-menu").forEach((m) => m.remove());
     lastState = state || lastState;
     const { messages = [] } = lastState;
 
     updatePinBar();
+
+    // Same transcript already on screen (e.g. leave room → chat:state echo).
+    if (feedShowsMessages(messages)) {
+      if (pinToLatestOnce) schedulePinToLatest({ brief: true });
+      return;
+    }
 
     const stick = pinToLatestOnce || isNearBottom(80);
     pinToLatestOnce = false;
@@ -2876,7 +2918,7 @@
     }
 
     if (stick) {
-      schedulePinToLatest();
+      schedulePinToLatest({ brief: briefPin });
     } else {
       updateJumpBottom();
     }
@@ -3674,9 +3716,11 @@
   dmLeavePublicBtn?.addEventListener("click", () => {
     leaveDmMode();
     syncDmBtn();
-    dmDialog?.close();
+    void closeDmDialogSoft();
   });
-  dmDialogClose?.addEventListener("click", () => dmDialog?.close());
+  dmDialogClose?.addEventListener("click", () => {
+    void closeDmDialogSoft();
+  });
   dmCreateBtn?.addEventListener("click", () => {
     showDmDialogError("");
     socket.emit("dm:create", {}, (res) => {
@@ -3685,7 +3729,7 @@
         return;
       }
       enterDmMode(res);
-      dmDialog?.close();
+      void closeDmDialogSoft();
       notify(`Код ${res.code} — поделитесь с участниками`);
     });
   });
@@ -3702,6 +3746,7 @@
   });
   dmDialog?.addEventListener("close", () => {
     clearForgetArm();
+    dmDialog.classList.remove("is-leaving");
     dmDialog.removeAttribute("style");
   });
   dmCodeInput?.addEventListener("focus", () => keepDialogAboveKeyboard(dmDialog, dmCodeInput));

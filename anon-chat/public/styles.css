@@ -457,25 +457,10 @@ button {
   background: var(--dm-bg);
   color: var(--dm-ink);
   flex-wrap: wrap;
-  max-height: 4rem;
-  opacity: 1;
-  overflow: hidden;
-  transition:
-    max-height var(--motion) var(--ease-out),
-    opacity var(--motion) var(--ease-out),
-    padding var(--motion) var(--ease-out),
-    visibility var(--motion);
 }
 
 .dm-bar[hidden] {
-  display: flex !important;
-  max-height: 0;
-  opacity: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  border-bottom-width: 0;
-  pointer-events: none;
-  visibility: hidden;
+  display: none !important;
 }
 
 .dm-bar-text {
@@ -2364,6 +2349,18 @@ body.bulk-select-on .composer-shell {
 
 #dm-dialog.dm-dialog.dialog[open]::backdrop {
   animation: backdrop-in var(--motion) var(--ease-soft) both;
+}
+
+#dm-dialog.dm-dialog.dialog.is-leaving,
+#dm-dialog.dm-dialog.dialog.is-leaving[open] {
+  opacity: 0 !important;
+  transition: opacity 160ms var(--ease-soft) !important;
+}
+
+#dm-dialog.dm-dialog.dialog.is-leaving[open]::backdrop {
+  opacity: 0;
+  transition: opacity 160ms var(--ease-soft);
+  animation: none !important;
 }
 
 @keyframes dialog-in {
