@@ -520,51 +520,70 @@ button {
 .dm-dialog .dialog-body {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.35rem;
   height: 100%;
   max-height: 100%;
   min-height: 0;
-  padding: max(0.7rem, env(safe-area-inset-top, 0px))
-    max(0.85rem, env(safe-area-inset-right, 0px))
-    max(0.7rem, env(safe-area-inset-bottom, 0px))
-    max(0.85rem, env(safe-area-inset-left, 0px));
+  padding: max(0.35rem, env(safe-area-inset-top, 0px))
+    max(0.45rem, env(safe-area-inset-right, 0px))
+    max(0.35rem, env(safe-area-inset-bottom, 0px))
+    max(0.45rem, env(safe-area-inset-left, 0px));
   overflow: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
-.dm-dialog h2 {
+.dm-dialog-top {
   flex: 0 0 auto;
-  font-size: 1.25rem;
-  line-height: 1.15;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.dm-dialog-top h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.1;
+}
+
+.dm-dialog-top .ghost {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
 }
 
 .dm-dialog .dm-lead,
 .dm-dialog .dm-leave-public-btn,
-.dm-dialog .dm-create-btn,
-.dm-dialog .dm-code-field,
-.dm-dialog .error,
-.dm-dialog .dialog-actions {
+.dm-dialog-footer {
   flex: 0 0 auto;
+}
+
+.dm-dialog-footer {
+  display: grid;
+  gap: 0.3rem;
+  padding-top: 0.15rem;
+  border-top: 1px solid var(--line);
 }
 
 .dm-lead {
   margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.3;
+  font-size: 0.68rem;
+  line-height: 1.25;
   color: var(--ink-soft);
 }
 
 .dm-leave-public-btn {
   width: 100%;
   margin: 0;
-  padding: 0.58rem 0.9rem;
-  border-radius: 12px;
+  padding: 0.4rem 0.7rem;
+  border-radius: 10px;
   border: 1px solid var(--dm-line);
   background: rgba(111, 191, 138, 0.12);
   color: var(--dm-accent);
   font: inherit;
-  font-size: 0.92rem;
+  font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -585,19 +604,24 @@ button {
 
 .dm-create-btn {
   width: 100%;
-  padding: 0.55rem 0.9rem;
-  font-size: 0.9rem;
-  border-radius: 12px;
+  padding: 0.42rem 0.75rem;
+  font-size: 0.86rem;
+  border-radius: 10px;
+}
+
+.dm-dialog .dm-code-field {
+  margin: 0;
+  gap: 0.18rem;
 }
 
 .dm-code-field span {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
 }
 
 .dm-code-field input {
-  min-height: 2.25rem;
-  padding: 0.45rem 0.65rem;
-  font-size: 1rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.95rem;
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
 }
@@ -605,9 +629,9 @@ button {
 .dm-rooms-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.28rem;
+  gap: 0.18rem;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
 }
 
@@ -617,23 +641,24 @@ button {
 
 .dm-rooms-heading {
   flex: 0 0 auto;
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   font-weight: 600;
   color: var(--ink-soft);
 }
 
 .dm-rooms-list {
   display: grid;
-  gap: 0.28rem;
-  flex: 1 1 auto;
+  align-content: start;
+  gap: 0.18rem;
+  flex: 1 1 0;
   min-height: 0;
   max-height: none;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding: 0.32rem;
+  padding: 0.18rem;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--bg);
   scrollbar-width: thin;
   scrollbar-color: #3a3d42 transparent;
@@ -642,14 +667,14 @@ button {
 .dm-room-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.25rem;
+  gap: 0.18rem;
   align-items: start;
   min-width: 0;
 }
 
 .dm-room-main {
   display: grid;
-  gap: 0.18rem;
+  gap: 0.08rem;
   min-width: 0;
 }
 
@@ -657,11 +682,11 @@ button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.35rem;
   min-width: 0;
-  padding: 0.4rem 0.55rem;
+  padding: 0.28rem 0.42rem;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--bg-elev);
   color: inherit;
   text-align: left;
@@ -675,15 +700,15 @@ button {
 
 .dm-room-code {
   font-family: var(--font-body);
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: #8fd9ad;
 }
 
 .dm-room-unread {
   justify-self: end;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -697,18 +722,41 @@ button {
   display: block;
   width: 100%;
   margin: 0;
-  padding: 0.05rem 0.35rem 0.15rem;
+  padding: 0 0.3rem 0.05rem;
   border: 0;
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 0.72rem;
-  line-height: 1.35;
+  font-size: 0.66rem;
+  line-height: 1.3;
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.dm-room-row.is-expanded .dm-room-names {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  color: var(--ink-soft);
+}
+
+.dm-room-forget {
+  width: 1.65rem;
+  min-width: 1.65rem;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  color: var(--muted);
+  border-color: var(--line);
+  background: var(--bg-elev);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color var(--motion-fast) var(--ease-soft),
+    background-color var(--motion-fast) var(--ease-soft),
+    border-color var(--motion-fast) var(--ease-soft);
 }
 
 .dm-room-row.is-expanded .dm-room-names {

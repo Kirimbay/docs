@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=120" />
+    <link rel="stylesheet" href="/styles.css?v=122" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -206,8 +206,11 @@
 
     <dialog id="dm-dialog" class="dialog dm-dialog">
       <div class="dialog-body">
-        <h2>Комната</h2>
-        <p id="dm-lead" class="dm-lead">Комната по коду · до 100 человек, история до 5000 сообщений.</p>
+        <div class="dm-dialog-top">
+          <h2>Комната</h2>
+          <button type="button" id="dm-dialog-close" class="ghost compact">Закрыть</button>
+        </div>
+        <p id="dm-lead" class="dm-lead">До 100 человек · история до 5000</p>
         <button type="button" id="dm-leave-public-btn" class="dm-leave-public-btn" hidden>
           В общий чат
         </button>
@@ -215,27 +218,26 @@
           <span class="dm-rooms-heading">Ваши комнаты</span>
           <div id="dm-rooms-list" class="dm-rooms-list" role="list"></div>
         </div>
-        <button type="button" id="dm-create-btn" class="primary dm-create-btn">Новая комната</button>
-        <label class="field dm-code-field">
-          <span>Пин</span>
-          <div class="name-row">
-            <input
-              id="dm-code-input"
-              type="text"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              maxlength="6"
-              autocomplete="one-time-code"
-              autocapitalize="off"
-              spellcheck="false"
-              placeholder="введите пин"
-            />
-            <button type="button" id="dm-join-btn" class="ghost">Войти</button>
-          </div>
-        </label>
-        <p id="dm-dialog-error" class="error" hidden></p>
-        <div class="dialog-actions">
-          <button type="button" id="dm-dialog-close" class="ghost compact">Закрыть</button>
+        <div class="dm-dialog-footer">
+          <button type="button" id="dm-create-btn" class="primary dm-create-btn">Новая комната</button>
+          <label class="field dm-code-field">
+            <span>Пин</span>
+            <div class="name-row">
+              <input
+                id="dm-code-input"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                maxlength="6"
+                autocomplete="one-time-code"
+                autocapitalize="off"
+                spellcheck="false"
+                placeholder="введите пин"
+              />
+              <button type="button" id="dm-join-btn" class="ghost">Войти</button>
+            </div>
+          </label>
+          <p id="dm-dialog-error" class="error" hidden></p>
         </div>
       </div>
     </dialog>
@@ -264,6 +266,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=120"></script>
+    <script src="/app.js?v=121"></script>
   </body>
 </html>
