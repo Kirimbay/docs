@@ -2991,8 +2991,7 @@ body.keyboard-open .pins-dialog.dialog {
   gap: 0.5rem;
 }
 
-.logout-btn,
-.gate-switch-btn {
+.logout-btn {
   width: 100%;
   margin-top: 0.85rem;
 }

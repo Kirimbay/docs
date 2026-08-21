@@ -5070,22 +5070,6 @@
   logoutBtn?.addEventListener("click", () => {
     logoutToGate({ keepName: false });
   });
-  const gateSwitchBtn = $("#gate-switch-btn");
-  gateSwitchBtn?.addEventListener("click", () => {
-    clearAdminToken();
-    savePin("");
-    try {
-      localStorage.removeItem(NAME_KEY);
-    } catch {
-      /* ignore */
-    }
-    clearSessionLive();
-    if (nameInput) nameInput.value = "";
-    if (pinInput) pinInput.value = "";
-    showGateError("");
-    nameInput?.focus();
-    notify("Можно войти другим ником и пином");
-  });
 
   adminPassword?.addEventListener("focus", () => {
     adminSheetFrozen = false;
