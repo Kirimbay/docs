@@ -1228,6 +1228,22 @@ button {
   outline: none;
 }
 
+.dm-room-row.is-bulk-selected {
+  outline: 2px solid rgba(217, 106, 106, 0.75);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--danger) 12%, var(--bg-elev));
+  border-radius: 12px;
+}
+
+body.hub-bulk-select-on .dm-room-enter {
+  cursor: pointer;
+}
+
+.hub-bulk-bar {
+  flex: 0 0 auto;
+  margin: 0.15rem 0 0.35rem;
+}
+
 body.keyboard-open #dm-dialog.dm-dialog.dialog,
 body.keyboard-open #dm-dialog.dm-dialog.dialog[open] {
   top: var(--vv-top, 0px) !important;

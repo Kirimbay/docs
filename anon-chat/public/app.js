@@ -63,6 +63,10 @@
   const dmDialogClose = $("#dm-dialog-close");
   const dmRoomsWrap = $("#dm-rooms-wrap");
   const dmRoomsList = $("#dm-rooms-list");
+  const hubBulkBar = $("#hub-bulk-bar");
+  const hubBulkBarCount = $("#hub-bulk-bar-count");
+  const hubBulkCancelBtn = $("#hub-bulk-cancel-btn");
+  const hubBulkDeleteBtn = $("#hub-bulk-delete-btn");
   const onlineDialog = $("#online-dialog");
   const onlineList = $("#online-list");
   const onlineCloseBtn = $("#online-close-btn");
@@ -187,6 +191,12 @@
   let forgetArmedCode = null;
   let forgetArmedTimer = null;
   const FORGET_ARM_MS = 1000;
+  /** @type {Set<string>} */
+  let hubBulkSelectedCodes = new Set();
+  let hubBulkSelectOn = false;
+  let hubBulkDeleting = false;
+  const HUB_ROOM_TAP_MS = 320;
+  let hubRoomTap = { code: "", count: 0, timer: null };
   /** @type {Set<string>} */
   let bulkSelectedIds = new Set();
   let bulkSelectOn = false;
@@ -662,6 +672,189 @@
         }
       }
     });
+  }
+
+  function clearHubRoomTap() {
+    if (hubRoomTap.timer) {
+      clearTimeout(hubRoomTap.timer);
+      hubRoomTap.timer = null;
+    }
+    hubRoomTap = { code: "", count: 0, timer: null };
+  }
+
+  function syncHubBulkBar() {
+    if (!hubBulkBar) return;
+    const n = hubBulkSelectedCodes.size;
+    if (!hubBulkSelectOn) {
+      hubBulkBar.hidden = true;
+      document.body.classList.remove("hub-bulk-select-on");
+      return;
+    }
+    hubBulkBar.hidden = false;
+    document.body.classList.add("hub-bulk-select-on");
+    if (hubBulkBarCount) {
+      hubBulkBarCount.textContent = n === 1 ? "Выбрано 1" : `Выбрано ${n}`;
+    }
+    if (hubBulkDeleteBtn) {
+      hubBulkDeleteBtn.disabled = n === 0 || hubBulkDeleting;
+      hubBulkDeleteBtn.textContent = n > 0 ? `Удалить · ${n}` : "Удалить";
+    }
+  }
+
+  function exitHubBulkSelectMode() {
+    hubBulkSelectOn = false;
+    hubBulkSelectedCodes = new Set();
+    hubBulkDeleting = false;
+    clearHubRoomTap();
+    document.querySelectorAll(".dm-room-row.is-bulk-selected").forEach((node) => {
+      node.classList.remove("is-bulk-selected");
+    });
+    syncHubBulkBar();
+  }
+
+  function enterHubBulkSelectMode(code) {
+    clearForgetArm();
+    clearHubRoomTap();
+    hubBulkSelectOn = true;
+    hubBulkSelectedCodes = new Set();
+    const c = normalizeDmCodeLocal(code);
+    if (c.length === 6) hubBulkSelectedCodes.add(c);
+    if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+    syncHubBulkBar();
+    try {
+      navigator.vibrate?.(14);
+    } catch {
+      /* ignore */
+    }
+    notify("Режим удаления · отметьте комнаты", { dim: true, clearMs: 1800 });
+  }
+
+  function toggleHubBulkRoom(code, rowEl) {
+    if (!hubBulkSelectOn) return;
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return;
+    if (hubBulkSelectedCodes.has(c)) {
+      hubBulkSelectedCodes.delete(c);
+      rowEl?.classList.remove("is-bulk-selected");
+    } else {
+      hubBulkSelectedCodes.add(c);
+      rowEl?.classList.add("is-bulk-selected");
+    }
+    syncHubBulkBar();
+    if (hubBulkSelectedCodes.size === 0) exitHubBulkSelectMode();
+  }
+
+  function roomDeleteKind(room) {
+    if (!room) return "forget";
+    if (room.foreign && isAdmin) return "admin";
+    if (isOwnedRoom(room.code) && !room.foreign) return "owned";
+    return "forget";
+  }
+
+  function emitRoomDelete(code, { key = "", admin = false } = {}) {
+    return new Promise((resolve) => {
+      const payload = { code };
+      if (!admin) payload.key = key;
+      socket.emit("room:delete", payload, (res) => resolve(res || { ok: false }));
+    });
+  }
+
+  async function deleteHubBulkSelected() {
+    if (!hubBulkSelectOn || hubBulkDeleting) return;
+    const codes = [...hubBulkSelectedCodes];
+    if (!codes.length) return;
+    const byCode = new Map(roomsForDmList().map((r) => [r.code, r]));
+    const foreverN = codes.filter((c) => {
+      const kind = roomDeleteKind(byCode.get(c) || { code: c });
+      return kind === "owned" || kind === "admin";
+    }).length;
+    const ok = window.confirm(
+      codes.length === 1
+        ? foreverN
+          ? `Точно удалить комнату ${codes[0]} навсегда?\nСообщения и участники пропадут.`
+          : `Убрать комнату ${codes[0]} из списка?`
+        : foreverN
+          ? `Точно удалить ${codes.length} комнат?\nСвои (${foreverN}) пропадут навсегда.`
+          : `Убрать ${codes.length} комнат из списка?`
+    );
+    if (!ok) return;
+
+    const pin = normalizeRoomKeyLocal(loadPin() || "");
+    if (foreverN && !isAdmin && pin.length !== 4) {
+      notify("Нужен пин аккаунта, чтобы удалить свои комнаты");
+      return;
+    }
+
+    hubBulkDeleting = true;
+    syncHubBulkBar();
+    let deleted = 0;
+    let failed = 0;
+    for (const code of codes) {
+      const room = byCode.get(code) || { code };
+      const kind = roomDeleteKind(room);
+      if (kind === "admin") {
+        const res = await emitRoomDelete(code, { admin: true });
+        if (!res?.ok) {
+          failed += 1;
+          continue;
+        }
+        adminRoomCatalog = adminRoomCatalog.filter((r) => r.code !== code);
+        forgetDmRoom(code);
+        expandedDmRoomCodes.delete(code);
+        if (dmCode === code) leaveDmMode({ quiet: true, openHub: true });
+        deleted += 1;
+        continue;
+      }
+      if (kind === "owned") {
+        const res = await emitRoomDelete(code, { key: pin });
+        if (!res?.ok) {
+          failed += 1;
+          continue;
+        }
+        forgetDmRoom(code);
+        expandedDmRoomCodes.delete(code);
+        if (dmCode === code) leaveDmMode({ quiet: true, openHub: true });
+        deleted += 1;
+        continue;
+      }
+      forgetDmRoom(code);
+      expandedDmRoomCodes.delete(code);
+      deleted += 1;
+    }
+    exitHubBulkSelectMode();
+    renderDmRoomsList({ skipRefresh: true });
+    if (failed && deleted) notify(`Удалено ${deleted} · не вышло ${failed}`);
+    else if (failed) notify("Не удалилось");
+    else if (deleted === 1) notify(`Комната ${codes[0]} удалена`);
+    else notify(`Удалено комнат: ${deleted}`);
+  }
+
+  function handleHubRoomEnterTap(room) {
+    if (hubBulkSelectOn) {
+      const row = dmRoomsList?.querySelector(`.dm-room-row[data-code="${CSS.escape(room.code)}"]`);
+      toggleHubBulkRoom(room.code, row);
+      return;
+    }
+    if (hubRoomTap.code !== room.code) {
+      clearHubRoomTap();
+      hubRoomTap.code = room.code;
+      hubRoomTap.count = 0;
+    }
+    hubRoomTap.count += 1;
+    if (hubRoomTap.timer) {
+      clearTimeout(hubRoomTap.timer);
+      hubRoomTap.timer = null;
+    }
+    if (hubRoomTap.count >= 3) {
+      clearHubRoomTap();
+      enterHubBulkSelectMode(room.code);
+      return;
+    }
+    hubRoomTap.timer = setTimeout(() => {
+      hubRoomTap.timer = null;
+      hubRoomTap.count = 0;
+      joinDmByCode(room.code, { fromList: true, watchOnly: Boolean(room.foreign) });
+    }, HUB_ROOM_TAP_MS);
   }
 
   function syncBulkBar() {
@@ -1648,8 +1841,10 @@
         (owned ? " is-owned" : keyed ? " is-keyed" : " is-open") +
         (keyed ? " has-key" : "") +
         (room.closed ? " is-closed" : "") +
-        (dmCode === room.code ? " is-current" : "");
+        (dmCode === room.code ? " is-current" : "") +
+        (hubBulkSelectOn && hubBulkSelectedCodes.has(room.code) ? " is-bulk-selected" : "");
       row.setAttribute("role", "listitem");
+      row.dataset.code = room.code;
       const expanded = expandedDmRoomCodes.has(room.code);
       if (expanded) row.classList.add("is-expanded");
 
@@ -1714,9 +1909,11 @@
       }
 
       enterBtn.append(codeEl, unreadEl);
-      enterBtn.addEventListener("click", () =>
-        joinDmByCode(room.code, { fromList: true, watchOnly: Boolean(room.foreign) })
-      );
+      enterBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handleHubRoomEnterTap(room);
+      });
 
       const namesBtn = document.createElement("button");
       namesBtn.type = "button";
@@ -1753,6 +1950,10 @@
       namesBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (hubBulkSelectOn) {
+          toggleHubBulkRoom(room.code, row);
+          return;
+        }
         if (!fullNames.length) return;
         if (expandedDmRoomCodes.has(room.code)) expandedDmRoomCodes.delete(room.code);
         else expandedDmRoomCodes.add(room.code);
@@ -1770,24 +1971,36 @@
         const destroyForeign = Boolean(room.foreign && isAdmin);
         const destroyOwned = Boolean(owned && !room.foreign);
         const destroyForever = destroyForeign || destroyOwned;
+        forgetBtn.hidden = hubBulkSelectOn;
         forgetBtn.setAttribute(
           "aria-label",
           destroyForever ? `Удалить комнату ${room.code}` : `Убрать ${room.code} из списка`
         );
         forgetBtn.title = destroyForever
-          ? "Нажмите дважды, чтобы удалить комнату навсегда"
-          : "Нажмите дважды, чтобы убрать";
+          ? "Нажмите дважды — спросим подтверждение"
+          : "Нажмите дважды — спросим подтверждение";
         forgetBtn.textContent = "×";
         if (forgetArmedCode === room.code) {
           forgetBtn.classList.add("armed");
-          forgetBtn.title = destroyForever ? "Ещё раз — удалить навсегда" : "Ещё раз — убрать";
+          forgetBtn.title = "Ещё раз — подтвердить удаление";
         }
         forgetBtn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
+          if (hubBulkSelectOn) {
+            toggleHubBulkRoom(room.code, row);
+            return;
+          }
           if (forgetArmedCode === room.code) {
             clearForgetArm();
             if (destroyForeign) {
+              if (
+                !window.confirm(
+                  `Точно удалить комнату ${room.code} навсегда?\nСообщения и участники пропадут.`
+                )
+              ) {
+                return;
+              }
               socket.emit("room:delete", { code: room.code }, (res) => {
                 if (!res?.ok) {
                   notify(res?.error || "Не удалилось");
@@ -1803,9 +2016,17 @@
               return;
             }
             if (destroyOwned) {
+              if (
+                !window.confirm(
+                  `Точно удалить комнату ${room.code} навсегда?\nСообщения и участники пропадут.`
+                )
+              ) {
+                return;
+              }
               destroyOwnedRoomFromHub(room.code);
               return;
             }
+            if (!window.confirm(`Убрать комнату ${room.code} из списка?`)) return;
             forgetDmRoom(room.code);
             expandedDmRoomCodes.delete(room.code);
             renderDmRoomsList({ skipRefresh: true });
@@ -1814,7 +2035,7 @@
           clearForgetArm();
           forgetArmedCode = room.code;
           forgetBtn.classList.add("armed");
-          forgetBtn.title = destroyForever ? "Ещё раз — удалить навсегда" : "Ещё раз — убрать";
+          forgetBtn.title = "Ещё раз — подтвердить удаление";
           forgetArmedTimer = setTimeout(() => {
             if (forgetArmedCode !== room.code) return;
             clearForgetArm();
@@ -1827,6 +2048,7 @@
     }
 
     dmRoomsList.append(frag);
+    if (hubBulkSelectOn) syncHubBulkBar();
     if (!skipRefresh) refreshDmRoomsMeta();
   }
 
@@ -2142,6 +2364,7 @@
     setUiView("hub");
     showDmDialogError("");
     syncDmDialogChrome();
+    syncHubBulkBar();
     if (isAdmin) {
       renderDmRoomsList({ skipRefresh: true });
       refreshAdminRoomCatalog({ render: true });
@@ -4645,6 +4868,10 @@
   previewClear.addEventListener("click", clearPreview);
   bulkCancelBtn?.addEventListener("click", () => exitBulkSelectMode());
   bulkDeleteBtn?.addEventListener("click", () => deleteBulkSelected());
+  hubBulkCancelBtn?.addEventListener("click", () => exitHubBulkSelectMode());
+  hubBulkDeleteBtn?.addEventListener("click", () => {
+    void deleteHubBulkSelected();
+  });
 
   appToast?.addEventListener("click", (e) => {
     if (e.target === appToast || e.target.classList?.contains("app-toast-scrim") || e.target === appToastText) {
@@ -5609,6 +5836,13 @@
       showRoomAdminPanelError("Номер не совпадает с этой комнатой");
       return;
     }
+    if (
+      !window.confirm(
+        `Точно удалить комнату ${code} навсегда?\nСообщения и участники пропадут.`
+      )
+    ) {
+      return;
+    }
     socket.emit("room:delete", { code, key: isAdmin ? key || undefined : key }, (res) => {
       if (!res?.ok) {
         showRoomAdminPanelError(res?.error || "Не удалилось");
@@ -5622,6 +5856,7 @@
   });
   dmDialog?.addEventListener("close", () => {
     clearForgetArm();
+    exitHubBulkSelectMode();
     dmDialog.classList.remove("is-leaving");
     dmDialog.removeAttribute("style");
   });

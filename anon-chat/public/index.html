@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=170" />
+    <link rel="stylesheet" href="/styles.css?v=171" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -225,6 +225,13 @@
           <button type="button" id="dm-dialog-close" class="ghost compact">Готово</button>
         </div>
         <p id="dm-lead" class="dm-lead">Короткий номер дополняется нулями · 30 дней без активности — удаление</p>
+        <div id="hub-bulk-bar" class="bulk-bar hub-bulk-bar" hidden>
+          <span id="hub-bulk-bar-count" class="bulk-bar-count">Выбрано 0</span>
+          <div class="bulk-bar-actions">
+            <button type="button" id="hub-bulk-cancel-btn" class="ghost compact">Отмена</button>
+            <button type="button" id="hub-bulk-delete-btn" class="bulk-delete-btn" disabled>Удалить</button>
+          </div>
+        </div>
         <div id="dm-rooms-wrap" class="dm-rooms-wrap">
           <div id="dm-rooms-list" class="dm-rooms-list" role="list"></div>
         </div>
