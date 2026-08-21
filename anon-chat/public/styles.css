@@ -1119,10 +1119,6 @@ body.keyboard-open .dm-dialog-top h2 {
   font-size: 0.98rem;
 }
 
-body.dm-on #pins {
-  display: none !important;
-}
-
 body.dm-on #dm-btn {
   border-color: var(--dm-line);
   color: var(--dm-accent);
@@ -2482,15 +2478,28 @@ body.pins-focus-mode .feed .msg.pin-focus {
 }
 
 .msg.msg-bulk-selected {
-  outline: 1px solid rgba(217, 106, 106, 0.85);
+  outline: 2px solid #ff2a2a;
+  border-color: #ff1a1a;
   box-shadow:
-    inset 3px 0 0 var(--danger),
-    0 0 0 1px rgba(217, 106, 106, 0.25);
-  background: color-mix(in srgb, var(--danger) 10%, var(--bg-elev));
+    inset 5px 0 0 #ff0d0d,
+    0 0 0 2px rgba(255, 20, 20, 0.55),
+    0 0 18px rgba(255, 0, 0, 0.35);
+  background: color-mix(in srgb, #ff1a1a 28%, var(--bg-elev));
 }
 
 .msg.mine.msg-bulk-selected {
-  background: color-mix(in srgb, var(--danger) 12%, var(--mine));
+  background: color-mix(in srgb, #ff1a1a 32%, var(--mine));
+}
+
+.msg.pinned-item.msg-bulk-selected,
+.msg.mine.pinned-item.msg-bulk-selected,
+.msg.admin.pinned-item.msg-bulk-selected {
+  border-color: #ff1a1a;
+  background: color-mix(in srgb, #ff0d0d 34%, #2a1212);
+  box-shadow:
+    inset 5px 0 0 #ff0d0d,
+    0 0 0 2px rgba(255, 30, 30, 0.7),
+    0 0 22px rgba(255, 0, 0, 0.45);
 }
 
 body.bulk-select-on .composer-shell {
