@@ -6,17 +6,17 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <title>Сарафан — открытый чат</title>
-    <meta name="description" content="Сарафан — анонимный чат без регистрации: текст и фото." />
+    <title>Сарафан — чат</title>
+    <meta name="description" content="Сарафан — чат по нику и пину: текст и фото." />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Сарафан" />
-    <meta property="og:title" content="Сарафан — открытый чат" />
-    <meta property="og:description" content="Анонимный чат без регистрации: текст и фото." />
+    <meta property="og:title" content="Сарафан — чат" />
+    <meta property="og:description" content="Вход по нику и пину: текст и фото." />
     <meta property="og:url" content="https://chat.one.vele.uk/" />
     <meta property="og:image" content="https://chat.one.vele.uk/icon-512.png" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Сарафан — открытый чат" />
-    <meta name="twitter:description" content="Анонимный чат без регистрации: текст и фото." />
+    <meta name="twitter:title" content="Сарафан — чат" />
+    <meta name="twitter:description" content="Вход по нику и пину: текст и фото." />
     <meta name="twitter:image" content="https://chat.one.vele.uk/icon-512.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -30,22 +30,34 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=149" />
+    <link rel="stylesheet" href="/styles.css?v=150" />
   </head>
   <body>
     <section id="gate" class="gate">
       <div class="gate-inner">
         <p class="brand">Сарафан</p>
-        <h1>Зайдите без регистрации</h1>
+        <h1>Вход по нику и пину</h1>
         <p class="lede">
-          Вам дадут случайное имя — или придумайте своё. Только текст и фото.
+          Ник + 4 цифры — ваш аккаунт. Для фана: пины слабые, доступ можно потерять. Только текст и фото.
         </p>
         <label class="field">
-          <span>Имя в чате</span>
+          <span>Имя</span>
           <div class="name-row">
             <input id="name-input" type="text" maxlength="24" autocomplete="nickname" placeholder="Например: Барс" />
             <button type="button" id="random-btn" class="ghost">Случайное</button>
           </div>
+        </label>
+        <label class="field">
+          <span>Пин · 4 цифры</span>
+          <input
+            id="pin-input"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]{4}"
+            maxlength="4"
+            autocomplete="current-password"
+            placeholder="4821"
+          />
         </label>
         <button type="button" id="join-btn" class="primary">Войти</button>
         <p id="gate-error" class="error" hidden></p>
@@ -211,7 +223,7 @@
           <h2 id="dm-dialog-title">Чаты</h2>
           <button type="button" id="dm-dialog-close" class="ghost compact">Готово</button>
         </div>
-        <p id="dm-lead" class="dm-lead">Номер 6 · ключ 4 · пин админа 4 · без активности 30 дней — удаление</p>
+        <p id="dm-lead" class="dm-lead">Номер 6 · ключ от комнаты 4 · без активности 30 дней — удаление</p>
         <div id="dm-rooms-wrap" class="dm-rooms-wrap">
           <div id="dm-rooms-list" class="dm-rooms-list" role="list"></div>
         </div>
@@ -240,18 +252,6 @@
                 maxlength="4"
                 autocomplete="off"
                 placeholder="ключ от комнаты · пусто = свободный вход"
-              />
-            </label>
-            <label class="field dm-key-field">
-              <span>Пин админа</span>
-              <input
-                id="dm-create-key"
-                type="text"
-                inputmode="numeric"
-                pattern="[0-9]{4}"
-                maxlength="4"
-                autocomplete="off"
-                placeholder="пин админа"
               />
             </label>
             <button type="button" id="dm-create-btn" class="primary dm-create-btn">Создать</button>
@@ -293,9 +293,9 @@
     <dialog id="room-key-dialog" class="dialog sheet-top">
       <div class="dialog-body">
         <h2>Режим админа</h2>
-        <p class="dm-lead">Пин админа · 4 цифры. Общаетесь от своего имени; здесь — удаление и закрепы.</p>
+        <p class="dm-lead">Пин аккаунта · 4 цифры. Общаетесь от своего имени; здесь — удаление и закрепы.</p>
         <label class="field">
-          <span>Пин админа</span>
+          <span>Пин аккаунта</span>
           <input id="room-key-input" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="4821" autocomplete="off" />
         </label>
         <p id="room-key-error" class="error" hidden></p>
@@ -316,8 +316,8 @@
           <input id="room-new-admin-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
         </label>
         <label class="field">
-          <span>Текущий пин админа (подтверждение)</span>
-          <input id="room-confirm-admin-key" type="text" inputmode="numeric" maxlength="4" placeholder="сейчас" autocomplete="off" />
+          <span>Текущий пин аккаунта (подтверждение)</span>
+          <input id="room-confirm-admin-key" type="text" inputmode="numeric" maxlength="4" placeholder="пин аккаунта" autocomplete="off" />
         </label>
         <button type="button" id="room-change-admin-key-btn" class="room-panel-btn primary">Сменить пин админа</button>
 
@@ -348,14 +348,14 @@
           <p class="room-delete-warn">
             Опасная зона · удаление необратимо. Комната, сообщения и участники пропадут навсегда.
           </p>
-          <p class="room-delete-lead">Чтобы удалить — введите номер комнаты и пин админа</p>
+          <p class="room-delete-lead">Чтобы удалить — введите номер комнаты и пин аккаунта</p>
           <label class="field">
             <span>Номер комнаты</span>
             <input id="room-delete-code" type="text" inputmode="numeric" maxlength="6" placeholder="номер комнаты" autocomplete="off" />
           </label>
           <label class="field">
-            <span>Пин админа</span>
-            <input id="room-delete-key" type="text" inputmode="numeric" maxlength="4" placeholder="пин админа" autocomplete="off" />
+            <span>Пин аккаунта</span>
+            <input id="room-delete-key" type="text" inputmode="numeric" maxlength="4" placeholder="пин аккаунта" autocomplete="off" />
           </label>
           <button type="button" id="room-delete-btn" class="room-delete-btn">Удалить комнату навсегда</button>
         </section>
@@ -391,6 +391,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=149"></script>
+    <script src="/app.js?v=150"></script>
   </body>
 </html>
