@@ -1566,6 +1566,7 @@
     document.body.classList.add("dm-on");
     document.body.classList.toggle("dm-ghost", Boolean(isAdmin));
     if (dmBar) dmBar.hidden = false;
+    if (!dmDialog?.open) setUiView("room");
     syncDmBarMeta();
     syncRoomAdminUi();
     clearReply();
@@ -1607,6 +1608,7 @@
     clearRoomAdminState();
     // Keep room in the saved list; only clear "active session" code.
     saveDmCode("");
+    setUiView("hub");
     document.body.classList.remove("dm-on", "dm-ghost");
     if (dmBar) dmBar.hidden = true;
     if (messageInput) messageInput.placeholder = "Написать сообщение…";

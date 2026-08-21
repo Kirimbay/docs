@@ -721,10 +721,76 @@ button {
   margin: 0.75rem 0;
 }
 
+.room-delete-zone {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.15rem;
+  padding: 0.75rem 0.8rem 0.85rem;
+  border: 1.5px solid color-mix(in srgb, #b42318 72%, var(--line));
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, #b42318 18%, transparent),
+      color-mix(in srgb, #b42318 8%, var(--bg-elev))
+    );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #b42318 22%, transparent);
+}
+
+.room-delete-warn {
+  margin: 0;
+  color: #ffb4a8;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+.room-delete-lead {
+  margin: 0;
+  color: #f3a39a;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.room-delete-zone .field span {
+  color: #ffc9c1;
+  font-weight: 600;
+}
+
+.room-delete-zone input {
+  border-color: color-mix(in srgb, #b42318 45%, var(--line));
+  background: color-mix(in srgb, #b42318 10%, var(--bg));
+  color: #ffe8e4;
+}
+
+.room-delete-zone input:focus {
+  outline: 2px solid color-mix(in srgb, #b42318 55%, transparent);
+  border-color: #e35d4f;
+}
+
+.room-delete-btn,
 #room-delete-btn {
-  background: color-mix(in srgb, #b42318 85%, var(--bg));
-  border-color: transparent;
+  width: 100%;
+  margin-top: 0.2rem;
+  padding: 0.72rem 0.9rem;
+  border: 1px solid #8f1d14;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #d92d20, #b42318);
   color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+
+.room-delete-btn:hover,
+#room-delete-btn:hover {
+  background: linear-gradient(180deg, #f04438, #d92d20);
+}
+
+.room-delete-btn:active,
+#room-delete-btn:active {
+  background: #912018;
 }
 
 #room-admin-panel .dialog-body {

@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=140" />
+    <link rel="stylesheet" href="/styles.css?v=141" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -333,19 +333,25 @@
 
         <hr class="room-admin-hr" />
 
-        <p class="dm-lead">Удалить комнату навсегда — введите номер и пароль админа</p>
-        <label class="field">
-          <span>Номер комнаты</span>
-          <input id="room-delete-code" type="text" inputmode="numeric" maxlength="6" placeholder="000543" autocomplete="off" />
-        </label>
-        <label class="field">
-          <span>Пароль админа</span>
-          <input id="room-delete-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
-        </label>
+        <section class="room-delete-zone" aria-label="Удаление комнаты">
+          <p class="room-delete-warn">
+            Опасная зона · удаление необратимо. Комната, сообщения и участники пропадут навсегда.
+          </p>
+          <p class="room-delete-lead">Чтобы удалить — введите номер этой комнаты и пароль админа</p>
+          <label class="field">
+            <span>Номер комнаты</span>
+            <input id="room-delete-code" type="text" inputmode="numeric" maxlength="6" placeholder="000543" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Пароль админа</span>
+            <input id="room-delete-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
+          </label>
+          <button type="button" id="room-delete-btn" class="room-delete-btn">Удалить комнату навсегда</button>
+        </section>
+
         <p id="room-admin-panel-error" class="error" hidden></p>
         <div class="dialog-actions">
           <button type="button" id="room-admin-panel-close" class="ghost">Закрыть</button>
-          <button type="button" id="room-delete-btn" class="primary">Удалить комнату</button>
         </div>
       </div>
     </dialog>
@@ -374,6 +380,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=139"></script>
+    <script src="/app.js?v=141"></script>
   </body>
 </html>
