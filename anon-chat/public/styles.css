@@ -34,6 +34,8 @@
   --pad-x: clamp(0.75rem, 3vw, 1rem);
   --kb-inset: 0px;
   --app-height: 100dvh;
+  --vv-top: 0px;
+  --browser-bottom: 0px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -1943,7 +1945,10 @@ body.pins-focus-mode .feed .msg.pin-focus {
   position: relative;
   flex: 0 0 auto;
   z-index: 4;
-  padding: 0.3rem var(--pad-x) max(0.35rem, env(safe-area-inset-bottom, 0px));
+  /* When --browser-bottom lifts the shell above Chrome's toolbar, don't also
+     stack a full safe-area pad (home indicator sits inside that toolbar). */
+  padding: 0.3rem var(--pad-x)
+    max(0.35rem, calc(env(safe-area-inset-bottom, 0px) - var(--browser-bottom, 0px)));
   background: var(--bg-elev);
   border-top: 1px solid var(--line);
   min-width: 0;
@@ -2833,7 +2838,8 @@ body.keyboard-open .pins-dialog.dialog {
   }
 
   .composer {
-    padding: 0.26rem var(--pad-x) max(0.3rem, env(safe-area-inset-bottom, 0px));
+    padding: 0.26rem var(--pad-x)
+      max(0.3rem, calc(env(safe-area-inset-bottom, 0px) - var(--browser-bottom, 0px)));
   }
 
   .composer-shell {
