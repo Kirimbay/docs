@@ -1768,6 +1768,54 @@ function presencePayload(forSocket = null) {
   };
 }
 
+/** Registered accounts + who is online (for hub “write to person”). */
+function directoryPayload() {
+  ensureAccounts();
+  /** @type {Map<string, { id: string, name: string }>} */
+  const onlineByAccount = new Map();
+  /** @type {Map<string, { id: string, name: string }>} */
+  const onlineByNick = new Map();
+  for (const [id, u] of online) {
+    if (!u?.name || u.isAdmin) continue;
+    if (u.accountId) onlineByAccount.set(u.accountId, { id, name: u.name });
+    onlineByNick.set(nameKey(u.name), { id, name: u.name });
+  }
+  /** @type {{ accountId: string, name: string, online: boolean, id: string }[]} */
+  const people = [];
+  const seen = new Set();
+  for (const acc of Object.values(store.accounts || {})) {
+    if (!acc?.id || !acc.nick) continue;
+    if (isReservedAdminName(acc.nick)) continue;
+    const key = nameKey(acc.nick);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const live = onlineByAccount.get(acc.id) || onlineByNick.get(key) || null;
+    people.push({
+      accountId: acc.id,
+      name: live?.name || acc.nick,
+      online: Boolean(live),
+      id: live?.id || "",
+    });
+  }
+  people.sort((a, b) => {
+    if (a.online !== b.online) return a.online ? -1 : 1;
+    return a.name.localeCompare(b.name, "ru");
+  });
+  return { people: people.slice(0, 200) };
+}
+
+function emitChatDirectory(toSocket = null) {
+  const payload = directoryPayload();
+  if (toSocket) {
+    toSocket.emit("chat:directory", payload);
+    return;
+  }
+  for (const sock of io.sockets.sockets.values()) {
+    if (!sock.data?.name || sock.data?.isAdmin) continue;
+    sock.emit("chat:directory", payload);
+  }
+}
+
 function emitChatPresence() {
   // One shared payload for everyone; only admins need per-socket enrichment.
   const base = presencePayload(null);
@@ -1780,6 +1828,7 @@ function emitChatPresence() {
       sock.emit("chat:presence", base);
     }
   }
+  emitChatDirectory();
 }
 
 function leaveDmRoom(socket) {
@@ -2510,11 +2559,166 @@ io.on("connection", (socket) => {
     emitDmPresence(code);
   });
 
-  socket.on("dm:invite", (_payload = {}, ack) => {
-    if (typeof ack === "function") ack({ ok: false, error: "Приглашения отключены" });
+  socket.on("dm:invite", (payload = {}, ack) => {
+    const user = online.get(socket.id);
+    if (!user) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
+      return;
+    }
+    if (user.isAdmin || socket.data.isAdmin) {
+      if (typeof ack === "function") ack({ ok: false, error: "В режиме админа нельзя" });
+      return;
+    }
+    const myAccountId = getSocketAccountId(socket);
+    if (!myAccountId) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите с ником и пином" });
+      return;
+    }
+
+    ensureAccounts();
+    const toId = typeof payload.toId === "string" ? payload.toId.trim() : "";
+    const toAccountId =
+      typeof payload.toAccountId === "string" ? payload.toAccountId.trim().slice(0, 80) : "";
+    const toName = sanitizeName(payload.toName || "");
+
+    let targetSocketId = "";
+    let targetAccount = null;
+    let targetName = "";
+
+    if (toId && toId !== socket.id) {
+      const target = online.get(toId);
+      if (!target || target.isAdmin) {
+        if (typeof ack === "function") ack({ ok: false, error: "Участник уже не онлайн" });
+        return;
+      }
+      targetSocketId = toId;
+      targetName = target.name;
+      targetAccount = target.accountId ? store.accounts[target.accountId] : findAccountByNick(target.name);
+    } else if (toAccountId && toAccountId !== myAccountId) {
+      targetAccount = store.accounts[toAccountId] || null;
+      if (!targetAccount?.nick) {
+        if (typeof ack === "function") ack({ ok: false, error: "Человек не найден" });
+        return;
+      }
+      targetName = targetAccount.nick;
+      for (const [id, u] of online) {
+        if (u.accountId === toAccountId || nameKey(u.name) === nameKey(targetName)) {
+          targetSocketId = id;
+          targetName = u.name || targetName;
+          break;
+        }
+      }
+    } else if (toName && nameKey(toName) !== nameKey(user.name)) {
+      targetAccount = findAccountByNick(toName);
+      if (!targetAccount) {
+        if (typeof ack === "function") ack({ ok: false, error: "Человек не найден" });
+        return;
+      }
+      targetName = targetAccount.nick;
+      for (const [id, u] of online) {
+        if (u.accountId === targetAccount.id || nameKey(u.name) === nameKey(targetName)) {
+          targetSocketId = id;
+          targetName = u.name || targetName;
+          break;
+        }
+      }
+    } else {
+      if (typeof ack === "function") ack({ ok: false, error: "Выберите человека" });
+      return;
+    }
+
+    if (!targetAccount?.id) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нужен зарегистрированный аккаунт" });
+      return;
+    }
+    if (targetAccount.id === myAccountId) {
+      if (typeof ack === "function") ack({ ok: false, error: "Это вы" });
+      return;
+    }
+
+    leaveDmRoom(socket);
+    ensureRooms();
+    const code = generateRoomCode();
+    if (!code) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нет свободных комнат" });
+      return;
+    }
+    const myAccount = store.accounts[myAccountId];
+    store.rooms[code] = {
+      code,
+      createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+      createdBy: user.name,
+      ownerClientId: normalizeClientId(user.clientId || socket.data.clientId) || "",
+      ownerAccountId: myAccountId,
+      access: "open",
+      adminKeyHash: myAccount?.pinHash || "",
+      keyHash: "",
+      closed: false,
+      participants: [user.name, targetName],
+      messages: [],
+      pinnedIds: [],
+    };
+    rememberRoomParticipant(code, user.name);
+    rememberRoomParticipant(code, targetName);
+    pinAccountHubRoom(myAccountId, code, { keyed: false });
+    pinAccountHubRoom(targetAccount.id, code, { keyed: false });
+    saveStore(store, { flush: true });
+
+    socket.join(roomChannel(code));
+    socket.data.roomCode = code;
+    socket.data.roomGhost = false;
+    clearRoomAdmin(socket);
+    user.roomCode = code;
+
+    const targetSocket = targetSocketId ? io.sockets.sockets.get(targetSocketId) : null;
+    if (targetSocket) {
+      targetSocket.emit("dm:room-added", {
+        code,
+        from: user.name,
+        fromId: socket.id,
+        peer: user.name,
+        keyed: false,
+        closed: false,
+        participants: roomParticipantNames(code),
+        messageCount: 0,
+      });
+    }
+
+    const snap = roomSnapshot(code);
+    if (typeof ack === "function") {
+      ack({
+        ok: true,
+        code,
+        created: true,
+        label: snap?.label || "",
+        messages: snap.messages,
+        pinned: snap?.pinned || [],
+        ...roomPresenceFields(code),
+        participants: roomParticipantNames(code),
+        invited: targetName,
+        maxMembers: MAX_ROOM_MEMBERS,
+        ghost: false,
+        roomAdmin: false,
+        isOwner: true,
+        ...roomPublicFlags(store.rooms[code]),
+      });
+    }
+    emitDmPresence(code);
+    emitChatDirectory();
   });
 
   socket.on("dm:invite-decline", () => {});
+
+  socket.on("chat:directory", (_payload, ack) => {
+    if (!online.get(socket.id)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
+      return;
+    }
+    const payload = directoryPayload();
+    if (typeof ack === "function") ack({ ok: true, ...payload });
+    else socket.emit("chat:directory", payload);
+  });
 
   socket.on("dm:rooms-meta", (payload = {}, ack) => {
     const user = online.get(socket.id);

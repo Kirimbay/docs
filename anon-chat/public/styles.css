@@ -1181,18 +1181,90 @@ button {
   font-size: 0.72rem;
   line-height: 1.35;
   text-align: left;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  cursor: default;
+  pointer-events: none;
+  white-space: normal;
+  overflow: visible;
   flex: 0 0 auto;
 }
 
-.dm-room-row.is-expanded .dm-room-names {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
-  color: var(--ink-soft);
+.dm-people-wrap {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-height: 0;
+  max-height: 38%;
+  overflow: hidden;
+}
+
+.dm-people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  min-height: 0;
+  padding: 0.1rem 0 0.35rem;
+}
+
+.dm-people-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-elev);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dm-people-row:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.dm-people-row.is-self {
+  cursor: default;
+}
+
+.dm-people-row.is-online {
+  border-color: color-mix(in srgb, var(--accent-fill) 35%, var(--line));
+}
+
+.dm-people-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dm-people-status {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.dm-people-row.is-online .dm-people-status {
+  color: var(--accent-fill);
+  font-weight: 600;
+}
+
+.dm-people-empty {
+  margin: 0;
+  padding: 0.35rem 0.3rem;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .dm-room-forget {

@@ -65,7 +65,10 @@
   const dmJoinBtn = $("#dm-join-btn");
   const dmCodeInput = $("#dm-code-input");
   const dmDialogError = $("#dm-dialog-error");
-  const dmDialogClose = $("#dm-dialog-close");
+  const dmDialogClose = null;
+  const hubMeBtn = $("#hub-me-btn");
+  const dmPeopleWrap = $("#dm-people-wrap");
+  const dmPeopleList = $("#dm-people-list");
   const dmRoomsWrap = $("#dm-rooms-wrap");
   const dmRoomsList = $("#dm-rooms-list");
   const hubBulkBar = $("#hub-bulk-bar");
@@ -179,6 +182,8 @@
   /** @type {{ id: string, name: string }[]} */
   let lastPeople = [];
   let lastPresenceCount = 0;
+  /** @type {{ accountId: string, name: string, online: boolean, id: string }[]} */
+  let lastDirectory = [];
   /** @type {{ code: string, from: string, fromId: string, at: number }[]} */
   let pendingInvites = [];
   let publicStateBackup = null;
@@ -1909,8 +1914,6 @@
         (hubBulkSelectOn && hubBulkSelectedCodes.has(room.code) ? " is-bulk-selected" : "");
       row.setAttribute("role", "listitem");
       row.dataset.code = room.code;
-      const expanded = expandedDmRoomCodes.has(room.code);
-      if (expanded) row.classList.add("is-expanded");
 
       const main = document.createElement("div");
       main.className = "dm-room-main";
@@ -1980,9 +1983,8 @@
         handleHubRoomEnterTap(room);
       });
 
-      const namesBtn = document.createElement("button");
-      namesBtn.type = "button";
-      namesBtn.className = "dm-room-names";
+      const namesInfo = document.createElement("div");
+      namesInfo.className = "dm-room-names";
       const fullNames = Array.isArray(room.names) ? room.names : [];
       const accessHint = owned
         ? keyed
@@ -1995,11 +1997,9 @@
             ? `ключ ${storedKey} · `
             : "по ключу · "
           : "";
-      namesBtn.textContent = accessHint + namesLabel(fullNames, { collapsed: !expanded });
-      namesBtn.title = fullNames.length
-        ? expanded
-          ? "Свернуть список"
-          : "Показать всех"
+      namesInfo.textContent = accessHint + namesLabel(fullNames, { collapsed: false });
+      namesInfo.title = fullNames.length
+        ? fullNames.join(", ")
         : owned
           ? keyed
             ? storedKey
@@ -2011,21 +2011,8 @@
               ? `Ключ ${storedKey}`
               : "Закрытая · нужен ключ"
             : "Пока никого";
-      namesBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
-      namesBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (hubBulkSelectOn) {
-          toggleHubBulkRoom(room.code, row);
-          return;
-        }
-        if (!fullNames.length) return;
-        if (expandedDmRoomCodes.has(room.code)) expandedDmRoomCodes.delete(room.code);
-        else expandedDmRoomCodes.add(room.code);
-        renderDmRoomsList({ skipRefresh: true });
-      });
 
-      main.append(enterBtn, namesBtn);
+      main.append(enterBtn, namesInfo);
       row.append(main);
 
       {
@@ -2424,21 +2411,16 @@
         : accessRoomsOnly
           ? `Только комнаты · 30 дней без активности — удаление`
           : hubRequirePick
-            ? `Создайте или войдите по номеру · 30 дней без активности — удаление`
-            : `Номер без нулей · 2 и 000002 — одна комната · 30 дней без активности — удаление`;
+            ? `Создайте комнату, войдите по номеру или напишите человеку`
+            : `Люди · номер без нулей · 30 дней без активности — удаление`;
     }
-    if (dmDialogClose) {
-      dmDialogClose.textContent = hubRequirePick
-        ? accessRoomsOnly
-          ? "Закрыть"
-          : "В общий"
-        : "Готово";
-    }
+    syncMeBtn();
     const createBox = document.querySelector(".dm-create-box");
     if (createBox) {
       createBox.hidden = false;
       createBox.style.display = "";
     }
+    if (dmPeopleWrap) dmPeopleWrap.hidden = Boolean(isAdmin);
   }
 
   function openDmDialog({ requirePick = false } = {}) {
@@ -2449,6 +2431,8 @@
     showDmDialogError("");
     syncDmDialogChrome();
     syncHubBulkBar();
+    refreshDirectory();
+    renderHubPeopleList();
     if (isAdmin) {
       renderDmRoomsList({ skipRefresh: true });
       refreshAdminRoomCatalog({ render: true });
@@ -2459,7 +2443,7 @@
     dmDialog.showModal();
     layoutDmDialog();
     keepDialogAboveKeyboard(dmDialog, dmCodeInput);
-    if (!roomsForDmList().length && !hubRequirePick) dmCodeInput?.focus();
+    if (!roomsForDmList().length && !hubRequirePick && !lastDirectory.length) dmCodeInput?.focus();
   }
 
   function updatePresenceChrome() {
@@ -2500,8 +2484,98 @@
     if (onlineDialog?.open) onlineDialog.close();
   }
 
-  function invitePerson() {
-    /* invites removed */
+  function invitePerson(person) {
+    if (!person || isAdmin) return;
+    if (person.id && person.id === socket.id) return;
+    if (nameEquals(person.name, myName)) return;
+    const payload = {};
+    if (person.id) payload.toId = person.id;
+    if (person.accountId) payload.toAccountId = person.accountId;
+    if (person.name) payload.toName = person.name;
+    if (!payload.toId && !payload.toAccountId && !payload.toName) return;
+    socket.emit("dm:invite", payload, (res) => {
+      if (!res?.ok) {
+        notify(res?.error || "Не удалось написать");
+        return;
+      }
+      if (person.name) res.invited = person.name;
+      enterDmMode(res);
+      hubRequirePick = false;
+      if (dmDialog?.open) void closeDmDialogSoft();
+      notify(
+        `Чат с ${person.name || "участником"} · ${formatRoomCodeDisplay(res.code)}`
+      );
+    });
+  }
+
+  function applyDirectory(people) {
+    lastDirectory = Array.isArray(people)
+      ? people
+          .map((p) => ({
+            accountId: typeof p?.accountId === "string" ? p.accountId : "",
+            name: String(p?.name || "").trim(),
+            online: Boolean(p?.online),
+            id: typeof p?.id === "string" ? p.id : "",
+          }))
+          .filter((p) => p.name)
+      : [];
+    if (dmDialog?.open) renderHubPeopleList();
+  }
+
+  function refreshDirectory() {
+    if (!myName || isAdmin) return;
+    socket.emit("chat:directory", {}, (res) => {
+      if (res?.ok) applyDirectory(res.people);
+    });
+  }
+
+  function renderHubPeopleList() {
+    if (!dmPeopleList) return;
+    if (isAdmin) {
+      if (dmPeopleWrap) dmPeopleWrap.hidden = true;
+      dmPeopleList.replaceChildren();
+      return;
+    }
+    if (dmPeopleWrap) dmPeopleWrap.hidden = false;
+    const people = lastDirectory.filter((p) => p.name);
+    dmPeopleList.replaceChildren();
+    if (!people.length) {
+      const empty = document.createElement("p");
+      empty.className = "dm-people-empty";
+      empty.textContent = "Пока никого в системе";
+      dmPeopleList.append(empty);
+      return;
+    }
+    for (const person of people) {
+      const isSelf = Boolean(
+        (person.id && person.id === socket.id) || nameEquals(person.name, myName)
+      );
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className =
+        "dm-people-row" +
+        (person.online ? " is-online" : "") +
+        (isSelf ? " is-self" : "");
+      row.setAttribute("role", "listitem");
+      row.disabled = isSelf;
+      const name = document.createElement("span");
+      name.className = "dm-people-name";
+      name.textContent = person.name;
+      const status = document.createElement("span");
+      status.className = "dm-people-status";
+      status.textContent = isSelf ? "это вы" : person.online ? "онлайн · написать" : "офлайн · написать";
+      row.append(name, status);
+      if (!isSelf) {
+        row.title = person.online
+          ? `Написать ${person.name}`
+          : `Открыть чат с ${person.name} — появится у него в списке`;
+        row.addEventListener("click", (e) => {
+          e.preventDefault();
+          invitePerson(person);
+        });
+      }
+      dmPeopleList.append(row);
+    }
   }
 
   function renderOnlineList() {
@@ -2654,7 +2728,7 @@
   }
 
   function syncInvitesBtn() {
-    /* invites removed */
+    /* invite inbox removed — rooms appear in hub list */
   }
 
   function removePendingInvite() {
@@ -2662,27 +2736,46 @@
   }
 
   function queueInvite() {
-    /* invites removed */
+    /* invite inbox removed */
   }
 
   function renderInvitesList() {
-    /* invites removed */
+    /* invite inbox removed */
   }
 
   function openInvitesDialog() {
-    /* invites removed */
+    /* invite inbox removed */
   }
 
   function closeInvitesDialog() {
-    /* invites removed */
+    /* invite inbox removed */
   }
 
   function acceptInvite() {
-    /* invites removed */
+    /* invite inbox removed */
   }
 
   function declineInvite() {
-    /* invites removed */
+    /* invite inbox removed */
+  }
+
+  function onRoomAddedFromInvite(payload = {}) {
+    const code = normalizeDmCodeLocal(payload.code);
+    if (!code || !myName) return;
+    if (dmCode && dmCode === code) return;
+    rememberDmRoom(code, {
+      peer: payload.from || payload.peer || "",
+      names: Array.isArray(payload.participants) ? payload.participants : [payload.from, myName].filter(Boolean),
+      keyed: Boolean(payload.keyed),
+      closed: Boolean(payload.closed),
+      messageCount: Number(payload.messageCount) || 0,
+      unread: dmCode === code ? 0 : 1,
+    });
+    if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+    else syncDmBtn();
+    notify(
+      `${payload.from || "Кто-то"} открыл чат · комната ${formatRoomCodeDisplay(code)}`
+    );
   }
 
   function nameEquals(a, b) {
@@ -3174,15 +3267,18 @@
   }
 
   function syncMeBtn() {
-    if (!meBtn) return;
     const label = myName || "…";
-    meBtn.textContent = label;
-    meBtn.title = isAdmin
+    const title = isAdmin
       ? `Вы: ${myName} · профиль / выйти`
       : myName
         ? `Вы: ${myName} · профиль / выйти`
         : "Ваше имя";
-    meBtn.classList.toggle("is-admin", isAdmin);
+    for (const btn of [meBtn, hubMeBtn]) {
+      if (!btn) continue;
+      btn.textContent = label;
+      btn.title = title;
+      btn.classList.toggle("is-admin", isAdmin);
+    }
   }
 
   function setAdminUi(on, name) {
@@ -5383,26 +5479,20 @@
   dmBtn?.addEventListener("click", () => {
     openDmDialog();
   });
-  dmDialogClose?.addEventListener("click", () => {
-    if (hubRequirePick) {
-      if (accessRoomsOnly) {
-        // Must pick a room — keep hub open.
-        notify("Выберите комнату");
-        return;
-      }
-      enterPublicChat({ fromHub: true });
-      return;
-    }
-    void closeDmDialogSoft();
+  hubMeBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openRenameDialog();
   });
   dmDialog?.addEventListener("cancel", (e) => {
     if (!hubRequirePick) return;
     e.preventDefault();
     if (accessRoomsOnly) {
-      notify("Выберите комнату");
+      notify("Выберите комнату или человека");
       return;
     }
-    enterPublicChat({ fromHub: true });
+    // Stay in hub — no «Готово» / public escape; pick a room or write someone.
+    notify("Выберите комнату или человека");
   });
   function createDmRoomFromForm() {
     showDmDialogError("");
@@ -6036,12 +6126,20 @@
     openDmDialog({ requirePick: true });
   });
 
-  socket.on("dm:invite", () => {
-    /* invites removed */
+  socket.on("dm:invite", (payload = {}) => {
+    onRoomAddedFromInvite(payload);
+  });
+
+  socket.on("dm:room-added", (payload = {}) => {
+    onRoomAddedFromInvite(payload);
   });
 
   socket.on("dm:invite-declined", () => {
-    /* invites removed */
+    /* no accept/decline flow */
+  });
+
+  socket.on("chat:directory", (payload = {}) => {
+    applyDirectory(payload.people);
   });
 
   socket.on("dm:room-gone", (payload = {}) => {
