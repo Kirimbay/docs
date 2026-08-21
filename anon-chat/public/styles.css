@@ -766,17 +766,9 @@ button {
   color: var(--ink-soft);
 }
 
-.dm-room-hint {
-  font-size: 0.72rem;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .dm-room-forget {
-  width: 1.85rem;
-  min-width: 1.85rem;
+  width: 1.65rem;
+  min-width: 1.65rem;
   padding: 0;
   display: inline-grid;
   place-items: center;
@@ -825,24 +817,20 @@ body.keyboard-open #dm-dialog.dm-dialog.dialog[open] {
   margin: 0 !important;
 }
 
-body.keyboard-open .dm-dialog .dm-rooms-list {
-  max-height: none;
+body.keyboard-open .dm-dialog .dialog-body {
+  gap: 0.28rem;
+  padding: max(0.3rem, env(safe-area-inset-top, 0px))
+    max(0.4rem, env(safe-area-inset-right, 0px))
+    max(0.3rem, env(safe-area-inset-bottom, 0px))
+    max(0.4rem, env(safe-area-inset-left, 0px));
 }
 
 body.keyboard-open .dm-dialog .dm-lead {
-  font-size: 0.68rem;
+  display: none;
 }
 
-body.keyboard-open .dm-dialog h2 {
-  font-size: 1.1rem;
-}
-
-body.keyboard-open .dm-dialog .dialog-body {
-  gap: 0.4rem;
-  padding: max(0.55rem, env(safe-area-inset-top, 0px))
-    max(0.7rem, env(safe-area-inset-right, 0px))
-    max(0.55rem, env(safe-area-inset-bottom, 0px))
-    max(0.7rem, env(safe-area-inset-left, 0px));
+body.keyboard-open .dm-dialog-top h2 {
+  font-size: 0.98rem;
 }
 
 body.dm-on #pins {
