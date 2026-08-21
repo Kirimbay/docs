@@ -491,6 +491,7 @@
   }
 
   function normalizeDmCodeLocal(raw) {
+    // Digits only, max 6. Join requires length === 6 (000543 ok, 543 not).
     return String(raw || "").replace(/\D/g, "").slice(0, 6);
   }
 
@@ -997,7 +998,7 @@
     const c = normalizeDmCodeLocal(code);
     if (dmCodeInput) dmCodeInput.value = c;
     if (c.length !== 6) {
-      showDmDialogError("Нужен код из 6 цифр");
+      showDmDialogError("Нужен пин из ровно 6 цифр (например 000543)");
       return;
     }
     if (accessRoomsOnly && isPublicRoomCode(c)) {

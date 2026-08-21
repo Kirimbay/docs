@@ -875,8 +875,8 @@ function generateRoomCode() {
 }
 
 function normalizeRoomCode(raw) {
-  if (typeof raw !== "string") return null;
-  const code = raw.replace(/\s+/g, "").replace(/\D/g, "");
+  // Strict: exactly 6 digits. "543" is invalid; "000543" is valid. Never pad.
+  const code = String(raw ?? "").replace(/\s+/g, "").replace(/\D/g, "");
   if (code.length !== ROOM_CODE_LENGTH) return null;
   return code;
 }
@@ -1816,7 +1816,9 @@ io.on("connection", (socket) => {
     const asAdmin = Boolean(user.isAdmin || socket.data.isAdmin);
     const code = normalizeRoomCode(payload.code);
     if (!code) {
-      if (typeof ack === "function") ack({ ok: false, error: "Нужен код из 6 цифр" });
+      if (typeof ack === "function") {
+        ack({ ok: false, error: "Нужен пин из ровно 6 цифр (например 000543)" });
+      }
       return;
     }
     ensureRooms();
