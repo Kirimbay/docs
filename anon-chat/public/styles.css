@@ -486,18 +486,18 @@ button {
 }
 
 .dm-dialog.dialog {
-  /* Base fullscreen; reinforced again after .dialog[open] animation rules below. */
+  /* Column like .app — centered, not full desktop width. */
   position: fixed;
-  inset: 0;
+  inset: auto;
   top: var(--vv-top, 0px);
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  max-width: none;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: min(100%, var(--app-max));
+  max-width: var(--app-max);
   height: var(--app-height, 100dvh);
-  max-height: none;
-  transform: none;
+  max-height: var(--app-height, 100dvh);
+  transform: translateX(-50%);
   margin: 0;
   border: 0;
   border-radius: 0;
@@ -505,6 +505,7 @@ button {
   animation: none;
   overflow: hidden;
   box-sizing: border-box;
+  background: var(--bg);
 }
 
 .dm-dialog .dialog-body {
@@ -514,10 +515,12 @@ button {
   height: 100%;
   max-height: 100%;
   min-height: 0;
-  padding: max(0.35rem, env(safe-area-inset-top, 0px))
-    max(0.45rem, env(safe-area-inset-right, 0px))
-    max(0.35rem, env(safe-area-inset-bottom, 0px))
-    max(0.45rem, env(safe-area-inset-left, 0px));
+  width: 100%;
+  max-width: var(--app-max);
+  margin: 0 auto;
+  padding: max(0.45rem, env(safe-area-inset-top, 0px))
+    var(--pad-x)
+    max(0.45rem, env(safe-area-inset-bottom, 0px));
   overflow: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -565,10 +568,12 @@ button {
 }
 
 .dm-leave-public-btn {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
+  justify-self: start;
   margin: 0;
-  padding: 0.4rem 0.7rem;
-  border-radius: 10px;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
   border: 1px solid var(--dm-line);
   background: rgba(111, 191, 138, 0.12);
   color: var(--dm-accent);
@@ -593,16 +598,31 @@ button {
 }
 
 .dm-create-btn {
-  width: 100%;
-  padding: 0.42rem 0.75rem;
-  font-size: 0.86rem;
-  border-radius: 10px;
+  width: auto;
+  min-width: 7.5rem;
+  justify-self: start;
+  padding: 0.65rem 1.35rem;
+  font-size: 0.92rem;
+  font-weight: 650;
+  border-radius: 999px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
 }
 
 .dm-create-box {
   display: grid;
   gap: 0.45rem;
   padding: 0.35rem 0 0.55rem;
+  justify-items: stretch;
+}
+
+.dm-dialog-footer .name-row .ghost,
+.dm-dialog-footer #dm-join-btn {
+  width: auto;
+  min-width: 4.75rem;
+  padding: 0.65rem 1.05rem;
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .dm-create-title {
@@ -755,11 +775,14 @@ button {
 
 /* Bubble-shaped actions in room settings — not round icon pills */
 #room-admin-panel .room-panel-btn {
-  width: 100%;
+  width: auto;
+  min-width: 11rem;
+  max-width: 100%;
   min-height: 2.65rem;
   height: auto;
-  padding: 0.72rem 1rem;
-  border-radius: var(--radius);
+  justify-self: start;
+  padding: 0.72rem 1.15rem;
+  border-radius: 999px;
   font-weight: 650;
   line-height: 1.25;
   white-space: normal;
@@ -1018,12 +1041,15 @@ button {
   justify-self: end;
   font-size: 0.68rem;
   color: var(--muted);
-  white-space: nowrap;
+  white-space: normal;
+  text-align: right;
+  line-height: 1.25;
+  max-width: 62%;
 }
 
 .dm-room-unread.has-new {
-  color: #b7dcc4;
-  font-weight: 600;
+  color: #8fd9ad;
+  font-weight: 650;
 }
 
 .dm-room-names {
@@ -2715,18 +2741,18 @@ body.bulk-select-on .composer-shell {
 #dm-dialog.dm-dialog.dialog,
 #dm-dialog.dm-dialog.dialog[open] {
   position: fixed !important;
-  inset: 0 !important;
+  inset: auto !important;
   top: var(--vv-top, 0px) !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100% !important;
-  max-width: none !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: min(100%, var(--app-max)) !important;
+  max-width: var(--app-max) !important;
   min-width: 0 !important;
   height: var(--app-height, 100dvh) !important;
-  max-height: none !important;
+  max-height: var(--app-height, 100dvh) !important;
   margin: 0 !important;
-  transform: none !important;
+  transform: translateX(-50%) !important;
   translate: none !important;
   animation: none !important;
   border: 0 !important;
@@ -2734,6 +2760,7 @@ body.bulk-select-on .composer-shell {
   box-shadow: none !important;
   overflow: hidden !important;
   box-sizing: border-box !important;
+  background: var(--bg) !important;
 }
 
 #dm-dialog.dm-dialog.dialog[open]::backdrop {
@@ -2838,10 +2865,12 @@ body.keyboard-open .pins-dialog.dialog {
   height: 100%;
   max-height: 100%;
   min-height: 0;
-  padding: max(0.35rem, env(safe-area-inset-top, 0px))
-    max(0.45rem, env(safe-area-inset-right, 0px))
-    max(0.35rem, env(safe-area-inset-bottom, 0px))
-    max(0.45rem, env(safe-area-inset-left, 0px));
+  width: 100%;
+  max-width: var(--app-max);
+  margin: 0 auto;
+  padding: max(0.45rem, env(safe-area-inset-top, 0px))
+    var(--pad-x)
+    max(0.45rem, env(safe-area-inset-bottom, 0px));
   overflow: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -3244,14 +3273,14 @@ body.keyboard-open .pins-dialog.dialog {
   #dm-dialog.dm-dialog.dialog,
   #dm-dialog.dm-dialog.dialog[open] {
     top: var(--vv-top, 0px) !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100% !important;
-    max-width: none !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: min(100%, var(--app-max)) !important;
+    max-width: var(--app-max) !important;
     height: var(--app-height, 100dvh) !important;
-    max-height: none !important;
-    transform: none !important;
+    max-height: var(--app-height, 100dvh) !important;
+    transform: translateX(-50%) !important;
     animation: none !important;
     border-radius: 0 !important;
     margin: 0 !important;

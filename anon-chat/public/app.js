@@ -1113,6 +1113,13 @@
     return `${n} новых`;
   }
 
+  /** Right-side counts in hub list: always total + unread (or «вы здесь»). */
+  function roomCountsLabel(messageCount, unread, { here = false } = {}) {
+    const total = messagesLabel(messageCount);
+    if (here) return `${total} · вы здесь`;
+    return `${total} · ${newMessagesLabel(unread)}`;
+  }
+
   function lastMessageIdFromList(messages) {
     const list = Array.isArray(messages) ? messages : [];
     if (!list.length) return "";
@@ -1339,18 +1346,28 @@
       return;
     }
     const rooms = loadDmRooms();
-    if (!rooms.length || !socket.connected) return;
+    const codes = new Map(rooms.map((r) => [r.code, r]));
+    if (!accessRoomsOnly && !codes.has(PUBLIC_ROOM_CODE)) {
+      codes.set(PUBLIC_ROOM_CODE, {
+        code: PUBLIC_ROOM_CODE,
+        lastReadId: "",
+        messageCount: 0,
+        unread: 0,
+      });
+    }
+    const list = [...codes.values()];
+    if (!list.length || !socket.connected) return;
     socket.emit(
       "dm:rooms-meta",
       {
-        rooms: rooms.map((r) => ({
+        rooms: list.map((r) => ({
           code: r.code,
           sinceId: r.lastReadId || "",
         })),
       },
       (res) => {
         if (!res?.ok || !Array.isArray(res.rooms)) return;
-        const byCode = new Map(res.rooms.map((r) => [r.code, r]));
+        const byCode = new Map(res.rooms.map((r) => [normalizeDmCodeLocal(r.code), r]));
         const next = loadDmRooms()
           .map((room) => {
             const meta = byCode.get(room.code);
@@ -1372,6 +1389,29 @@
             };
           })
           .filter(Boolean);
+        // Keep public room counts even if it wasn't in the saved list yet.
+        const publicMeta = byCode.get(PUBLIC_ROOM_CODE);
+        if (publicMeta?.exists !== false && !accessRoomsOnly) {
+          const existing = next.find((r) => r.code === PUBLIC_ROOM_CODE);
+          if (existing) {
+            existing.messageCount = Math.max(0, Number(publicMeta.messageCount) || 0);
+            existing.unread =
+              dmCode === PUBLIC_ROOM_CODE ? 0 : Math.max(0, Number(publicMeta.unread) || 0);
+          } else {
+            next.push({
+              code: PUBLIC_ROOM_CODE,
+              lastAt: Date.now(),
+              peer: publicChatLabel,
+              messageCount: Math.max(0, Number(publicMeta.messageCount) || 0),
+              lastReadId: "",
+              names: [publicChatLabel],
+              unread:
+                dmCode === PUBLIC_ROOM_CODE ? 0 : Math.max(0, Number(publicMeta.unread) || 0),
+              keyed: false,
+              closed: false,
+            });
+          }
+        }
         saveDmRooms(next);
         if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
       }
@@ -1448,10 +1488,11 @@
     codeEl.textContent = publicChatLabel;
 
     const unreadEl = document.createElement("span");
-    unreadEl.className = "dm-room-unread" + (here ? " has-new" : "");
     const saved = loadDmRooms().find((r) => r.code === PUBLIC_ROOM_CODE);
     const unread = here ? 0 : Math.max(0, Number(saved?.unread) || 0);
-    unreadEl.textContent = here ? "вы здесь" : unread ? newMessagesLabel(unread) : `номер ${PUBLIC_ROOM_CODE}`;
+    const msgCount = Math.max(0, Number(saved?.messageCount) || 0);
+    unreadEl.className = "dm-room-unread" + (unread > 0 ? " has-new" : "");
+    unreadEl.textContent = roomCountsLabel(msgCount, unread, { here });
 
     enterBtn.append(codeEl, unreadEl);
     enterBtn.addEventListener("click", () => joinDmByCode(PUBLIC_ROOM_CODE, { fromList: true }));
@@ -1544,33 +1585,23 @@
 
       const unreadEl = document.createElement("span");
       unreadEl.className = "dm-room-unread" + (unread > 0 ? " has-new" : "");
+      const msgCount = Math.max(0, Number(room.messageCount) || 0);
+      const here = dmCode === room.code;
+      const counts = roomCountsLabel(msgCount, unread, { here });
       if (owned) {
         const access = keyed
           ? storedKey
-            ? `админ · для других ключ ${storedKey}`
-            : "админ · для других по ключу"
-          : "админ · для других свободный";
-        unreadEl.textContent =
-          dmCode === room.code
-            ? access
-            : unread
-              ? `${access} · ${newMessagesLabel(unread)}`
-              : access;
+            ? `админ · ключ ${storedKey}`
+            : "админ · по ключу"
+          : "админ · свободный";
+        unreadEl.textContent = `${counts} · ${access}`;
       } else if (keyed) {
-        const access = storedKey ? `ключ ${storedKey}` : "закрытая · нужен ключ";
-        unreadEl.textContent =
-          dmCode === room.code
-            ? access
-            : unread
-              ? `${access} · ${newMessagesLabel(unread)}`
-              : access;
+        const access = storedKey ? `ключ ${storedKey}` : "закрытая";
+        unreadEl.textContent = `${counts} · ${access}`;
+      } else if (here && (room.foreign || isAdmin)) {
+        unreadEl.textContent = `${messagesLabel(msgCount)} · смотр`;
       } else {
-        unreadEl.textContent =
-          dmCode === room.code
-            ? room.foreign || isAdmin
-              ? "смотр"
-              : "вы здесь"
-            : newMessagesLabel(unread);
+        unreadEl.textContent = counts;
       }
 
       enterBtn.append(codeEl, unreadEl);
