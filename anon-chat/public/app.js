@@ -2005,6 +2005,7 @@
 
   function clearPinFocus() {
     document.body.classList.remove("pins-list-open", "pins-focus-mode");
+    document.documentElement.style.removeProperty("--pins-sheet-space");
     feed.querySelectorAll(".msg.pin-focus, .msg.pin-flash").forEach((el) => {
       el.classList.remove("pin-focus", "pin-flash");
     });
@@ -2025,29 +2026,53 @@
     });
   }
 
-  function scrollMsgAbovePinsPanel(el) {
+  function syncPinsSheetSpace() {
+    if (!pinsDialog?.open) {
+      document.documentElement.style.removeProperty("--pins-sheet-space");
+      return 0;
+    }
+    const feedBox = feed.getBoundingClientRect();
+    const dialogBox = pinsDialog.getBoundingClientRect();
+    // How much of the feed is covered by the sheet (+ gap so the pin isn't flush).
+    const covered = Math.max(0, Math.round(feedBox.bottom - dialogBox.top + 28));
+    const space = Math.max(200, covered);
+    document.documentElement.style.setProperty("--pins-sheet-space", `${space}px`);
+    feedScroller.refresh?.();
+    return space;
+  }
+
+  function scrollMsgAbovePinsPanel(el, { smooth = true } = {}) {
     if (!el) return;
+    syncPinsSheetSpace();
     const feedBox = feed.getBoundingClientRect();
     const dialogBox = pinsDialog.open
       ? pinsDialog.getBoundingClientRect()
       : { top: feedBox.bottom };
-    const margin = 12;
+    const margin = 14;
     const viewTop = feedBox.top + margin;
     const viewBottom = Math.min(feedBox.bottom, dialogBox.top || feedBox.bottom) - margin;
-    if (viewBottom <= viewTop + 40) return;
+    if (viewBottom <= viewTop + 48) return;
 
     const elBox = el.getBoundingClientRect();
-    // Keep the pinned message at the top of the free band above the bottom sheet.
-    const targetTop = viewTop + 2;
+    // Prefer the message sitting just under the pin bar / top of the free band.
+    const targetTop = viewTop + 4;
     let delta = elBox.top - targetTop;
 
-    // If the message is shorter than the band and would sit awkwardly, still pin to top.
-    // If taller than the band, still show its top edge.
-    if (Math.abs(delta) < 2) {
-      // Ensure bottom of free band isn't cutting mid-message awkwardly when short.
-      return;
+    // If the bubble is taller than the free band, keep its top visible.
+    if (elBox.height > viewBottom - viewTop && elBox.bottom > viewBottom) {
+      delta = elBox.top - targetTop;
+    } else if (elBox.bottom > viewBottom) {
+      // Bottom clipped by the sheet — lift until fully above (or as much as padding allows).
+      delta = Math.max(delta, elBox.bottom - viewBottom);
     }
-    feedScroller.scrollTo(feed.scrollTop + delta, true);
+
+    if (Math.abs(delta) < 2) return;
+    const next = feed.scrollTop + delta;
+    if (smooth) feedScroller.scrollTo(next, true);
+    else {
+      feed.scrollTop = next;
+      feedScroller.refresh?.();
+    }
   }
 
   function scrollToPinnedMessage(msg, { fromMenu = false } = {}) {
@@ -2064,11 +2089,19 @@
     if (fromMenu || pinsDialog.open) {
       document.body.classList.add("pins-focus-mode");
       layoutPinsDialog();
-      scrollMsgAbovePinsPanel(el);
+      syncPinsSheetSpace();
+      // Instant first jump after padding expands scroll range, then a settle pass.
+      scrollMsgAbovePinsPanel(el, { smooth: false });
+      requestAnimationFrame(() => {
+        layoutPinsDialog();
+        syncPinsSheetSpace();
+        scrollMsgAbovePinsPanel(el, { smooth: true });
+      });
       setTimeout(() => {
         layoutPinsDialog();
-        scrollMsgAbovePinsPanel(el);
-      }, 320);
+        syncPinsSheetSpace();
+        scrollMsgAbovePinsPanel(el, { smooth: true });
+      }, 280);
     } else {
       el.classList.add("pin-flash");
       el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2085,7 +2118,7 @@
     const sidePad = 10;
     const bottomPad = 10;
     // Bottom sheet: leave most of the viewport free for the focused message above.
-    const maxSheet = Math.round(vvH * 0.5);
+    const maxSheet = Math.round(vvH * 0.42);
     const bottomInset = Math.max(0, Math.round(window.innerHeight - vvBottom));
 
     pinsDialog.style.top = "auto";
@@ -2097,6 +2130,7 @@
     pinsDialog.style.maxWidth = `calc(100vw - ${sidePad * 2}px)`;
     pinsDialog.style.maxHeight = `${maxSheet}px`;
     pinsDialog.style.height = "auto";
+    syncPinsSheetSpace();
   }
 
   function closePinsList() {

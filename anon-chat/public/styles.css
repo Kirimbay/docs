@@ -1488,6 +1488,12 @@ body.admin-on #me-btn {
   pointer-events: auto;
 }
 
+body.pins-list-open .feed {
+  /* Room to scroll the focused pin above the bottom sheet (incl. last messages). */
+  padding-bottom: max(12rem, var(--pins-sheet-space, 45vh));
+  scroll-padding-bottom: max(12rem, var(--pins-sheet-space, 45vh));
+}
+
 body.pins-list-open .composer,
 body.pins-list-open .topbar,
 body.pins-list-open .dm-bar,
@@ -2437,7 +2443,7 @@ body.keyboard-open #rename-dialog.dialog {
 
 body.keyboard-open .pins-dialog.dialog {
   transform: translateX(-50%);
-  max-height: min(50vh, calc(var(--app-height, 100dvh) * 0.5));
+  max-height: min(42vh, calc(var(--app-height, 100dvh) * 0.42));
 }
 
 @keyframes dialog-in-top {
@@ -2535,7 +2541,7 @@ body.keyboard-open .pins-dialog.dialog {
   transform: translateX(-50%);
   width: min(420px, calc(100vw - 1.2rem));
   max-width: calc(100vw - 1.2rem);
-  max-height: min(50vh, calc(var(--app-height, 100dvh) * 0.5));
+  max-height: min(42vh, calc(var(--app-height, 100dvh) * 0.42));
   overflow: hidden;
   flex-direction: column;
   animation: dialog-in-bottom var(--motion) var(--ease-out) both;
