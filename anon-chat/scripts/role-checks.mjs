@@ -181,6 +181,33 @@ await check("4. Супер-админ: вход, ghost join, удаление ч
   superA.socket.close();
 });
 
+await check("4b. Супер-админ: create после token-resume без accountId (iPhone)", async () => {
+  const nick = `Sup${Date.now().toString().slice(-4)}`;
+  const pin = "8888";
+  const cid = clientId();
+  const s1 = connect();
+  await onceReady(s1);
+  const gate = await emitAck(s1, "chat:join", { name: nick, pin, clientId: cid });
+  assert(gate?.ok, gate?.error || "gate failed");
+  const admin = await emitAck(s1, "admin:login", { password: ADMIN_PASSWORD });
+  assert(admin?.ok && admin.token, admin?.error || "admin login failed");
+  s1.close();
+  // Resume like iPhone: adminToken only, no pin (old buggy client path) — server must still allow create.
+  const s2 = connect();
+  await onceReady(s2);
+  const resume = await emitAck(s2, "chat:join", {
+    name: nick,
+    clientId: cid,
+    adminToken: admin.token,
+    previousName: nick,
+  });
+  assert(resume?.ok && resume.admin, resume?.error || "admin resume failed");
+  const created = await emitAck(s2, "dm:create", { joinKey: "4321" });
+  assert(created?.ok, created?.error || "super create after token resume failed");
+  assert(created.code, "no room code");
+  s2.close();
+});
+
 await check("5. Реконнект: chat:join с пином восстанавливает сессию и комнату", async () => {
   const pin = "7777";
   const name = `Rec${Date.now().toString().slice(-4)}`;

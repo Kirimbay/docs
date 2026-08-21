@@ -1685,6 +1685,23 @@ io.on("connection", (socket) => {
 
     if (asAdmin) {
       name = ADMIN_DISPLAY_NAME;
+      // Keep account binding when pin + previous nick are available (iOS reconnects often).
+      const pin = normalizeRoomKey(payload.pin);
+      const nickForAccount =
+        previousName ||
+        (custom && !isReservedAdminName(custom) ? custom : null);
+      if (pin && nickForAccount) {
+        ensureAccounts();
+        const existing = findAccountByNick(nickForAccount);
+        if (existing && hashAccountPin(pin) === existing.pinHash) {
+          account = existing;
+          accountId = existing.id;
+          if (!previousName) {
+            // Prefer stored previous nick for logout restore.
+            socket.data.previousName = existing.nick || nickForAccount;
+          }
+        }
+      }
     } else {
       if (!custom) {
         if (typeof ack === "function") {
@@ -1976,15 +1993,19 @@ io.on("connection", (socket) => {
     const accountId = getSocketAccountId(socket);
     ensureAccounts();
     const account = accountId ? store.accounts[accountId] : null;
-    if (!account?.pinHash) {
+    const asSuper = isSuperAdminSocket(socket);
+    if (!account?.pinHash && !asSuper) {
       if (typeof ack === "function") {
         ack({ ok: false, error: "Сначала войдите с ником и пином" });
       }
       return;
     }
     // Prefer account pin as room admin key; still accept payload.adminKey for old clients.
+    // Super without account: room is client-owned; join key still works when provided.
     const adminKey = normalizeRoomKey(payload.adminKey || payload.key);
-    const adminDigest = adminKey ? hashRoomKey(adminKey) : account.pinHash;
+    const adminDigest = adminKey
+      ? hashRoomKey(adminKey)
+      : account?.pinHash || "";
     // joinKey field: empty → open for others; 4 digits → keyed.
     // Legacy clients: access + single key (admin pin doubles as join key).
     const hasJoinField = Object.prototype.hasOwnProperty.call(payload, "joinKey");
@@ -1996,7 +2017,12 @@ io.on("connection", (socket) => {
       joinDigest = joinKey ? hashRoomKey(joinKey) : "";
     } else {
       roomAccess = payload.access === "keyed" ? "keyed" : "open";
-      joinDigest = roomAccess === "keyed" ? (adminKey ? hashRoomKey(adminKey) : account.pinHash) : "";
+      joinDigest =
+        roomAccess === "keyed"
+          ? adminKey
+            ? hashRoomKey(adminKey)
+            : account?.pinHash || ""
+          : "";
     }
     leaveDmRoom(socket);
     ensureRooms();
@@ -2024,12 +2050,12 @@ io.on("connection", (socket) => {
       lastActiveAt: new Date().toISOString(),
       createdBy: user.name,
       ownerClientId: ownerClientId || "",
-      ownerAccountId: accountId,
+      ownerAccountId: accountId || "",
       access: roomAccess,
       adminKeyHash: adminDigest,
       keyHash: joinDigest,
       closed: false,
-      participants: [user.name],
+      participants: asSuper ? [] : [user.name],
       messages: [],
       pinnedIds: [],
     };

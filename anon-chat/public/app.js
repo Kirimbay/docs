@@ -4259,7 +4259,9 @@
       "chat:join",
       {
         name,
-        pin: adminToken ? undefined : pin,
+        // Always send pin when known — admin token resume must keep accountId
+        // so super-admin can still create rooms after iPhone reconnect.
+        pin: pin.length === 4 ? pin : undefined,
         clientId: loadClientId(),
         adminToken: adminToken || undefined,
         previousName: previousName || undefined,
@@ -5036,7 +5038,8 @@
       return;
     }
     const accountPin = normalizeRoomKeyLocal(loadPin() || "");
-    if (accountPin.length !== 4) {
+    // Super-admin may create without a stored pin (token-only resume on iPhone).
+    if (accountPin.length !== 4 && !isAdmin) {
       showDmDialogError("Сначала войдите с пином аккаунта");
       return;
     }
@@ -5085,7 +5088,7 @@
         showDmDialogError(res?.error || "Не создалось");
         return;
       }
-      saveAdminPin(res.code, accountPin);
+      if (accountPin.length === 4) saveAdminPin(res.code, accountPin);
       if (joinKey) saveRoomKey(res.code, joinKey);
       else clearRoomKey(res.code);
       markOwnedRoom(res.code);
@@ -5653,7 +5656,8 @@
         "chat:join",
         {
           name: myName === "АДМИН" ? previousName || myName : myName,
-          pin: adminToken ? undefined : pin || undefined,
+          // Keep account bound for super-admin after Safari/iOS socket drops.
+          pin: pin.length === 4 ? pin : undefined,
           clientId: loadClientId(),
           adminToken: adminToken || undefined,
           previousName: previousName || undefined,
