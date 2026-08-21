@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=148" />
+    <link rel="stylesheet" href="/styles.css?v=149" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -218,18 +218,8 @@
         <div class="dm-dialog-footer">
           <div class="dm-create-box">
             <p class="dm-create-title">Новая комната</p>
-            <div class="dm-access-row" role="radiogroup" aria-label="Тип комнаты">
-              <label class="dm-access-opt">
-                <input type="radio" name="dm-access" value="open" checked />
-                <span>Свободная</span>
-              </label>
-              <label class="dm-access-opt">
-                <input type="radio" name="dm-access" value="keyed" />
-                <span>По ключу</span>
-              </label>
-            </div>
             <label class="field dm-code-field">
-              <span>Желаемый номер · 6 цифр (необязательно)</span>
+              <span>Номер комнаты</span>
               <input
                 id="dm-create-code"
                 type="text"
@@ -237,11 +227,23 @@
                 pattern="[0-9]{6}"
                 maxlength="6"
                 autocomplete="off"
-                placeholder="если занят — дадим свободный"
+                placeholder="номер комнаты"
               />
             </label>
             <label class="field dm-key-field">
-              <span>Пин админа · 4 цифры (для «по ключу» — ещё и ключ входа)</span>
+              <span>Ключ от комнаты</span>
+              <input
+                id="dm-create-join-key"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]{4}"
+                maxlength="4"
+                autocomplete="off"
+                placeholder="ключ от комнаты · пусто = свободный вход"
+              />
+            </label>
+            <label class="field dm-key-field">
+              <span>Пин админа</span>
               <input
                 id="dm-create-key"
                 type="text"
@@ -249,7 +251,7 @@
                 pattern="[0-9]{4}"
                 maxlength="4"
                 autocomplete="off"
-                placeholder="4821"
+                placeholder="пин админа"
               />
             </label>
             <button type="button" id="dm-create-btn" class="primary dm-create-btn">Создать</button>
@@ -389,6 +391,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=148"></script>
+    <script src="/app.js?v=149"></script>
   </body>
 </html>

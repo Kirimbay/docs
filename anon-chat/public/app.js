@@ -51,6 +51,7 @@
   const dmDialog = $("#dm-dialog");
   const dmCreateBtn = $("#dm-create-btn");
   const dmCreateKey = $("#dm-create-key");
+  const dmCreateJoinKey = $("#dm-create-join-key");
   const dmCreateCode = $("#dm-create-code");
   const dmJoinKey = $("#dm-join-key");
   const dmLead = $("#dm-lead");
@@ -124,6 +125,7 @@
   const NOTIFY_DM_KEY = "sarafan_notify_dm";
   const ADMIN_ROOM_READS_KEY = "sarafan_admin_room_reads";
   const ROOM_KEYS_KEY = "sarafan_room_keys";
+  const ADMIN_PINS_KEY = "sarafan_admin_pins";
   const OWNED_ROOMS_KEY = "sarafan_owned_rooms";
   const MAX_ADMIN_ROOM_READS = 200;
   const LIKE_EMOJI = "❤️";
@@ -379,6 +381,38 @@
     return k.length === 4 ? k : "";
   }
 
+  function loadAdminPins() {
+    try {
+      const raw = localStorage.getItem(ADMIN_PINS_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveAdminPin(code, pin) {
+    const c = normalizeDmCodeLocal(code);
+    const p = normalizeRoomKeyLocal(pin);
+    if (c.length !== 6 || p.length !== 4) return;
+    try {
+      const map = loadAdminPins();
+      map[c] = p;
+      localStorage.setItem(ADMIN_PINS_KEY, JSON.stringify(map));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function loadAdminPin(code) {
+    const c = normalizeDmCodeLocal(code);
+    const fromPins = normalizeRoomKeyLocal(loadAdminPins()[c] || "");
+    if (fromPins.length === 4) return fromPins;
+    // Legacy: admin pin was stored in the join-key map.
+    return loadRoomKey(c);
+  }
+
   function loadOwnedRooms() {
     try {
       const raw = localStorage.getItem(OWNED_ROOMS_KEY);
@@ -424,7 +458,7 @@
       Boolean(dmCode) &&
       !isPublicRoomCode(dmCode) &&
       !isAdmin &&
-      (roomIsOwner || Boolean(loadRoomKey(dmCode)));
+      (roomIsOwner || Boolean(loadAdminPin(dmCode)) || Boolean(loadRoomKey(dmCode)));
     if (roomKeyBtn) {
       roomKeyBtn.hidden = !canOwn;
       roomKeyBtn.textContent = isRoomAdmin ? "Выйти из админки" : "Режим админа";
@@ -450,9 +484,9 @@
       const key = dmCode ? loadRoomKey(dmCode) : "";
       roomAccessStatus.textContent = roomKeyed
         ? key
-          ? `Сейчас: закрытая · ключ ${key}`
-          : "Сейчас: закрытая · по ключу"
-        : "Сейчас: открытая · без ключа";
+          ? `Сейчас: закрытая · для других ключ ${key}`
+          : "Сейчас: закрытая · для других по ключу"
+        : "Сейчас: открытая · для других свободный вход";
     }
     // Closed → open + change key; open → key field + close.
     if (roomMakeOpenBtn) {
@@ -518,11 +552,11 @@
     if (roomKeyed) {
       const key = loadRoomKey(dmCode);
       dmBarCode.textContent = key
-        ? `${dmCode} · комната закрытая · ключ ${key}`
-        : `${dmCode} · комната закрытая · по ключу`;
+        ? `${dmCode} · для других ключ ${key}`
+        : `${dmCode} · для других по ключу`;
       return;
     }
-    dmBarCode.textContent = `${dmCode} · комната открытая · без ключа`;
+    dmBarCode.textContent = `${dmCode} · для других свободный`;
   }
 
   function clearDeleteArm() {
@@ -1396,9 +1430,9 @@
       enterBtn.title = owned
         ? keyed
           ? loadRoomKey(room.code)
-            ? `Ваша · вход по ключу ${loadRoomKey(room.code)}`
-            : "Ваша · вход по ключу"
-          : "Ваша · вход без ключа"
+            ? `Админ · для других ключ ${loadRoomKey(room.code)}`
+            : "Админ · для других по ключу"
+          : "Админ · для других свободный вход"
         : keyed
           ? `По ключу · ${room.code}`
           : room.foreign
@@ -1425,12 +1459,11 @@
       unreadEl.className = "dm-room-unread" + (unread > 0 ? " has-new" : "");
       if (owned) {
         const key = loadRoomKey(room.code);
-        // Show how others enter — not “you’re admin so you can skip the key”.
         const access = keyed
           ? key
-            ? `вход по ключу · ${key}`
-            : "вход по ключу"
-          : "вход без ключа";
+            ? `админ · для других ключ ${key}`
+            : "админ · для других по ключу"
+          : "админ · для других свободный";
         unreadEl.textContent =
           dmCode === room.code
             ? access
@@ -1459,9 +1492,9 @@
       const accessHint = owned
         ? keyed
           ? ownedKey
-            ? `вход по ключу ${ownedKey} · `
-            : "вход по ключу · "
-          : "вход без ключа · "
+            ? `для других ключ ${ownedKey} · `
+            : "для других по ключу · "
+          : "для других свободный · "
         : keyed
           ? "по ключу · "
           : "";
@@ -1473,9 +1506,9 @@
         : owned
           ? keyed
             ? ownedKey
-              ? `Вход по ключу · ${ownedKey}`
-              : "Вход по ключу"
-            : "Вход без ключа"
+              ? `Для других · ключ ${ownedKey}`
+              : "Для других · по ключу"
+            : "Для других · свободный вход"
           : "Пока никого";
       namesBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
       namesBtn.addEventListener("click", (e) => {
@@ -4703,8 +4736,7 @@
   }
 
   function selectedCreateAccess() {
-    const checked = document.querySelector('input[name="dm-access"]:checked');
-    return checked?.value === "keyed" ? "keyed" : "open";
+    return "open";
   }
 
   function syncDmBtn() {
@@ -4740,42 +4772,60 @@
   });
   dmCreateBtn?.addEventListener("click", () => {
     showDmDialogError("");
-    const key = normalizeRoomKeyLocal(dmCreateKey?.value || "");
-    if (key.length !== 4) {
-      showDmDialogError("Придумайте пин админа из ровно 4 цифр");
+    const adminPin = normalizeRoomKeyLocal(dmCreateKey?.value || "");
+    if (adminPin.length !== 4) {
+      showDmDialogError("Пин админа — ровно 4 цифры");
       dmCreateKey?.focus();
+      return;
+    }
+    const joinRaw = (dmCreateJoinKey?.value || "").replace(/\D/g, "").slice(0, 4);
+    if (joinRaw && joinRaw.length !== 4) {
+      showDmDialogError("Ключ от комнаты — ровно 4 цифры, или оставьте пустым");
+      dmCreateJoinKey?.focus();
       return;
     }
     const preferredRaw = (dmCreateCode?.value || "").replace(/\D/g, "").slice(0, 6);
     if (preferredRaw && preferredRaw.length !== 6) {
-      showDmDialogError("Желаемый номер — ровно 6 цифр, или оставьте пустым");
+      showDmDialogError("Номер комнаты — ровно 6 цифр, или оставьте пустым");
       dmCreateCode?.focus();
       return;
     }
-    const access = selectedCreateAccess();
-    const payload = { access, key };
+    const joinKey = joinRaw.length === 4 ? joinRaw : "";
+    const payload = {
+      adminKey: adminPin,
+      joinKey,
+      access: joinKey ? "keyed" : "open",
+    };
     if (preferredRaw.length === 6) payload.code = preferredRaw;
     socket.emit("dm:create", payload, (res) => {
       if (!res?.ok) {
         showDmDialogError(res?.error || "Не создалось");
         return;
       }
-      saveRoomKey(res.code, key);
+      saveAdminPin(res.code, adminPin);
+      if (joinKey) saveRoomKey(res.code, joinKey);
+      else clearRoomKey(res.code);
       markOwnedRoom(res.code);
       if (dmCreateKey) dmCreateKey.value = "";
+      if (dmCreateJoinKey) dmCreateJoinKey.value = "";
       if (dmCreateCode) dmCreateCode.value = "";
       enterDmMode(res);
       saveLastDest(res.code);
       markSessionLive();
       hubRequirePick = false;
       void closeDmDialogSoft();
-      const mode = access === "keyed" ? "по ключу" : "свободная";
       if (res.remapped && preferredRaw) {
         notify(
-          `Номер ${preferredRaw} занят · выдан свободный ${res.code} · пин админа ${key} (${mode})`
+          joinKey
+            ? `Номер ${preferredRaw} занят · выдан ${res.code} · для других ключ ${joinKey} · пин админа ${adminPin}`
+            : `Номер ${preferredRaw} занят · выдан ${res.code} · для других свободный · пин админа ${adminPin}`
         );
       } else {
-        notify(`Номер ${res.code} · пин админа ${key} (${mode}) — сохрани. Режим админа — кнопка сверху`);
+        notify(
+          joinKey
+            ? `Номер ${res.code} · для других ключ ${joinKey} · пин админа ${adminPin}`
+            : `Номер ${res.code} · для других свободный · пин админа ${adminPin}`
+        );
       }
     });
   });
@@ -4787,6 +4837,10 @@
   dmCreateCode?.addEventListener("input", () => {
     const digits = (dmCreateCode.value || "").replace(/\D/g, "").slice(0, 6);
     if (dmCreateCode.value !== digits) dmCreateCode.value = digits;
+  });
+  dmCreateJoinKey?.addEventListener("input", () => {
+    const digits = normalizeRoomKeyLocal(dmCreateJoinKey.value);
+    if (dmCreateJoinKey.value !== digits) dmCreateJoinKey.value = digits;
   });
   dmJoinKey?.addEventListener("input", () => {
     const digits = normalizeRoomKeyLocal(dmJoinKey.value);
@@ -4825,7 +4879,7 @@
       roomKeyError.hidden = true;
       roomKeyError.textContent = "";
     }
-    if (roomKeyInput) roomKeyInput.value = loadRoomKey(dmCode) || "";
+    if (roomKeyInput) roomKeyInput.value = loadAdminPin(dmCode) || "";
     roomKeyDialog?.showModal();
     roomKeyInput?.focus();
   });
@@ -4847,7 +4901,7 @@
         }
         return;
       }
-      saveRoomKey(dmCode, key);
+      saveAdminPin(dmCode, key);
       markOwnedRoom(dmCode);
       isRoomAdmin = true;
       roomIsOwner = true;
@@ -4874,7 +4928,7 @@
     if (!isRoomAdmin || !dmCode) return;
     showRoomAdminPanelError("");
     if (roomNewAdminKey) roomNewAdminKey.value = "";
-    if (roomConfirmAdminKey) roomConfirmAdminKey.value = loadRoomKey(dmCode) || "";
+    if (roomConfirmAdminKey) roomConfirmAdminKey.value = loadAdminPin(dmCode) || "";
     if (roomNewJoinKey) roomNewJoinKey.value = roomKeyed ? loadRoomKey(dmCode) || "" : "";
     if (roomDeleteCode) roomDeleteCode.value = "";
     if (roomDeleteKey) roomDeleteKey.value = "";
@@ -4897,7 +4951,7 @@
         showRoomAdminPanelError(res?.error || "Не сменилось");
         return;
       }
-      saveRoomKey(dmCode, newKey);
+      saveAdminPin(dmCode, newKey);
       if (roomConfirmAdminKey) roomConfirmAdminKey.value = newKey;
       if (roomNewAdminKey) roomNewAdminKey.value = "";
       showRoomAdminPanelError("");
@@ -4906,7 +4960,7 @@
   });
 
   roomChangeJoinKeyBtn?.addEventListener("click", () => {
-    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || loadRoomKey(dmCode) || "");
+    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || loadAdminPin(dmCode) || "");
     const newKey = normalizeRoomKeyLocal(roomNewJoinKey?.value || "");
     if (currentKey.length !== 4) {
       showRoomAdminPanelError("Подтвердите пином админа (4 цифры)");
@@ -4936,7 +4990,7 @@
   });
 
   roomMakeOpenBtn?.addEventListener("click", () => {
-    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || loadRoomKey(dmCode) || "");
+    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || loadAdminPin(dmCode) || "");
     if (currentKey.length !== 4) {
       showRoomAdminPanelError("Подтвердите пином админа (4 цифры) сверху");
       roomConfirmAdminKey?.focus();
@@ -4947,25 +5001,24 @@
         showRoomAdminPanelError(res?.error || "Не открылось");
         return;
       }
+      clearRoomKey(dmCode);
       applyRoomFlags(res);
       showRoomAdminPanelError("");
-      notify("Комната открыта · без ключа");
+      notify("Комната открыта · для других свободный вход");
       if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
     });
   });
 
   roomMakeKeyedBtn?.addEventListener("click", () => {
-    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || loadRoomKey(dmCode) || "");
-    const newKey = normalizeRoomKeyLocal(
-      roomNewJoinKey?.value || loadRoomKey(dmCode) || roomConfirmAdminKey?.value || ""
-    );
+    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || loadAdminPin(dmCode) || "");
+    const newKey = normalizeRoomKeyLocal(roomNewJoinKey?.value || "");
     if (currentKey.length !== 4) {
       showRoomAdminPanelError("Подтвердите пином админа (4 цифры) сверху");
       roomConfirmAdminKey?.focus();
       return;
     }
     if (newKey.length !== 4) {
-      showRoomAdminPanelError("Укажите ключ входа из 4 цифр");
+      showRoomAdminPanelError("Укажите ключ от комнаты из 4 цифр");
       roomNewJoinKey?.focus();
       return;
     }
@@ -4981,7 +5034,7 @@
         applyRoomFlags(res);
         if (roomNewJoinKey) roomNewJoinKey.value = "";
         showRoomAdminPanelError("");
-        notify(`Комната закрыта · ключ ${newKey}`);
+        notify(`Комната закрыта · для других ключ ${newKey}`);
         if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
       }
     );

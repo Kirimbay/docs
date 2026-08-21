@@ -1746,13 +1746,25 @@ io.on("connection", (socket) => {
       }
       return;
     }
-    const access = payload.access === "keyed" ? "keyed" : "open";
-    const key = normalizeRoomKey(payload.key);
-    if (!key) {
+    const adminKey = normalizeRoomKey(payload.adminKey || payload.key);
+    if (!adminKey) {
       if (typeof ack === "function") {
         ack({ ok: false, error: "Придумайте пин админа из ровно 4 цифр" });
       }
       return;
+    }
+    // joinKey field: empty → open for others; 4 digits → keyed.
+    // Legacy clients: access + single key (admin pin doubles as join key).
+    const hasJoinField = Object.prototype.hasOwnProperty.call(payload, "joinKey");
+    const joinKey = normalizeRoomKey(payload.joinKey);
+    let roomAccess;
+    let joinDigest = "";
+    if (hasJoinField) {
+      roomAccess = joinKey ? "keyed" : "open";
+      joinDigest = joinKey ? hashRoomKey(joinKey) : "";
+    } else {
+      roomAccess = payload.access === "keyed" ? "keyed" : "open";
+      joinDigest = roomAccess === "keyed" ? hashRoomKey(adminKey) : "";
     }
     leaveDmRoom(socket);
     ensureRooms();
@@ -1774,17 +1786,16 @@ io.on("connection", (socket) => {
       return;
     }
     const ownerClientId = normalizeClientId(user.clientId || socket.data.clientId);
-    const keyDigest = hashRoomKey(key);
+    const adminDigest = hashRoomKey(adminKey);
     store.rooms[code] = {
       code,
       createdAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
       createdBy: user.name,
       ownerClientId: ownerClientId || "",
-      access,
-      // Admin password (always). Join key for keyed rooms (same at create; can diverge later).
-      adminKeyHash: keyDigest,
-      keyHash: access === "keyed" ? keyDigest : "",
+      access: roomAccess,
+      adminKeyHash: adminDigest,
+      keyHash: joinDigest,
       closed: false,
       participants: [user.name],
       messages: [],
