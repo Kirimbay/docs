@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=180" />
+    <link rel="stylesheet" href="/styles.css?v=181" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -42,10 +42,7 @@
         </p>
         <label class="field">
           <span>Имя</span>
-          <div class="name-row">
-            <input id="name-input" type="text" maxlength="24" autocomplete="nickname" placeholder="Например: Барс" />
-            <button type="button" id="random-btn" class="ghost">Случайное</button>
-          </div>
+          <input id="name-input" type="text" maxlength="24" autocomplete="nickname" placeholder="Придумайте ник" />
         </label>
         <label class="field">
           <span>Пин · 4 цифры</span>
@@ -188,14 +185,25 @@
     <dialog id="rename-dialog" class="dialog sheet-top">
       <div class="dialog-body">
         <h2>Профиль</h2>
-        <p>Сменить имя или выйти из аккаунта на этом устройстве.</p>
-        <label class="field">
-          <span>Имя в чате</span>
-          <div class="name-row">
-            <input id="rename-input" type="text" maxlength="24" autocomplete="nickname" placeholder="Например: Барс" />
-            <button type="button" id="rename-random-btn" class="ghost">Случайное</button>
-          </div>
+        <p id="rename-lead">Ник и пин — чтобы вспомнить перед выходом. Можно сменить оба.</p>
+        <label class="field" id="rename-name-field">
+          <span>Ник</span>
+          <input id="rename-input" type="text" maxlength="24" autocomplete="nickname" placeholder="Ваш ник" />
         </label>
+        <label class="field" id="rename-pin-field">
+          <span>Пин · 4 цифры</span>
+          <input
+            id="rename-pin-input"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]{4}"
+            maxlength="4"
+            autocomplete="current-password"
+            placeholder="пин аккаунта"
+          />
+        </label>
+        <p id="rename-error" class="error" hidden></p>
+        <button type="button" id="rename-suggest-btn" class="ghost compact" hidden>Взять свободный</button>
         <div class="dialog-actions">
           <button type="button" id="rename-cancel-btn" class="ghost">Отмена</button>
           <button type="button" id="rename-apply-btn" class="primary">Сохранить</button>
@@ -403,6 +411,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=180"></script>
+    <script src="/app.js?v=181"></script>
   </body>
 </html>

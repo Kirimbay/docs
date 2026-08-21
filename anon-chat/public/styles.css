@@ -2952,6 +2952,11 @@ body.bulk-select-on .composer-shell {
   overscroll-behavior: contain;
 }
 
+#rename-suggest-btn {
+  justify-self: start;
+  margin: -0.15rem 0 0.15rem;
+}
+
 body.keyboard-open .dialog.sheet-top,
 body.keyboard-open #admin-dialog.dialog,
 body.keyboard-open #rename-dialog.dialog {

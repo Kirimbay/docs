@@ -5,7 +5,6 @@
   const app = $("#app");
   const nameInput = $("#name-input");
   const pinInput = $("#pin-input");
-  const randomBtn = $("#random-btn");
   const joinBtn = $("#join-btn");
   const gateError = $("#gate-error");
   const feed = $("#feed");
@@ -36,7 +35,12 @@
   const replyCancelBtn = $("#reply-cancel-btn");
   const renameDialog = $("#rename-dialog");
   const renameInput = $("#rename-input");
-  const renameRandomBtn = $("#rename-random-btn");
+  const renamePinInput = $("#rename-pin-input");
+  const renamePinField = $("#rename-pin-field");
+  const renameNameField = $("#rename-name-field");
+  const renameLead = $("#rename-lead");
+  const renameError = $("#rename-error");
+  const renameSuggestBtn = $("#rename-suggest-btn");
   const renameCancelBtn = $("#rename-cancel-btn");
   const renameApplyBtn = $("#rename-apply-btn");
   const logoutBtn = $("#logout-btn");
@@ -2670,10 +2674,6 @@
     /* invites removed */
   }
 
-  const RANDOM_NAME_FALLBACK = ["Барс", "Лис", "Сокол", "Туман", "Искра", "Парус", "Неон", "Кедр", "Роса", "Маяк"];
-  let randomNamePool = null;
-  let randomNameDeck = [];
-
   function nameEquals(a, b) {
     return (
       String(a || "")
@@ -2685,71 +2685,6 @@
         .trim()
         .toLocaleLowerCase("ru-RU")
     );
-  }
-
-  function shuffleNames(list) {
-    const arr = [...list];
-    for (let i = arr.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const tmp = arr[i];
-      arr[i] = arr[j];
-      arr[j] = tmp;
-    }
-    return arr;
-  }
-
-  function refillRandomNameDeck(avoid) {
-    const pool = randomNamePool?.length ? randomNamePool : RANDOM_NAME_FALLBACK;
-    let next = shuffleNames(pool);
-    if (avoid) {
-      const filtered = next.filter((n) => !nameEquals(n, avoid));
-      if (filtered.length) next = filtered;
-    }
-    randomNameDeck = next;
-  }
-
-  async function loadRandomNamePool() {
-    if (randomNamePool?.length) return randomNamePool;
-    const res = await fetch("/api/name-pool");
-    const data = await res.json();
-    const names = Array.isArray(data?.names)
-      ? data.names.map((n) => String(n || "").trim()).filter(Boolean)
-      : [];
-    randomNamePool = names.length ? names : RANDOM_NAME_FALLBACK;
-    return randomNamePool;
-  }
-
-  async function fetchRandomName(targetInput = nameInput) {
-    const current = (targetInput?.value || "").trim();
-    try {
-      await loadRandomNamePool();
-      if (!randomNameDeck.length) refillRandomNameDeck(current);
-
-      let next = null;
-      while (randomNameDeck.length) {
-        const candidate = randomNameDeck.pop();
-        if (!nameEquals(candidate, current)) {
-          next = candidate;
-          break;
-        }
-      }
-      if (!next) {
-        refillRandomNameDeck(current);
-        next = randomNameDeck.pop() || current;
-      }
-      if (targetInput && next) targetInput.value = next;
-      return next || "";
-    } catch {
-      if (!randomNamePool?.length) randomNamePool = RANDOM_NAME_FALLBACK;
-      if (!randomNameDeck.length) refillRandomNameDeck(current);
-      let next = randomNameDeck.pop();
-      if (!next || nameEquals(next, current)) {
-        refillRandomNameDeck(current);
-        next = randomNameDeck.pop() || current;
-      }
-      if (targetInput && next) targetInput.value = next;
-      return next || "";
-    }
   }
 
   function showGateError(text) {
@@ -3031,6 +2966,7 @@
       active === messageInput ||
       active === nameInput ||
       active === renameInput ||
+      active === renamePinInput ||
       active === adminPassword ||
       active === dmCodeInput ||
       active?.tagName === "TEXTAREA" ||
@@ -4579,7 +4515,19 @@
       },
       (res) => {
         if (!res?.ok) {
+          const suggestion = String(res?.suggestion || "").trim();
           showGateError(res?.error || "Не удалось войти");
+          if (suggestion && nameInput) {
+            // Soft offer: put free nick so they can enter a pin and retry.
+            nameInput.value = suggestion;
+            nameInput.focus();
+            try {
+              const len = nameInput.value.length;
+              nameInput.setSelectionRange(len, len);
+            } catch {
+              /* ignore */
+            }
+          }
           return;
         }
         applyAccessFlags({
@@ -4677,23 +4625,58 @@
     });
   }
 
-  randomBtn.addEventListener("click", () => {
-    fetchRandomName(nameInput).catch(() => {});
-  });
+  let renameSuggestion = "";
+
+  function clearRenameError() {
+    renameSuggestion = "";
+    if (renameError) {
+      renameError.hidden = true;
+      renameError.textContent = "";
+    }
+    if (renameSuggestBtn) {
+      renameSuggestBtn.hidden = true;
+      renameSuggestBtn.textContent = "Взять свободный";
+    }
+  }
+
+  function showRenameError(text, suggestion = "") {
+    renameSuggestion = String(suggestion || "").trim();
+    if (renameError) {
+      renameError.hidden = !text;
+      renameError.textContent = text || "";
+    }
+    if (renameSuggestBtn) {
+      if (renameSuggestion) {
+        renameSuggestBtn.hidden = false;
+        renameSuggestBtn.textContent = `Взять «${renameSuggestion}»`;
+      } else {
+        renameSuggestBtn.hidden = true;
+      }
+    }
+  }
 
   function openRenameDialog() {
     if (!renameDialog || !renameInput) return;
+    clearRenameError();
     if (isAdmin) {
       // Super-admin: profile sheet is logout-only (name is always АДМИН).
+      if (renameLead) renameLead.textContent = "Выйти из режима админа на этом устройстве.";
       renameInput.value = "АДМИН";
       renameInput.disabled = true;
+      if (renameNameField) renameNameField.hidden = false;
+      if (renamePinField) renamePinField.hidden = true;
+      if (renamePinInput) renamePinInput.value = "";
       if (renameApplyBtn) renameApplyBtn.hidden = true;
-      if (renameRandomBtn) renameRandomBtn.hidden = true;
     } else {
+      if (renameLead) {
+        renameLead.textContent = "Ник и пин — чтобы вспомнить перед выходом. Можно сменить оба.";
+      }
       renameInput.disabled = false;
       renameInput.value = myName || "";
+      if (renameNameField) renameNameField.hidden = false;
+      if (renamePinField) renamePinField.hidden = false;
+      if (renamePinInput) renamePinInput.value = loadPin() || "";
       if (renameApplyBtn) renameApplyBtn.hidden = false;
-      if (renameRandomBtn) renameRandomBtn.hidden = false;
     }
     renameDialog.showModal();
     layoutFormDialog(renameDialog);
@@ -4753,25 +4736,45 @@
 
   function applyRename() {
     const next = (renameInput?.value || "").trim();
+    const nextPin = normalizeRoomKeyLocal(renamePinInput?.value || "");
+    clearRenameError();
     if (!next) {
-      notify("Введите имя")
+      showRenameError("Введите ник");
+      renameInput?.focus();
+      return;
+    }
+    if (nextPin.length !== 4) {
+      showRenameError("Пин — ровно 4 цифры");
+      renamePinInput?.focus();
       return;
     }
     const previousName = myName;
-    socket.emit("chat:rename", { name: next }, (res) => {
+    const previousPin = loadPin();
+    const pinChangedLocally = nextPin !== previousPin;
+    socket.emit("chat:rename", { name: next, pin: nextPin }, (res) => {
       if (!res?.ok) {
-        notify(res?.error || "Не сменилось")
+        const suggestion = String(res?.suggestion || "").trim();
+        showRenameError(res?.error || "Не сменилось", suggestion);
+        if (suggestion) renameInput?.focus();
+        else notify(res?.error || "Не сменилось");
         return;
       }
       const from = res.from || previousName;
       const to = res.name;
+      if (res.pinChanged || pinChangedLocally) savePin(nextPin);
       renameDialog?.close();
-      // Rewrite + force-repaint before flipping myName helpers that gate .mine.
-      applyAuthorRename(from, to);
-      myName = to;
-      saveName(myName);
-      syncMeBtn();
-      if (notifyEnabled) void syncPushSubscription();
+      if (!nameEquals(from, to)) {
+        applyAuthorRename(from, to);
+        myName = to;
+        saveName(myName);
+        syncMeBtn();
+        if (notifyEnabled) void syncPushSubscription();
+        notify(res.pinChanged ? "Ник и пин сохранены" : "Ник сохранён");
+      } else if (res.pinChanged || pinChangedLocally) {
+        notify("Пин сохранён");
+      } else {
+        notify("Без изменений");
+      }
     });
   }
 
@@ -4963,18 +4966,29 @@
   });
   pins.addEventListener("click", onPinBarClick);
 
-  renameRandomBtn?.addEventListener("click", () => {
-    fetchRandomName(renameInput).catch(() => {});
-  });
   renameCancelBtn?.addEventListener("click", () => renameDialog?.close());
   renameApplyBtn?.addEventListener("click", applyRename);
+  renameSuggestBtn?.addEventListener("click", () => {
+    if (!renameSuggestion || !renameInput) return;
+    renameInput.value = renameSuggestion;
+    clearRenameError();
+    renameInput.focus();
+  });
   renameInput?.addEventListener("focus", () => keepDialogAboveKeyboard(renameDialog, renameInput));
+  renamePinInput?.addEventListener("focus", () => keepDialogAboveKeyboard(renameDialog, renamePinInput));
+  renameInput?.addEventListener("input", () => clearRenameError());
+  renamePinInput?.addEventListener("input", () => {
+    const digits = normalizeRoomKeyLocal(renamePinInput.value);
+    if (renamePinInput.value !== digits) renamePinInput.value = digits;
+    clearRenameError();
+  });
   renameDialog?.addEventListener("close", () => {
     renameDialog.style.top = "";
     renameDialog.style.bottom = "";
     renameDialog.style.maxHeight = "";
     renameDialog.style.transform = "";
     renameDialog.style.margin = "";
+    clearRenameError();
   });
   adminDialog?.addEventListener("close", () => {
     adminSheetFrozen = false;
@@ -5196,6 +5210,12 @@
   })();
 
   renameInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      applyRename();
+    }
+  });
+  renamePinInput?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       applyRename();
@@ -6449,7 +6469,5 @@
     };
     if (socket.connected) tryAutoJoin();
     else socket.once("connect", tryAutoJoin);
-  } else if (!savedName) {
-    fetchRandomName().catch(() => {});
   }
 })();

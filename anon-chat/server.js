@@ -752,6 +752,22 @@ function isNameTaken(name, exceptSocketId = null, exceptAccountId = null) {
   return isAccountNickTaken(name, exceptAccountId);
 }
 
+/** If `desired` is free, return it; else try desired2, desired3, … */
+function suggestFreeNick(desired, exceptSocketId = null, exceptAccountId = null) {
+  const base = sanitizeName(desired);
+  if (!base) return "";
+  if (!isNameTaken(base, exceptSocketId, exceptAccountId)) return base;
+  for (let n = 2; n <= 9999; n += 1) {
+    const suffix = String(n);
+    const room = Math.max(1, MAX_NAME_LEN - suffix.length);
+    const stem = base.slice(0, room).trimEnd();
+    if (!stem) continue;
+    const candidate = sanitizeName(`${stem}${suffix}`);
+    if (candidate && !isNameTaken(candidate, exceptSocketId, exceptAccountId)) return candidate;
+  }
+  return "";
+}
+
 function rewriteStoredAuthorName(oldName, newName) {
   const oldKey = nameKey(oldName);
   const nextName = sanitizeName(newName);
@@ -2042,7 +2058,14 @@ io.on("connection", (socket) => {
         // Nick must be free among accounts; refuse if a race already claimed it.
         if (isAccountNickTaken(custom)) {
           if (typeof ack === "function") {
-            ack({ ok: false, error: "Имя уже занято — выберите другое" });
+            const suggestion = suggestFreeNick(custom, socket.id, null);
+            ack({
+              ok: false,
+              error: suggestion
+                ? `Имя занято · можно ${suggestion}`
+                : "Имя уже занято — выберите другое",
+              suggestion: suggestion || undefined,
+            });
           }
           return;
         }
@@ -2159,29 +2182,76 @@ io.on("connection", (socket) => {
       }
       return;
     }
+    const pinRaw = payload.pin;
+    const wantsPin =
+      pinRaw !== undefined && pinRaw !== null && String(pinRaw).trim() !== "";
+    const nextPin = wantsPin ? normalizeRoomKey(pinRaw) : "";
+    if (wantsPin && !nextPin) {
+      if (typeof ack === "function") ack({ ok: false, error: "Пин — ровно 4 цифры" });
+      return;
+    }
     if (isReservedAdminName(name)) {
       if (typeof ack === "function") ack({ ok: false, error: "Это имя зарезервировано" });
       return;
     }
-    if (isNameTaken(name, socket.id, accountId)) {
-      if (typeof ack === "function") ack({ ok: false, error: "Имя уже занято — выберите другое" });
-      return;
-    }
     const previousName = user.name;
-    if (nameKey(previousName) === nameKey(name)) {
-      if (typeof ack === "function") ack({ ok: true, name: previousName, from: previousName });
+    const sameNick = nameKey(previousName) === nameKey(name);
+    if (!sameNick && isNameTaken(name, socket.id, accountId)) {
+      if (typeof ack === "function") {
+        const suggestion = suggestFreeNick(name, socket.id, accountId);
+        ack({
+          ok: false,
+          error: suggestion ? `Имя занято · можно ${suggestion}` : "Имя уже занято — выберите другое",
+          suggestion: suggestion || undefined,
+        });
+      }
       return;
     }
-    account.nick = name;
-    user.name = name;
-    socket.data.name = name;
-    const rewritten = rewriteStoredAuthorName(previousName, name);
+    let rewritten = 0;
+    let renamed = false;
+    if (!sameNick) {
+      account.nick = name;
+      user.name = name;
+      socket.data.name = name;
+      rewritten = rewriteStoredAuthorName(previousName, name);
+      renamePushSubs(previousName, name);
+      renamed = true;
+    } else if (name !== previousName) {
+      // Same key, different casing / spacing.
+      account.nick = name;
+      user.name = name;
+      socket.data.name = name;
+      rewritten = rewriteStoredAuthorName(previousName, name);
+      renamePushSubs(previousName, name);
+      renamed = true;
+    }
+    let pinChanged = false;
+    if (wantsPin) {
+      const nextHash = hashAccountPin(nextPin);
+      if (account.pinHash !== nextHash) {
+        account.pinHash = nextHash;
+        pinChanged = true;
+      }
+    }
+    if (!renamed && !pinChanged) {
+      if (typeof ack === "function") ack({ ok: true, name: previousName, from: previousName, pinChanged: false });
+      return;
+    }
     saveStore(store);
-    renamePushSubs(previousName, name);
-    emitChatPresence();
-    if (user.roomCode) emitDmPresence(user.roomCode);
-    io.emit("chat:author-renamed", { from: previousName, to: name });
-    if (typeof ack === "function") ack({ ok: true, name, from: previousName, rewritten: rewritten || 0 });
+    if (renamed) {
+      emitChatPresence();
+      if (user.roomCode) emitDmPresence(user.roomCode);
+      io.emit("chat:author-renamed", { from: previousName, to: name });
+    }
+    if (typeof ack === "function") {
+      ack({
+        ok: true,
+        name: user.name,
+        from: previousName,
+        rewritten: rewritten || 0,
+        pinChanged,
+      });
+    }
   });
 
   socket.on("admin:login", (payload = {}, ack) => {
