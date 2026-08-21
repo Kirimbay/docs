@@ -1037,7 +1037,9 @@ function kickSocketsFromRoom(code) {
     if (!sock) continue;
     leaveDmRoom(sock);
     sock.emit("dm:room-gone", { code, reason: "inactive" });
-    sock.emit("chat:state", snapshot());
+    const user = online.get(socketId);
+    const roomsOnly = user && isRoomsOnlyClient(user.clientId);
+    sock.emit("chat:state", roomsOnly ? emptyPublicSnapshot() : snapshot());
   }
 }
 
