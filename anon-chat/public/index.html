@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=136" />
+    <link rel="stylesheet" href="/styles.css?v=137" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -87,8 +87,8 @@
         <span class="dm-bar-text"><span id="dm-bar-label">номер</span> <strong id="dm-bar-code"></strong></span>
         <span id="dm-bar-presence" class="dm-bar-presence">1/5000</span>
         <button type="button" id="dm-copy-btn" class="ghost compact" title="Скопировать номер">Номер</button>
-        <button type="button" id="room-key-btn" class="ghost compact" hidden title="Ключ админа комнаты">Ключ</button>
-        <button type="button" id="room-close-btn" class="ghost compact" hidden title="Закрыть комнату для входа">Закрыть</button>
+        <button type="button" id="room-key-btn" class="ghost compact" hidden title="Режим админа комнаты">Режим админа</button>
+        <button type="button" id="room-admin-panel-btn" class="ghost compact" hidden title="Настройки комнаты">Настройки</button>
       </div>
 
       <button type="button" id="pins" class="pin-bar" hidden title="Нажмите — перейти. Удерживайте — список">
@@ -278,16 +278,62 @@
 
     <dialog id="room-key-dialog" class="dialog sheet-top">
       <div class="dialog-body">
-        <h2>Ключ комнаты</h2>
-        <p class="dm-lead">4 цифры создателя — удаление и закрепы в этой комнате</p>
+        <h2>Режим админа</h2>
+        <p class="dm-lead">Пароль админа · 4 цифры. Общаетесь от своего имени; здесь — удаление и закрепы.</p>
         <label class="field">
-          <span>Ключ</span>
+          <span>Пароль админа</span>
           <input id="room-key-input" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="4821" autocomplete="off" />
         </label>
         <p id="room-key-error" class="error" hidden></p>
         <div class="dialog-actions">
           <button type="button" id="room-key-cancel" class="ghost">Отмена</button>
           <button type="button" id="room-key-submit" class="primary">Войти</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="room-admin-panel" class="dialog sheet-top">
+      <div class="dialog-body">
+        <h2>Настройки комнаты</h2>
+        <p class="dm-lead" id="room-admin-panel-lead">Номер · права создателя</p>
+
+        <label class="field">
+          <span>Новый пароль админа (4 цифры)</span>
+          <input id="room-new-admin-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Текущий пароль админа (подтверждение)</span>
+          <input id="room-confirm-admin-key" type="text" inputmode="numeric" maxlength="4" placeholder="сейчас" autocomplete="off" />
+        </label>
+        <button type="button" id="room-change-admin-key-btn" class="primary compact">Сменить пароль админа</button>
+
+        <hr class="room-admin-hr" />
+
+        <label class="field">
+          <span>Ключ входа в комнату (4 цифры) · пусто = свободная</span>
+          <input id="room-new-join-key" type="text" inputmode="numeric" maxlength="4" placeholder="или пусто" autocomplete="off" />
+        </label>
+        <button type="button" id="room-change-join-key-btn" class="ghost compact">Сменить ключ входа</button>
+
+        <hr class="room-admin-hr" />
+
+        <button type="button" id="room-close-btn" class="ghost compact">Закрыть вход в комнату</button>
+
+        <hr class="room-admin-hr" />
+
+        <p class="dm-lead">Удалить комнату навсегда — введите номер и пароль админа</p>
+        <label class="field">
+          <span>Номер комнаты</span>
+          <input id="room-delete-code" type="text" inputmode="numeric" maxlength="6" placeholder="000543" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Пароль админа</span>
+          <input id="room-delete-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
+        </label>
+        <p id="room-admin-panel-error" class="error" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" id="room-admin-panel-close" class="ghost">Закрыть</button>
+          <button type="button" id="room-delete-btn" class="primary">Удалить комнату</button>
         </div>
       </div>
     </dialog>
@@ -316,6 +362,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=136"></script>
+    <script src="/app.js?v=137"></script>
   </body>
 </html>

@@ -655,6 +655,25 @@ button {
   opacity: 0.72;
 }
 
+.room-admin-hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 0.75rem 0;
+}
+
+#room-delete-btn {
+  background: color-mix(in srgb, #b42318 85%, var(--bg));
+  border-color: transparent;
+  color: #fff;
+}
+
+#room-admin-panel .dialog-body {
+  display: grid;
+  gap: 0.45rem;
+  max-height: min(78vh, 640px);
+  overflow: auto;
+}
+
 .dm-dialog .dm-code-field {
   margin: 0;
   gap: 0.18rem;

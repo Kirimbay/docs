@@ -46,6 +46,7 @@
   const dmCopyBtn = $("#dm-copy-btn");
   const dmBarLabel = $("#dm-bar-label");
   const roomKeyBtn = $("#room-key-btn");
+  const roomAdminPanelBtn = $("#room-admin-panel-btn");
   const roomCloseBtn = $("#room-close-btn");
   const dmDialog = $("#dm-dialog");
   const dmCreateBtn = $("#dm-create-btn");
@@ -76,6 +77,18 @@
   const roomKeyError = $("#room-key-error");
   const roomKeySubmit = $("#room-key-submit");
   const roomKeyCancel = $("#room-key-cancel");
+  const roomAdminPanel = $("#room-admin-panel");
+  const roomAdminPanelLead = $("#room-admin-panel-lead");
+  const roomAdminPanelError = $("#room-admin-panel-error");
+  const roomAdminPanelClose = $("#room-admin-panel-close");
+  const roomNewAdminKey = $("#room-new-admin-key");
+  const roomConfirmAdminKey = $("#room-confirm-admin-key");
+  const roomChangeAdminKeyBtn = $("#room-change-admin-key-btn");
+  const roomNewJoinKey = $("#room-new-join-key");
+  const roomChangeJoinKeyBtn = $("#room-change-join-key-btn");
+  const roomDeleteCode = $("#room-delete-code");
+  const roomDeleteKey = $("#room-delete-key");
+  const roomDeleteBtn = $("#room-delete-btn");
   const lightbox = $("#lightbox");
   const lightboxImg = $("#lightbox-img");
   const lightboxClose = $("#lightbox-close");
@@ -343,14 +356,29 @@
 
   function syncRoomAdminUi() {
     document.body.classList.toggle("room-admin-on", Boolean(isRoomAdmin && !isAdmin));
+    const canOwn =
+      Boolean(dmCode) &&
+      !isPublicRoomCode(dmCode) &&
+      !isAdmin &&
+      (roomIsOwner || Boolean(loadRoomKey(dmCode)));
     if (roomKeyBtn) {
-      roomKeyBtn.hidden = !dmCode || isPublicRoomCode(dmCode) || isAdmin || !roomIsOwner;
-      roomKeyBtn.textContent = isRoomAdmin ? "Админ ✓" : "Ключ";
+      roomKeyBtn.hidden = !canOwn;
+      roomKeyBtn.textContent = isRoomAdmin ? "Выйти из админки" : "Режим админа";
       roomKeyBtn.classList.toggle("active", isRoomAdmin);
+      roomKeyBtn.title = isRoomAdmin
+        ? "Выключить режим админа — снова обычный участник"
+        : "Пароль админа · удаление и закрепы";
+    }
+    if (roomAdminPanelBtn) {
+      roomAdminPanelBtn.hidden = !(isRoomAdmin && !isAdmin && dmCode && !isPublicRoomCode(dmCode));
     }
     if (roomCloseBtn) {
-      roomCloseBtn.hidden = !dmCode || isPublicRoomCode(dmCode) || !(isAdmin || isRoomAdmin);
-      roomCloseBtn.textContent = roomClosed ? "Открыть" : "Закрыть";
+      roomCloseBtn.textContent = roomClosed ? "Открыть вход в комнату" : "Закрыть вход в комнату";
+    }
+    if (roomAdminPanelLead && dmCode) {
+      roomAdminPanelLead.textContent = `Номер ${dmCode}${roomKeyed ? " · по ключу" : " · свободная"}${
+        roomClosed ? " · вход закрыт" : ""
+      }`;
     }
   }
 
@@ -4465,7 +4493,7 @@
       hubRequirePick = false;
       void closeDmDialogSoft();
       const mode = access === "keyed" ? "по ключу" : "свободная";
-      notify(`Номер ${res.code} · ключ ${key} (${mode}) — сохрани оба`);
+      notify(`Номер ${res.code} · пароль админа ${key} (${mode}) — сохрани. Режим админа — кнопка сверху`);
     });
   });
   dmJoinBtn?.addEventListener("click", joinDmFromInput);
@@ -4500,7 +4528,8 @@
       socket.emit("room:admin-logout", {}, () => {
         isRoomAdmin = false;
         syncRoomAdminUi();
-        notify("Админка комнаты выключена");
+        roomAdminPanel?.close();
+        notify("Снова обычный участник");
         renderAll(lastState, { force: true });
       });
       return;
@@ -4536,7 +4565,7 @@
       roomIsOwner = true;
       applyRoomFlags(res);
       roomKeyDialog?.close();
-      notify("Админка комнаты включена");
+      notify("Режим админа · вы по-прежнему под своим именем");
       renderAll(lastState, { force: true });
     });
   });
@@ -4547,12 +4576,75 @@
     }
   });
 
+  function showRoomAdminPanelError(text) {
+    if (!roomAdminPanelError) return;
+    roomAdminPanelError.hidden = !text;
+    roomAdminPanelError.textContent = text || "";
+  }
+
+  function openRoomAdminPanel() {
+    if (!isRoomAdmin || !dmCode) return;
+    showRoomAdminPanelError("");
+    if (roomNewAdminKey) roomNewAdminKey.value = "";
+    if (roomConfirmAdminKey) roomConfirmAdminKey.value = loadRoomKey(dmCode) || "";
+    if (roomNewJoinKey) roomNewJoinKey.value = roomKeyed ? "" : "";
+    if (roomDeleteCode) roomDeleteCode.value = "";
+    if (roomDeleteKey) roomDeleteKey.value = "";
+    syncRoomAdminUi();
+    roomAdminPanel?.showModal();
+  }
+
+  roomAdminPanelBtn?.addEventListener("click", openRoomAdminPanel);
+  roomAdminPanelClose?.addEventListener("click", () => roomAdminPanel?.close());
+
+  roomChangeAdminKeyBtn?.addEventListener("click", () => {
+    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || "");
+    const newKey = normalizeRoomKeyLocal(roomNewAdminKey?.value || "");
+    if (currentKey.length !== 4 || newKey.length !== 4) {
+      showRoomAdminPanelError("Пароли — по 4 цифры");
+      return;
+    }
+    socket.emit("room:change-admin-key", { currentKey, newKey }, (res) => {
+      if (!res?.ok) {
+        showRoomAdminPanelError(res?.error || "Не сменилось");
+        return;
+      }
+      saveRoomKey(dmCode, newKey);
+      if (roomConfirmAdminKey) roomConfirmAdminKey.value = newKey;
+      if (roomNewAdminKey) roomNewAdminKey.value = "";
+      showRoomAdminPanelError("");
+      notify("Пароль админа обновлён");
+    });
+  });
+
+  roomChangeJoinKeyBtn?.addEventListener("click", () => {
+    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || loadRoomKey(dmCode) || "");
+    const newKey = normalizeRoomKeyLocal(roomNewJoinKey?.value || "");
+    if (currentKey.length !== 4) {
+      showRoomAdminPanelError("Подтвердите паролем админа (4 цифры)");
+      return;
+    }
+    const payload =
+      newKey.length === 4
+        ? { currentKey, newKey, access: "keyed" }
+        : { currentKey, access: "open" };
+    socket.emit("room:change-join-key", payload, (res) => {
+      if (!res?.ok) {
+        showRoomAdminPanelError(res?.error || "Не сменилось");
+        return;
+      }
+      applyRoomFlags(res);
+      showRoomAdminPanelError("");
+      notify(res.keyed ? "Ключ входа обновлён" : "Комната снова свободная (без ключа входа)");
+    });
+  });
+
   roomCloseBtn?.addEventListener("click", () => {
     if (!canModerate() || !dmCode) return;
     if (roomClosed) {
       socket.emit("room:reopen", {}, (res) => {
         if (!res?.ok) {
-          notify(res?.error || "Не открылось");
+          showRoomAdminPanelError(res?.error || "Не открылось");
           return;
         }
         roomClosed = false;
@@ -4561,15 +4653,37 @@
       });
       return;
     }
-    if (!window.confirm(`Закрыть комнату ${dmCode}? Новые не войдут.`)) return;
     socket.emit("room:close", {}, (res) => {
       if (!res?.ok) {
-        notify(res?.error || "Не закрылось");
+        showRoomAdminPanelError(res?.error || "Не закрылось");
         return;
       }
       roomClosed = true;
       syncRoomAdminUi();
-      notify("Комната закрыта для входа");
+      notify("Вход в комнату закрыт");
+    });
+  });
+
+  roomDeleteBtn?.addEventListener("click", () => {
+    const code = normalizeDmCodeLocal(roomDeleteCode?.value || "");
+    const key = normalizeRoomKeyLocal(roomDeleteKey?.value || "");
+    if (code.length !== 6 || key.length !== 4) {
+      showRoomAdminPanelError("Для удаления нужны номер (6) и пароль админа (4)");
+      return;
+    }
+    if (code !== dmCode) {
+      showRoomAdminPanelError("Номер не совпадает с этой комнатой");
+      return;
+    }
+    socket.emit("room:delete", { code, key }, (res) => {
+      if (!res?.ok) {
+        showRoomAdminPanelError(res?.error || "Не удалилось");
+        return;
+      }
+      forgetDmRoom(code);
+      roomAdminPanel?.close();
+      leaveDmMode({ quiet: true, openHub: true });
+      notify(`Комната ${code} удалена навсегда`);
     });
   });
   dmDialog?.addEventListener("close", () => {
