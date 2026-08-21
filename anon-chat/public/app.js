@@ -1852,12 +1852,15 @@
       if (!res?.ok) {
         const joinErr = res?.error || "Не удалось войти";
         showDmDialogError(joinErr);
-        if (res?.needsKey) {
+        if (res?.wrongCode) {
+          dmCodeInput?.focus();
+          dmCodeInput?.select?.();
+        } else if (res?.needsKey || res?.wrongKey) {
           clearRoomKey(c);
           if (dmJoinKey) dmJoinKey.value = "";
           dmJoinKey?.focus();
         }
-        if (/не найден|проверьте/i.test(joinErr)) {
+        if (res?.wrongCode || /номер комнаты неверный|не найден|такой комнаты нет/i.test(joinErr)) {
           forgetDmRoom(c);
           renderDmRoomsList();
         }
