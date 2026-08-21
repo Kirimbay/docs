@@ -1177,12 +1177,10 @@ body.admin-on #me-btn {
 
 .msg.msg-leaving {
   pointer-events: none;
-  will-change: height, opacity, transform, margin-bottom;
-  transition:
-    height var(--motion) var(--ease-out),
-    margin-bottom var(--motion) var(--ease-out),
-    opacity var(--motion-fast) var(--ease-soft),
-    transform var(--motion) var(--ease-out);
+  overflow: hidden;
+  /* Height/opacity driven in JS for scroll-synced collapse — keep CSS calm. */
+  will-change: height, opacity, margin-bottom;
+  transition: none;
 }
 
 .msg.mine {

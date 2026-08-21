@@ -1987,54 +1987,62 @@
     // If the bubble sits above the viewport, shrink scroll with it so the
     // visible messages stay put while neighbors close the gap.
     const anchorAbove = offsetTop + 1 < startScroll;
+    const scrollDelta = height + gap;
 
     const finish = () => {
       if (el.isConnected) el.remove();
       finishChrome();
     };
 
-    if (reduceMotion) {
+    if (reduceMotion || height < 1) {
       if (anchorAbove) {
-        feed.scrollTop = Math.max(0, startScroll - (height + gap));
+        feed.scrollTop = Math.max(0, startScroll - scrollDelta);
       }
       finish();
       return;
     }
 
     el.classList.add("msg-leaving");
-    el.style.height = `${Math.max(0, height)}px`;
+    el.style.height = `${height}px`;
     el.style.overflow = "hidden";
     el.style.flexShrink = "0";
     el.setAttribute("aria-hidden", "true");
 
+    // Short, soft collapse — no scale/slide; scroll tracks height so neighbors don't jerk.
+    const DURATION = 160;
+    const ease = (t) => t * t * (3 - 2 * t); // smoothstep
+    const t0 = performance.now();
     let settled = false;
     const settle = () => {
       if (settled) return;
       settled = true;
-      el.removeEventListener("transitionend", onEnd);
+      if (anchorAbove) {
+        feed.scrollTop = Math.max(0, startScroll - scrollDelta);
+      }
       finish();
     };
-    const onEnd = (e) => {
-      if (e.target !== el) return;
-      if (e.propertyName && e.propertyName !== "height" && e.propertyName !== "margin-bottom") return;
-      settle();
+
+    const frame = (now) => {
+      if (settled || !el.isConnected) {
+        settle();
+        return;
+      }
+      const t = Math.min(1, (now - t0) / DURATION);
+      const e = ease(t);
+      el.style.height = `${height * (1 - e)}px`;
+      el.style.marginBottom = `${-gap * e}px`;
+      el.style.opacity = String(1 - e);
+      if (anchorAbove) {
+        feed.scrollTop = Math.max(0, startScroll - scrollDelta * e);
+      }
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        settle();
+      }
     };
-    el.addEventListener("transitionend", onEnd);
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        el.style.height = "0px";
-        // Cancel the flex gap that would otherwise leave a hole until remove().
-        el.style.marginBottom = `-${gap}px`;
-        el.style.opacity = "0";
-        el.style.transform = "translateY(-6px) scale(0.985)";
-        if (anchorAbove) {
-          feed.scrollTop = Math.max(0, startScroll - (height + gap));
-        }
-      });
-    });
-
-    setTimeout(settle, 420);
+    requestAnimationFrame(frame);
+    setTimeout(settle, DURATION + 80);
   }
 
   function applyReaction(msgId, emoji) {
