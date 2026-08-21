@@ -591,6 +591,7 @@ function snapshot() {
 
 const ROOM_CODE_ALPHABET = "0123456789";
 const ROOM_CODE_LENGTH = 6;
+const MAX_ROOM_CODES = 10 ** ROOM_CODE_LENGTH; // 1_000_000: 000000–999999
 const MAX_ROOM_MESSAGES = 5000;
 const MAX_ROOM_MEMBERS = 100;
 
@@ -598,21 +599,28 @@ function ensureRooms() {
   if (!store.rooms || typeof store.rooms !== "object") store.rooms = {};
 }
 
+function roomCodeCount() {
+  ensureRooms();
+  return Object.keys(store.rooms).length;
+}
+
+/** @returns {string|null} unique 6-digit pin, or null if the pool is exhausted */
 function generateRoomCode() {
   ensureRooms();
+  if (roomCodeCount() >= MAX_ROOM_CODES) return null;
+
   for (let attempt = 0; attempt < 64; attempt += 1) {
-    let code = "";
-    for (let i = 0; i < ROOM_CODE_LENGTH; i += 1) {
-      code += ROOM_CODE_ALPHABET[Math.floor(Math.random() * ROOM_CODE_ALPHABET.length)];
-    }
+    const code = String(Math.floor(Math.random() * MAX_ROOM_CODES)).padStart(ROOM_CODE_LENGTH, "0");
     if (!store.rooms[code]) return code;
   }
-  // Extremely unlikely fallback: sequential-ish numeric from time
-  for (let n = 0; n < 1000; n += 1) {
-    const code = String((Date.now() + n) % 1e6).padStart(ROOM_CODE_LENGTH, "0");
+
+  // Near-full pool: scan from a random offset until a free code is found.
+  const start = Math.floor(Math.random() * MAX_ROOM_CODES);
+  for (let i = 0; i < MAX_ROOM_CODES; i += 1) {
+    const code = String((start + i) % MAX_ROOM_CODES).padStart(ROOM_CODE_LENGTH, "0");
     if (!store.rooms[code]) return code;
   }
-  return String(Math.floor(Math.random() * 1e6)).padStart(ROOM_CODE_LENGTH, "0");
+  return null;
 }
 
 function normalizeRoomCode(raw) {
@@ -1303,6 +1311,10 @@ io.on("connection", (socket) => {
     leaveDmRoom(socket);
     ensureRooms();
     const code = generateRoomCode();
+    if (!code) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нет свободных комнат" });
+      return;
+    }
     store.rooms[code] = {
       code,
       createdAt: new Date().toISOString(),
@@ -1365,6 +1377,10 @@ io.on("connection", (socket) => {
     } else {
       leaveDmRoom(socket);
       code = generateRoomCode();
+      if (!code) {
+        if (typeof ack === "function") ack({ ok: false, error: "Нет свободных комнат" });
+        return;
+      }
       store.rooms[code] = {
         code,
         createdAt: new Date().toISOString(),
