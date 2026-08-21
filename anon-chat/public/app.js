@@ -2155,7 +2155,7 @@
       },
       { once: true }
     );
-    const stick = nearBottom || msg.name === myName;
+    const stick = nearBottom || isOwnMessage(msg);
     if (stick) {
       scrollFeedToBottom(true);
       const img = el.querySelector(".msg-photo");
