@@ -710,37 +710,16 @@ button {
   box-sizing: border-box;
 }
 
-.dm-create-box {
-  padding: 0.35rem;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--dm-accent) 40%, var(--line));
-  background: color-mix(in srgb, var(--dm-accent) 12%, var(--bg));
-}
-
-.dm-join-box {
-  padding: 0.35rem;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, #6ea8ff 35%, var(--line));
-  background: color-mix(in srgb, #6ea8ff 10%, var(--bg));
-}
-
-.dm-create-box .dm-action-fields input {
-  border-color: color-mix(in srgb, var(--dm-accent) 50%, var(--line));
-  background: color-mix(in srgb, var(--dm-accent) 14%, var(--bg-elev));
-}
-
-.dm-create-box .dm-action-fields input:focus {
-  border-color: color-mix(in srgb, var(--dm-accent) 80%, var(--line));
-}
-
+.dm-create-box .dm-action-fields input,
 .dm-join-box .dm-action-fields input {
   border-style: solid;
-  border-color: color-mix(in srgb, #6ea8ff 45%, var(--line));
-  background: color-mix(in srgb, #6ea8ff 12%, var(--bg-elev));
+  border-color: var(--line);
+  background: var(--bg-elev);
 }
 
+.dm-create-box .dm-action-fields input:focus,
 .dm-join-box .dm-action-fields input:focus {
-  border-color: color-mix(in srgb, #6ea8ff 75%, var(--line));
+  border-color: color-mix(in srgb, var(--ink) 28%, var(--line));
 }
 
 .dm-action-btn,
@@ -771,22 +750,21 @@ button {
   box-sizing: border-box;
 }
 
-.dm-dialog-footer #dm-create-btn {
-  background: color-mix(in srgb, var(--dm-accent) 88%, #fff);
-  border-color: transparent;
-  color: #102418;
-}
-
+.dm-dialog-footer #dm-create-btn,
 .dm-dialog-footer #dm-join-btn {
-  background: color-mix(in srgb, #6ea8ff 78%, #fff);
-  border-color: transparent;
-  color: #0e1a2c;
-  font-weight: 650;
+  background: #4a4e53;
+  border: 1px solid #5c6167;
+  color: #e8eaed;
+  font-weight: 600;
 }
 
+.dm-dialog-footer #dm-create-btn:hover,
+.dm-dialog-footer #dm-create-btn:active,
 .dm-dialog-footer #dm-join-btn:hover,
 .dm-dialog-footer #dm-join-btn:active {
-  background: color-mix(in srgb, #6ea8ff 90%, #fff);
+  background: #5a5f65;
+  border-color: #6c7278;
+  color: #f2f3f5;
 }
 
 .dm-action-btn:disabled,
@@ -1252,19 +1230,25 @@ button {
 }
 
 .dm-people-wrap.is-open {
-  flex: 0 1 auto;
-  max-height: min(58vh, 26rem);
-  min-height: 0;
+  /* Rigid frame: size never depends on search hits / empty state. */
+  flex: 0 0 20rem !important;
+  width: 100%;
+  height: 20rem !important;
+  min-height: 20rem !important;
+  max-height: 20rem !important;
+  overflow: hidden !important;
 }
 
 .dm-people-wrap.is-open .dm-people-panel {
-  /* Keep search attached to Люди — don't collapse onto rooms when empty. */
-  min-height: 7.5rem;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
   border: 1px solid color-mix(in srgb, var(--accent-fill) 22%, var(--line));
   border-radius: 12px;
   background: color-mix(in srgb, var(--bg-elev) 88%, var(--bg));
   padding: 0.35rem;
   gap: 0.25rem;
+  overflow: hidden !important;
 }
 
 .dm-people-toggle {
@@ -1283,6 +1267,7 @@ button {
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  flex: 0 0 auto;
 }
 
 .dm-people-toggle-title {
@@ -1351,9 +1336,17 @@ button {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  min-height: 4.5rem;
+  min-height: 0;
   flex: 1 1 auto;
   padding: 0.05rem 0 0.1rem;
+}
+
+.dm-people-wrap.is-open .dm-people-list {
+  /* Inner scroller only — outer frame stays 20rem either way. */
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow-y: auto !important;
 }
 
 .dm-people-row {
@@ -1410,11 +1403,14 @@ button {
 
 .dm-people-empty {
   margin: 0;
-  padding: 1.1rem 0.4rem;
+  padding: 0.4rem;
   color: var(--muted);
   font-size: 0.74rem;
   text-align: center;
-  min-height: 4.5rem;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-height: 100%;
+  height: 100%;
   display: grid;
   place-items: center;
 }

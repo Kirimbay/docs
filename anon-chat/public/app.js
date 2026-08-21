@@ -2528,18 +2528,38 @@
     });
   }
 
+  const HUB_PEOPLE_FRAME_PX = 320; // 20rem — must match CSS .dm-people-wrap.is-open
+
+  function lockHubPeopleFrame(lock) {
+    if (!dmPeopleWrap) return;
+    if (lock) {
+      const px = `${HUB_PEOPLE_FRAME_PX}px`;
+      dmPeopleWrap.style.setProperty("flex", "0 0 auto", "important");
+      dmPeopleWrap.style.setProperty("height", px, "important");
+      dmPeopleWrap.style.setProperty("min-height", px, "important");
+      dmPeopleWrap.style.setProperty("max-height", px, "important");
+      dmPeopleWrap.style.setProperty("overflow", "hidden", "important");
+    } else {
+      for (const prop of ["flex", "height", "min-height", "max-height", "overflow"]) {
+        dmPeopleWrap.style.removeProperty(prop);
+      }
+    }
+  }
+
   function syncHubPeopleChrome() {
     if (!dmPeopleWrap) return;
     if (isAdmin) {
       dmPeopleWrap.hidden = true;
       hubPeopleOpen = false;
       dmPeopleWrap.classList.remove("is-open");
+      lockHubPeopleFrame(false);
       if (dmPeoplePanel) dmPeoplePanel.hidden = true;
       if (dmPeopleToggle) dmPeopleToggle.setAttribute("aria-expanded", "false");
       return;
     }
     dmPeopleWrap.hidden = false;
     dmPeopleWrap.classList.toggle("is-open", hubPeopleOpen);
+    lockHubPeopleFrame(hubPeopleOpen);
     if (dmPeoplePanel) dmPeoplePanel.hidden = !hubPeopleOpen;
     if (dmPeopleToggle) dmPeopleToggle.setAttribute("aria-expanded", hubPeopleOpen ? "true" : "false");
     const total = lastDirectory.length;
@@ -2559,7 +2579,9 @@
     if (hubPeopleOpen) {
       refreshDirectory();
       renderHubPeopleList();
+      lockHubPeopleFrame(true);
       requestAnimationFrame(() => {
+        lockHubPeopleFrame(true);
         try {
           dmPeopleSearch?.focus({ preventScroll: true });
         } catch {
@@ -2569,6 +2591,7 @@
     } else if (dmPeopleSearch) {
       hubPeopleQuery = "";
       dmPeopleSearch.value = "";
+      lockHubPeopleFrame(false);
     }
   }
 
