@@ -480,7 +480,7 @@ button {
 }
 
 .dm-bar-text strong {
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   color: var(--dm-accent);
   font-weight: 650;
 }

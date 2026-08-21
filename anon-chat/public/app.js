@@ -5949,6 +5949,10 @@
   bindHubFieldKeyboard(dmJoinKey, "join");
   bindHubFieldKeyboard(dmCreateCode, "create");
   bindHubFieldKeyboard(dmCreateJoinKey, "create");
+  dmLeaveBtn?.addEventListener("click", () => {
+    if (!dmCode) return;
+    leaveDmMode({ quiet: false, openHub: true });
+  });
   dmCopyBtn?.addEventListener("click", async () => {
     if (!dmCode) return;
     try {
