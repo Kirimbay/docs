@@ -1837,18 +1837,27 @@
     const reduceMotion =
       typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+    const gap = parseFloat(getComputedStyle(feed).rowGap || getComputedStyle(feed).gap) || 0;
+    const height = el.getBoundingClientRect().height;
+    const offsetTop = el.offsetTop;
+    const startScroll = feed.scrollTop;
+    // If the bubble sits above the viewport, shrink scroll with it so the
+    // visible messages stay put while neighbors close the gap.
+    const anchorAbove = offsetTop + 1 < startScroll;
+
     const finish = () => {
       if (el.isConnected) el.remove();
       finishChrome();
     };
 
     if (reduceMotion) {
+      if (anchorAbove) {
+        feed.scrollTop = Math.max(0, startScroll - (height + gap));
+      }
       finish();
       return;
     }
 
-    const gap = parseFloat(getComputedStyle(feed).rowGap || getComputedStyle(feed).gap) || 0;
-    const height = el.getBoundingClientRect().height;
     el.classList.add("msg-leaving");
     el.style.height = `${Math.max(0, height)}px`;
     el.style.overflow = "hidden";
@@ -1876,6 +1885,9 @@
         el.style.marginBottom = `-${gap}px`;
         el.style.opacity = "0";
         el.style.transform = "translateY(-6px) scale(0.985)";
+        if (anchorAbove) {
+          feed.scrollTop = Math.max(0, startScroll - (height + gap));
+        }
       });
     });
 

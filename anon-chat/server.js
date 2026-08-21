@@ -1149,7 +1149,6 @@ io.on("connection", (socket) => {
       fs.promises.unlink(file).catch(() => {});
     }
     io.emit("chat:message-removed", { id: removed.id });
-    io.emit("chat:state", snapshot());
     if (typeof ack === "function") ack({ ok: true, id: removed.id });
   });
 
