@@ -461,11 +461,11 @@
     if (roomKeyed) {
       const key = loadRoomKey(dmCode);
       dmBarCode.textContent = key
-        ? `${dmCode} · ключ ${key}`
-        : `${dmCode} · по ключу`;
+        ? `${dmCode} · комната закрытая · ключ ${key}`
+        : `${dmCode} · комната закрытая · по ключу`;
       return;
     }
-    dmBarCode.textContent = `${dmCode} · комната открытая`;
+    dmBarCode.textContent = `${dmCode} · комната открытая · без ключа`;
   }
 
   function clearDeleteArm() {
