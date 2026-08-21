@@ -1397,6 +1397,18 @@
     document.body.scrollTop = 0;
   }
 
+  function isAppStandalone() {
+    try {
+      return (
+        window.matchMedia("(display-mode: standalone)").matches ||
+        // @ts-ignore iOS Safari Home Screen
+        window.navigator.standalone === true
+      );
+    } catch {
+      return false;
+    }
+  }
+
   function syncViewportHeight() {
     // Avoid layout thrash / backdrop flicker while viewing a zoomed photo.
     if (lightbox?.open) return;
@@ -1411,34 +1423,41 @@
       active === dmCodeInput ||
       active?.tagName === "TEXTAREA" ||
       active?.tagName === "INPUT";
+    const standalone = isAppStandalone();
 
     let height = window.innerHeight;
     let inset = 0;
+    let top = 0;
     if (vv) {
       const rawInset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
       const keyboardOpen = focused && rawInset > 60;
       if (keyboardOpen) {
+        // Shrink to the visible viewport above the keyboard.
         height = Math.round(vv.height);
         inset = rawInset;
-        document.documentElement.style.setProperty("--vv-top", `${Math.round(vv.offsetTop || 0)}px`);
-      } else {
-        // Take the tallest reliable measure so standalone iOS cannot leave a hole under the composer.
+        top = Math.round(vv.offsetTop || 0);
+      } else if (standalone) {
+        // Home Screen app: fill the device; CSS handles -webkit-fill-available.
         const vvSpan = Math.round((vv.height || 0) + (vv.offsetTop || 0));
         height = Math.max(
           window.innerHeight || 0,
           document.documentElement.clientHeight || 0,
           vvSpan
         );
-        inset = 0;
-        document.documentElement.style.setProperty("--vv-top", "0px");
+        top = 0;
+      } else {
+        // Chrome/Safari tab: fit ONLY the visible area above the browser chrome.
+        // Using innerHeight here clips the composer under Chrome's bottom bar.
+        height = Math.round(vv.height);
+        top = Math.round(vv.offsetTop || 0);
       }
-    } else {
-      document.documentElement.style.setProperty("--vv-top", "0px");
     }
 
+    document.documentElement.style.setProperty("--vv-top", `${top}px`);
     document.documentElement.style.setProperty("--app-height", `${height}px`);
     document.documentElement.style.setProperty("--kb-inset", `${inset}px`);
     document.body.classList.toggle("keyboard-open", inset > 80);
+    document.documentElement.classList.toggle("standalone-app", standalone);
     lockPageScroll();
   }
 
