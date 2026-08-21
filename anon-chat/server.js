@@ -202,11 +202,66 @@ function loadStore() {
   return { messages: [], pinnedIds: [], rooms: {}, accounts: {} };
 }
 
-function saveStore(store) {
+let storeSaveTimer = null;
+let storeSavePending = false;
+
+function writeStoreSync(data) {
   const tmp = `${STORE_PATH}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2));
+  // Compact JSON — less CPU/IO under chat load than pretty-print.
+  fs.writeFileSync(tmp, JSON.stringify(data));
   fs.renameSync(tmp, STORE_PATH);
 }
+
+/** Debounced persist; use { flush: true } for critical mutations / shutdown. */
+function saveStore(data, { flush = false } = {}) {
+  storeSavePending = true;
+  if (flush) {
+    if (storeSaveTimer) {
+      clearTimeout(storeSaveTimer);
+      storeSaveTimer = null;
+    }
+    storeSavePending = false;
+    writeStoreSync(data);
+    return;
+  }
+  if (storeSaveTimer) return;
+  storeSaveTimer = setTimeout(() => {
+    storeSaveTimer = null;
+    if (!storeSavePending) return;
+    storeSavePending = false;
+    try {
+      writeStoreSync(data);
+    } catch (err) {
+      console.error("Failed to save store:", err.message);
+    }
+  }, 250);
+}
+
+function flushStoreOnExit() {
+  if (!storeSavePending && !storeSaveTimer) return;
+  if (storeSaveTimer) {
+    clearTimeout(storeSaveTimer);
+    storeSaveTimer = null;
+  }
+  storeSavePending = false;
+  try {
+    writeStoreSync(store);
+  } catch (err) {
+    console.error("Failed to flush store on exit:", err.message);
+  }
+}
+
+process.on("SIGINT", () => {
+  flushStoreOnExit();
+  process.exit(0);
+});
+process.on("SIGTERM", () => {
+  flushStoreOnExit();
+  process.exit(0);
+});
+process.on("exit", () => {
+  flushStoreOnExit();
+});
 
 function isPublicRoomCode(code) {
   return String(code || "") === PUBLIC_ROOM_CODE;
@@ -1057,15 +1112,15 @@ function roomJoinKeyHash(room) {
 
 function isRoomOwner(socket, room) {
   if (!socket || !room) return false;
-  if (isSuperAdminSocket(socket)) return true;
+  // Super-admin is separate from ownership — do not mark foreign rooms as owned.
   const accountId = getSocketAccountId(socket);
   if (room.ownerAccountId && accountId && room.ownerAccountId === accountId) return true;
   const clientId = normalizeClientId(
     online.get(socket.id)?.clientId || socket.data.clientId
   );
   if (room.ownerClientId && clientId && room.ownerClientId === clientId) return true;
-  // Legacy rooms without any owner binding: key alone is enough later.
-  return !room.ownerClientId && !room.ownerAccountId;
+  // Unbound legacy rooms: nobody is owner until claimed via account/client.
+  return false;
 }
 
 function roomChannel(code) {
@@ -1978,7 +2033,7 @@ io.on("connection", (socket) => {
       messages: [],
       pinnedIds: [],
     };
-    saveStore(store);
+    saveStore(store, { flush: true });
     socket.join(roomChannel(code));
     socket.data.roomCode = code;
     socket.data.roomGhost = false;
@@ -2046,13 +2101,18 @@ io.on("connection", (socket) => {
         if (typeof ack === "function") ack({ ok: false, error: "Нет свободных комнат" });
         return;
       }
+      const inviteAccountId = getSocketAccountId(socket);
+      ensureAccounts();
+      const inviteAccount = inviteAccountId ? store.accounts[inviteAccountId] : null;
       store.rooms[code] = {
         code,
         createdAt: new Date().toISOString(),
         lastActiveAt: new Date().toISOString(),
         createdBy: user.name,
         ownerClientId: normalizeClientId(user.clientId || socket.data.clientId) || "",
+        ownerAccountId: inviteAccountId || "",
         access: "open",
+        adminKeyHash: inviteAccount?.pinHash || "",
         keyHash: "",
         closed: false,
         participants: [user.name],
@@ -2208,14 +2268,13 @@ io.on("connection", (socket) => {
         roomAdmin: asAdmin
           ? false
           : Boolean(socket.data.roomAdmin && socket.data.roomAdminCode === code),
-        isOwner: Boolean(
-          isOwner || (!room.ownerClientId && !room.ownerAccountId && Boolean(roomAdminKeyHash(room)))
-        ),
+        isOwner: Boolean(isOwner),
         ...roomPublicFlags(room),
       });
     };
     if (socket.data.roomCode === code) {
-      touchRoom(code, { persist: true });
+      // Soft touch — debounce persist via saveStore; avoid sync rewrite on every resume.
+      touchRoom(code, { persist: false });
       if (!asAdmin) rememberRoomParticipant(code, user.name);
       ackJoin(roomSnapshot(code));
       return;
@@ -2283,16 +2342,15 @@ io.on("connection", (socket) => {
         if (typeof ack === "function") ack({ ok: false, error: "Неверный пин" });
         return;
       }
-    } else if (
-      accountId &&
-      adminHash &&
-      store.accounts[accountId]?.pinHash === adminHash &&
-      pinDigest === adminHash
-    ) {
-      // Rooms created with account pinHash as adminKeyHash.
-      allowed = true;
     } else if (adminHash && pinDigest === adminHash) {
+      // Legacy / client-owned: admin key must match, and only the creating device.
       if (room.ownerClientId && clientId && room.ownerClientId !== clientId) {
+        if (typeof ack === "function") {
+          ack({ ok: false, error: "Режим админа только у создателя комнаты" });
+        }
+        return;
+      }
+      if (room.ownerAccountId && accountId && room.ownerAccountId !== accountId) {
         if (typeof ack === "function") {
           ack({ ok: false, error: "Режим админа только у создателя комнаты" });
         }
@@ -2316,7 +2374,13 @@ io.on("connection", (socket) => {
     socket.data.roomAdminCode = code;
     emitDmPresence(code);
     if (typeof ack === "function") {
-      ack({ ok: true, roomAdmin: true, isOwner: true, code, ...roomPublicFlags(room) });
+      ack({
+        ok: true,
+        roomAdmin: true,
+        isOwner: isRoomOwner(socket, room),
+        code,
+        ...roomPublicFlags(room),
+      });
     }
   });
 
@@ -2512,7 +2576,7 @@ io.on("connection", (socket) => {
       sock.emit("chat:state", emptyPublicSnapshot());
     }
     delete store.rooms[code];
-    saveStore(store);
+    saveStore(store, { flush: true });
     if (typeof ack === "function") ack({ ok: true, deleted: true, code });
   });
 

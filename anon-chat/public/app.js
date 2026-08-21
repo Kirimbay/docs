@@ -165,6 +165,8 @@
   let dmCode = null;
   /** When true, hub must be dismissed by picking a chat (first entry). */
   let hubRequirePick = false;
+  let createInFlight = false;
+  let joinInFlight = false;
   /** @type {{ code: string, peer?: string, names?: string[], messageCount?: number, unread?: number, lastReadId?: string, foreign?: boolean, lastActiveAt?: string }[]} */
   let adminRoomCatalog = [];
   let pinCycleIndex = 0;
@@ -460,7 +462,7 @@
       Boolean(dmCode) &&
       !isPublicRoomCode(dmCode) &&
       !isAdmin &&
-      (roomIsOwner || Boolean(loadPin()) || Boolean(loadAdminPin(dmCode)) || Boolean(loadRoomKey(dmCode)));
+      (roomIsOwner || isOwnedRoom(dmCode));
     if (roomKeyBtn) {
       roomKeyBtn.hidden = !canOwn;
       roomKeyBtn.textContent = isRoomAdmin ? "Выйти из админки" : "Режим админа";
@@ -501,19 +503,26 @@
           : "Сейчас: закрытая · для других по ключу"
         : "Сейчас: открытая · для других свободный вход";
     }
-    const canTune = Boolean(isRoomAdmin || isAdmin);
+    const canOwnTune = Boolean(isAdmin || roomIsOwner);
     // Closed → open + change key; open → key field + close.
     if (roomMakeOpenBtn) {
       roomMakeOpenBtn.hidden = !roomKeyed;
-      roomMakeOpenBtn.disabled = !canTune;
+      roomMakeOpenBtn.disabled = !canOwnTune;
     }
     if (roomMakeKeyedBtn) {
       roomMakeKeyedBtn.hidden = Boolean(roomKeyed);
-      roomMakeKeyedBtn.disabled = !canTune;
+      roomMakeKeyedBtn.disabled = !canOwnTune;
     }
     if (roomChangeJoinKeyBtn) {
       roomChangeJoinKeyBtn.hidden = !roomKeyed;
-      roomChangeJoinKeyBtn.disabled = !canTune;
+      roomChangeJoinKeyBtn.disabled = !canOwnTune;
+    }
+    if (roomChangeAdminKeyBtn) {
+      roomChangeAdminKeyBtn.disabled = !canOwnTune;
+    }
+    if (roomDeleteBtn) {
+      // Super-admin and owner may delete; room-admin who is not owner cannot.
+      roomDeleteBtn.disabled = !canOwnTune;
     }
     if (roomJoinKeyField) {
       roomJoinKeyField.hidden = false;
@@ -1438,22 +1447,40 @@
       notify(`«${publicChatLabel}» недоступен на этом устройстве`);
       return;
     }
+    if (joinInFlight) return;
     const joinKey =
       normalizeRoomKeyLocal(key) ||
       normalizeRoomKeyLocal(dmJoinKey?.value || "") ||
       loadRoomKey(c);
     if (dmJoinKey && joinKey && dmJoinKey.value !== joinKey) dmJoinKey.value = joinKey;
     const ghost = Boolean(isAdmin && (watchOnly || roomsForDmList().some((r) => r.code === c && r.foreign)));
-    socket.emit("dm:join", { code: c, key: joinKey || undefined }, (res) => {
+    const joinBtnEl = document.getElementById("dm-join-btn");
+    joinInFlight = true;
+    if (joinBtnEl) joinBtnEl.disabled = true;
+    const finishJoin = () => {
+      joinInFlight = false;
+      if (joinBtnEl) joinBtnEl.disabled = false;
+    };
+    const joinTimer = setTimeout(() => {
+      finishJoin();
+      showDmDialogError("Долго нет ответа · попробуйте ещё раз");
+    }, 12000);
+    socket.timeout(10000).emit("dm:join", { code: c, key: joinKey || undefined }, (err, res) => {
+      clearTimeout(joinTimer);
+      finishJoin();
+      if (err) {
+        showDmDialogError("Нет связи · проверьте интернет");
+        return;
+      }
       if (!res?.ok) {
-        const err = res?.error || "Не удалось войти";
-        showDmDialogError(err);
+        const joinErr = res?.error || "Не удалось войти";
+        showDmDialogError(joinErr);
         if (res?.needsKey) {
           clearRoomKey(c);
           if (dmJoinKey) dmJoinKey.value = "";
           dmJoinKey?.focus();
         }
-        if (/не найден|проверьте/i.test(err)) {
+        if (/не найден|проверьте/i.test(joinErr)) {
           forgetDmRoom(c);
           renderDmRoomsList();
         }
@@ -2816,33 +2843,62 @@
     const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
     const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight || 0);
     const height = Math.max(240, vvH || Math.round(window.innerHeight || 0));
-    const appMax = 760;
-    const width = Math.min(window.innerWidth || appMax, appMax);
-    // Keep the same centered column as .app — full-bleed broke hit-testing on sides.
+    const narrow = window.matchMedia("(max-width: 640px)").matches;
+    // iOS: no translateX(-50%) — it breaks taps with the keyboard open.
+    // Desktop: keep centered column like .app.
     dmDialog.style.setProperty("position", "fixed", "important");
     dmDialog.style.setProperty("inset", "auto", "important");
     dmDialog.style.setProperty("top", `${vvTop}px`, "important");
-    dmDialog.style.setProperty("left", "50%", "important");
-    dmDialog.style.setProperty("right", "auto", "important");
     dmDialog.style.setProperty("bottom", "auto", "important");
-    dmDialog.style.setProperty("width", `${width}px`, "important");
-    dmDialog.style.setProperty("max-width", `${appMax}px`, "important");
     dmDialog.style.setProperty("min-width", "0", "important");
     dmDialog.style.setProperty("height", `${height}px`, "important");
     dmDialog.style.setProperty("max-height", `${height}px`, "important");
     dmDialog.style.setProperty("margin", "0", "important");
-    dmDialog.style.setProperty("transform", "translateX(-50%)", "important");
     dmDialog.style.setProperty("translate", "none", "important");
     dmDialog.style.setProperty("animation", "none", "important");
     dmDialog.style.setProperty("border-radius", "0", "important");
+    if (narrow) {
+      dmDialog.style.setProperty("left", "0px", "important");
+      dmDialog.style.setProperty("right", "0px", "important");
+      dmDialog.style.setProperty("width", "100%", "important");
+      dmDialog.style.setProperty("max-width", "none", "important");
+      dmDialog.style.setProperty("transform", "none", "important");
+    } else {
+      const appMax = 760;
+      const width = Math.min(window.innerWidth || appMax, appMax);
+      dmDialog.style.setProperty("left", "50%", "important");
+      dmDialog.style.setProperty("right", "auto", "important");
+      dmDialog.style.setProperty("width", `${width}px`, "important");
+      dmDialog.style.setProperty("max-width", `${appMax}px`, "important");
+      dmDialog.style.setProperty("transform", "translateX(-50%)", "important");
+    }
     const body = dmDialog.querySelector(".dialog-body");
-    if (body && dmCodeInput && document.activeElement === dmCodeInput) {
-      const inputRect = dmCodeInput.getBoundingClientRect();
-      const limit = vvTop + height - 12;
-      if (inputRect.bottom > limit) {
-        body.scrollTop += inputRect.bottom - limit + 10;
+    const active = document.activeElement;
+    const hubFields = [dmCodeInput, dmCreateCode, dmCreateJoinKey, dmJoinKey].filter(Boolean);
+    if (body && active && hubFields.includes(active)) {
+      const btn =
+        active === dmCreateCode || active === dmCreateJoinKey
+          ? document.getElementById("dm-create-btn")
+          : document.getElementById("dm-join-btn");
+      const target = btn || active;
+      const rect = target.getBoundingClientRect();
+      const limit = vvTop + height - 16;
+      if (rect.bottom > limit) {
+        body.scrollTop += rect.bottom - limit + 24;
       }
     }
+  }
+
+  function scrollHubActionIntoView(which) {
+    const body = dmDialog?.querySelector(".dialog-body");
+    const btn = document.getElementById(which === "create" ? "dm-create-btn" : "dm-join-btn");
+    if (!body || !btn) return;
+    try {
+      btn.scrollIntoView({ block: "nearest", inline: "nearest" });
+    } catch {
+      /* ignore */
+    }
+    layoutDmDialog();
   }
 
   function autoSize() {
@@ -4963,8 +5019,22 @@
     }
     void closeDmDialogSoft();
   });
+  dmDialog?.addEventListener("cancel", (e) => {
+    if (!hubRequirePick) return;
+    e.preventDefault();
+    if (accessRoomsOnly) {
+      notify("Выберите комнату");
+      return;
+    }
+    enterPublicChat({ fromHub: true });
+  });
   function createDmRoomFromForm() {
     showDmDialogError("");
+    if (createInFlight) return;
+    if (!socket.connected) {
+      showDmDialogError("Нет связи · подождите секунду");
+      return;
+    }
     const accountPin = normalizeRoomKeyLocal(loadPin() || "");
     if (accountPin.length !== 4) {
       showDmDialogError("Сначала войдите с пином аккаунта");
@@ -4993,10 +5063,24 @@
       access: joinKey ? "keyed" : "open",
     };
     if (preferredRaw.length === 6) payload.code = preferredRaw;
+    createInFlight = true;
     if (createBtnEl) createBtnEl.disabled = true;
     notify("Создаём комнату…");
-    socket.emit("dm:create", payload, (res) => {
+    const finishCreate = () => {
+      createInFlight = false;
       if (createBtnEl) createBtnEl.disabled = false;
+    };
+    const createTimer = setTimeout(() => {
+      finishCreate();
+      showDmDialogError("Долго нет ответа · попробуйте ещё раз");
+    }, 12000);
+    socket.timeout(10000).emit("dm:create", payload, (err, res) => {
+      clearTimeout(createTimer);
+      finishCreate();
+      if (err) {
+        showDmDialogError("Нет связи · проверьте интернет");
+        return;
+      }
       if (!res?.ok) {
         showDmDialogError(res?.error || "Не создалось");
         return;
@@ -5028,49 +5112,65 @@
     });
   }
 
+  function bindReliableTap(el, handler) {
+    if (!el || el.dataset.reliableTapBound === "1") return;
+    el.dataset.reliableTapBound = "1";
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+    let lastTouchAt = 0;
+    el.addEventListener(
+      "touchstart",
+      (e) => {
+        const t = e.changedTouches?.[0];
+        if (!t) return;
+        startX = t.clientX;
+        startY = t.clientY;
+        moved = false;
+      },
+      { passive: true }
+    );
+    el.addEventListener(
+      "touchmove",
+      (e) => {
+        const t = e.changedTouches?.[0];
+        if (!t) return;
+        if (Math.abs(t.clientX - startX) > 12 || Math.abs(t.clientY - startY) > 12) {
+          moved = true;
+        }
+      },
+      { passive: true }
+    );
+    el.addEventListener(
+      "touchend",
+      (e) => {
+        if (moved) return;
+        lastTouchAt = Date.now();
+        if (e.cancelable) e.preventDefault();
+        handler(e);
+      },
+      { passive: false }
+    );
+    el.addEventListener("click", (e) => {
+      // Skip the synthetic click that follows touchend.
+      if (Date.now() - lastTouchAt < 700) return;
+      handler(e);
+    });
+  }
+
   function bindCreateJoinButtons() {
     const createBtn = document.getElementById("dm-create-btn");
     const joinBtn = document.getElementById("dm-join-btn");
-    let createLock = false;
-    const onCreate = (e) => {
+    bindReliableTap(createBtn, (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (createLock) return;
-      createLock = true;
-      try {
-        createDmRoomFromForm();
-      } finally {
-        setTimeout(() => {
-          createLock = false;
-        }, 400);
-      }
-    };
-    if (createBtn) {
-      createBtn.addEventListener("click", onCreate);
-      createBtn.addEventListener(
-        "touchend",
-        (e) => {
-          // iOS Safari often drops click inside <dialog>; fire on touchend once.
-          e.preventDefault();
-          onCreate(e);
-        },
-        { passive: false }
-      );
-    }
-    if (joinBtn) {
-      joinBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        joinDmFromInput();
-      });
-      joinBtn.addEventListener(
-        "touchend",
-        (e) => {
-          e.preventDefault();
-          joinDmFromInput();
-        },
-        { passive: false }
-      );
-    }
+      createDmRoomFromForm();
+    });
+    bindReliableTap(joinBtn, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      joinDmFromInput();
+    });
   }
   bindCreateJoinButtons();
   dmCodeInput?.addEventListener("input", () => {
@@ -5099,6 +5199,18 @@
     if (e.key === "Enter") {
       e.preventDefault();
       joinDmFromInput();
+    }
+  });
+  dmCreateCode?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      createDmRoomFromForm();
+    }
+  });
+  dmCreateJoinKey?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      createDmRoomFromForm();
     }
   });
 
@@ -5142,9 +5254,10 @@
       }
       savePin(key);
       saveAdminPin(dmCode, key);
-      markOwnedRoom(dmCode);
       isRoomAdmin = true;
-      roomIsOwner = true;
+      if (typeof res.isOwner === "boolean") roomIsOwner = res.isOwner;
+      else roomIsOwner = true;
+      if (roomIsOwner) markOwnedRoom(dmCode);
       applyRoomFlags(res);
       roomKeyDialog?.close();
       notify("Режим админа · вы по-прежнему под своим именем");
@@ -5165,7 +5278,7 @@
   }
 
   function openRoomAdminPanel() {
-    if (!isRoomAdmin || !dmCode) return;
+    if ((!isRoomAdmin && !isAdmin) || !dmCode) return;
     showRoomAdminPanelError("");
     if (roomNewAdminKey) roomNewAdminKey.value = "";
     if (roomConfirmAdminKey) roomConfirmAdminKey.value = accountPinForRoom(dmCode);
@@ -5336,7 +5449,20 @@
     dmDialog.classList.remove("is-leaving");
     dmDialog.removeAttribute("style");
   });
-  dmCodeInput?.addEventListener("focus", () => keepDialogAboveKeyboard(dmDialog, dmCodeInput));
+  function bindHubFieldKeyboard(el, which) {
+    if (!el) return;
+    el.addEventListener("focus", () => {
+      keepDialogAboveKeyboard(dmDialog, el);
+      scrollHubActionIntoView(which);
+    });
+    el.addEventListener("input", () => {
+      keepDialogAboveKeyboard(dmDialog, el);
+    });
+  }
+  bindHubFieldKeyboard(dmCodeInput, "join");
+  bindHubFieldKeyboard(dmJoinKey, "join");
+  bindHubFieldKeyboard(dmCreateCode, "create");
+  bindHubFieldKeyboard(dmCreateJoinKey, "create");
   dmCopyBtn?.addEventListener("click", async () => {
     if (!dmCode) return;
     try {
@@ -5513,13 +5639,21 @@
   });
 
   socket.on("connect", () => {
+    createInFlight = false;
+    joinInFlight = false;
+    const createBtnEl = document.getElementById("dm-create-btn");
+    const joinBtnEl = document.getElementById("dm-join-btn");
+    if (createBtnEl) createBtnEl.disabled = false;
+    if (joinBtnEl) joinBtnEl.disabled = false;
     if (myName) {
       const adminToken = loadAdminToken();
       const previousName = loadPrevName();
+      const pin = normalizeRoomKeyLocal(loadPin() || "");
       socket.emit(
         "chat:join",
         {
           name: myName === "АДМИН" ? previousName || myName : myName,
+          pin: adminToken ? undefined : pin || undefined,
           clientId: loadClientId(),
           adminToken: adminToken || undefined,
           previousName: previousName || undefined,
