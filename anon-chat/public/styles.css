@@ -659,9 +659,9 @@ button {
 .dm-action-fields,
 .dm-action-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr) auto;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) 5.75rem;
   gap: 0.35rem;
-  align-items: center;
+  align-items: stretch;
 }
 
 .dm-action-fields .field,
@@ -670,6 +670,8 @@ button {
   min-width: 0;
   gap: 0;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .dm-action-fields .field span,
@@ -687,6 +689,7 @@ button {
 .dm-action-row .field input,
 .dm-action-row .dm-code-field input,
 .dm-action-row .dm-key-field input {
+  width: 100%;
   min-height: 2.1rem;
   height: 2.1rem;
   padding: 0.35rem 0.55rem;
@@ -700,16 +703,16 @@ button {
 .dm-create-btn,
 .dm-dialog-footer #dm-join-btn,
 .dm-dialog-footer #dm-create-btn {
-  width: auto !important;
-  min-width: 4.6rem;
-  max-width: none;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
   height: 2.1rem;
   min-height: 2.1rem;
   justify-self: stretch;
-  align-self: center;
+  align-self: stretch;
   margin: 0;
-  padding: 0 0.75rem;
-  font-size: 0.82rem;
+  padding: 0 0.35rem;
+  font-size: 0.8rem;
   font-weight: 650;
   border-radius: 999px;
   white-space: nowrap;
@@ -721,6 +724,7 @@ button {
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
+  box-sizing: border-box;
 }
 
 .dm-action-btn:disabled,
@@ -3491,7 +3495,7 @@ body.keyboard-open .pins-dialog.dialog {
 
   .dm-action-fields,
   .dm-action-row {
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr) auto;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) 5.75rem;
   }
 
   .dm-action-btn,
@@ -3499,7 +3503,8 @@ body.keyboard-open .pins-dialog.dialog {
   .dm-dialog-footer #dm-join-btn,
   .dm-dialog-footer #dm-create-btn {
     justify-self: stretch;
-    width: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
     min-height: 2.1rem;
     height: 2.1rem;
   }
