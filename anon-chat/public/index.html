@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=115" />
+    <link rel="stylesheet" href="/styles.css?v=116" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -78,7 +78,7 @@
             <span class="invites-dot" aria-hidden="true"></span>
             <span class="invites-btn-label">вас зовут</span>
           </button>
-          <button type="button" id="dm-btn" class="ghost compact" title="Чат вдвоём по коду">Вдвоём</button>
+          <button type="button" id="dm-btn" class="ghost compact" title="Комната по коду · до 100 человек">Вдвоём</button>
           <button type="button" id="ping-all-btn" class="ghost compact" hidden title="Позвать всех">Позвать</button>
           <button type="button" id="me-btn" class="ghost compact me-btn" title="Ваше имя">…</button>
         </div>
@@ -86,7 +86,7 @@
 
       <div id="dm-bar" class="dm-bar" hidden>
         <span class="dm-bar-text">код <strong id="dm-bar-code"></strong></span>
-        <span id="dm-bar-presence" class="dm-bar-presence">1/2</span>
+        <span id="dm-bar-presence" class="dm-bar-presence">1/100</span>
         <button type="button" id="dm-copy-btn" class="ghost compact" title="Скопировать код">Скопировать код</button>
       </div>
 
@@ -207,7 +207,7 @@
     <dialog id="dm-dialog" class="dialog dm-dialog">
       <div class="dialog-body">
         <h2>Вдвоём</h2>
-        <p id="dm-lead" class="dm-lead">История в коде. Выберите чат или введите пин.</p>
+        <p id="dm-lead" class="dm-lead">Комната по коду · до 100 человек, история до 5000 сообщений.</p>
         <button type="button" id="dm-leave-public-btn" class="dm-leave-public-btn" hidden>
           В общий чат
         </button>
@@ -264,6 +264,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=115"></script>
+    <script src="/app.js?v=116"></script>
   </body>
 </html>

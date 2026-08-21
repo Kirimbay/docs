@@ -566,16 +566,26 @@
   }
 
   function peerFromDmPayload(res = {}) {
-    const names = Array.isArray(res.names) ? res.names : [];
-    const otherOnline = names.find((n) => n && n !== myName);
-    if (otherOnline) return otherOnline;
+    const names = Array.isArray(res.names) ? res.names.filter((n) => n && n !== myName) : [];
+    if (names.length === 1) return names[0];
+    if (names.length > 1) return `${names[0]} +${names.length - 1}`;
     if (res.invited && res.invited !== myName) return res.invited;
+    const seen = [];
     const msgs = Array.isArray(res.messages) ? res.messages : [];
     for (let i = msgs.length - 1; i >= 0; i -= 1) {
       const name = msgs[i]?.name;
-      if (name && name !== myName) return name;
+      if (!name || name === myName) continue;
+      if (!seen.includes(name)) seen.push(name);
+      if (seen.length >= 3) break;
     }
+    if (seen.length === 1) return seen[0];
+    if (seen.length > 1) return `${seen[0]} +${seen.length - 1}`;
     return "";
+  }
+
+  function dmRoomHintText(room) {
+    const peer = (room?.peer || "").trim() || "Пустая комната";
+    return `${peer} · ${messagesLabel(room?.messageCount || 0)}`;
   }
 
   function rememberDmRoom(code, { active = true, peer, messageCount } = {}) {
@@ -599,11 +609,6 @@
     });
     saveDmRooms(rooms);
     if (active) saveDmCode(c);
-  }
-
-  function dmRoomHintText(room) {
-    const peer = (room?.peer || "").trim() || "Без собеседника";
-    return `${peer} · ${messagesLabel(room?.messageCount || 0)}`;
   }
 
   function refreshDmRoomsMeta() {
@@ -679,7 +684,7 @@
       enterBtn.type = "button";
       enterBtn.className = "dm-room-enter";
       enterBtn.title = room.peer
-        ? `Вдвоём с ${room.peer} · ${room.code}`
+        ? `Комната · ${room.peer} · ${room.code}`
         : `Войти в чат ${room.code}`;
 
       const codeEl = document.createElement("strong");
@@ -782,10 +787,11 @@
     dmDialogError.textContent = text || "";
   }
 
-  function updateDmPresence({ count, names } = {}) {
+  function updateDmPresence({ count, names, maxMembers } = {}) {
     if (!dmBarPresence) return;
     const n = Number(count) || 0;
-    dmBarPresence.textContent = `${n}/2`;
+    const max = Number(maxMembers) > 0 ? Number(maxMembers) : 100;
+    dmBarPresence.textContent = `${n}/${max}`;
     if (!dmCode) return;
     const peer = peerFromDmPayload({ names, messages: lastState.messages || [] });
     if (peer) {
@@ -813,11 +819,11 @@
     renderAll({ messages: res.messages || [], pinned: [] });
     schedulePinToLatest();
     updateDmPresence(res);
-    if (messageInput) messageInput.placeholder = "Сообщение вдвоём…";
+    if (messageInput) messageInput.placeholder = "Написать в комнату…";
     notify(
       res.invited
-        ? `Ждём ${res.invited} · код ${res.code}`
-        : `Код ${res.code} · передайте второму`
+        ? `Пригласили ${res.invited} · код ${res.code}`
+        : `Код ${res.code} · до 100 человек`
     );
     syncDmBtn();
   }
@@ -853,8 +859,8 @@
     if (dmLeavePublicBtn) dmLeavePublicBtn.hidden = !inDm;
     if (dmLead) {
       dmLead.textContent = inDm
-        ? `Сейчас в комнате ${dmCode}. Можно сменить чат или вернуться в общий.`
-        : "История в коде. Выберите чат или введите пин.";
+        ? `Сейчас в комнате ${dmCode}. До 100 человек · можно сменить чат или вернуться в общий.`
+        : "Комната по коду · до 100 человек, история до 5000 сообщений.";
     }
   }
 
@@ -1027,7 +1033,7 @@
       name.textContent = invite.from || "Кто-то";
       const sub = document.createElement("span");
       sub.className = "invite-row-sub";
-      sub.textContent = "зовёт вдвоём · без пина";
+      sub.textContent = "зовёт в комнату · без пина";
       meta.append(name, sub);
 
       const actions = document.createElement("div");
@@ -1078,7 +1084,7 @@
         return;
       }
       enterDmMode(res);
-      notify(`Вдвоём с ${from}`)
+      notify(`Вошли в комнату с ${from}`)
     });
   }
 
@@ -2438,7 +2444,7 @@
     nameBtn.type = "button";
     nameBtn.className = "msg-name";
     nameBtn.textContent = msg.name;
-    nameBtn.title = "Пригласить вдвоём";
+    nameBtn.title = "Пригласить в комнату";
     nameBtn.addEventListener("click", () => {
       const match = lastPeople.find((p) => p.name === msg.name && p.id !== socket.id);
       if (match) invitePerson(match);
@@ -3480,11 +3486,11 @@
     if (!dmBtn) return;
     if (dmCode) {
       dmBtn.textContent = "Вдвоём";
-      dmBtn.title = "Меню комнат · сейчас вдвоём";
+      dmBtn.title = "Меню комнат · вы в комнате";
       dmBtn.classList.add("active");
     } else {
       dmBtn.textContent = "Вдвоём";
-      dmBtn.title = "Чат вдвоём по коду";
+      dmBtn.title = "Комната по коду · до 100 человек";
       dmBtn.classList.remove("active");
     }
     if (dmDialog?.open) syncDmDialogChrome();
@@ -3508,7 +3514,7 @@
       }
       enterDmMode(res);
       dmDialog?.close();
-      notify(`Код ${res.code} — передайте второму человеку`);
+      notify(`Код ${res.code} — поделитесь с участниками`);
     });
   });
   dmJoinBtn?.addEventListener("click", joinDmFromInput);

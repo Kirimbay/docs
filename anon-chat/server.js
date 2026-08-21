@@ -591,8 +591,8 @@ function snapshot() {
 
 const ROOM_CODE_ALPHABET = "0123456789";
 const ROOM_CODE_LENGTH = 6;
-const MAX_ROOM_MESSAGES = 2000;
-const MAX_ROOM_MEMBERS = 2;
+const MAX_ROOM_MESSAGES = 5000;
+const MAX_ROOM_MEMBERS = 100;
 
 function ensureRooms() {
   if (!store.rooms || typeof store.rooms !== "object") store.rooms = {};
@@ -667,15 +667,67 @@ function roomPeerFor(code, exceptName = "") {
   return "";
 }
 
+function ensureRoomParticipants(room) {
+  if (!room || typeof room !== "object") return [];
+  if (!Array.isArray(room.participants)) room.participants = [];
+  return room.participants;
+}
+
+function rememberRoomParticipant(code, name) {
+  ensureRooms();
+  const room = store.rooms[code];
+  const nick = sanitizeName(name);
+  if (!room || !nick) return;
+  const list = ensureRoomParticipants(room);
+  const key = nameKey(nick);
+  const idx = list.findIndex((n) => nameKey(n) === key);
+  if (idx >= 0) list[idx] = nick;
+  else list.push(nick);
+  if (list.length > MAX_ROOM_MEMBERS * 2) {
+    room.participants = list.slice(-MAX_ROOM_MEMBERS);
+  }
+}
+
+function roomPushNames(code, exceptName = "") {
+  ensureRooms();
+  const room = store.rooms[code];
+  if (!room) return [];
+  const exceptKey = nameKey(exceptName);
+  const names = new Map();
+  for (const n of ensureRoomParticipants(room)) {
+    const key = nameKey(n);
+    if (key && key !== exceptKey) names.set(key, n);
+  }
+  for (const u of online.values()) {
+    if (u.roomCode !== code || !u.name) continue;
+    const key = nameKey(u.name);
+    if (key && key !== exceptKey) names.set(key, u.name);
+  }
+  return [...names.values()];
+}
+
 function roomListMeta(code, exceptName = "") {
   ensureRooms();
   const room = store.rooms[code];
-  if (!room) return { code, exists: false, peer: "", messageCount: 0 };
+  if (!room) return { code, exists: false, peer: "", messageCount: 0, onlineCount: 0 };
+  const exceptKey = nameKey(exceptName);
+  const onlineNames = roomMemberNames(code).filter((n) => nameKey(n) !== exceptKey);
+  let peer = "";
+  if (onlineNames.length === 1) peer = onlineNames[0];
+  else if (onlineNames.length > 1) peer = `${onlineNames[0]} +${onlineNames.length - 1}`;
+  else {
+    const participants = ensureRoomParticipants(room).filter((n) => nameKey(n) !== exceptKey);
+    if (participants.length === 1) peer = participants[0];
+    else if (participants.length > 1) peer = `${participants[0]} +${participants.length - 1}`;
+    else peer = roomPeerFor(code, exceptName);
+  }
   return {
     code,
     exists: true,
-    peer: roomPeerFor(code, exceptName),
+    peer,
     messageCount: Array.isArray(room.messages) ? room.messages.length : 0,
+    onlineCount: roomOnlineCount(code),
+    maxMembers: MAX_ROOM_MEMBERS,
   };
 }
 
@@ -749,6 +801,7 @@ function emitDmPresence(code) {
     code,
     count: roomOnlineCount(code),
     names: roomMemberNames(code),
+    maxMembers: MAX_ROOM_MEMBERS,
   });
 }
 
@@ -1199,6 +1252,7 @@ io.on("connection", (socket) => {
       createdAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
       createdBy: user.name,
+      participants: [user.name],
       messages: [],
     };
     saveStore(store);
@@ -1214,6 +1268,7 @@ io.on("connection", (socket) => {
         pinned: [],
         count: 1,
         names: [user.name],
+        maxMembers: MAX_ROOM_MEMBERS,
       });
     }
     emitDmPresence(code);
@@ -1235,20 +1290,38 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Участник уже не онлайн" });
       return;
     }
-    leaveDmRoom(socket);
     ensureRooms();
-    const code = generateRoomCode();
-    store.rooms[code] = {
-      code,
-      createdAt: new Date().toISOString(),
-      lastActiveAt: new Date().toISOString(),
-      createdBy: user.name,
-      messages: [],
-    };
+    let code = typeof user.roomCode === "string" ? user.roomCode : null;
+    let created = false;
+    if (code && store.rooms[code]) {
+      if (roomOnlineCount(code) >= MAX_ROOM_MEMBERS) {
+        if (typeof ack === "function") {
+          ack({
+            ok: false,
+            error: `Комната заполнена (${MAX_ROOM_MEMBERS})`,
+          });
+        }
+        return;
+      }
+      rememberRoomParticipant(code, user.name);
+      touchRoom(code);
+    } else {
+      leaveDmRoom(socket);
+      code = generateRoomCode();
+      store.rooms[code] = {
+        code,
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        createdBy: user.name,
+        participants: [user.name],
+        messages: [],
+      };
+      created = true;
+      socket.join(roomChannel(code));
+      socket.data.roomCode = code;
+      user.roomCode = code;
+    }
     saveStore(store);
-    socket.join(roomChannel(code));
-    socket.data.roomCode = code;
-    user.roomCode = code;
     const snap = roomSnapshot(code);
     const targetSocket = io.sockets.sockets.get(toId);
     if (targetSocket) {
@@ -1267,6 +1340,8 @@ io.on("connection", (socket) => {
         count: roomOnlineCount(code),
         names: roomMemberNames(code),
         invited: target.name,
+        maxMembers: MAX_ROOM_MEMBERS,
+        created,
       });
     }
     emitDmPresence(code);
@@ -1321,6 +1396,8 @@ io.on("connection", (socket) => {
       return;
     }
     if (socket.data.roomCode === code) {
+      touchRoom(code, { persist: true });
+      rememberRoomParticipant(code, user.name);
       const snap = roomSnapshot(code);
       if (typeof ack === "function") {
         ack({
@@ -1330,6 +1407,7 @@ io.on("connection", (socket) => {
           pinned: [],
           count: roomOnlineCount(code),
           names: roomMemberNames(code),
+          maxMembers: MAX_ROOM_MEMBERS,
         });
       }
       return;
@@ -1337,11 +1415,16 @@ io.on("connection", (socket) => {
     leaveDmRoom(socket);
     if (roomOnlineCount(code) >= MAX_ROOM_MEMBERS) {
       if (typeof ack === "function") {
-        ack({ ok: false, error: "Уже двое в чате. Зайдите, когда кто-то выйдет." });
+        ack({
+          ok: false,
+          error: `Комната заполнена (${MAX_ROOM_MEMBERS}). Зайдите, когда кто-то выйдет.`,
+        });
       }
       return;
     }
-    touchRoom(code, { persist: true });
+    touchRoom(code);
+    rememberRoomParticipant(code, user.name);
+    saveStore(store);
     socket.join(roomChannel(code));
     socket.data.roomCode = code;
     user.roomCode = code;
@@ -1354,6 +1437,7 @@ io.on("connection", (socket) => {
         pinned: [],
         count: roomOnlineCount(code),
         names: roomMemberNames(code),
+        maxMembers: MAX_ROOM_MEMBERS,
       });
     }
     emitDmPresence(code);
@@ -1418,7 +1502,10 @@ io.on("connection", (socket) => {
       createdAt: new Date().toISOString(),
     };
     messageList.push(msg);
-    if (roomCode) touchRoom(roomCode);
+    if (roomCode) {
+      touchRoom(roomCode);
+      rememberRoomParticipant(roomCode, msg.name);
+    }
     const maxLen = roomCode ? MAX_ROOM_MESSAGES : MAX_MESSAGES;
     if (messageList.length > maxLen) {
       const removed = messageList.splice(0, messageList.length - maxLen);
@@ -1437,12 +1524,12 @@ io.on("connection", (socket) => {
     if (roomCode) {
       const pub = publicRoomMessage(msg);
       io.to(roomChannel(roomCode)).emit("dm:message", pub);
-      const peer = roomPeerFor(roomCode, msg.name);
-      if (peer) {
+      const targets = roomPushNames(roomCode, msg.name);
+      for (const name of targets) {
         void pushToName(
-          peer,
+          name,
           {
-            title: msg.name || "Вдвоём",
+            title: msg.name || "Комната",
             body: previewPushBody(msg),
             tag: `dm-${roomCode}`,
             id: msg.id,
