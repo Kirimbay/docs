@@ -3815,18 +3815,18 @@
   async function enableNotifications() {
     if (isIos && !isStandalone) {
       notify(
-        "На iPhone: «Поделиться» → «На экран Домой», откройте Сарафан с иконки, затем снова 🔔"
+        "iPhone: Safari → Поделиться → На экран «Домой» → открыть с иконки → снова 🔔. В Настройках → Сарафан включите Уведомления."
       );
       return false;
     }
     if (typeof Notification === "undefined") {
-      notify(isIos ? "Нужен iOS 16.4+ и ярлык на Домой" : "Уведомления недоступны");
+      notify(isIos ? "Нужен iOS 16.4+ и ярлык с Safari" : "Уведомления недоступны");
       return false;
     }
     if (Notification.permission === "denied") {
       notify(
         isIos
-          ? "Разрешите уведомления в Настройки → Сарафан"
+          ? "Настройки → Сарафан → Уведомления → разрешить"
           : "Уведомления запрещены в настройках браузера"
       );
       return false;
@@ -3834,7 +3834,11 @@
     if (Notification.permission === "default") {
       const perm = await Notification.requestPermission();
       if (perm !== "granted") {
-        notify("Без разрешения пуши не придут");
+        notify(
+          isIos
+            ? "Разрешите уведомления в окне или в Настройки → Сарафан"
+            : "Без разрешения пуши не придут"
+        );
         return false;
       }
     }

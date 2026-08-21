@@ -70,12 +70,10 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  inset: 0;
   width: 100%;
-  height: var(--app-height, 100dvh);
-  max-height: var(--app-height, 100dvh);
+  height: auto;
+  max-height: none;
   transition:
     background-color var(--motion) var(--ease-soft),
     color var(--motion) var(--ease-soft);
@@ -83,6 +81,16 @@ body {
 
 body.keyboard-open {
   --safe-bottom: 0px;
+  height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: auto;
+}
+
+body.keyboard-open .composer {
+  padding-bottom: 0.28rem;
 }
 
 button,
@@ -284,12 +292,14 @@ button {
 
 .app {
   position: fixed;
-  top: var(--vv-top, 0px);
+  inset: 0;
+  top: 0;
   left: 0;
   right: 0;
+  bottom: 0;
   width: 100%;
-  height: var(--app-height, 100dvh);
-  max-height: var(--app-height, 100dvh);
+  height: auto;
+  max-height: none;
   max-width: var(--app-max);
   margin: 0 auto;
   display: flex;
@@ -299,6 +309,13 @@ button {
   z-index: 1;
   background: var(--bg);
   padding-bottom: 0;
+}
+
+body.keyboard-open .app {
+  top: var(--vv-top, 0px);
+  bottom: auto;
+  height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
 }
 
 .app[hidden] {
@@ -1872,8 +1889,8 @@ body.pins-focus-mode .feed .msg.pin-focus {
 .composer {
   flex: 0 0 auto;
   z-index: 4;
-  /* Edge-to-edge bottom chrome — no floating empty strip above the home indicator. */
-  padding: 0.4rem var(--pad-x) 0;
+  /* Tight bottom bar: only the system home-indicator inset, nothing extra. */
+  padding: 0.32rem var(--pad-x) env(safe-area-inset-bottom, 0px);
   background: var(--bg-elev);
   border-top: 1px solid var(--line);
   min-width: 0;
@@ -1881,8 +1898,8 @@ body.pins-focus-mode .feed .msg.pin-focus {
 
 .composer-shell {
   display: grid;
-  gap: 0.28rem;
-  padding: 0.2rem 0 max(0.45rem, var(--safe-bottom));
+  gap: 0.22rem;
+  padding: 0;
   border-radius: 0;
   border: 0;
   background: transparent;
@@ -2713,17 +2730,13 @@ body.keyboard-open .pins-dialog.dialog {
   }
 
   .composer {
-    padding: 0.32rem var(--pad-x) 0;
+    padding: 0.28rem var(--pad-x) env(safe-area-inset-bottom, 0px);
   }
 
   .composer-shell {
-    padding: 0.12rem 0 max(0.35rem, var(--safe-bottom));
-  }
-
-  .composer-shell {
-    gap: 0.2rem;
-    padding: 0.42rem 0.5rem;
-    border-radius: var(--radius);
+    gap: 0.16rem;
+    padding: 0;
+    border-radius: 0;
   }
 
   .composer-row {

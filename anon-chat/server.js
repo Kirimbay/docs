@@ -213,7 +213,7 @@ function loadOrCreateVapid() {
   const payload = {
     publicKey: keys.publicKey,
     privateKey: keys.privateKey,
-    subject: process.env.VAPID_SUBJECT || "mailto:admin@sarafan.local",
+    subject: process.env.VAPID_SUBJECT || "mailto:admin@chat.one.vele.uk",
   };
   try {
     fs.writeFileSync(VAPID_PATH, JSON.stringify(payload, null, 2));
@@ -224,6 +224,19 @@ function loadOrCreateVapid() {
 }
 
 const vapid = loadOrCreateVapid();
+// Apple rejects BadJwtToken for subjects with fake TLDs like .local
+if (
+  !vapid.subject ||
+  /@[^/]*\.local$/i.test(String(vapid.subject).replace(/^mailto:/i, "")) ||
+  String(vapid.subject) === "mailto:admin@sarafan.local"
+) {
+  vapid.subject = process.env.VAPID_SUBJECT || "mailto:admin@chat.one.vele.uk";
+  try {
+    fs.writeFileSync(VAPID_PATH, JSON.stringify(vapid, null, 2));
+  } catch (err) {
+    console.error("Failed to update VAPID subject:", err.message);
+  }
+}
 webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
 
 function loadPushSubs() {
@@ -1308,6 +1321,8 @@ io.on("connection", (socket) => {
     }
     const pub = publicMessage(msg);
     io.emit("chat:message", pub);
+    // Push: replies go to the quoted author; otherwise ping every other subscriber
+    // so Home Screen installs still get alerts when the chat is closed.
     if (msg.reply?.name && nameKey(msg.reply.name) !== nameKey(msg.name)) {
       void pushToName(msg.reply.name, {
         title: `${msg.name} ответил`,
@@ -1317,6 +1332,21 @@ io.on("connection", (socket) => {
         url: "/",
         badge: 1,
       });
+    } else {
+      const authorKey = nameKey(msg.name);
+      const targets = pushSubs.filter((s) => nameKey(s.name) && nameKey(s.name) !== authorKey);
+      void Promise.all(
+        targets.map((s) =>
+          sendWebPush(s, {
+            title: msg.name || "Сарафан",
+            body: previewPushBody(msg),
+            tag: `msg-${msg.id}`,
+            id: msg.id,
+            url: "/",
+            badge: 1,
+          })
+        )
+      );
     }
     if (typeof ack === "function") ack({ ok: true, id: msg.id });
   });
