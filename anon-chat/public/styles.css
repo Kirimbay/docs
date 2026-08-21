@@ -635,9 +635,37 @@ button {
 
 .dm-rooms-heading {
   flex: 0 0 auto;
+  display: block;
+  padding: 0.4rem 0.25rem 0.05rem;
   font-size: 0.66rem;
   font-weight: 600;
   color: var(--ink-soft);
+}
+
+.dm-room-row.is-public .dm-room-code {
+  letter-spacing: 0.01em;
+  font-variant-numeric: normal;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.dm-room-row.is-public .dm-room-enter {
+  border-color: color-mix(in srgb, var(--name) 40%, var(--line));
+  background: color-mix(in srgb, var(--name) 8%, var(--bg-elev));
+}
+
+.dm-room-row.is-public .dm-room-enter:hover,
+.dm-room-row.is-public .dm-room-enter:active {
+  border-color: color-mix(in srgb, var(--name) 65%, var(--line));
+  background: color-mix(in srgb, var(--name) 14%, var(--bg-elev));
+}
+
+.dm-room-row.is-current .dm-room-enter {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dm-accent) 45%, transparent);
+}
+
+.dm-room-row.is-public.is-current .dm-room-enter {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--name) 50%, transparent);
 }
 
 .dm-rooms-list {
@@ -2901,7 +2929,7 @@ body.keyboard-open .pins-dialog.dialog {
     bottom: max(0.4rem, env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%);
     width: min(420px, calc(100vw - 1rem));
-    max-height: min(50vh, calc(var(--app-height, 100dvh) * 0.5));
+    max-height: min(42vh, calc(var(--app-height, 100dvh) * 0.42));
     border-radius: 16px 16px 14px 14px;
     animation: dialog-in-bottom var(--motion) var(--ease-out) both;
   }

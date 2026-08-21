@@ -46,8 +46,8 @@
   const dmCopyBtn = $("#dm-copy-btn");
   const dmDialog = $("#dm-dialog");
   const dmCreateBtn = $("#dm-create-btn");
-  const dmLeavePublicBtn = $("#dm-leave-public-btn");
   const dmLead = $("#dm-lead");
+  const dmDialogTitle = $("#dm-dialog-title");
   const dmJoinBtn = $("#dm-join-btn");
   const dmCodeInput = $("#dm-code-input");
   const dmDialogError = $("#dm-dialog-error");
@@ -80,6 +80,9 @@
   const NAME_KEY_LEGACY = "komnata_name";
   const DM_CODE_KEY = "sarafan_dm_code";
   const DM_ROOMS_KEY = "sarafan_dm_rooms";
+  const LAST_DEST_KEY = "sarafan_last_dest";
+  const LAST_DEST_PUBLIC = "public";
+  const SESSION_LIVE_KEY = "sarafan_session_live";
   const MAX_DM_ROOMS = 24;
   const ADMIN_TOKEN_KEY = "sarafan_admin_token";
   const PREV_NAME_KEY = "sarafan_prev_name";
@@ -111,6 +114,8 @@
   let pendingInvites = [];
   let publicStateBackup = null;
   let dmCode = null;
+  /** When true, hub must be dismissed by picking a chat (first entry). */
+  let hubRequirePick = false;
   /** @type {{ code: string, peer?: string, names?: string[], messageCount?: number, unread?: number, lastReadId?: string, foreign?: boolean, lastActiveAt?: string }[]} */
   let adminRoomCatalog = [];
   let pinCycleIndex = 0;
@@ -501,6 +506,62 @@
     }
   }
 
+  function markSessionLive() {
+    try {
+      sessionStorage.setItem(SESSION_LIVE_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function isSessionLive() {
+    try {
+      return sessionStorage.getItem(SESSION_LIVE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function clearSessionLive() {
+    try {
+      sessionStorage.removeItem(SESSION_LIVE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** @returns {{ kind: "public" } | { kind: "room", code: string } | null} */
+  function loadLastDest() {
+    try {
+      const raw = String(localStorage.getItem(LAST_DEST_KEY) || "").trim();
+      if (raw === LAST_DEST_PUBLIC) return { kind: "public" };
+      const code = normalizeDmCodeLocal(raw);
+      if (code.length === 6) return { kind: "room", code };
+    } catch {
+      /* ignore */
+    }
+    const legacy = loadDmCode();
+    if (legacy.length === 6) return { kind: "room", code: legacy };
+    return null;
+  }
+
+  function saveLastDest(dest) {
+    try {
+      if (dest === LAST_DEST_PUBLIC || dest === "public" || dest?.kind === "public") {
+        localStorage.setItem(LAST_DEST_KEY, LAST_DEST_PUBLIC);
+        saveDmCode("");
+        return;
+      }
+      const code = normalizeDmCodeLocal(typeof dest === "string" ? dest : dest?.code);
+      if (code.length === 6) {
+        localStorage.setItem(LAST_DEST_KEY, code);
+        saveDmCode(code);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   function loadDmRooms() {
     /** @type {{ code: string, lastAt: number, peer: string, messageCount: number, lastReadId: string, names: string[], unread: number }[]} */
     let rooms = [];
@@ -883,24 +944,76 @@
         return;
       }
       enterDmMode(res, { watchOnly: ghost || Boolean(res.ghost) });
+      markSessionLive();
+      if (!ghost && !res.ghost) saveLastDest(c);
+      hubRequirePick = false;
       void closeDmDialogSoft();
     });
+  }
+
+  function appendPublicChatRow(fragment) {
+    const row = document.createElement("div");
+    const here = !dmCode;
+    row.className = "dm-room-row is-public" + (here ? " is-current" : "");
+    row.setAttribute("role", "listitem");
+
+    const main = document.createElement("div");
+    main.className = "dm-room-main";
+
+    const enterBtn = document.createElement("button");
+    enterBtn.type = "button";
+    enterBtn.className = "dm-room-enter";
+    enterBtn.title = here ? "Вы в общем чате" : "Войти в общий чат";
+
+    const codeEl = document.createElement("strong");
+    codeEl.className = "dm-room-code";
+    codeEl.textContent = "Общий чат";
+
+    const unreadEl = document.createElement("span");
+    unreadEl.className = "dm-room-unread" + (here ? " has-new" : "");
+    unreadEl.textContent = here ? "вы здесь" : lastPresenceCount ? `онлайн ${lastPresenceCount}` : "открыть";
+
+    enterBtn.append(codeEl, unreadEl);
+    enterBtn.addEventListener("click", () => enterPublicChat({ fromHub: true }));
+
+    const namesBtn = document.createElement("button");
+    namesBtn.type = "button";
+    namesBtn.className = "dm-room-names";
+    namesBtn.textContent = "Все участники · закрепы и история";
+    namesBtn.title = "Общий чат Сарафан";
+    namesBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      enterPublicChat({ fromHub: true });
+    });
+
+    main.append(enterBtn, namesBtn);
+    row.append(main);
+    fragment.append(row);
   }
 
   function renderDmRoomsList({ skipRefresh = false } = {}) {
     if (!dmRoomsList || !dmRoomsWrap) return;
     const rooms = roomsForDmList();
-    const heading = dmRoomsWrap.querySelector(".dm-rooms-heading");
-    if (heading) heading.textContent = isAdmin ? "Комнаты" : "Ваши комнаты";
-    dmRoomsList.replaceChildren();
-    if (!rooms.length) {
-      dmRoomsWrap.hidden = true;
-      return;
-    }
     dmRoomsWrap.hidden = false;
+    dmRoomsList.replaceChildren();
+
+    const frag = document.createDocumentFragment();
+    appendPublicChatRow(frag);
+
+    if (rooms.length) {
+      const heading = document.createElement("span");
+      heading.className = "dm-rooms-heading";
+      heading.textContent = isAdmin ? "Комнаты" : "Ваши комнаты";
+      frag.append(heading);
+    }
+
     for (const room of rooms) {
       const row = document.createElement("div");
-      row.className = "dm-room-row" + (room.foreign ? " is-foreign" : "");
+      row.className =
+        "dm-room-row" +
+        (room.foreign ? " is-foreign" : "") +
+        (dmCode === room.code ? " is-current" : "");
       row.setAttribute("role", "listitem");
       const expanded = expandedDmRoomCodes.has(room.code);
       if (expanded) row.classList.add("is-expanded");
@@ -991,8 +1104,10 @@
         row.append(forgetBtn);
       }
 
-      dmRoomsList.append(row);
+      frag.append(row);
     }
+
+    dmRoomsList.append(frag);
     if (!skipRefresh) refreshDmRoomsMeta();
   }
 
@@ -1098,7 +1213,10 @@
         lastReadId: lastMessageIdFromList(res.messages),
         unread: 0,
       });
+      saveLastDest(res.code);
     }
+    markSessionLive();
+    hubRequirePick = false;
     document.body.classList.add("dm-on");
     document.body.classList.toggle("dm-ghost", Boolean(isAdmin));
     if (dmBar) dmBar.hidden = false;
@@ -1119,7 +1237,7 @@
     syncDmBtn();
   }
 
-  function leaveDmMode() {
+  function leaveDmMode({ quiet = false } = {}) {
     const prev = dmCode;
     const peer = peerFromDmPayload({
       names: [],
@@ -1156,22 +1274,58 @@
         markAdminRoomRead(prev, snapshotMessages);
       }
       saveDmCode("");
-      notify(`Снова общий чат · ${prev} в меню «Комната»`);
+      if (!quiet) notify(`Снова общий чат · ${prev} в меню «Чаты»`);
     }
+  }
+
+  function enterPublicChat({ fromHub = false } = {}) {
+    if (dmCode) leaveDmMode({ quiet: true });
+    saveLastDest("public");
+    markSessionLive();
+    hubRequirePick = false;
+    syncDmBtn();
+    schedulePinToLatest({ brief: true });
+    if (fromHub) void closeDmDialogSoft();
+    setTimeout(() => {
+      messageInput?.focus({ preventScroll: true });
+    }, 80);
+  }
+
+  function resumeLastDestination() {
+    const dest = loadLastDest();
+    if (dest?.kind === "room") {
+      socket.emit("dm:join", { code: dest.code }, (res) => {
+        if (res?.ok) {
+          enterDmMode(res);
+          return;
+        }
+        saveLastDest("public");
+        if (/не найден|проверьте код/i.test(res?.error || "")) forgetDmRoom(dest.code);
+        openDmDialog({ requirePick: true });
+      });
+      return;
+    }
+    saveLastDest("public");
+    schedulePinToLatest({ brief: true });
   }
 
   function syncDmDialogChrome() {
-    const inDm = Boolean(dmCode);
-    if (dmLeavePublicBtn) dmLeavePublicBtn.hidden = !inDm;
+    if (dmDialogTitle) dmDialogTitle.textContent = "Чаты";
     if (dmLead) {
-      dmLead.textContent = inDm
-        ? `Сейчас ${dmCode} · можно сменить или в общий`
-        : "До 100 человек · история до 5000";
+      dmLead.textContent = dmCode
+        ? `Сейчас комната ${dmCode} · можно сменить`
+        : hubRequirePick
+          ? "Куда зайти? Выбор запомнится"
+          : "Общий чат и комнаты";
+    }
+    if (dmDialogClose) {
+      dmDialogClose.textContent = hubRequirePick ? "В общий" : "Готово";
     }
   }
 
-  function openDmDialog() {
+  function openDmDialog({ requirePick = false } = {}) {
     if (!dmDialog) return;
+    hubRequirePick = Boolean(requirePick);
     showDmDialogError("");
     syncDmDialogChrome();
     if (isAdmin) {
@@ -1184,8 +1338,7 @@
     dmDialog.showModal();
     layoutDmDialog();
     keepDialogAboveKeyboard(dmDialog, dmCodeInput);
-    const rooms = roomsForDmList();
-    if (!rooms.length && !dmCode) dmCodeInput?.focus();
+    if (!roomsForDmList().length && !hubRequirePick) dmCodeInput?.focus();
   }
 
   function updatePresenceChrome() {
@@ -1399,6 +1552,8 @@
         return;
       }
       enterDmMode(res);
+      hubRequirePick = false;
+      if (dmDialog?.open) void closeDmDialogSoft();
       notify(`Вошли в комнату с ${from}`)
     });
   }
@@ -3221,22 +3376,14 @@
     pinToLatestOnce = true;
     syncViewportHeight();
     if (notifyEnabled) void syncPushSubscription();
-    // Don't steal focus immediately — keyboard resize fights the first pin-to-bottom.
-    schedulePinToLatest();
-    setTimeout(() => {
-      messageInput?.focus({ preventScroll: true });
-      schedulePinToLatest();
-    }, 120);
-    const savedDm = loadDmCode();
-    if (savedDm && !dmCode) {
-      socket.emit("dm:join", { code: savedDm }, (res) => {
-        if (res?.ok) enterDmMode(res);
-        else {
-          saveDmCode("");
-          if (/не найден|проверьте код/i.test(res?.error || "")) forgetDmRoom(savedDm);
-        }
-      });
+    schedulePinToLatest({ brief: true });
+
+    // Same tab refresh: resume last chat. Fresh entry (gate): open hub to pick.
+    if (isSessionLive()) {
+      resumeLastDestination();
+      return;
     }
+    openDmDialog({ requirePick: true });
   }
 
   function join(nameOverride) {
@@ -3952,12 +4099,12 @@
   function syncDmBtn() {
     if (!dmBtn) return;
     if (dmCode) {
-      dmBtn.textContent = "Комната";
-      dmBtn.title = "Меню комнат · вы в комнате";
+      dmBtn.textContent = "Чаты";
+      dmBtn.title = "Чаты · вы в комнате";
       dmBtn.classList.add("active");
     } else {
-      dmBtn.textContent = "Комната";
-      dmBtn.title = "Комната по коду · до 100 человек";
+      dmBtn.textContent = "Чаты";
+      dmBtn.title = "Общий чат и комнаты";
       dmBtn.classList.remove("active");
     }
     if (dmDialog?.open) syncDmDialogChrome();
@@ -3966,12 +4113,11 @@
   dmBtn?.addEventListener("click", () => {
     openDmDialog();
   });
-  dmLeavePublicBtn?.addEventListener("click", () => {
-    leaveDmMode();
-    syncDmBtn();
-    void closeDmDialogSoft();
-  });
   dmDialogClose?.addEventListener("click", () => {
+    if (hubRequirePick) {
+      enterPublicChat({ fromHub: true });
+      return;
+    }
     void closeDmDialogSoft();
   });
   dmCreateBtn?.addEventListener("click", () => {
@@ -3982,6 +4128,9 @@
         return;
       }
       enterDmMode(res);
+      saveLastDest(res.code);
+      markSessionLive();
+      hubRequirePick = false;
       void closeDmDialogSoft();
       notify(`Код ${res.code} — поделитесь с участниками`);
     });
@@ -4069,12 +4218,15 @@
     myName = "";
     isAdmin = false;
     dmCode = null;
+    hubRequirePick = false;
+    clearSessionLive();
     pendingInvites = [];
     exitBulkSelectMode();
     syncInvitesBtn();
     closeInvitesDialog();
-    document.body.classList.remove("dm-on", "admin-on");
+    document.body.classList.remove("dm-on", "admin-on", "dm-ghost");
     if (dmBar) dmBar.hidden = true;
+    if (dmDialog?.open) dmDialog.close();
     closeOnlineList();
     closeAllReactMenus();
     app.hidden = true;
@@ -4102,6 +4254,7 @@
     }
     updatePresenceChrome();
     if (onlineDialog?.open) renderOnlineList();
+    if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
   });
 
   socket.on("dm:invite", (payload = {}) => {
