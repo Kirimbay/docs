@@ -25,6 +25,10 @@
   const previewClear = $("#preview-clear");
   const appToast = $("#app-toast");
   const appToastText = $("#app-toast-text");
+  const bulkBar = $("#bulk-bar");
+  const bulkBarCount = $("#bulk-bar-count");
+  const bulkCancelBtn = $("#bulk-cancel-btn");
+  const bulkDeleteBtn = $("#bulk-delete-btn");
   const replyBar = $("#reply-bar");
   const replyBarLabel = $("#reply-bar-label");
   const replyBarPreview = $("#reply-bar-preview");
@@ -113,6 +117,10 @@
   let forgetArmedCode = null;
   let forgetArmedTimer = null;
   const FORGET_ARM_MS = 1000;
+  /** @type {Set<string>} */
+  let bulkSelectedIds = new Set();
+  let bulkSelectOn = false;
+  let bulkDeleting = false;
 
   function clearDeleteArm() {
     if (deleteArmedTimer) {
@@ -149,6 +157,94 @@
       btn.title = "Нажмите дважды, чтобы убрать";
       btn.textContent = "×";
     });
+  }
+
+  function syncBulkBar() {
+    if (!bulkBar) return;
+    const n = bulkSelectedIds.size;
+    if (!bulkSelectOn) {
+      bulkBar.hidden = true;
+      document.body.classList.remove("bulk-select-on");
+      return;
+    }
+    bulkBar.hidden = false;
+    document.body.classList.add("bulk-select-on");
+    if (bulkBarCount) {
+      bulkBarCount.textContent = n === 1 ? "Выбрано 1" : `Выбрано ${n}`;
+    }
+    if (bulkDeleteBtn) {
+      bulkDeleteBtn.disabled = n === 0 || bulkDeleting;
+      bulkDeleteBtn.textContent = n > 0 ? `Удалить · ${n}` : "Удалить";
+    }
+  }
+
+  function clearBulkSelectionClasses() {
+    feed.querySelectorAll(".msg.msg-bulk-selected").forEach((node) => {
+      node.classList.remove("msg-bulk-selected");
+    });
+  }
+
+  function exitBulkSelectMode() {
+    bulkSelectOn = false;
+    bulkSelectedIds = new Set();
+    bulkDeleting = false;
+    clearBulkSelectionClasses();
+    syncBulkBar();
+  }
+
+  function enterBulkSelectMode(msg) {
+    if (!isAdmin) return;
+    closeMsgActionMenu();
+    closeAllReactMenus();
+    clearDeleteArm();
+    bulkSelectOn = true;
+    bulkSelectedIds = new Set();
+    if (msg?.id) {
+      bulkSelectedIds.add(msg.id);
+      const el = feed.querySelector(`[data-id="${CSS.escape(msg.id)}"]`);
+      el?.classList.add("msg-bulk-selected");
+    }
+    syncBulkBar();
+    try {
+      navigator.vibrate?.(14);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function toggleBulkSelectMessage(msg, el) {
+    if (!bulkSelectOn || !msg?.id || !el) return;
+    if (bulkSelectedIds.has(msg.id)) {
+      bulkSelectedIds.delete(msg.id);
+      el.classList.remove("msg-bulk-selected");
+    } else {
+      bulkSelectedIds.add(msg.id);
+      el.classList.add("msg-bulk-selected");
+    }
+    syncBulkBar();
+    if (bulkSelectedIds.size === 0) exitBulkSelectMode();
+  }
+
+  function deleteBulkSelected() {
+    if (!isAdmin || bulkDeleting) return;
+    const ids = [...bulkSelectedIds];
+    if (!ids.length) return;
+    bulkDeleting = true;
+    syncBulkBar();
+    let i = 0;
+    const next = () => {
+      if (i >= ids.length) {
+        exitBulkSelectMode();
+        return;
+      }
+      const id = ids[i++];
+      socket.emit("admin:delete", { id }, (res) => {
+        if (res?.ok) removeMessageById(id);
+        else if (res?.error) notify(res.error);
+        next();
+      });
+    };
+    next();
   }
 
   function loadSavedName() {
@@ -1173,6 +1269,7 @@
       myName = name;
       saveName(name);
     }
+    if (!on && bulkSelectOn) exitBulkSelectMode();
     syncMeBtn();
     renderAll(lastState);
   }
@@ -1660,9 +1757,8 @@
   }
 
   function bindMessageHold(el, msg) {
-    // Match typical OS double-click timing so the 2nd click copies
-    // before the 1st click opens the action menu.
-    const DBL_WAIT_MS = 450;
+    // 1 tap → menu, 2 taps → copy, 3 taps (admin) → bulk select.
+    const TAP_WAIT_MS = 320;
     const LONG_MS = 480;
     const MOVE_PX = 12;
 
@@ -1695,6 +1791,7 @@
     };
 
     const openAt = (x, y) => {
+      if (bulkSelectOn) return;
       menuOpened = true;
       tapCount = 0;
       clearSingle();
@@ -1708,11 +1805,24 @@
     };
 
     const copyFromDouble = () => {
+      if (bulkSelectOn) return;
       clearSingle();
       clearLong();
       tapCount = 0;
       closeMsgActionMenu();
       void copyBubbleText(msg);
+    };
+
+    const startBulk = () => {
+      clearSingle();
+      clearLong();
+      tapCount = 0;
+      closeMsgActionMenu();
+      if (!isAdmin) {
+        void copyBubbleText(msg);
+        return;
+      }
+      enterBulkSelectMode(msg);
     };
 
     el.addEventListener("pointerdown", (e) => {
@@ -1722,6 +1832,7 @@
       menuOpened = false;
       start = { x: e.clientX, y: e.clientY };
       clearLong();
+      if (bulkSelectOn) return;
       longTimer = setTimeout(() => {
         longTimer = null;
         longPressed = true;
@@ -1758,15 +1869,27 @@
       if (!hadStart) return;
       if (e.pointerType === "mouse" && e.button !== 0) return;
 
+      if (bulkSelectOn) {
+        toggleBulkSelectMessage(msg, el);
+        return;
+      }
+
       tapCount += 1;
       if (tapCount === 1) {
         singleTimer = setTimeout(() => {
           singleTimer = null;
           tapCount = 0;
           openAt(x, y);
-        }, DBL_WAIT_MS);
+        }, TAP_WAIT_MS);
+      } else if (tapCount === 2) {
+        clearSingle();
+        singleTimer = setTimeout(() => {
+          singleTimer = null;
+          tapCount = 0;
+          copyFromDouble();
+        }, TAP_WAIT_MS);
       } else {
-        copyFromDouble();
+        startBulk();
       }
     });
 
@@ -1776,13 +1899,23 @@
     });
 
     el.addEventListener("dblclick", (e) => {
+      if (bulkSelectOn) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleBulkSelectMessage(msg, el);
+        return;
+      }
       if (interactive(e.target)) return;
       e.preventDefault();
       e.stopPropagation();
-      copyFromDouble();
+      // Wait for a possible third click via pointerup path; if none, copy timer fires.
     });
 
     el.addEventListener("contextmenu", (e) => {
+      if (bulkSelectOn) {
+        e.preventDefault();
+        return;
+      }
       // Long-press selection: keep the native callout / selection handles.
       if (longPressed || el.classList.contains("msg-selecting")) return;
       // Quote / chips / links handle themselves — don't open the bubble menu.
@@ -1801,6 +1934,11 @@
       "click",
       (e) => {
         if (interactive(e.target)) return;
+        if (bulkSelectOn) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         // Swallow the delayed click after we already handled taps / opened menu.
         if (menuOpened || singleTimer || tapCount > 0) {
           e.preventDefault();
@@ -1818,6 +1956,11 @@
     knownIds.delete(id);
     lastState.messages = (lastState.messages || []).filter((m) => m.id !== id);
     lastState.pinned = (lastState.pinned || []).filter((m) => m.id !== id);
+    if (bulkSelectedIds.has(id)) {
+      bulkSelectedIds.delete(id);
+      syncBulkBar();
+      if (bulkSelectOn && bulkSelectedIds.size === 0 && !bulkDeleting) exitBulkSelectMode();
+    }
     document.querySelectorAll("body > .msg-react-menu, body > .msg-action-menu").forEach((m) => m.remove());
     if (deleteArmedId === id) clearDeleteArm();
 
@@ -1948,6 +2091,7 @@
     if (isOwnMessage(msg)) el.classList.add("mine");
     if (msg.pinned) el.classList.add("pinned-item");
     if (msg.admin || msg.name === "АДМИН") el.classList.add("admin");
+    if (bulkSelectOn && bulkSelectedIds.has(msg.id)) el.classList.add("msg-bulk-selected");
 
     const meta = document.createElement("div");
     meta.className = "msg-meta";
@@ -2821,6 +2965,7 @@
     isAdmin = false;
     dmCode = null;
     pendingInvites = [];
+    exitBulkSelectMode();
     syncInvitesBtn();
     closeInvitesDialog();
     document.body.classList.remove("dm-on", "admin-on");

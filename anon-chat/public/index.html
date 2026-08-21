@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=96" />
+    <link rel="stylesheet" href="/styles.css?v=97" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -89,6 +89,13 @@
       </div>
 
       <footer class="composer">
+        <div id="bulk-bar" class="bulk-bar" hidden>
+          <span id="bulk-bar-count" class="bulk-bar-count">Выбрано 0</span>
+          <div class="bulk-bar-actions">
+            <button type="button" id="bulk-cancel-btn" class="ghost compact">Отмена</button>
+            <button type="button" id="bulk-delete-btn" class="bulk-delete-btn" disabled>Удалить</button>
+          </div>
+        </div>
         <div class="composer-shell">
           <div id="reply-bar" class="reply-bar" hidden>
             <span class="reply-bar-accent" aria-hidden="true"></span>
@@ -241,6 +248,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=96"></script>
+    <script src="/app.js?v=97"></script>
   </body>
 </html>
