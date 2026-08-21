@@ -76,10 +76,10 @@
   const onlineDialog = $("#online-dialog");
   const onlineList = $("#online-list");
   const onlineCloseBtn = $("#online-close-btn");
-  const invitesBtn = $("#invites-btn");
-  const invitesDialog = $("#invites-dialog");
-  const invitesList = $("#invites-list");
-  const invitesCloseBtn = $("#invites-close-btn");
+  const invitesBtn = null;
+  const invitesDialog = null;
+  const invitesList = null;
+  const invitesCloseBtn = null;
   const adminDialog = $("#admin-dialog");
   const adminPassword = $("#admin-password");
   const adminError = $("#admin-error");
@@ -2485,22 +2485,8 @@
     if (onlineDialog?.open) onlineDialog.close();
   }
 
-  function invitePerson(person) {
-    if (!person?.id || person.id === socket.id) return;
-    closeOnlineList();
-    socket.emit("dm:invite", { toId: person.id }, (res) => {
-      if (!res?.ok) {
-        notify(res?.error || "Не удалось пригласить");
-        return;
-      }
-      if (person.name) res.invited = person.name;
-      enterDmMode(res);
-      notify(
-        res.created === false
-          ? `${person.name} приглашён в комнату ${res.code}`
-          : `Приглашение ${person.name} · код ${res.code}`
-      );
-    });
+  function invitePerson() {
+    /* invites removed */
   }
 
   function renderOnlineList() {
@@ -2539,8 +2525,7 @@
         row.setAttribute("role", "option");
         row.dataset.id = person.id;
 
-        const main = document.createElement(isSelf ? "div" : "button");
-        if (!isSelf) main.type = "button";
+        const main = document.createElement("div");
         main.className = "online-row-main";
         const name = document.createElement("span");
         name.className = "online-row-name";
@@ -2562,9 +2547,8 @@
           ? "это вы"
           : person.roomsOnly
             ? "без общего"
-            : "пригласить";
+            : "в сети";
         main.append(name, action);
-        if (!isSelf) main.addEventListener("click", () => invitePerson(person));
         row.append(main);
 
         if (isAdmin && !isSelf) {
@@ -2655,131 +2639,35 @@
   }
 
   function syncInvitesBtn() {
-    if (!invitesBtn) return;
-    const n = pendingInvites.length;
-    if (!n) {
-      invitesBtn.hidden = true;
-      invitesBtn.classList.remove("has-invites");
-      invitesBtn.removeAttribute("aria-label");
-      if (invitesDialog?.open) invitesDialog.close();
-      return;
-    }
-    invitesBtn.hidden = false;
-    invitesBtn.classList.add("has-invites");
-    const label = n === 1 ? "Вас зовут в комнату" : `Вас зовут · ${n}`;
-    invitesBtn.title = label;
-    invitesBtn.setAttribute("aria-label", label);
+    /* invites removed */
   }
 
-  function removePendingInvite(code) {
-    const key = String(code || "");
-    pendingInvites = pendingInvites.filter((inv) => inv.code !== key);
-    syncInvitesBtn();
-    if (invitesDialog?.open) renderInvitesList();
+  function removePendingInvite() {
+    pendingInvites = [];
   }
 
-  function queueInvite(invite) {
-    const code = String(invite?.code || "").trim();
-    if (!code) return;
-    if (dmCode && dmCode === code) return;
-    pendingInvites = pendingInvites.filter((inv) => inv.code !== code);
-    pendingInvites.unshift({
-      code,
-      from: invite.from || "Кто-то",
-      fromId: invite.fromId || "",
-      at: Date.now(),
-    });
-    syncInvitesBtn();
-    if (invitesDialog?.open) renderInvitesList();
+  function queueInvite() {
+    /* invites removed */
   }
 
   function renderInvitesList() {
-    if (!invitesList) return;
-    invitesList.replaceChildren();
-    if (!pendingInvites.length) {
-      const empty = document.createElement("p");
-      empty.className = "user-list-empty";
-      empty.textContent = "Пока нет приглашений";
-      invitesList.append(empty);
-      return;
-    }
-    pendingInvites.forEach((invite) => {
-      const row = document.createElement("div");
-      row.className = "invite-row";
-      row.setAttribute("role", "option");
-      row.dataset.code = invite.code;
-
-      const meta = document.createElement("div");
-      meta.className = "invite-row-meta";
-      const name = document.createElement("span");
-      name.className = "invite-row-name";
-      name.textContent = invite.from || "Кто-то";
-      const sub = document.createElement("span");
-      sub.className = "invite-row-sub";
-      sub.textContent = "зовёт в комнату · по приглашению";
-      meta.append(name, sub);
-
-      const actions = document.createElement("div");
-      actions.className = "invite-row-actions";
-      const declineBtn = document.createElement("button");
-      declineBtn.type = "button";
-      declineBtn.className = "invite-chip invite-chip-no";
-      declineBtn.textContent = "Нет";
-      declineBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        declineInvite(invite);
-      });
-      const enterBtn = document.createElement("button");
-      enterBtn.type = "button";
-      enterBtn.className = "invite-chip invite-chip-yes";
-      enterBtn.textContent = "Войти";
-      enterBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        acceptInvite(invite);
-      });
-      actions.append(declineBtn, enterBtn);
-      row.append(meta, actions);
-      row.addEventListener("click", () => acceptInvite(invite));
-      invitesList.append(row);
-    });
+    /* invites removed */
   }
 
   function openInvitesDialog() {
-    if (!invitesDialog || !pendingInvites.length) return;
-    syncViewportHeight();
-    renderInvitesList();
-    if (!invitesDialog.open) invitesDialog.showModal();
-    layoutBottomSheet(invitesDialog);
+    /* invites removed */
   }
 
   function closeInvitesDialog() {
-    if (invitesDialog?.open) invitesDialog.close();
+    /* invites removed */
   }
 
-  function acceptInvite(invite) {
-    if (!invite?.code) return;
-    const from = invite.from || "участником";
-    closeInvitesDialog();
-    socket.emit("dm:join", { code: invite.code }, (res) => {
-      if (!res?.ok) {
-        notify(res?.error || "Не удалось войти")
-        syncInvitesBtn();
-        return;
-      }
-      enterDmMode(res);
-      hubRequirePick = false;
-      if (dmDialog?.open) void closeDmDialogSoft();
-      notify(`Вошли в комнату с ${from}`)
-    });
+  function acceptInvite() {
+    /* invites removed */
   }
 
-  function declineInvite(invite) {
-    if (!invite) return;
-    removePendingInvite(invite.code);
-    if (invite.fromId) {
-      socket.emit("dm:invite-decline", { fromId: invite.fromId });
-    }
-    if (!pendingInvites.length) closeInvitesDialog();
+  function declineInvite() {
+    /* invites removed */
   }
 
   const RANDOM_NAME_FALLBACK = ["Барс", "Лис", "Сокол", "Туман", "Искра", "Парус", "Неон", "Кедр", "Роса", "Маяк"];
@@ -4304,14 +4192,13 @@
     nameBtn.textContent = displayAuthorLabel(msg);
     if (msg.admin || msg.name === "АДМИН") nameBtn.classList.add("is-super");
     if (msg.roomAdmin) nameBtn.classList.add("is-room-admin");
-    nameBtn.title = msg.admin || msg.name === "АДМИН" ? "Супер-админ" : msg.roomAdmin ? "Админ комнаты" : "Пригласить в комнату";
+    nameBtn.title = msg.admin || msg.name === "АДМИН" ? "Супер-админ" : msg.roomAdmin ? "Админ комнаты" : msg.name;
     nameBtn.addEventListener("click", () => {
-      const match = lastPeople.find((p) => p.name === msg.name && p.id !== socket.id);
-      if (match) invitePerson(match);
-      else {
-        openOnlineList();
-        notify(msg.name === myName ? "Это вы" : `${msg.name} сейчас не онлайн`)
+      if (msg.name === myName) {
+        notify("Это вы");
+        return;
       }
+      openOnlineList();
     });
     const time = document.createElement("span");
     time.className = "msg-time";
@@ -4987,20 +4874,6 @@
     onlineDialog.style.maxWidth = "";
     onlineDialog.style.transform = "";
   });
-  invitesBtn?.addEventListener("click", () => openInvitesDialog());
-  invitesCloseBtn?.addEventListener("click", () => closeInvitesDialog());
-  invitesDialog?.addEventListener("click", (e) => {
-    if (e.target === invitesDialog) closeInvitesDialog();
-  });
-  invitesDialog?.addEventListener("close", () => {
-    invitesDialog.style.top = "";
-    invitesDialog.style.bottom = "";
-    invitesDialog.style.height = "";
-    invitesDialog.style.maxHeight = "";
-    invitesDialog.style.width = "";
-    invitesDialog.style.maxWidth = "";
-    invitesDialog.style.transform = "";
-  });
 
   pinsCloseBtn.addEventListener("click", closePinsList);
   pinsDialog.addEventListener("click", (e) => {
@@ -5021,7 +4894,6 @@
   const onPinsViewport = () => {
     if (pinsDialog.open) layoutPinsDialog();
     if (onlineDialog?.open) layoutBottomSheet(onlineDialog);
-    if (invitesDialog?.open) layoutBottomSheet(invitesDialog);
     if (dmDialog?.open) layoutDmDialog();
     if (renameDialog?.open) layoutFormDialog(renameDialog);
     if (adminDialog?.open) layoutFormDialog(adminDialog);
@@ -6132,18 +6004,12 @@
     openDmDialog({ requirePick: true });
   });
 
-  socket.on("dm:invite", (payload = {}) => {
-    if (!payload.code || !myName) return;
-    if (dmCode && dmCode === payload.code) return;
-    queueInvite({
-      code: payload.code,
-      from: payload.from || "Кто-то",
-      fromId: payload.fromId || "",
-    });
+  socket.on("dm:invite", () => {
+    /* invites removed */
   });
 
-  socket.on("dm:invite-declined", ({ name } = {}) => {
-    notify(`${name || "Участник"} отклонил приглашение`)
+  socket.on("dm:invite-declined", () => {
+    /* invites removed */
   });
 
   socket.on("dm:room-gone", (payload = {}) => {

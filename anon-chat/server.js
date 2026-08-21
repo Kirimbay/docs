@@ -2440,100 +2440,11 @@ io.on("connection", (socket) => {
     emitDmPresence(code);
   });
 
-  socket.on("dm:invite", (payload = {}, ack) => {
-    const user = online.get(socket.id);
-    if (!user) {
-      if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
-      return;
-    }
-    const toId = typeof payload.toId === "string" ? payload.toId.trim() : "";
-    if (!toId || toId === socket.id) {
-      if (typeof ack === "function") ack({ ok: false, error: "Выберите участника" });
-      return;
-    }
-    const target = online.get(toId);
-    if (!target) {
-      if (typeof ack === "function") ack({ ok: false, error: "Участник уже не онлайн" });
-      return;
-    }
-    ensureRooms();
-    let code = typeof user.roomCode === "string" ? user.roomCode : null;
-    let created = false;
-    if (code && store.rooms[code]) {
-      if (roomOnlineCount(code) >= MAX_ROOM_MEMBERS) {
-        if (typeof ack === "function") {
-          ack({
-            ok: false,
-            error: `Комната заполнена (${MAX_ROOM_MEMBERS})`,
-          });
-        }
-        return;
-      }
-      rememberRoomParticipant(code, user.name);
-      touchRoom(code);
-    } else {
-      leaveDmRoom(socket);
-      code = generateRoomCode();
-      if (!code) {
-        if (typeof ack === "function") ack({ ok: false, error: "Нет свободных комнат" });
-        return;
-      }
-      const inviteAccountId = getSocketAccountId(socket);
-      ensureAccounts();
-      const inviteAccount = inviteAccountId ? store.accounts[inviteAccountId] : null;
-      store.rooms[code] = {
-        code,
-        createdAt: new Date().toISOString(),
-        lastActiveAt: new Date().toISOString(),
-        createdBy: user.name,
-        ownerClientId: normalizeClientId(user.clientId || socket.data.clientId) || "",
-        ownerAccountId: inviteAccountId || "",
-        access: "open",
-        adminKeyHash: inviteAccount?.pinHash || "",
-        keyHash: "",
-        closed: false,
-        participants: [user.name],
-        messages: [],
-        pinnedIds: [],
-      };
-      created = true;
-      socket.join(roomChannel(code));
-      socket.data.roomCode = code;
-      user.roomCode = code;
-    }
-    saveStore(store);
-    const snap = roomSnapshot(code);
-    const targetSocket = io.sockets.sockets.get(toId);
-    if (targetSocket) {
-      targetSocket.emit("dm:invite", {
-        code,
-        from: user.name,
-        fromId: socket.id,
-      });
-    }
-    if (typeof ack === "function") {
-      ack({
-        ok: true,
-        code,
-        label: snap?.label || "",
-        messages: snap.messages,
-        pinned: snap?.pinned || [],
-        ...roomPresenceFields(code),
-        participants: roomParticipantNames(code),
-        invited: target.name,
-        maxMembers: MAX_ROOM_MEMBERS,
-        created,
-      });
-    }
-    emitDmPresence(code);
+  socket.on("dm:invite", (_payload = {}, ack) => {
+    if (typeof ack === "function") ack({ ok: false, error: "Приглашения отключены" });
   });
 
-  socket.on("dm:invite-decline", (payload = {}) => {
-    const fromId = typeof payload.fromId === "string" ? payload.fromId.trim() : "";
-    if (!fromId) return;
-    const name = socket.data.name || "Участник";
-    io.to(fromId).emit("dm:invite-declined", { name });
-  });
+  socket.on("dm:invite-decline", () => {});
 
   socket.on("dm:rooms-meta", (payload = {}, ack) => {
     const user = online.get(socket.id);

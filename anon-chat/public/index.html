@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=179" />
+    <link rel="stylesheet" href="/styles.css?v=180" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -86,10 +86,6 @@
               <button type="button" id="notify-off-btn" class="ghost compact notify-off-btn">Выключить</button>
             </div>
           </div>
-          <button type="button" id="invites-btn" class="ghost compact invites-btn" hidden title="Вас зовут в комнату">
-            <span class="invites-dot" aria-hidden="true"></span>
-            <span class="invites-btn-label">вас зовут</span>
-          </button>
           <button type="button" id="dm-btn" class="ghost compact" title="Комнаты по номеру">Чаты</button>
           <button type="button" id="me-btn" class="ghost compact me-btn" title="Ваше имя">…</button>
         </div>
@@ -185,17 +181,6 @@
         <div id="online-list" class="pins-picker online-list" role="listbox" aria-label="Кто онлайн"></div>
         <div class="dialog-actions">
           <button type="button" id="online-close-btn" class="ghost compact">Закрыть</button>
-        </div>
-      </div>
-    </dialog>
-
-    <dialog id="invites-dialog" class="dialog pins-dialog invites-dialog">
-      <div class="dialog-body">
-        <h2>Приглашения</h2>
-        <p class="invites-lead">Вас позвали в комнату — войдите по приглашению.</p>
-        <div id="invites-list" class="pins-picker invites-list" role="listbox" aria-label="Приглашения"></div>
-        <div class="dialog-actions">
-          <button type="button" id="invites-close-btn" class="ghost compact">Закрыть</button>
         </div>
       </div>
     </dialog>
@@ -418,6 +403,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=179"></script>
+    <script src="/app.js?v=180"></script>
   </body>
 </html>
