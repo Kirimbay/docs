@@ -7,6 +7,7 @@ const { Server } = require("socket.io");
 const { randomUUID } = require("crypto");
 const helmet = require("helmet");
 const sharp = require("sharp");
+const webpush = require("web-push");
 
 const PORT = Number(process.env.PORT) || 3847;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "change-me";
@@ -17,10 +18,14 @@ const DATA_DIR = path.join(__dirname, "data");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
 const ADMIN_TOKENS_PATH = path.join(DATA_DIR, "admin-tokens.json");
+const VAPID_PATH = path.join(DATA_DIR, "vapid.json");
+const PUSH_SUBS_PATH = path.join(DATA_DIR, "push-subs.json");
 const MAX_MESSAGES = 5000;
 const MAX_NAME_LEN = 24;
 const MAX_TEXT_LEN = 2000;
 const MAX_ADMIN_TOKENS = 80;
+const PING_COOLDOWN_MS = 45_000;
+let lastPingAllAt = 0;
 
 const NAMES = [
   "Барс",
@@ -195,6 +200,138 @@ function saveStore(store) {
 }
 
 let store = loadStore();
+
+function loadOrCreateVapid() {
+  try {
+    if (fs.existsSync(VAPID_PATH)) {
+      return JSON.parse(fs.readFileSync(VAPID_PATH, "utf8"));
+    }
+  } catch (err) {
+    console.error("Failed to load VAPID keys:", err.message);
+  }
+  const keys = webpush.generateVAPIDKeys();
+  const payload = {
+    publicKey: keys.publicKey,
+    privateKey: keys.privateKey,
+    subject: process.env.VAPID_SUBJECT || "mailto:admin@sarafan.local",
+  };
+  try {
+    fs.writeFileSync(VAPID_PATH, JSON.stringify(payload, null, 2));
+  } catch (err) {
+    console.error("Failed to save VAPID keys:", err.message);
+  }
+  return payload;
+}
+
+const vapid = loadOrCreateVapid();
+webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
+
+function loadPushSubs() {
+  try {
+    if (fs.existsSync(PUSH_SUBS_PATH)) {
+      const raw = JSON.parse(fs.readFileSync(PUSH_SUBS_PATH, "utf8"));
+      return Array.isArray(raw) ? raw : [];
+    }
+  } catch (err) {
+    console.error("Failed to load push subs:", err.message);
+  }
+  return [];
+}
+
+function savePushSubs(list) {
+  const tmp = `${PUSH_SUBS_PATH}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(list, null, 2));
+  fs.renameSync(tmp, PUSH_SUBS_PATH);
+}
+
+/** @type {{endpoint:string,keys:object,name:string,updatedAt:string}[]} */
+let pushSubs = loadPushSubs();
+
+function upsertPushSub(subscription, name) {
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+    return { ok: false, error: "Некорректная подписка" };
+  }
+  const nick = sanitizeName(name) || "";
+  const now = new Date().toISOString();
+  const idx = pushSubs.findIndex((s) => s.endpoint === subscription.endpoint);
+  const row = {
+    endpoint: subscription.endpoint,
+    keys: {
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+    },
+    name: nick,
+    updatedAt: now,
+  };
+  if (idx >= 0) pushSubs[idx] = row;
+  else pushSubs.push(row);
+  if (pushSubs.length > 2000) {
+    pushSubs.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    pushSubs = pushSubs.slice(0, 2000);
+  }
+  savePushSubs(pushSubs);
+  return { ok: true };
+}
+
+function removePushSub(endpoint) {
+  const before = pushSubs.length;
+  pushSubs = pushSubs.filter((s) => s.endpoint !== endpoint);
+  if (pushSubs.length !== before) savePushSubs(pushSubs);
+}
+
+function renamePushSubs(oldName, newName) {
+  const oldKey = nameKey(oldName);
+  const next = sanitizeName(newName);
+  if (!oldKey || !next) return;
+  let changed = false;
+  for (const sub of pushSubs) {
+    if (nameKey(sub.name) === oldKey) {
+      sub.name = next;
+      sub.updatedAt = new Date().toISOString();
+      changed = true;
+    }
+  }
+  if (changed) savePushSubs(pushSubs);
+}
+
+async function sendWebPush(sub, payload) {
+  try {
+    await webpush.sendNotification(
+      {
+        endpoint: sub.endpoint,
+        keys: sub.keys,
+      },
+      JSON.stringify(payload),
+      { TTL: 60 * 60, urgency: "high" }
+    );
+    return true;
+  } catch (err) {
+    const code = err?.statusCode;
+    if (code === 404 || code === 410) removePushSub(sub.endpoint);
+    else console.error("webpush error:", code || err.message);
+    return false;
+  }
+}
+
+async function pushToName(name, payload) {
+  if (!name) return 0;
+  const key = nameKey(name);
+  const targets = pushSubs.filter((s) => nameKey(s.name) === key);
+  const results = await Promise.all(targets.map((s) => sendWebPush(s, payload)));
+  return results.filter(Boolean).length;
+}
+
+async function pushToAll(payload) {
+  const results = await Promise.all(pushSubs.map((s) => sendWebPush(s, payload)));
+  return results.filter(Boolean).length;
+}
+
+function previewPushBody(msg) {
+  const text = (msg.text || "").replace(/\s+/g, " ").trim();
+  if (text) return text.slice(0, 120);
+  if (msg.imageUrl) return "📷 Фото";
+  return "Новое сообщение";
+}
 
 function randomName() {
   return NAMES[Math.floor(Math.random() * NAMES.length)];
@@ -600,6 +737,24 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/api/vapid-public-key", (_req, res) => {
+  res.json({ publicKey: vapid.publicKey });
+});
+
+app.post("/api/push-subscribe", (req, res) => {
+  const subscription = req.body?.subscription;
+  const name = req.body?.name;
+  const result = upsertPushSub(subscription, name);
+  if (!result.ok) return res.status(400).json(result);
+  res.json({ ok: true });
+});
+
+app.post("/api/push-unsubscribe", (req, res) => {
+  const endpoint = req.body?.endpoint;
+  if (typeof endpoint === "string" && endpoint) removePushSub(endpoint);
+  res.json({ ok: true });
+});
+
 app.get("/api/name-pool", (_req, res) => {
   res.json({ names: NAMES.slice() });
 });
@@ -753,6 +908,7 @@ io.on("connection", (socket) => {
     socket.data.name = name;
     const rewritten = rewriteStoredAuthorName(previousName, name);
     if (rewritten) saveStore(store);
+    renamePushSubs(previousName, name);
     emitChatPresence();
     if (user.roomCode) emitDmPresence(user.roomCode);
     io.emit("chat:author-renamed", { from: previousName, to: name });
@@ -854,6 +1010,38 @@ io.on("connection", (socket) => {
     emitChatPresence();
     if (user.roomCode) emitDmPresence(user.roomCode);
     if (typeof ack === "function") ack({ ok: true, name: restore, admin: false });
+  });
+
+  socket.on("admin:ping-all", async (payload = {}, ack) => {
+    const user = online.get(socket.id);
+    if (!user || !(user.isAdmin || socket.data.isAdmin)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа" });
+      return;
+    }
+    const now = Date.now();
+    if (now - lastPingAllAt < PING_COOLDOWN_MS) {
+      if (typeof ack === "function") {
+        ack({
+          ok: false,
+          error: `Подождите ${Math.ceil((PING_COOLDOWN_MS - (now - lastPingAllAt)) / 1000)} с`,
+        });
+      }
+      return;
+    }
+    lastPingAllAt = now;
+    const body =
+      typeof payload.body === "string" && payload.body.trim()
+        ? payload.body.trim().slice(0, 120)
+        : "Вас зовут в Сарафан";
+    const sent = await pushToAll({
+      title: "Сарафан",
+      body,
+      tag: "sarafan-ping-all",
+      url: "/",
+      badge: 1,
+      ping: true,
+    });
+    if (typeof ack === "function") ack({ ok: true, sent, subscribers: pushSubs.length });
   });
 
   socket.on("dm:create", (_payload, ack) => {
@@ -1104,11 +1292,32 @@ io.on("connection", (socket) => {
     if (roomCode) {
       const pub = publicRoomMessage(msg);
       io.to(roomChannel(roomCode)).emit("dm:message", pub);
+      const peer = roomPeerFor(roomCode, msg.name);
+      if (peer) {
+        void pushToName(peer, {
+          title: msg.name || "Вдвоём",
+          body: previewPushBody(msg),
+          tag: `dm-${roomCode}`,
+          id: msg.id,
+          url: "/",
+          badge: 1,
+        });
+      }
       if (typeof ack === "function") ack({ ok: true, id: msg.id });
       return;
     }
     const pub = publicMessage(msg);
     io.emit("chat:message", pub);
+    if (msg.reply?.name && nameKey(msg.reply.name) !== nameKey(msg.name)) {
+      void pushToName(msg.reply.name, {
+        title: `${msg.name} ответил`,
+        body: previewPushBody(msg),
+        tag: `reply-${msg.reply.id || msg.id}`,
+        id: msg.id,
+        url: "/",
+        badge: 1,
+      });
+    }
     if (typeof ack === "function") ack({ ok: true, id: msg.id });
   });
 

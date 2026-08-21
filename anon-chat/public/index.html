@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=106" />
+    <link rel="stylesheet" href="/styles.css?v=107" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -59,11 +59,13 @@
           <button type="button" id="presence" class="presence" title="Кто онлайн">онлайн —</button>
         </div>
         <div class="topbar-actions">
+          <button type="button" id="notify-btn" class="ghost compact notify-btn" title="Уведомления" aria-label="Уведомления" aria-pressed="false">🔔</button>
           <button type="button" id="invites-btn" class="ghost compact invites-btn" hidden title="Вас зовут вдвоём">
             <span class="invites-dot" aria-hidden="true"></span>
             <span class="invites-btn-label">вас зовут</span>
           </button>
           <button type="button" id="dm-btn" class="ghost compact" title="Чат вдвоём по коду">Вдвоём</button>
+          <button type="button" id="ping-all-btn" class="ghost compact" hidden title="Позвать всех">Позвать</button>
           <button type="button" id="me-btn" class="ghost compact me-btn" title="Ваше имя">…</button>
         </div>
       </header>
@@ -248,6 +250,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=106"></script>
+    <script src="/app.js?v=107"></script>
   </body>
 </html>
