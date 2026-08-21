@@ -32,7 +32,7 @@ const MAX_TEXT_LEN = 2000;
 const MAX_ADMIN_TOKENS = 80;
 const ROOM_IDLE_MS = Number(process.env.ROOM_IDLE_DAYS) > 0
   ? Number(process.env.ROOM_IDLE_DAYS) * 24 * 60 * 60 * 1000
-  : 90 * 24 * 60 * 60 * 1000;
+  : 30 * 24 * 60 * 60 * 1000;
 const ROOM_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 const NAMES = [

@@ -440,7 +440,7 @@
           : "Сейчас: закрытая · по ключу"
         : "Сейчас: открытая · без ключа";
     }
-    // Closed → only «open»; open → only «close» (+ key field).
+    // Closed → only «open»; open → key field + «close».
     if (roomMakeOpenBtn) {
       roomMakeOpenBtn.hidden = !roomKeyed;
       roomMakeOpenBtn.disabled = !isRoomAdmin;
@@ -450,18 +450,13 @@
       roomMakeKeyedBtn.disabled = !isRoomAdmin;
     }
     if (roomChangeJoinKeyBtn) {
-      // Key change only while closed; open rooms just get closed with a key.
-      roomChangeJoinKeyBtn.hidden = !roomKeyed;
-      roomChangeJoinKeyBtn.disabled = !isRoomAdmin;
+      roomChangeJoinKeyBtn.hidden = true;
     }
     if (roomJoinKeyField) {
-      // Need key input to close an open room, or to change key on a closed one.
-      roomJoinKeyField.hidden = false;
+      roomJoinKeyField.hidden = Boolean(roomKeyed);
     }
     if (roomJoinKeyLabel) {
-      roomJoinKeyLabel.textContent = roomKeyed
-        ? "Новый ключ · 4 цифры (чтобы сменить)"
-        : "Ключ · 4 цифры (чтобы закрыть комнату)";
+      roomJoinKeyLabel.textContent = "Ключ · 4 цифры (чтобы закрыть комнату)";
     }
   }
 
@@ -5176,7 +5171,7 @@
             ? "Комната удалена навсегда"
             : /closed/i.test(String(payload.reason || ""))
             ? "Комната закрыта создателем"
-            : "Комната удалена · 90 дней без сообщений"
+            : "Комната удалена · 30 дней без активности"
       );
     }
   });
