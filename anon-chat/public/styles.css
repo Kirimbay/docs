@@ -521,7 +521,8 @@ button {
   padding: max(0.45rem, env(safe-area-inset-top, 0px))
     var(--pad-x)
     max(0.45rem, env(safe-area-inset-bottom, 0px));
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
@@ -558,6 +559,10 @@ button {
   gap: 0.65rem;
   padding-top: 0.35rem;
   border-top: 1px solid var(--line);
+  position: relative;
+  z-index: 3;
+  background: var(--bg);
+  pointer-events: auto;
 }
 
 .dm-lead {
@@ -672,6 +677,17 @@ button {
   border-radius: 999px;
   white-space: nowrap;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+  position: relative;
+  z-index: 4;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.dm-action-btn:disabled,
+.dm-dialog-footer #dm-create-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 .dm-create-box,

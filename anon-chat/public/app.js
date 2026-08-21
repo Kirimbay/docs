@@ -1763,9 +1763,18 @@
   }
 
   function showDmDialogError(text) {
-    if (!dmDialogError) return;
-    dmDialogError.hidden = !text;
-    dmDialogError.textContent = text || "";
+    if (dmDialogError) {
+      dmDialogError.hidden = !text;
+      dmDialogError.textContent = text || "";
+      if (text) {
+        try {
+          dmDialogError.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    if (text) notify(text);
   }
 
   function updateDmPresence({ count, names, participants, moderators, maxMembers } = {}) {
@@ -2003,6 +2012,11 @@
           ? "Закрыть"
           : `В ${PUBLIC_ROOM_CODE}`
         : "Готово";
+    }
+    const createBox = document.querySelector(".dm-create-box");
+    if (createBox) {
+      createBox.hidden = Boolean(isAdmin);
+      createBox.style.display = isAdmin ? "none" : "";
     }
   }
 
@@ -2802,21 +2816,22 @@
     const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
     const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight || 0);
     const height = Math.max(240, vvH || Math.round(window.innerHeight || 0));
-    // Inline styles beat UA <dialog> centering and leftover animation transforms
-    // (especially Chrome iOS, where translate(-50%) pushes a full-width sheet off-screen).
+    const appMax = 760;
+    const width = Math.min(window.innerWidth || appMax, appMax);
+    // Keep the same centered column as .app — full-bleed broke hit-testing on sides.
     dmDialog.style.setProperty("position", "fixed", "important");
     dmDialog.style.setProperty("inset", "auto", "important");
     dmDialog.style.setProperty("top", `${vvTop}px`, "important");
-    dmDialog.style.setProperty("left", "0px", "important");
-    dmDialog.style.setProperty("right", "0px", "important");
+    dmDialog.style.setProperty("left", "50%", "important");
+    dmDialog.style.setProperty("right", "auto", "important");
     dmDialog.style.setProperty("bottom", "auto", "important");
-    dmDialog.style.setProperty("width", "100%", "important");
-    dmDialog.style.setProperty("max-width", "none", "important");
+    dmDialog.style.setProperty("width", `${width}px`, "important");
+    dmDialog.style.setProperty("max-width", `${appMax}px`, "important");
     dmDialog.style.setProperty("min-width", "0", "important");
     dmDialog.style.setProperty("height", `${height}px`, "important");
     dmDialog.style.setProperty("max-height", `${height}px`, "important");
     dmDialog.style.setProperty("margin", "0", "important");
-    dmDialog.style.setProperty("transform", "none", "important");
+    dmDialog.style.setProperty("transform", "translateX(-50%)", "important");
     dmDialog.style.setProperty("translate", "none", "important");
     dmDialog.style.setProperty("animation", "none", "important");
     dmDialog.style.setProperty("border-radius", "0", "important");
@@ -4948,8 +4963,12 @@
     }
     void closeDmDialogSoft();
   });
-  dmCreateBtn?.addEventListener("click", () => {
+  function createDmRoomFromForm() {
     showDmDialogError("");
+    if (isAdmin) {
+      showDmDialogError("Супер-админ смотрит комнаты, не создаёт свои");
+      return;
+    }
     const accountPin = normalizeRoomKeyLocal(loadPin() || "");
     if (accountPin.length !== 4) {
       showDmDialogError("Сначала войдите с пином аккаунта");
@@ -4973,7 +4992,9 @@
       access: joinKey ? "keyed" : "open",
     };
     if (preferredRaw.length === 6) payload.code = preferredRaw;
+    if (dmCreateBtn) dmCreateBtn.disabled = true;
     socket.emit("dm:create", payload, (res) => {
+      if (dmCreateBtn) dmCreateBtn.disabled = false;
       if (!res?.ok) {
         showDmDialogError(res?.error || "Не создалось");
         return;
@@ -5003,6 +5024,12 @@
         );
       }
     });
+  }
+
+  dmCreateBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    createDmRoomFromForm();
   });
   dmJoinBtn?.addEventListener("click", joinDmFromInput);
   dmCodeInput?.addEventListener("input", () => {
