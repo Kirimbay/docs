@@ -1101,26 +1101,71 @@ function dedupeAccountsByNick() {
 }
 
 function ownedRoomsForAccount(accountId) {
-  if (!accountId) return [];
+  return knownRoomsForAccount(accountId, "").filter((r) => r.owned);
+}
+
+/**
+ * Rooms this account should see in the hub: owned + joined (participants / authored).
+ * Client localStorage alone is not enough after logout / new device.
+ */
+function knownRoomsForAccount(accountId, nick) {
   ensureRooms();
-  const list = [];
+  const nickKey = nameKey(nick);
+  const map = new Map();
+
+  const touch = (room, { owned = false, member = false } = {}) => {
+    if (!room?.code || isPublicRoomCode(room.code)) return;
+    const prev = map.get(room.code);
+    map.set(room.code, {
+      code: room.code,
+      owned: Boolean(prev?.owned || owned),
+      member: Boolean(prev?.member || member || owned),
+      messageCount: Array.isArray(room.messages) ? room.messages.length : 0,
+      lastActiveAt: room.lastActiveAt || room.createdAt || "",
+      ...roomPublicFlags(room),
+    });
+  };
+
   for (const room of Object.values(store.rooms || {})) {
     if (!room || typeof room !== "object") continue;
     if (isPublicRoomCode(room.code)) continue;
-    if (room.ownerAccountId !== accountId) continue;
-    list.push({
-      code: room.code,
-      ...roomPublicFlags(room),
-    });
+
+    if (accountId && room.ownerAccountId === accountId) {
+      touch(room, { owned: true, member: true });
+      continue;
+    }
+
+    let member = false;
+    if (nickKey) {
+      for (const n of ensureRoomParticipants(room)) {
+        if (nameKey(n) === nickKey) {
+          member = true;
+          break;
+        }
+      }
+      if (!member && nameKey(room.createdBy) === nickKey) member = true;
+      if (!member && Array.isArray(room.messages) && room.messages.length) {
+        const slice = room.messages.slice(-300);
+        for (let i = slice.length - 1; i >= 0; i -= 1) {
+          const m = slice[i];
+          if (m?.admin || isAdminName(m?.name)) continue;
+          if (nameKey(m?.name) === nickKey) {
+            member = true;
+            break;
+          }
+        }
+      }
+    }
+    if (member) touch(room, { member: true });
   }
+
+  const list = [...map.values()];
   list.sort((a, b) => {
-    const ra = store.rooms[a.code];
-    const rb = store.rooms[b.code];
-    const ta = Date.parse(String(ra?.lastActiveAt || ra?.createdAt || "")) || 0;
-    const tb = Date.parse(String(rb?.lastActiveAt || rb?.createdAt || "")) || 0;
+    const ta = Date.parse(String(a.lastActiveAt || "")) || 0;
+    const tb = Date.parse(String(b.lastActiveAt || "")) || 0;
     return tb - ta;
   });
-  return list.slice(0, 50);
+  return list.slice(0, 80);
 }
 
 /** Migrate legacy rooms owned by this clientId onto the account (once). */
@@ -1870,9 +1915,11 @@ io.on("connection", (socket) => {
     leaveDmRoom(socket);
     const roomsOnly = !asAdmin && isRoomsOnlyClient(clientId);
     let ownedRooms = [];
+    let knownRooms = [];
     if (accountId) {
       const claimed = clientId ? claimRoomsForAccount(accountId, clientId) : 0;
-      ownedRooms = ownedRoomsForAccount(accountId);
+      knownRooms = knownRoomsForAccount(accountId, name);
+      ownedRooms = knownRooms.filter((r) => r.owned);
       if (createdAccount || claimed) saveStore(store);
     }
     online.set(socket.id, {
@@ -1907,6 +1954,7 @@ io.on("connection", (socket) => {
         publicRoomCode: PUBLIC_ROOM_CODE,
         accountId: accountId || undefined,
         ownedRooms: asAdmin ? undefined : ownedRooms,
+        knownRooms: asAdmin ? undefined : knownRooms,
       });
     }
   });

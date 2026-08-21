@@ -833,20 +833,27 @@
   }
 
   function applyOwnedRoomsFromServer(ownedRooms, accountPin) {
-    if (!Array.isArray(ownedRooms)) return;
+    applyKnownRoomsFromServer(ownedRooms, accountPin, { markOwned: true });
+  }
+
+  function applyKnownRoomsFromServer(rooms, accountPin, { markOwned = false } = {}) {
+    if (!Array.isArray(rooms)) return;
     const pin = normalizeRoomKeyLocal(accountPin || loadPin() || "");
-    for (const entry of ownedRooms) {
+    for (const entry of rooms) {
       const code = normalizeDmCodeLocal(
         typeof entry === "string" ? entry : entry?.code || ""
       );
       if (code.length !== 6 || code === PUBLIC_ROOM_CODE) continue;
-      markOwnedRoom(code);
+      const isOwned = markOwned || Boolean(entry?.owned);
+      if (isOwned) markOwnedRoom(code);
       rememberDmRoom(code, {
         active: false,
         keyed: Boolean(entry?.keyed),
         closed: Boolean(entry?.closed),
+        messageCount: Number(entry?.messageCount) || undefined,
+        lastActiveAt: entry?.lastActiveAt || undefined,
       });
-      if (pin.length === 4) saveAdminPin(code, pin);
+      if (isOwned && pin.length === 4) saveAdminPin(code, pin);
     }
   }
 
@@ -4305,7 +4312,12 @@
           if (adminToken) clearAdminToken();
           if (pin.length === 4) savePin(pin);
           saveName(res.name);
-          applyOwnedRoomsFromServer(res.ownedRooms, pin);
+          applyKnownRoomsFromServer(
+            Array.isArray(res.knownRooms) && res.knownRooms.length
+              ? res.knownRooms
+              : res.ownedRooms,
+            pin
+          );
           enterChat(res.name, { admin: false });
         }
       }
@@ -5782,6 +5794,13 @@
             if (adminToken) clearAdminToken();
             if (isAdmin) setAdminUi(false, res.name);
             else syncMeBtn();
+            applyKnownRoomsFromServer(
+              Array.isArray(res.knownRooms) && res.knownRooms.length
+                ? res.knownRooms
+                : res.ownedRooms,
+              pin
+            );
+            if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
           }
           if (dmCode) {
             socket.emit("dm:join", { code: dmCode, key: loadRoomKey(dmCode) || undefined }, (dmRes) => {
