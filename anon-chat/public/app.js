@@ -60,7 +60,7 @@
   const dmCreateJoinKey = $("#dm-create-join-key");
   const dmCreateCode = $("#dm-create-code");
   const dmJoinKey = $("#dm-join-key");
-  const dmLead = $("#dm-lead");
+  const dmLead = null;
   const dmDialogTitle = $("#dm-dialog-title");
   const dmJoinBtn = $("#dm-join-btn");
   const dmCodeInput = $("#dm-code-input");
@@ -2409,17 +2409,6 @@
 
   function syncDmDialogChrome() {
     if (dmDialogTitle) dmDialogTitle.textContent = "Чаты";
-    if (dmLead) {
-      dmLead.textContent = dmCode
-        ? isPublicRoomCode(dmCode)
-          ? `Сейчас «${publicChatLabel}» · можно сменить`
-          : `Сейчас комната ${formatRoomCodeDisplay(dmCode)} · можно сменить`
-        : accessRoomsOnly
-          ? `Только комнаты · 30 дней без активности — удаление`
-          : hubRequirePick
-            ? `Создайте комнату, войдите по номеру или откройте снимок людей`
-            : `Снимок людей · номер без нулей · 30 дней без активности — удаление`;
-    }
     syncMeBtn();
     const createBox = document.querySelector(".dm-create-box");
     if (createBox) {
@@ -3281,32 +3270,25 @@
       dmDialog.style.setProperty("max-width", `${appMax}px`, "important");
       dmDialog.style.setProperty("transform", "translateX(-50%)", "important");
     }
-    const body = dmDialog.querySelector(".dialog-body");
+    const hubScroll = document.getElementById("dm-hub-scroll");
     const active = document.activeElement;
-    const hubFields = [dmCodeInput, dmCreateCode, dmCreateJoinKey, dmJoinKey].filter(Boolean);
-    if (body && active && hubFields.includes(active)) {
-      const btn =
-        active === dmCreateCode || active === dmCreateJoinKey
-          ? document.getElementById("dm-create-btn")
-          : document.getElementById("dm-join-btn");
-      const target = btn || active;
-      const rect = target.getBoundingClientRect();
-      const limit = vvTop + height - 16;
-      if (rect.bottom > limit) {
-        body.scrollTop += rect.bottom - limit + 24;
+    const actionFields = [dmCodeInput, dmCreateCode, dmCreateJoinKey, dmJoinKey].filter(Boolean);
+    if (actionFields.includes(active) && hubPeopleOpen) {
+      // Free space above the pinned footer while typing room number/key.
+      setHubPeopleOpen(false);
+    }
+    if (hubScroll && active && (actionFields.includes(active) || active === dmPeopleSearch)) {
+      try {
+        active.scrollIntoView({ block: "nearest", inline: "nearest" });
+      } catch {
+        /* ignore */
       }
     }
   }
 
   function scrollHubActionIntoView(which) {
-    const body = dmDialog?.querySelector(".dialog-body");
     const btn = document.getElementById(which === "create" ? "dm-create-btn" : "dm-join-btn");
-    if (!body || !btn) return;
-    try {
-      btn.scrollIntoView({ block: "nearest", inline: "nearest" });
-    } catch {
-      /* ignore */
-    }
+    if (!btn) return;
     layoutDmDialog();
   }
 
@@ -6031,8 +6013,9 @@
   function bindHubFieldKeyboard(el, which) {
     if (!el) return;
     el.addEventListener("focus", () => {
+      if (which !== "people" && hubPeopleOpen) setHubPeopleOpen(false);
       keepDialogAboveKeyboard(dmDialog, el);
-      scrollHubActionIntoView(which);
+      if (which !== "people") scrollHubActionIntoView(which);
     });
     el.addEventListener("input", () => {
       keepDialogAboveKeyboard(dmDialog, el);
@@ -6042,6 +6025,7 @@
   bindHubFieldKeyboard(dmJoinKey, "join");
   bindHubFieldKeyboard(dmCreateCode, "create");
   bindHubFieldKeyboard(dmCreateJoinKey, "create");
+  bindHubFieldKeyboard(dmPeopleSearch, "people");
   dmLeaveBtn?.addEventListener("click", () => {
     if (!dmCode) return;
     leaveDmMode({ quiet: false, openHub: true });
