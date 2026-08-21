@@ -4970,16 +4970,21 @@
       showDmDialogError("Сначала войдите с пином аккаунта");
       return;
     }
-    const joinRaw = (dmCreateJoinKey?.value || "").replace(/\D/g, "").slice(0, 4);
+    const createCodeEl = document.getElementById("dm-create-code");
+    const createKeyEl = document.getElementById("dm-create-join-key");
+    const createBtnEl = document.getElementById("dm-create-btn");
+    const joinRaw = String(createKeyEl?.value || "")
+      .replace(/\D/g, "")
+      .slice(0, 4);
     if (joinRaw && joinRaw.length !== 4) {
       showDmDialogError("Ключ от комнаты — ровно 4 цифры, или оставьте пустым");
-      dmCreateJoinKey?.focus();
+      createKeyEl?.focus();
       return;
     }
-    const preferredRaw = normalizeDmCodeLocal(dmCreateCode?.value || "");
-    if ((dmCreateCode?.value || "").replace(/\D/g, "") && preferredRaw.length !== 6) {
+    const preferredRaw = normalizeDmCodeLocal(createCodeEl?.value || "");
+    if (String(createCodeEl?.value || "").replace(/\D/g, "") && preferredRaw.length !== 6) {
       showDmDialogError("Номер комнаты — ровно 6 цифр, или оставьте пустым");
-      dmCreateCode?.focus();
+      createCodeEl?.focus();
       return;
     }
     const joinKey = joinRaw.length === 4 ? joinRaw : "";
@@ -4988,9 +4993,10 @@
       access: joinKey ? "keyed" : "open",
     };
     if (preferredRaw.length === 6) payload.code = preferredRaw;
-    if (dmCreateBtn) dmCreateBtn.disabled = true;
+    if (createBtnEl) createBtnEl.disabled = true;
+    notify("Создаём комнату…");
     socket.emit("dm:create", payload, (res) => {
-      if (dmCreateBtn) dmCreateBtn.disabled = false;
+      if (createBtnEl) createBtnEl.disabled = false;
       if (!res?.ok) {
         showDmDialogError(res?.error || "Не создалось");
         return;
@@ -4999,8 +5005,8 @@
       if (joinKey) saveRoomKey(res.code, joinKey);
       else clearRoomKey(res.code);
       markOwnedRoom(res.code);
-      if (dmCreateJoinKey) dmCreateJoinKey.value = "";
-      if (dmCreateCode) dmCreateCode.value = "";
+      if (createKeyEl) createKeyEl.value = "";
+      if (createCodeEl) createCodeEl.value = "";
       enterDmMode(res);
       saveLastDest(res.code);
       markSessionLive();
@@ -5022,12 +5028,51 @@
     });
   }
 
-  dmCreateBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    createDmRoomFromForm();
-  });
-  dmJoinBtn?.addEventListener("click", joinDmFromInput);
+  function bindCreateJoinButtons() {
+    const createBtn = document.getElementById("dm-create-btn");
+    const joinBtn = document.getElementById("dm-join-btn");
+    let createLock = false;
+    const onCreate = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (createLock) return;
+      createLock = true;
+      try {
+        createDmRoomFromForm();
+      } finally {
+        setTimeout(() => {
+          createLock = false;
+        }, 400);
+      }
+    };
+    if (createBtn) {
+      createBtn.addEventListener("click", onCreate);
+      createBtn.addEventListener(
+        "touchend",
+        (e) => {
+          // iOS Safari often drops click inside <dialog>; fire on touchend once.
+          e.preventDefault();
+          onCreate(e);
+        },
+        { passive: false }
+      );
+    }
+    if (joinBtn) {
+      joinBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        joinDmFromInput();
+      });
+      joinBtn.addEventListener(
+        "touchend",
+        (e) => {
+          e.preventDefault();
+          joinDmFromInput();
+        },
+        { passive: false }
+      );
+    }
+  }
+  bindCreateJoinButtons();
   dmCodeInput?.addEventListener("input", () => {
     const digits = (dmCodeInput.value || "").replace(/\D/g, "").slice(0, 6);
     if (dmCodeInput.value !== digits) dmCodeInput.value = digits;

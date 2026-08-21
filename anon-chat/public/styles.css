@@ -3382,18 +3382,19 @@ body.keyboard-open .pins-dialog.dialog {
     animation: dialog-in-bottom var(--motion) var(--ease-out) both;
   }
 
+  .dm-action-fields,
   .dm-action-row {
     grid-template-columns: 1fr 1fr;
-    align-items: stretch;
   }
 
   .dm-action-btn,
   .dm-create-btn,
   .dm-dialog-footer #dm-join-btn,
   .dm-dialog-footer #dm-create-btn {
-    grid-column: 1 / -1;
     justify-self: start;
     width: auto !important;
+    min-height: 2.85rem;
+    height: 2.85rem;
   }
 
   .name-row {
