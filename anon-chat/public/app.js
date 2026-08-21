@@ -917,17 +917,18 @@
     dmDialogError.textContent = text || "";
   }
 
-  function updateDmPresence({ count, names, maxMembers } = {}) {
+  function updateDmPresence({ count, names, participants, maxMembers } = {}) {
     if (!dmBarPresence) return;
     const n = Number(count) || 0;
     const max = Number(maxMembers) > 0 ? Number(maxMembers) : 100;
     dmBarPresence.textContent = `${n}/${max}`;
     if (!dmCode) return;
-    const peer = peerFromDmPayload({ names, messages: lastState.messages || [] });
-    if (peer) {
+    const roster = Array.isArray(participants) && participants.length ? participants : names;
+    const peer = peerFromDmPayload({ names: roster, messages: lastState.messages || [] });
+    if (peer || (Array.isArray(roster) && roster.length)) {
       rememberDmRoom(dmCode, {
         peer,
-        names: Array.isArray(names) ? names : undefined,
+        names: Array.isArray(roster) ? roster : undefined,
         messageCount: Array.isArray(lastState.messages) ? lastState.messages.length : undefined,
         lastReadId: lastMessageIdFromList(lastState.messages),
         unread: 0,
@@ -1592,7 +1593,7 @@
 
   function layoutFormDialog(dialog) {
     if (!dialog?.open) return;
-    if (dialog.classList.contains("pins-dialog") || dialog.classList.contains("lightbox")) return;
+    if (dialog.classList.contains("pins-dialog") || dialog.classList.contains("lightbox") || dialog.classList.contains("dm-dialog")) return;
     // Keep the admin sheet still until the user focuses the password field.
     if (
       dialog === adminDialog &&
@@ -1651,20 +1652,26 @@
 
   function layoutDmDialog() {
     if (!dmDialog?.open) return;
-    layoutFormDialog(dmDialog);
-    dmDialog.style.width = `min(400px, calc(100vw - 1.2rem))`;
+    syncViewportHeight();
     const vv = window.visualViewport;
     const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
     const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
+    dmDialog.style.top = `${vvTop}px`;
+    dmDialog.style.left = "0";
+    dmDialog.style.right = "0";
+    dmDialog.style.bottom = "auto";
+    dmDialog.style.transform = "none";
+    dmDialog.style.width = "100%";
+    dmDialog.style.maxWidth = "none";
+    dmDialog.style.height = `${Math.max(240, vvH)}px`;
+    dmDialog.style.maxHeight = `${Math.max(240, vvH)}px`;
+    dmDialog.style.margin = "0";
     const body = dmDialog.querySelector(".dialog-body");
-    if (body && dmCodeInput) {
+    if (body && dmCodeInput && document.activeElement === dmCodeInput) {
       const inputRect = dmCodeInput.getBoundingClientRect();
-      const dialogRect = dmDialog.getBoundingClientRect();
       const limit = vvTop + vvH - 12;
       if (inputRect.bottom > limit) {
         body.scrollTop += inputRect.bottom - limit + 10;
-      } else if (inputRect.top < dialogRect.top + 8) {
-        body.scrollTop = Math.max(0, body.scrollTop - (dialogRect.top + 8 - inputRect.top));
       }
     }
   }
