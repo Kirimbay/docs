@@ -29,8 +29,6 @@ const ROOM_IDLE_MS = Number(process.env.ROOM_IDLE_DAYS) > 0
   ? Number(process.env.ROOM_IDLE_DAYS) * 24 * 60 * 60 * 1000
   : 90 * 24 * 60 * 60 * 1000;
 const ROOM_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const PING_COOLDOWN_MS = 45_000;
-let lastPingAllAt = 0;
 
 const NAMES = [
   "Барс",
@@ -634,15 +632,41 @@ function roomChannel(code) {
   return `dm:${code}`;
 }
 
-function roomOnlineCount(code) {
+function isSocketAdmin(socketOrUser) {
+  if (!socketOrUser) return false;
+  if (socketOrUser.isAdmin || socketOrUser.data?.isAdmin) return true;
+  return false;
+}
+
+function roomSocketIds(code) {
   const set = io.sockets.adapter.rooms.get(roomChannel(code));
-  return set ? set.size : 0;
+  return set ? [...set] : [];
+}
+
+/** Visible members only — admins are ghosts and do not take a seat. */
+function roomOnlineCount(code) {
+  let n = 0;
+  for (const id of roomSocketIds(code)) {
+    const sock = io.sockets.sockets.get(id);
+    const u = online.get(id);
+    if (!u) continue;
+    if (isSocketAdmin(sock) || isSocketAdmin(u) || isAdminName(u.name)) continue;
+    n += 1;
+  }
+  return n;
+}
+
+/** Any connection still inside (incl. admin watchers) — used to skip idle prune. */
+function roomHasOccupant(code) {
+  return roomSocketIds(code).length > 0;
 }
 
 function roomMemberNames(code) {
   const names = [];
   for (const u of online.values()) {
-    if (u.roomCode === code) names.push(u.name);
+    if (u.roomCode !== code || !u.name) continue;
+    if (u.isAdmin || isAdminName(u.name)) continue;
+    names.push(u.name);
   }
   return names;
 }
@@ -664,14 +688,19 @@ function roomPeerFor(code, exceptName = "") {
   if (!room) return "";
   const except = String(exceptName || "").trim();
   for (const u of online.values()) {
-    if (u.roomCode === code && u.name && u.name !== except) return u.name;
+    if (u.roomCode !== code || !u.name || u.name === except) continue;
+    if (u.isAdmin || isAdminName(u.name)) continue;
+    return u.name;
   }
   const msgs = Array.isArray(room.messages) ? room.messages : [];
   for (let i = msgs.length - 1; i >= 0; i -= 1) {
     const name = msgs[i]?.name;
-    if (name && name !== except) return name;
+    if (!name || name === except || isAdminName(name) || msgs[i]?.admin) continue;
+    return name;
   }
-  if (room.createdBy && room.createdBy !== except) return room.createdBy;
+  if (room.createdBy && room.createdBy !== except && !isAdminName(room.createdBy)) {
+    return room.createdBy;
+  }
   return "";
 }
 
@@ -703,11 +732,13 @@ function roomPushNames(code, exceptName = "") {
   const exceptKey = nameKey(exceptName);
   const names = new Map();
   for (const n of ensureRoomParticipants(room)) {
+    if (isAdminName(n)) continue;
     const key = nameKey(n);
     if (key && key !== exceptKey) names.set(key, n);
   }
   for (const u of online.values()) {
     if (u.roomCode !== code || !u.name) continue;
+    if (u.isAdmin || isAdminName(u.name)) continue;
     const key = nameKey(u.name);
     if (key && key !== exceptKey) names.set(key, u.name);
   }
@@ -720,17 +751,22 @@ function roomParticipantNames(code) {
   if (!room) return [];
   const map = new Map();
   for (const n of ensureRoomParticipants(room)) {
+    if (isAdminName(n)) continue;
     const key = nameKey(n);
     if (key) map.set(key, n);
   }
   for (const m of Array.isArray(room.messages) ? room.messages : []) {
+    if (isAdminName(m?.name) || m?.admin) continue;
     const key = nameKey(m?.name);
     if (key) map.set(key, m.name);
   }
-  const createdKey = nameKey(room.createdBy);
-  if (createdKey) map.set(createdKey, room.createdBy);
+  if (room.createdBy && !isAdminName(room.createdBy)) {
+    const createdKey = nameKey(room.createdBy);
+    if (createdKey) map.set(createdKey, room.createdBy);
+  }
   for (const u of online.values()) {
     if (u.roomCode !== code || !u.name) continue;
+    if (u.isAdmin || isAdminName(u.name)) continue;
     const key = nameKey(u.name);
     if (key) map.set(key, u.name);
   }
@@ -846,8 +882,8 @@ function pruneInactiveRooms({ persist = true } = {}) {
     const ageBase = last || Date.parse(String(room?.createdAt || "")) || 0;
     if (!ageBase) continue;
     if (now - ageBase < ROOM_IDLE_MS) continue;
-    // Do not delete a room while someone is currently inside.
-    if (roomOnlineCount(code) > 0) {
+    // Do not delete a room while someone is currently inside (incl. admin watchers).
+    if (roomHasOccupant(code)) {
       touchRoom(code);
       continue;
     }
@@ -890,6 +926,7 @@ function leaveDmRoom(socket) {
   if (!code) return;
   socket.leave(roomChannel(code));
   socket.data.roomCode = null;
+  socket.data.roomGhost = false;
   const user = online.get(socket.id);
   if (user) user.roomCode = null;
   emitDmPresence(code);
@@ -1266,40 +1303,50 @@ io.on("connection", (socket) => {
     if (typeof ack === "function") ack({ ok: true, name: restore, admin: false });
   });
 
-  socket.on("admin:ping-all", async (payload = {}, ack) => {
+  socket.on("admin:ping-all", async (_payload = {}, ack) => {
+    if (typeof ack === "function") {
+      ack({ ok: false, error: "Функция «Позвать» отключена" });
+    }
+  });
+
+  socket.on("dm:admin-rooms", (payload = {}, ack) => {
     const user = online.get(socket.id);
     if (!user || !(user.isAdmin || socket.data.isAdmin)) {
       if (typeof ack === "function") ack({ ok: false, error: "Нужны права админа" });
       return;
     }
-    const now = Date.now();
-    if (now - lastPingAllAt < PING_COOLDOWN_MS) {
-      if (typeof ack === "function") {
-        ack({
-          ok: false,
-          error: `Подождите ${Math.ceil((PING_COOLDOWN_MS - (now - lastPingAllAt)) / 1000)} с`,
-        });
+    ensureRooms();
+    /** @type {Map<string, string>} */
+    const sinceByCode = new Map();
+    const ingestSince = (codeRaw, sinceRaw) => {
+      const code = normalizeRoomCode(codeRaw);
+      if (!code) return;
+      const sinceId = typeof sinceRaw === "string" ? sinceRaw.trim().slice(0, 80) : "";
+      sinceByCode.set(code, sinceId);
+    };
+    if (Array.isArray(payload.rooms)) {
+      for (const item of payload.rooms) {
+        if (typeof item === "string") ingestSince(item, "");
+        else if (item && typeof item === "object") ingestSince(item.code, item.sinceId);
       }
-      return;
     }
-    lastPingAllAt = now;
-    const body =
-      typeof payload.body === "string" && payload.body.trim()
-        ? payload.body.trim().slice(0, 120)
-        : "Вас зовут в Сарафан";
-    const sent = await pushToAll(
-      {
-        title: "Сарафан",
-        body,
-        tag: "sarafan-ping-all",
-        url: "/",
-        badge: 1,
-        ping: true,
-        kind: "ping",
-      },
-      "public"
-    );
-    if (typeof ack === "function") ack({ ok: true, sent, subscribers: pushSubs.length });
+    const rooms = Object.keys(store.rooms)
+      .map((code) => {
+        const meta = roomListMeta(code, user.name, sinceByCode.get(code) || "");
+        const room = store.rooms[code];
+        return {
+          ...meta,
+          lastActiveAt: room?.lastActiveAt || room?.createdAt || "",
+          createdBy: room?.createdBy || "",
+        };
+      })
+      .sort((a, b) => {
+        const ta = Date.parse(String(a.lastActiveAt || "")) || 0;
+        const tb = Date.parse(String(b.lastActiveAt || "")) || 0;
+        return tb - ta;
+      })
+      .slice(0, 200);
+    if (typeof ack === "function") ack({ ok: true, rooms });
   });
 
   socket.on("dm:create", (_payload, ack) => {
@@ -1326,6 +1373,7 @@ io.on("connection", (socket) => {
     saveStore(store);
     socket.join(roomChannel(code));
     socket.data.roomCode = code;
+    socket.data.roomGhost = false;
     user.roomCode = code;
     const snap = roomSnapshot(code);
     if (typeof ack === "function") {
@@ -1334,10 +1382,11 @@ io.on("connection", (socket) => {
         code,
         messages: snap.messages,
         pinned: [],
-        count: 1,
-        names: [user.name],
-        participants: [user.name],
+        count: roomOnlineCount(code),
+        names: roomMemberNames(code),
+        participants: roomParticipantNames(code),
         maxMembers: MAX_ROOM_MEMBERS,
+        ghost: false,
       });
     }
     emitDmPresence(code);
@@ -1472,6 +1521,7 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ ok: false, error: "Сначала войдите" });
       return;
     }
+    const asAdmin = Boolean(user.isAdmin || socket.data.isAdmin);
     const code = normalizeRoomCode(payload.code);
     if (!code) {
       if (typeof ack === "function") ack({ ok: false, error: "Нужен код из 6 цифр" });
@@ -1485,7 +1535,8 @@ io.on("connection", (socket) => {
     }
     if (socket.data.roomCode === code) {
       touchRoom(code, { persist: true });
-      rememberRoomParticipant(code, user.name);
+      // Admins watch invisibly — do not join the visible roster.
+      if (!asAdmin) rememberRoomParticipant(code, user.name);
       const snap = roomSnapshot(code);
       if (typeof ack === "function") {
         ack({
@@ -1497,12 +1548,13 @@ io.on("connection", (socket) => {
           names: roomMemberNames(code),
           participants: roomParticipantNames(code),
           maxMembers: MAX_ROOM_MEMBERS,
+          ghost: asAdmin,
         });
       }
       return;
     }
     leaveDmRoom(socket);
-    if (roomOnlineCount(code) >= MAX_ROOM_MEMBERS) {
+    if (!asAdmin && roomOnlineCount(code) >= MAX_ROOM_MEMBERS) {
       if (typeof ack === "function") {
         ack({
           ok: false,
@@ -1512,10 +1564,13 @@ io.on("connection", (socket) => {
       return;
     }
     touchRoom(code);
-    rememberRoomParticipant(code, user.name);
-    saveStore(store);
+    if (!asAdmin) {
+      rememberRoomParticipant(code, user.name);
+      saveStore(store);
+    }
     socket.join(roomChannel(code));
     socket.data.roomCode = code;
+    socket.data.roomGhost = asAdmin;
     user.roomCode = code;
     const snap = roomSnapshot(code);
     if (typeof ack === "function") {
@@ -1528,6 +1583,7 @@ io.on("connection", (socket) => {
         names: roomMemberNames(code),
         participants: roomParticipantNames(code),
         maxMembers: MAX_ROOM_MEMBERS,
+        ghost: asAdmin,
       });
     }
     emitDmPresence(code);

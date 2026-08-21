@@ -685,10 +685,27 @@ button {
   text-align: left;
 }
 
-.dm-room-enter:hover,
-.dm-room-enter:active {
-  border-color: rgba(111, 191, 138, 0.55);
-  background: #1a2420;
+.dm-room-row.is-foreign .dm-room-enter {
+  border-color: rgba(196, 160, 110, 0.45);
+  background: #221c16;
+}
+
+.dm-room-row.is-foreign .dm-room-code {
+  color: #d4b483;
+}
+
+.dm-room-row.is-foreign .dm-room-unread.has-new {
+  color: #e0c49a;
+}
+
+.dm-room-row.is-foreign .dm-room-names {
+  color: #9a8b74;
+}
+
+.dm-room-row.is-foreign .dm-room-enter:hover,
+.dm-room-row.is-foreign .dm-room-enter:active {
+  border-color: rgba(212, 180, 131, 0.7);
+  background: #2a221a;
 }
 
 .dm-room-code {
