@@ -12,8 +12,9 @@ const webpush = require("web-push");
 const PORT = Number(process.env.PORT) || 3847;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "change-me";
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 5;
-const IMAGE_MAX_PX = Number(process.env.IMAGE_MAX_PX) || 1440;
-const IMAGE_QUALITY = Number(process.env.IMAGE_QUALITY) || 68;
+const IMAGE_MAX_PX = Number(process.env.IMAGE_MAX_PX) || 1080;
+const IMAGE_QUALITY = Number(process.env.IMAGE_QUALITY) || 52;
+const IMAGE_MAX_BYTES = Number(process.env.IMAGE_MAX_BYTES) || 180 * 1024;
 const DATA_DIR = path.join(__dirname, "data");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
@@ -24,6 +25,10 @@ const MAX_MESSAGES = 5000;
 const MAX_NAME_LEN = 24;
 const MAX_TEXT_LEN = 2000;
 const MAX_ADMIN_TOKENS = 80;
+const ROOM_IDLE_MS = Number(process.env.ROOM_IDLE_DAYS) > 0
+  ? Number(process.env.ROOM_IDLE_DAYS) * 24 * 60 * 60 * 1000
+  : 90 * 24 * 60 * 60 * 1000;
+const ROOM_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const PING_COOLDOWN_MS = 45_000;
 let lastPingAllAt = 0;
 
@@ -674,6 +679,71 @@ function roomListMeta(code, exceptName = "") {
   };
 }
 
+function roomLastActiveMs(room) {
+  if (!room || typeof room !== "object") return 0;
+  const candidates = [room.lastActiveAt, room.createdAt];
+  const msgs = Array.isArray(room.messages) ? room.messages : [];
+  if (msgs.length) candidates.push(msgs[msgs.length - 1]?.createdAt);
+  let best = 0;
+  for (const raw of candidates) {
+    const t = Date.parse(String(raw || ""));
+    if (Number.isFinite(t) && t > best) best = t;
+  }
+  return best;
+}
+
+function touchRoom(code, { persist = false } = {}) {
+  ensureRooms();
+  const room = store.rooms[code];
+  if (!room) return;
+  room.lastActiveAt = new Date().toISOString();
+  if (persist) saveStore(store);
+}
+
+function unlinkRoomImages(room) {
+  const msgs = Array.isArray(room?.messages) ? room.messages : [];
+  for (const msg of msgs) {
+    if (!msg?.imageUrl) continue;
+    const file = path.join(UPLOAD_DIR, path.basename(msg.imageUrl));
+    fs.promises.unlink(file).catch(() => {});
+  }
+}
+
+function kickSocketsFromRoom(code) {
+  const set = io.sockets.adapter.rooms.get(roomChannel(code));
+  if (!set) return;
+  for (const socketId of [...set]) {
+    const sock = io.sockets.sockets.get(socketId);
+    if (!sock) continue;
+    leaveDmRoom(sock);
+    sock.emit("dm:room-gone", { code, reason: "inactive" });
+    sock.emit("chat:state", snapshot());
+  }
+}
+
+function pruneInactiveRooms({ persist = true } = {}) {
+  ensureRooms();
+  const now = Date.now();
+  const removed = [];
+  for (const [code, room] of Object.entries(store.rooms)) {
+    const last = roomLastActiveMs(room);
+    // Empty brand-new rooms without timestamps: treat createdAt/now missing as stale only if no activity clue.
+    const ageBase = last || Date.parse(String(room?.createdAt || "")) || 0;
+    if (!ageBase) continue;
+    if (now - ageBase < ROOM_IDLE_MS) continue;
+    // Do not delete a room while someone is currently inside.
+    if (roomOnlineCount(code) > 0) {
+      touchRoom(code);
+      continue;
+    }
+    unlinkRoomImages(room);
+    delete store.rooms[code];
+    removed.push(code);
+  }
+  if (removed.length && persist) saveStore(store);
+  return removed;
+}
+
 function emitDmPresence(code) {
   io.to(roomChannel(code)).emit("dm:presence", {
     code,
@@ -722,38 +792,49 @@ const upload = multer({
 });
 
 async function compressImageBuffer(buffer) {
-  const base = sharp(buffer, { failOn: "none" })
-    .rotate()
-    .resize({
-      width: IMAGE_MAX_PX,
-      height: IMAGE_MAX_PX,
-      fit: "inside",
-      withoutEnlargement: true,
-    });
+  async function encode(quality) {
+    const base = sharp(buffer, { failOn: "none" })
+      .rotate()
+      .resize({
+        width: IMAGE_MAX_PX,
+        height: IMAGE_MAX_PX,
+        fit: "inside",
+        withoutEnlargement: true,
+      });
 
-  try {
-    const webp = await base
-      .clone()
-      .webp({ quality: IMAGE_QUALITY, effort: 4, smartSubsample: true })
-      .toBuffer({ resolveWithObject: true });
-    if (webp.info.size > 0) {
-      return { buffer: webp.data, ext: ".webp", mime: "image/webp" };
+    try {
+      const webp = await base
+        .clone()
+        .webp({ quality, effort: 5, smartSubsample: true })
+        .toBuffer({ resolveWithObject: true });
+      if (webp.info.size > 0) {
+        return { buffer: webp.data, ext: ".webp", mime: "image/webp" };
+      }
+    } catch (err) {
+      console.warn("webp compress failed, falling back to jpeg:", err.message);
     }
-  } catch (err) {
-    console.warn("webp compress failed, falling back to jpeg:", err.message);
+
+    const jpeg = await sharp(buffer, { failOn: "none" })
+      .rotate()
+      .resize({
+        width: IMAGE_MAX_PX,
+        height: IMAGE_MAX_PX,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: Math.min(78, quality + 10), mozjpeg: true })
+      .toBuffer({ resolveWithObject: true });
+    return { buffer: jpeg.data, ext: ".jpg", mime: "image/jpeg" };
   }
 
-  const jpeg = await sharp(buffer, { failOn: "none" })
-    .rotate()
-    .resize({
-      width: IMAGE_MAX_PX,
-      height: IMAGE_MAX_PX,
-      fit: "inside",
-      withoutEnlargement: true,
-    })
-    .jpeg({ quality: Math.min(82, IMAGE_QUALITY + 8), mozjpeg: true })
-    .toBuffer({ resolveWithObject: true });
-  return { buffer: jpeg.data, ext: ".jpg", mime: "image/jpeg" };
+  let quality = IMAGE_QUALITY;
+  let result = await encode(quality);
+  // Re-encode smaller if still over the soft byte budget.
+  while (result.buffer.length > IMAGE_MAX_BYTES && quality > 28) {
+    quality = Math.max(28, quality - 10);
+    result = await encode(quality);
+  }
+  return result;
 }
 
 const app = express();
@@ -1116,6 +1197,7 @@ io.on("connection", (socket) => {
     store.rooms[code] = {
       code,
       createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
       createdBy: user.name,
       messages: [],
     };
@@ -1159,6 +1241,7 @@ io.on("connection", (socket) => {
     store.rooms[code] = {
       code,
       createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
       createdBy: user.name,
       messages: [],
     };
@@ -1258,6 +1341,7 @@ io.on("connection", (socket) => {
       }
       return;
     }
+    touchRoom(code, { persist: true });
     socket.join(roomChannel(code));
     socket.data.roomCode = code;
     user.roomCode = code;
@@ -1334,6 +1418,7 @@ io.on("connection", (socket) => {
       createdAt: new Date().toISOString(),
     };
     messageList.push(msg);
+    if (roomCode) touchRoom(roomCode);
     const maxLen = roomCode ? MAX_ROOM_MESSAGES : MAX_MESSAGES;
     if (messageList.length > maxLen) {
       const removed = messageList.splice(0, messageList.length - maxLen);
@@ -1546,4 +1631,15 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Сарафан listening on http://localhost:${PORT}`);
   console.log(`Admin password: ${ADMIN_PASSWORD === "change-me" ? "change-me (set ADMIN_PASSWORD)" : "(set via env)"}`);
+  const removed = pruneInactiveRooms();
+  if (removed.length) {
+    console.log(`Pruned ${removed.length} inactive DM room(s) (>${Math.round(ROOM_IDLE_MS / 86400000)}d idle)`);
+  }
+  setInterval(() => {
+    const gone = pruneInactiveRooms();
+    if (gone.length) {
+      console.log(`Pruned ${gone.length} inactive DM room(s)`);
+      for (const code of gone) kickSocketsFromRoom(code);
+    }
+  }, ROOM_PRUNE_INTERVAL_MS).unref?.();
 });

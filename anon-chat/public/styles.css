@@ -2358,6 +2358,10 @@ body.keyboard-open .pins-dialog.dialog {
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
 }
 
+.pins-dialog.dialog:not([open]) {
+  display: none !important;
+}
+
 .pins-dialog.dialog[open] {
   display: flex;
 }

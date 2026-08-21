@@ -18,8 +18,8 @@ const UPLOAD_DIR = fs.existsSync(path.join(APP_DIR, "uploads"))
   ? fs.realpathSync(path.join(APP_DIR, "uploads"))
   : path.join(APP_DIR, "uploads");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
-const IMAGE_MAX_PX = Number(process.env.IMAGE_MAX_PX) || 1440;
-const IMAGE_QUALITY = Number(process.env.IMAGE_QUALITY) || 68;
+const IMAGE_MAX_PX = Number(process.env.IMAGE_MAX_PX) || 1080;
+const IMAGE_QUALITY = Number(process.env.IMAGE_QUALITY) || 52;
 const DRY_RUN = process.env.DRY_RUN === "1";
 
 async function compressFile(filePath) {

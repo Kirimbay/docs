@@ -3648,6 +3648,15 @@
     notify(`${name || "Участник"} отклонил приглашение`)
   });
 
+  socket.on("dm:room-gone", (payload = {}) => {
+    const code = String(payload.code || "");
+    if (code) forgetDmRoom(code);
+    if (dmCode && code && dmCode === code) {
+      leaveDmMode();
+      notify("Чат вдвоём удалён · 90 дней без сообщений");
+    }
+  });
+
   socket.on("connect", () => {
     if (myName) {
       const adminToken = loadAdminToken();
