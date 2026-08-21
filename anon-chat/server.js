@@ -396,6 +396,10 @@ function isReservedAdminName(name) {
   return name.replace(/\s+/g, "").toLocaleUpperCase("ru-RU") === ADMIN_DISPLAY_NAME;
 }
 
+function isAdminName(name) {
+  return isReservedAdminName(name);
+}
+
 function sanitizeName(raw) {
   if (typeof raw !== "string") return null;
   const name = raw.replace(/\s+/g, " ").trim().slice(0, MAX_NAME_LEN);
