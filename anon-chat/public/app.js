@@ -1395,8 +1395,10 @@
       const unread = dmCode === room.code ? 0 : Math.max(0, Number(room.unread) || 0);
       enterBtn.title = owned
         ? keyed
-          ? `Ваша · закрытая${loadRoomKey(room.code) ? ` · ключ ${loadRoomKey(room.code)}` : ""}`
-          : "Ваша · открытая · без ключа"
+          ? loadRoomKey(room.code)
+            ? `Ваша · вход по ключу ${loadRoomKey(room.code)}`
+            : "Ваша · вход по ключу"
+          : "Ваша · вход без ключа"
         : keyed
           ? `По ключу · ${room.code}`
           : room.foreign
@@ -1423,11 +1425,12 @@
       unreadEl.className = "dm-room-unread" + (unread > 0 ? " has-new" : "");
       if (owned) {
         const key = loadRoomKey(room.code);
+        // Show how others enter — not “you’re admin so you can skip the key”.
         const access = keyed
           ? key
-            ? `админ · ключ ${key}`
-            : "админ · закрытая"
-          : "админ · без ключа";
+            ? `вход по ключу · ${key}`
+            : "вход по ключу"
+          : "вход без ключа";
         unreadEl.textContent =
           dmCode === room.code
             ? access
@@ -1452,10 +1455,13 @@
       namesBtn.type = "button";
       namesBtn.className = "dm-room-names";
       const fullNames = Array.isArray(room.names) ? room.names : [];
+      const ownedKey = owned ? loadRoomKey(room.code) : "";
       const accessHint = owned
         ? keyed
-          ? "комната закрытая · "
-          : "комната открытая · "
+          ? ownedKey
+            ? `вход по ключу ${ownedKey} · `
+            : "вход по ключу · "
+          : "вход без ключа · "
         : keyed
           ? "по ключу · "
           : "";
@@ -1466,8 +1472,10 @@
           : "Показать всех"
         : owned
           ? keyed
-            ? "Комната закрытая · по ключу"
-            : "Комната открытая · без ключа"
+            ? ownedKey
+              ? `Вход по ключу · ${ownedKey}`
+              : "Вход по ключу"
+            : "Вход без ключа"
           : "Пока никого";
       namesBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
       namesBtn.addEventListener("click", (e) => {
