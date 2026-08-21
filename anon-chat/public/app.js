@@ -4762,6 +4762,7 @@
         showRoomAdminPanelError(res?.error || "Не сменилось");
         return;
       }
+      if (newKey.length === 4) saveRoomKey(dmCode, newKey);
       applyRoomFlags(res);
       showRoomAdminPanelError("");
       notify(res.keyed ? "Ключ входа обновлён" : "Комната снова свободная (без ключа входа)");
