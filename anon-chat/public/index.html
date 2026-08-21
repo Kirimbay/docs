@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=145" />
+    <link rel="stylesheet" href="/styles.css?v=146" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -342,14 +342,14 @@
           <p class="room-delete-warn">
             Опасная зона · удаление необратимо. Комната, сообщения и участники пропадут навсегда.
           </p>
-          <p class="room-delete-lead">Чтобы удалить — введите номер комнаты (6) и пин админа (4)</p>
+          <p class="room-delete-lead">Чтобы удалить — введите номер комнаты и пин админа</p>
           <label class="field">
-            <span>Номер комнаты · 6 цифр</span>
-            <input id="room-delete-code" type="text" inputmode="numeric" maxlength="6" placeholder="000543" autocomplete="off" />
+            <span>Номер комнаты</span>
+            <input id="room-delete-code" type="text" inputmode="numeric" maxlength="6" placeholder="номер комнаты" autocomplete="off" />
           </label>
           <label class="field">
-            <span>Пин админа · 4 цифры</span>
-            <input id="room-delete-key" type="text" inputmode="numeric" maxlength="4" placeholder="4821" autocomplete="off" />
+            <span>Пин админа</span>
+            <input id="room-delete-key" type="text" inputmode="numeric" maxlength="4" placeholder="пин админа" autocomplete="off" />
           </label>
           <button type="button" id="room-delete-btn" class="room-delete-btn">Удалить комнату навсегда</button>
         </section>

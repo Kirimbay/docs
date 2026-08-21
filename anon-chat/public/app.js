@@ -1776,10 +1776,10 @@
           ? `Сейчас «${publicChatLabel}» · можно сменить`
           : `Сейчас комната ${dmCode} · можно сменить`
         : accessRoomsOnly
-          ? `Только комнаты · «${publicChatLabel}» скрыт`
+          ? `Только комнаты · «${publicChatLabel}» скрыт · 30 дней без активности — удаление`
           : hubRequirePick
-            ? `Создайте комнату или войдите по пину (общий — ${PUBLIC_ROOM_CODE})`
-            : `Комнаты по пину · «${publicChatLabel}» = ${PUBLIC_ROOM_CODE}`;
+            ? `Создайте или войдите · 30 дней без активности — удаление`
+            : `Номер 6 · ключ 4 · пин админа 4 · 30 дней без активности — удаление`;
     }
     if (dmDialogClose) {
       dmDialogClose.textContent = hubRequirePick
