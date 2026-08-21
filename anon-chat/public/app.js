@@ -1655,21 +1655,30 @@
     syncViewportHeight();
     const vv = window.visualViewport;
     const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
-    const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
-    dmDialog.style.top = `${vvTop}px`;
-    dmDialog.style.left = "0";
-    dmDialog.style.right = "0";
-    dmDialog.style.bottom = "auto";
-    dmDialog.style.transform = "none";
-    dmDialog.style.width = "100%";
-    dmDialog.style.maxWidth = "none";
-    dmDialog.style.height = `${Math.max(240, vvH)}px`;
-    dmDialog.style.maxHeight = `${Math.max(240, vvH)}px`;
-    dmDialog.style.margin = "0";
+    const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight || 0);
+    const height = Math.max(240, vvH || Math.round(window.innerHeight || 0));
+    // Inline styles beat UA <dialog> centering and leftover animation transforms
+    // (especially Chrome iOS, where translate(-50%) pushes a full-width sheet off-screen).
+    dmDialog.style.setProperty("position", "fixed", "important");
+    dmDialog.style.setProperty("inset", "auto", "important");
+    dmDialog.style.setProperty("top", `${vvTop}px`, "important");
+    dmDialog.style.setProperty("left", "0px", "important");
+    dmDialog.style.setProperty("right", "0px", "important");
+    dmDialog.style.setProperty("bottom", "auto", "important");
+    dmDialog.style.setProperty("width", "100%", "important");
+    dmDialog.style.setProperty("max-width", "none", "important");
+    dmDialog.style.setProperty("min-width", "0", "important");
+    dmDialog.style.setProperty("height", `${height}px`, "important");
+    dmDialog.style.setProperty("max-height", `${height}px`, "important");
+    dmDialog.style.setProperty("margin", "0", "important");
+    dmDialog.style.setProperty("transform", "none", "important");
+    dmDialog.style.setProperty("translate", "none", "important");
+    dmDialog.style.setProperty("animation", "none", "important");
+    dmDialog.style.setProperty("border-radius", "0", "important");
     const body = dmDialog.querySelector(".dialog-body");
     if (body && dmCodeInput && document.activeElement === dmCodeInput) {
       const inputRect = dmCodeInput.getBoundingClientRect();
-      const limit = vvTop + vvH - 12;
+      const limit = vvTop + height - 12;
       if (inputRect.bottom > limit) {
         body.scrollTop += inputRect.bottom - limit + 10;
       }
