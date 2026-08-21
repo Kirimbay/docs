@@ -632,12 +632,27 @@ button {
 .dm-action-row .field {
   margin: 0;
   min-width: 0;
+  gap: 0.28rem;
 }
 
 .dm-action-row .field span {
   font-size: 0.62rem;
   letter-spacing: 0.03em;
   text-transform: none;
+  line-height: 1.2;
+  min-height: 1rem;
+}
+
+.dm-action-row .field input,
+.dm-action-row .dm-code-field input,
+.dm-action-row .dm-key-field input {
+  min-height: 2.65rem;
+  height: 2.65rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  border-radius: 12px;
+  box-sizing: border-box;
 }
 
 .dm-action-btn,
@@ -646,11 +661,12 @@ button {
 .dm-dialog-footer #dm-create-btn {
   width: auto !important;
   min-width: 6.5rem;
+  height: 2.65rem;
   max-width: none;
   justify-self: end;
   align-self: end;
   margin: 0;
-  padding: 0.7rem 1.15rem;
+  padding: 0 1.15rem;
   font-size: 0.9rem;
   font-weight: 650;
   border-radius: 999px;
