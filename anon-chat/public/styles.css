@@ -34,8 +34,6 @@
   --pad-x: clamp(0.75rem, 3vw, 1rem);
   --kb-inset: 0px;
   --app-height: 100dvh;
-  --vv-top: 0px;
-  --browser-bottom: 0px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -73,7 +71,7 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   position: fixed;
-  top: var(--vv-top, 0px);
+  top: 0;
   left: 0;
   right: 0;
   width: 100%;
@@ -86,14 +84,6 @@ body {
 
 body.keyboard-open {
   --safe-bottom: 0px;
-}
-
-body.keyboard-open .composer {
-  padding-bottom: 0.28rem;
-}
-
-body.keyboard-open .composer::after {
-  display: none;
 }
 
 button,
@@ -298,7 +288,6 @@ button {
   top: var(--vv-top, 0px);
   left: 0;
   right: 0;
-  bottom: auto;
   width: 100%;
   height: var(--app-height, 100dvh);
   max-height: var(--app-height, 100dvh);
@@ -1942,76 +1931,22 @@ body.pins-focus-mode .feed .msg.pin-focus {
 }
 
 .composer {
-  position: relative;
   flex: 0 0 auto;
   z-index: 4;
-  /* When --browser-bottom lifts the shell above Chrome's toolbar, don't also
-     stack a full safe-area pad (home indicator sits inside that toolbar). */
-  padding: 0.3rem var(--pad-x)
-    max(0.35rem, calc(env(safe-area-inset-bottom, 0px) - var(--browser-bottom, 0px)));
-  background: var(--bg-elev);
-  border-top: 1px solid var(--line);
+  padding: 0.45rem var(--pad-x) max(0.55rem, calc(0.45rem + var(--safe-bottom)));
+  background: transparent;
+  border-top: 0;
   min-width: 0;
-}
-
-/* Only paint under the bar in installed Home Screen mode (not Chrome/Safari tabs). */
-.composer::after {
-  display: none;
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  height: 100vh;
-  height: 100dvh;
-  background: var(--bg-elev);
-  pointer-events: none;
-  z-index: -1;
 }
 
 .composer-shell {
   display: grid;
-  gap: 0.22rem;
-  padding: 0;
-  border-radius: 0;
-  border: 0;
-  background: transparent;
+  gap: 0.28rem;
+  padding: 0.42rem 0.5rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
   min-width: 0;
-}
-
-/* Installed PWA / Home Screen: fill the device and cover any leftover hole. */
-@media (display-mode: standalone) {
-  html,
-  body {
-    height: -webkit-fill-available;
-  }
-
-  body:not(.keyboard-open) {
-    inset: 0;
-    top: 0;
-    height: 100%;
-    height: -webkit-fill-available;
-    max-height: none;
-    min-height: -webkit-fill-available;
-  }
-
-  body:not(.keyboard-open) .app {
-    inset: 0;
-    top: 0;
-    bottom: 0;
-    height: 100%;
-    height: -webkit-fill-available;
-    max-height: none;
-    min-height: -webkit-fill-available;
-  }
-
-  .composer {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-
-  .composer::after {
-    display: block;
-  }
 }
 
 .bulk-bar {
@@ -2418,7 +2353,6 @@ body.keyboard-open .pins-dialog.dialog {
   max-width: calc(100vw - 1.2rem);
   max-height: min(50vh, calc(var(--app-height, 100dvh) * 0.5));
   overflow: hidden;
-  display: flex;
   flex-direction: column;
   animation: dialog-in-bottom var(--motion) var(--ease-out) both;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
@@ -2838,14 +2772,13 @@ body.keyboard-open .pins-dialog.dialog {
   }
 
   .composer {
-    padding: 0.26rem var(--pad-x)
-      max(0.3rem, calc(env(safe-area-inset-bottom, 0px) - var(--browser-bottom, 0px)));
+    padding: 0.4rem var(--pad-x) max(0.5rem, calc(0.4rem + var(--safe-bottom)));
   }
 
   .composer-shell {
-    gap: 0.16rem;
-    padding: 0;
-    border-radius: 0;
+    gap: 0.2rem;
+    padding: 0.42rem 0.5rem;
+    border-radius: var(--radius);
   }
 
   .composer-row {

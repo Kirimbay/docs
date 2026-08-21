@@ -1403,41 +1403,6 @@
     document.body.scrollTop = 0;
   }
 
-  function isAppStandalone() {
-    try {
-      return (
-        window.matchMedia("(display-mode: standalone)").matches ||
-        // @ts-ignore iOS Safari Home Screen
-        window.navigator.standalone === true
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  function isIosDevice() {
-    return (
-      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
-    );
-  }
-
-  // Chrome/Firefox/Edge on iOS draw a bottom toolbar OVER the page. visualViewport
-  // usually still reports the full height, so a fixed composer gets clipped.
-  function overlayBrowserBottomPx(keyboardOpen) {
-    if (keyboardOpen || isAppStandalone()) return 0;
-    const vv = window.visualViewport;
-    if (vv) {
-      const gap = Math.round(window.innerHeight - vv.height - (vv.offsetTop || 0));
-      // Small positive gap: browser UI that VV does expose. Ignore keyboard-sized gaps.
-      if (gap >= 8 && gap <= 72) return gap;
-    }
-    if (!isIosDevice()) return 0;
-    if (!/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser/.test(navigator.userAgent)) return 0;
-    // CriOS bottom toolbar is typically ~44–56px and includes the home indicator.
-    return 56;
-  }
-
   function syncViewportHeight() {
     // Avoid layout thrash / backdrop flicker while viewing a zoomed photo.
     if (lightbox?.open) return;
@@ -1452,48 +1417,21 @@
       active === dmCodeInput ||
       active?.tagName === "TEXTAREA" ||
       active?.tagName === "INPUT";
-    const standalone = isAppStandalone();
 
     let height = window.innerHeight;
     let inset = 0;
-    let top = 0;
-    let browserBottom = 0;
     if (vv) {
+      height = Math.round(vv.height);
       const rawInset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-      const keyboardOpen = focused && rawInset > 60;
-      if (keyboardOpen) {
-        // Shrink to the visible viewport above the keyboard.
-        height = Math.round(vv.height);
-        inset = rawInset;
-        top = Math.round(vv.offsetTop || 0);
-      } else if (standalone) {
-        // Home Screen app: fill the device; CSS handles -webkit-fill-available.
-        const vvSpan = Math.round((vv.height || 0) + (vv.offsetTop || 0));
-        height = Math.max(
-          window.innerHeight || 0,
-          document.documentElement.clientHeight || 0,
-          vvSpan
-        );
-        top = 0;
-      } else {
-        // Browser tab: fit the visual viewport, then lift above overlay toolbars
-        // (Chrome iOS) that visualViewport does not subtract.
-        browserBottom = overlayBrowserBottomPx(false);
-        height = Math.max(220, Math.round(vv.height) - browserBottom);
-        top = Math.round(vv.offsetTop || 0);
-      }
-    } else if (!standalone) {
-      browserBottom = overlayBrowserBottomPx(false);
-      height = Math.max(220, (window.innerHeight || 0) - browserBottom);
+      inset = focused && rawInset > 60 ? rawInset : 0;
+      document.documentElement.style.setProperty("--vv-top", `${Math.round(vv.offsetTop || 0)}px`);
+    } else {
+      document.documentElement.style.setProperty("--vv-top", "0px");
     }
 
-    document.documentElement.style.setProperty("--vv-top", `${top}px`);
     document.documentElement.style.setProperty("--app-height", `${height}px`);
     document.documentElement.style.setProperty("--kb-inset", `${inset}px`);
-    document.documentElement.style.setProperty("--browser-bottom", `${browserBottom}px`);
     document.body.classList.toggle("keyboard-open", inset > 80);
-    document.documentElement.classList.toggle("standalone-app", standalone);
-    document.documentElement.classList.toggle("has-browser-bottom", browserBottom > 0);
     lockPageScroll();
   }
 
