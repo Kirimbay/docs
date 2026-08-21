@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=183" />
+    <link rel="stylesheet" href="/styles.css?v=184" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -227,8 +227,26 @@
           </div>
         </div>
         <div id="dm-people-wrap" class="dm-people-wrap">
-          <div class="dm-rooms-heading">Люди</div>
-          <div id="dm-people-list" class="dm-people-list" role="list"></div>
+          <button type="button" id="dm-people-toggle" class="dm-people-toggle" aria-expanded="false" aria-controls="dm-people-panel">
+            <span class="dm-people-toggle-title">Люди</span>
+            <span id="dm-people-toggle-meta" class="dm-people-toggle-meta">снимок</span>
+          </button>
+          <div id="dm-people-panel" class="dm-people-panel" hidden>
+            <label class="dm-people-search-wrap">
+              <span class="visually-hidden">Поиск</span>
+              <input
+                id="dm-people-search"
+                type="search"
+                enterkeyhint="search"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="Поиск ника"
+                aria-label="Поиск ника"
+              />
+            </label>
+            <div id="dm-people-list" class="dm-people-list" role="list"></div>
+          </div>
         </div>
         <div id="dm-rooms-wrap" class="dm-rooms-wrap">
           <div id="dm-rooms-list" class="dm-rooms-list" role="list"></div>
@@ -415,6 +433,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=183"></script>
+    <script src="/app.js?v=184"></script>
   </body>
 </html>

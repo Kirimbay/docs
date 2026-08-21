@@ -68,6 +68,10 @@
   const dmDialogClose = null;
   const hubMeBtn = $("#hub-me-btn");
   const dmPeopleWrap = $("#dm-people-wrap");
+  const dmPeopleToggle = $("#dm-people-toggle");
+  const dmPeopleToggleMeta = $("#dm-people-toggle-meta");
+  const dmPeoplePanel = $("#dm-people-panel");
+  const dmPeopleSearch = $("#dm-people-search");
   const dmPeopleList = $("#dm-people-list");
   const dmRoomsWrap = $("#dm-rooms-wrap");
   const dmRoomsList = $("#dm-rooms-list");
@@ -184,6 +188,8 @@
   let lastPresenceCount = 0;
   /** @type {{ accountId: string, name: string, online: boolean, id: string }[]} */
   let lastDirectory = [];
+  let hubPeopleOpen = false;
+  let hubPeopleQuery = "";
   /** @type {{ code: string, from: string, fromId: string, at: number }[]} */
   let pendingInvites = [];
   let publicStateBackup = null;
@@ -2411,8 +2417,8 @@
         : accessRoomsOnly
           ? `Только комнаты · 30 дней без активности — удаление`
           : hubRequirePick
-            ? `Создайте комнату, войдите по номеру или напишите человеку`
-            : `Люди · номер без нулей · 30 дней без активности — удаление`;
+            ? `Создайте комнату, войдите по номеру или откройте снимок людей`
+            : `Снимок людей · номер без нулей · 30 дней без активности — удаление`;
     }
     syncMeBtn();
     const createBox = document.querySelector(".dm-create-box");
@@ -2421,6 +2427,7 @@
       createBox.style.display = "";
     }
     if (dmPeopleWrap) dmPeopleWrap.hidden = Boolean(isAdmin);
+    syncHubPeopleChrome();
   }
 
   function openDmDialog({ requirePick = false } = {}) {
@@ -2429,6 +2436,8 @@
     markSessionLive();
     setUiView("hub");
     showDmDialogError("");
+    // Keep rooms list roomy — people snapshot stays collapsed until opened.
+    if (!hubPeopleOpen) setHubPeopleOpen(false);
     syncDmDialogChrome();
     syncHubBulkBar();
     refreshDirectory();
@@ -2519,6 +2528,7 @@
           }))
           .filter((p) => p.name)
       : [];
+    syncHubPeopleChrome();
     if (dmDialog?.open) renderHubPeopleList();
   }
 
@@ -2529,20 +2539,72 @@
     });
   }
 
+  function syncHubPeopleChrome() {
+    if (!dmPeopleWrap) return;
+    if (isAdmin) {
+      dmPeopleWrap.hidden = true;
+      hubPeopleOpen = false;
+      dmPeopleWrap.classList.remove("is-open");
+      if (dmPeoplePanel) dmPeoplePanel.hidden = true;
+      if (dmPeopleToggle) dmPeopleToggle.setAttribute("aria-expanded", "false");
+      return;
+    }
+    dmPeopleWrap.hidden = false;
+    dmPeopleWrap.classList.toggle("is-open", hubPeopleOpen);
+    if (dmPeoplePanel) dmPeoplePanel.hidden = !hubPeopleOpen;
+    if (dmPeopleToggle) dmPeopleToggle.setAttribute("aria-expanded", hubPeopleOpen ? "true" : "false");
+    const total = lastDirectory.length;
+    const onlineN = lastDirectory.filter((p) => p.online).length;
+    if (dmPeopleToggleMeta) {
+      dmPeopleToggleMeta.textContent = total
+        ? hubPeopleOpen
+          ? `${onlineN} онлайн · ${total}`
+          : `снимок · ${onlineN} онлайн · ${total}`
+        : "снимок";
+    }
+  }
+
+  function setHubPeopleOpen(open) {
+    hubPeopleOpen = Boolean(open);
+    syncHubPeopleChrome();
+    if (hubPeopleOpen) {
+      refreshDirectory();
+      renderHubPeopleList();
+      requestAnimationFrame(() => {
+        try {
+          dmPeopleSearch?.focus({ preventScroll: true });
+        } catch {
+          dmPeopleSearch?.focus();
+        }
+      });
+    } else if (dmPeopleSearch) {
+      hubPeopleQuery = "";
+      dmPeopleSearch.value = "";
+    }
+  }
+
+  function filteredDirectory() {
+    const q = hubPeopleQuery.trim().toLocaleLowerCase("ru-RU");
+    const people = lastDirectory.filter((p) => p.name);
+    if (!q) return people;
+    return people.filter((p) => p.name.toLocaleLowerCase("ru-RU").includes(q));
+  }
+
   function renderHubPeopleList() {
     if (!dmPeopleList) return;
-    if (isAdmin) {
-      if (dmPeopleWrap) dmPeopleWrap.hidden = true;
+    syncHubPeopleChrome();
+    if (isAdmin || !hubPeopleOpen) {
       dmPeopleList.replaceChildren();
       return;
     }
-    if (dmPeopleWrap) dmPeopleWrap.hidden = false;
-    const people = lastDirectory.filter((p) => p.name);
+    const people = filteredDirectory();
     dmPeopleList.replaceChildren();
     if (!people.length) {
       const empty = document.createElement("p");
       empty.className = "dm-people-empty";
-      empty.textContent = "Пока никого в системе";
+      empty.textContent = lastDirectory.length
+        ? "Никого не найдено"
+        : "Пока никого в системе";
       dmPeopleList.append(empty);
       return;
     }
@@ -5483,6 +5545,26 @@
     e.preventDefault();
     e.stopPropagation();
     openRenameDialog();
+  });
+  dmPeopleToggle?.addEventListener("click", (e) => {
+    e.preventDefault();
+    setHubPeopleOpen(!hubPeopleOpen);
+  });
+  dmPeopleSearch?.addEventListener("input", () => {
+    hubPeopleQuery = String(dmPeopleSearch.value || "");
+    renderHubPeopleList();
+  });
+  dmPeopleSearch?.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (hubPeopleQuery) {
+        hubPeopleQuery = "";
+        dmPeopleSearch.value = "";
+        renderHubPeopleList();
+        return;
+      }
+      setHubPeopleOpen(false);
+    }
   });
   dmDialog?.addEventListener("cancel", (e) => {
     if (!hubRequirePick) return;
