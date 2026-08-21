@@ -2015,8 +2015,8 @@
     }
     const createBox = document.querySelector(".dm-create-box");
     if (createBox) {
-      createBox.hidden = Boolean(isAdmin);
-      createBox.style.display = isAdmin ? "none" : "";
+      createBox.hidden = false;
+      createBox.style.display = "";
     }
   }
 
