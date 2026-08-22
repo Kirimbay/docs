@@ -100,3 +100,5 @@ hiddify-block-torrents who
 - systemd: `hiddify-notorrent.service` / `.timer` / `.path`
 
 Исходники перед правкой копируются в `/opt/hiddify-notorrent/backups/`. `uninstall` их возвращает.
+
+Перед перезапуском Xray скрипт проверяет, что `freedom` остаётся первым outbound (иначе VLESS лёг бы целиком) и что блок торрентов стоит **до** catch-all. Если проверка не проходит — файлы откатываются, ядро не трогается.

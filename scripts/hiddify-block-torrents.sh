@@ -15,7 +15,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.2.0"
+VERSION="1.3.0"
 TORRENT_TAG="blocked_torrent"
 INSTALL_DIR="${NOTORRENT_INSTALL_DIR:-/opt/hiddify-notorrent}"
 SELF_PATH="${INSTALL_DIR}/hiddify-block-torrents.sh"
@@ -119,7 +119,7 @@ def xray_block():
             {{
               "type": "field",
               "network": "tcp,udp",
-              "port": "6881-6889,6969,51413,6771,1337,2710,8999,7881",
+              "port": "6881-6889,6969,51413",
               "outboundTag": "blocked_torrent"
             }},
             {{
@@ -146,7 +146,7 @@ def singbox_block():
               "method": "default"
             }},
             {{
-              "port": [1337, 2710, 6771, 6969, 7881, 8999, 51413],
+              "port": [6969, 51413],
               "action": "reject",
               "method": "default"
             }},
@@ -203,35 +203,61 @@ def insert_xray(text, block):
     return text[:m.start()] + "\n" + block + text[m.start():], True, "inserted"
 
 def patch_outbound(text):
+    """Add blocked_torrent AFTER the stock blackhole. Never as the first outbound
+    (Xray uses the first outbound as the default — that would kill VLESS).
+    Also relocates the v1.2 insert that put it first."""
     marker = "HIDDIFY_NOTORRENT_OUTBOUND"
-    block = '    { "tag": "blocked_torrent", "protocol": "blackhole" }, // ' + marker + "\n"
-    if marker in text or re.search(r'"tag":\s*"blocked_torrent"', text):
-        return text, False, "exists"
-    m = re.search(r'"outbounds"\s*:\s*\[', text)
-    if not m:
-        raise SystemExit("outbounds array not found")
-    return text[:m.end()] + "\n" + block + text[m.end():], True, "inserted"
-
-def patch_access_log(text, log_path):
-    marker = "HIDDIFY_NOTORRENT_ACCESS"
-    wanted = f'"access": "{log_path}"'
-    if marker in text and wanted in text:
-        return text, False, "exists"
-    if re.search(r'"access":\s*"none"', text):
-        new = re.sub(r'"access":\s*"none"', f"{wanted} // {marker}", text, count=1)
-        return new, True, "replaced-none"
-    if re.search(r'"access":\s*"', text):
-        new = re.sub(r'"access":\s*"[^"]*"', f"{wanted} // {marker}", text, count=1)
-        return new, True, "replaced"
-    new = re.sub(
-        r'("log"\s*:\s*\{)',
-        r"\1\n        " + wanted + f", // {marker}",
+    block = '{ "tag": "blocked_torrent", "protocol": "blackhole" }, // ' + marker + "\n"
+    text2 = re.sub(
+        r'("outbounds"\s*:\s*\[)\s*\{\s*"tag"\s*:\s*"blocked_torrent"[^}]*\}\s*,?\s*(//[^\n]*)?\n?',
+        r"\1\n",
         text,
         count=1,
     )
-    if new == text:
+    relocated = text2 != text
+    text = text2
+    if not relocated and (marker in text or re.search(r'"tag":\s*"blocked_torrent"', text)):
+        return text, False, "exists"
+    m = re.search(
+        r'(\{\s*"protocol":\s*"blackhole"\s*,\s*"tag":\s*"blackhole"\s*\}\s*,?)',
+        text,
+    )
+    if not m:
+        m = re.search(
+            r'(\{\s*"tag":\s*"blackhole"\s*,\s*"protocol":\s*"blackhole"\s*\}\s*,?)',
+            text,
+        )
+    if not m:
+        raise SystemExit("stock blackhole outbound not found; refusing to add a new first outbound")
+    piece = m.group(1)
+    suffix = "" if piece.rstrip().endswith(",") else ","
+    how = "relocated" if relocated else "inserted"
+    return text[:m.end()] + suffix + "\n    " + block + text[m.end():], True, how
+
+def patch_access_log(text, log_path):
+    """Insert access log as a proper JSONC line. Never put a comma inside a // comment
+    (that produced invalid JSON when log_level=CRITICAL)."""
+    marker = "HIDDIFY_NOTORRENT_ACCESS"
+    line = f'        "access": "{log_path}", // {marker}\n'
+    if marker in text:
+        # Repair v1.2 bug: comma swallowed by the comment.
+        broken = re.search(
+            rf'"access":\s*"[^"]*"\s*//\s*{re.escape(marker)}\s*,',
+            text,
+        )
+        if broken:
+            new = re.sub(
+                rf'"access":\s*"[^"]*"\s*//\s*{re.escape(marker)}\s*,',
+                f'"access": "{log_path}", // {marker}',
+                text,
+                count=1,
+            )
+            return new, new != text, "repaired"
+        return text, False, "exists"
+    m = re.search(r'"log"\s*:\s*\{', text)
+    if not m:
         raise SystemExit("log object not found")
-    return new, True, "inserted"
+    return text[:m.end()] + "\n" + line + text[m.end():], True, "inserted"
 
 def insert_singbox(text, block):
     text, changed, how = upsert(text, block)
@@ -309,7 +335,37 @@ patch_hiddify_routing() {
   export NOTORRENT_BACKUP_DIR="${INSTALL_DIR}/backups"
   export NOTORRENT_ACCESS_LOG="${HIDDIFY_DIR}/log/system/xray.access.log"
 
-  local f
+  # Snapshot current files so a bad patch can be reverted before xray restart.
+  local session="${INSTALL_DIR}/backups/session"
+  rm -rf "${session}"
+  mkdir -p "${session}"
+  local f rel
+  for rel in \
+      xray/configs/03_routing.json.j2 \
+      xray/configs/03_routing.json \
+      xray/configs/06_outbounds.json.j2 \
+      xray/configs/06_outbounds.json \
+      xray/configs/00_log.json.j2 \
+      xray/configs/00_log.json \
+      singbox/configs/03_routing.json.j2 \
+      singbox/configs/03_routing.json
+  do
+    if [[ -f "${HIDDIFY_DIR}/${rel}" ]]; then
+      mkdir -p "${session}/$(dirname "${rel}")"
+      cp -a "${HIDDIFY_DIR}/${rel}" "${session}/${rel}"
+    fi
+  done
+
+  # Outbound MUST be patched before routing references blocked_torrent.
+  for f in \
+      "${HIDDIFY_DIR}/xray/configs/06_outbounds.json.j2" \
+      "${HIDDIFY_DIR}/xray/configs/06_outbounds.json"
+  do
+    if [[ -f "${f}" ]]; then
+      backup_file "${f}"
+      python_patch outbound "${f}"
+    fi
+  done
   for f in \
       "${HIDDIFY_DIR}/xray/configs/03_routing.json.j2" \
       "${HIDDIFY_DIR}/xray/configs/03_routing.json"
@@ -329,15 +385,6 @@ patch_hiddify_routing() {
     fi
   done
   for f in \
-      "${HIDDIFY_DIR}/xray/configs/06_outbounds.json.j2" \
-      "${HIDDIFY_DIR}/xray/configs/06_outbounds.json"
-  do
-    if [[ -f "${f}" ]]; then
-      backup_file "${f}"
-      python_patch outbound "${f}"
-    fi
-  done
-  for f in \
       "${HIDDIFY_DIR}/xray/configs/00_log.json.j2" \
       "${HIDDIFY_DIR}/xray/configs/00_log.json"
   do
@@ -346,8 +393,110 @@ patch_hiddify_routing() {
       python_patch log "${f}"
     fi
   done
+
+  if ! validate_patched_configs; then
+    warn "Validation failed — restoring files from this run. Xray will not be restarted."
+    for rel in \
+        xray/configs/03_routing.json.j2 \
+        xray/configs/03_routing.json \
+        xray/configs/06_outbounds.json.j2 \
+        xray/configs/06_outbounds.json \
+        xray/configs/00_log.json.j2 \
+        xray/configs/00_log.json \
+        singbox/configs/03_routing.json.j2 \
+        singbox/configs/03_routing.json
+    do
+      if [[ -f "${session}/${rel}" ]]; then
+        cp -a "${session}/${rel}" "${HIDDIFY_DIR}/${rel}"
+      fi
+    done
+    die "Refusing to apply a config that failed validation (VLESS would be at risk)."
+  fi
   install_logrotate
+  rotate_access_log_if_huge
   return 0
+}
+
+rotate_access_log_if_huge() {
+  detect_hiddify
+  local logf="${HIDDIFY_DIR}/log/system/xray.access.log"
+  [[ -f "${logf}" ]] || return 0
+  local sz
+  sz="$(stat -c %s "${logf}" 2>/dev/null || echo 0)"
+  if [[ "${sz}" -gt $((80 * 1024 * 1024)) ]]; then
+    tail -c $((20 * 1024 * 1024)) "${logf}" > "${logf}.tmp" && mv -f "${logf}.tmp" "${logf}"
+    log "Truncated oversized access log (${sz} bytes)"
+  fi
+}
+
+validate_patched_configs() {
+  detect_hiddify
+  python3 - "$HIDDIFY_DIR" <<'PY'
+import re, sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+errors = []
+
+def read(rel):
+    p = root / rel
+    return p.read_text(encoding="utf-8", errors="replace") if p.is_file() else None
+
+def first_outbound_tag(text):
+    # Skip our blocked_torrent if someone put it first; we want freedom/WARP first.
+    m = re.search(r'"outbounds"\s*:\s*\[(.*?)"tag"\s*:\s*"([^"]+)"', text, re.S)
+    return m.group(2) if m else None
+
+ob_j2 = read("xray/configs/06_outbounds.json.j2")
+ob_js = read("xray/configs/06_outbounds.json")
+rt_j2 = read("xray/configs/03_routing.json.j2")
+rt_js = read("xray/configs/03_routing.json")
+sg_j2 = read("singbox/configs/03_routing.json.j2")
+lg_j2 = read("xray/configs/00_log.json.j2")
+
+for label, text in (("outbounds.j2", ob_j2), ("outbounds.json", ob_js)):
+    if not text:
+        continue
+    first = first_outbound_tag(text)
+    if first == "blocked_torrent":
+        errors.append(f"{label}: blocked_torrent is the FIRST outbound (would become Xray default and kill VLESS)")
+    if "blocked_torrent" not in text:
+        errors.append(f"{label}: missing blocked_torrent outbound")
+    if '"tag": "freedom"' not in text and '"tag":"freedom"' not in text:
+        errors.append(f"{label}: freedom outbound missing")
+
+for label, text in (("routing.j2", rt_j2), ("routing.json", rt_js)):
+    if not text:
+        continue
+    if "HIDDIFY_NOTORRENT_BEGIN" not in text:
+        errors.append(f"{label}: torrent block marker missing")
+    if '"0-65535"' not in text:
+        errors.append(f"{label}: catch-all 0-65535 missing")
+    if text.find("HIDDIFY_NOTORRENT_BEGIN") > text.find('"0-65535"') >= 0:
+        errors.append(f"{label}: torrent block is AFTER catch-all (would never match)")
+    # routing must not reference blocked_torrent unless outbound exists
+    if "blocked_torrent" in text:
+        ob = ob_js or ob_j2 or ""
+        if "blocked_torrent" not in ob:
+            errors.append(f"{label}: references blocked_torrent but outbound was not added")
+
+if sg_j2 is not None:
+    if "HIDDIFY_NOTORRENT_BEGIN" not in sg_j2:
+        errors.append("singbox routing: torrent block marker missing")
+    if '"protocol": "bittorrent"' not in sg_j2:
+        errors.append("singbox routing: bittorrent reject missing")
+
+if lg_j2 is not None and "HIDDIFY_NOTORRENT_ACCESS" in lg_j2:
+    if re.search(r'HIDDIFY_NOTORRENT_ACCESS\s*,', lg_j2):
+        errors.append("00_log: comma is inside the access-log comment (invalid JSONC)")
+
+if errors:
+    print("VALIDATION ERRORS:", file=sys.stderr)
+    for e in errors:
+        print(" -", e, file=sys.stderr)
+    sys.exit(1)
+print("validation ok")
+PY
 }
 
 install_logrotate() {
@@ -412,7 +561,7 @@ ensure_xt_string() {
 
 ensure_ipset() {
   if ! command -v ipset >/dev/null 2>&1; then
-    if command -v apt-get >/dev/null 2>&1; then
+    if [[ "${ALLOW_APT:-0}" == "1" ]] && command -v apt-get >/dev/null 2>&1; then
       DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ipset >/dev/null || true
     fi
   fi
@@ -434,7 +583,9 @@ refresh_tracker_ipset() {
   fi
   log "Resolving tracker / DHT hostnames into ipset..."
   local d ip
+  local deadline=$(( $(date +%s) + 15 ))
   for d in "${TRACKER_DOMAINS[@]}"; do
+    [[ $(date +%s) -ge ${deadline} ]] && break
     while read -r ip; do
       [[ -z "${ip}" ]] && continue
       if [[ "${ip}" == *:* ]]; then
@@ -442,7 +593,7 @@ refresh_tracker_ipset() {
       else
         ipset add notorrent-trackers "${ip}" -exist 2>/dev/null || true
       fi
-    done < <(getent ahosts "${d}" 2>/dev/null | awk '{print $1}' | sort -u || true)
+    done < <(timeout 1 getent ahosts "${d}" 2>/dev/null | awk '{print $1}' | sort -u || true)
   done
   date > "${stamp}"
 }
@@ -501,7 +652,6 @@ fill_ipt_chain() {
   else
     warn "${ipt}: xt_string hex match not available"
   fi
-  $ipt -A HIDDIFY_NOTORRENT -m string --algo bm --from 0 --to 2048 --string 'BitTorrent protocol' -j DROP 2>/dev/null || true
   # DHT / uTP peer discovery (bencoded)
   $ipt -A HIDDIFY_NOTORRENT -p udp -m string --algo bm --from 0 --to 1024 --string 'd1:ad2:id20:' -j DROP 2>/dev/null || true
   $ipt -A HIDDIFY_NOTORRENT -p udp -m string --algo bm --from 0 --to 1024 --string '1:rd2:id20:' -j DROP 2>/dev/null || true
@@ -524,12 +674,14 @@ apply_firewall() {
   if has_ipt ip6tables; then
     fill_ipt_chain ip6tables
   fi
-  if command -v netfilter-persistent >/dev/null 2>&1; then
-    netfilter-persistent save >/dev/null 2>&1 || true
-  elif command -v iptables-save >/dev/null 2>&1; then
-    mkdir -p /etc/iptables
-    iptables-save  > /etc/iptables/rules.v4 2>/dev/null || true
-    ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || true
+  if [[ "${PERSIST_FIREWALL:-0}" == "1" ]]; then
+    if command -v netfilter-persistent >/dev/null 2>&1; then
+      netfilter-persistent save >/dev/null 2>&1 || true
+    elif command -v iptables-save >/dev/null 2>&1; then
+      mkdir -p /etc/iptables
+      iptables-save  > /etc/iptables/rules.v4 2>/dev/null || true
+      ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || true
+    fi
   fi
 }
 
@@ -600,7 +752,8 @@ WantedBy=multi-user.target
 EOF
 
   systemctl daemon-reload
-  systemctl enable --now hiddify-notorrent.service hiddify-notorrent.timer hiddify-notorrent.path
+  systemctl enable hiddify-notorrent.timer hiddify-notorrent.path hiddify-notorrent.service
+  systemctl start hiddify-notorrent.timer hiddify-notorrent.path
 }
 
 uninstall_systemd() {
@@ -662,6 +815,8 @@ cmd_install() {
   command -v python3 >/dev/null 2>&1 || die "python3 is required"
   log "Hiddify found at ${HIDDIFY_DIR}"
   save_self
+  ALLOW_APT=1 PERSIST_FIREWALL=1
+  export ALLOW_APT PERSIST_FIREWALL
   patch_hiddify_routing
   apply_firewall
   install_systemd
