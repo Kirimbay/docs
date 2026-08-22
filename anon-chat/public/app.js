@@ -192,6 +192,8 @@
   let pendingInvites = [];
   let publicStateBackup = null;
   let dmCode = null;
+  /** True while inside a room as admin ghost (watch-only) — do not pin to hub on leave. */
+  let dmSessionGhost = false;
   /** When true, hub must be dismissed by picking a chat (first entry). */
   let hubRequirePick = false;
   let createInFlight = false;
@@ -1679,12 +1681,17 @@
 
   function roomsForDmList() {
     const saved = loadDmRooms()
-      .filter((room) => !isPublicRoomCode(room.code))
+      .filter((room) => !(accessRoomsOnly && isPublicRoomCode(room.code)))
       .map((room) => ({ ...room, foreign: false }));
     if (!isAdmin) return saved;
     const savedCodes = new Set(saved.map((r) => r.code));
     const extras = adminRoomCatalog
-      .filter((room) => room?.code && !isPublicRoomCode(room.code) && !savedCodes.has(room.code))
+      .filter(
+        (room) =>
+          room?.code &&
+          !(accessRoomsOnly && isPublicRoomCode(room.code)) &&
+          !savedCodes.has(room.code)
+      )
       .map((room) => ({
         code: room.code,
         peer: room.peer || "",
@@ -2286,6 +2293,7 @@
     if (res.isOwner || res.roomAdmin) markOwnedRoom(res.code);
     removePendingInvite(res.code);
     const ghost = Boolean(watchOnly || res.ghost);
+    dmSessionGhost = ghost;
     const isPublic = isPublicRoomCode(res.code);
     if (ghost) {
       markAdminRoomRead(res.code, res.messages || []);
@@ -2362,7 +2370,9 @@
     });
     const snapshotMessages = lastState.messages || [];
     const wasSaved = prev ? loadDmRooms().some((r) => r.code === prev) : false;
+    const wasGhost = dmSessionGhost;
     dmCode = null;
+    dmSessionGhost = false;
     lastRoomOnlineNames = [];
     lastRoomOnlinePeople = [];
     lastRoomOnlineCount = 0;
@@ -2384,7 +2394,13 @@
     syncDmBtn();
     updatePresenceChrome();
     if (prev) {
-      if (wasSaved) {
+      if (!wasGhost) {
+        markDmRoomRead(prev, snapshotMessages, {
+          active: false,
+          peer: isPublicRoomCode(prev) ? publicChatLabel : peer,
+          names: isPublicRoomCode(prev) ? [publicChatLabel] : [],
+        });
+      } else if (wasSaved) {
         markDmRoomRead(prev, snapshotMessages, {
           active: false,
           peer: isPublicRoomCode(prev) ? publicChatLabel : peer,
@@ -6143,6 +6159,7 @@
     myName = "";
     isAdmin = false;
     dmCode = null;
+    dmSessionGhost = false;
     hubRequirePick = false;
     accessRoomsOnly = false;
     publicChatLabel = PUBLIC_CHAT_LABEL_DEFAULT;
@@ -6200,6 +6217,7 @@
 
   socket.on("access:forced-hub", () => {
     dmCode = null;
+    dmSessionGhost = false;
     document.body.classList.remove("dm-on", "dm-ghost");
     if (dmBar) dmBar.hidden = true;
     lastState = { messages: [], pinned: [] };
