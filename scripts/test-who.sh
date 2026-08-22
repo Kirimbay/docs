@@ -32,7 +32,7 @@ export HIDDIFY_DIR="$TEST"
 export SKIP_ROOT=1 SKIP_FIREWALL=1 SKIP_SYSTEMD=1
 
 ver="$(bash "$ROOT/scripts/hiddify-block-torrents.sh" version)"
-[[ "${ver}" == "1.6.0" ]] || { echo "version mismatch: ${ver}"; exit 1; }
+[[ "${ver}" == "1.6.2" ]] || { echo "version mismatch: ${ver}"; exit 1; }
 
 who_out="$(bash "$ROOT/scripts/hiddify-block-torrents.sh" who)"
 printf '%s\n' "${who_out}"
@@ -44,7 +44,7 @@ echo "${who_out}" | grep -q 'срабатываний' || { echo "who missed acc
 doc_out="$(bash "$ROOT/scripts/hiddify-block-torrents.sh" doctor)"
 printf '%s\n' "${doc_out}"
 echo "${doc_out}" | grep -q 'catch-all:   blocked_torrent' || { echo "doctor missed catch-all"; exit 1; }
-echo "${doc_out}" | grep -q '1.6.0' || { echo "doctor missed version"; exit 1; }
+echo "${doc_out}" | grep -q '1.6.2' || { echo "doctor missed version"; exit 1; }
 
 # leak verdict from a dump that matches the user's server (DNS only + UNCONN listeners)
 ss_dump="${TEST}/ss.txt"

@@ -5,7 +5,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.0+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.2+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -20,7 +20,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.6.0"
+VERSION="1.6.2"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -764,7 +764,7 @@ table inet hiddify_notorrent {
     tcp dport { 80, 443 } tcp flags syn accept
     udp dport { ${udp} } accept
     ip protocol icmp accept
-    ip6 nexthdr ipv6-icmp accept
+    meta l4proto ipv6-icmp accept
     ct state new counter drop
     counter drop
   }
@@ -802,7 +802,7 @@ table inet hiddify_notorrent {
     tcp dport { 80, 443 } tcp flags syn accept
     udp dport { ${udp} } accept
     ip protocol icmp accept
-    ip6 nexthdr ipv6-icmp accept
+    meta l4proto ipv6-icmp accept
     ct state new counter drop
     counter drop
   }
@@ -840,28 +840,30 @@ fill_ipt_chain() {
 
   $ipt -A HIDDIFY_NOTORRENT -o lo -j RETURN || true
 
-  # Peers on 80/443: SYN is allowed, but the first payload must be TLS/HTTP.
-  # Otherwise ESTABLISHED would let qBittorrent download on "web" ports.
-  if $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 443 \
-        -m connbytes --connbytes 3:16 --connbytes-dir original --connbytes-mode packets \
-        -m string ! --algo bm --from 0 --to 64 --hex-string '|1603|' -j DROP 2>/dev/null; then
-    :
-  else
-    warn "${ipt}: xt_connbytes/string TLS check failed — 443 peers may still pass"
-  fi
+  # 443 without xt_connbytes: allow TLS record types, drop other PSH (BT/MSE).
+  # TLS: 16 03 handshake, 17 03 appdata, 15 03 alert, 14 03 CCS.
+  local rec
+  for rec in '|1603|' '|1703|' '|1503|' '|1403|'; do
+    if $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 443 \
+          -m string --algo bm --from 0 --to 32 --hex-string "${rec}" -j RETURN 2>/dev/null; then
+      TLS_INSPECT_OK=1
+    fi
+  done
+  $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 443 --syn -j RETURN || true
+  $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 443 --tcp-flags PSH,ACK ACK -j RETURN || true
+  $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 443 --tcp-flags PSH PSH -j DROP || true
+
   local meth
   for meth in "GET " "POST " "HEAD " "PUT " "OPTIONS " "CONNECT " "PATCH "; do
     $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 \
-      -m connbytes --connbytes 3:16 --connbytes-dir original --connbytes-mode packets \
-      -m string --algo bm --from 0 --to 64 --string "${meth}" -j RETURN 2>/dev/null || true
+      -m string --algo bm --from 0 --to 16 --string "${meth}" -j RETURN 2>/dev/null || true
   done
-  $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 \
-    -m connbytes --connbytes 3:16 --connbytes-dir original --connbytes-mode packets \
-    -j DROP 2>/dev/null || true
+  $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 --syn -j RETURN || true
+  $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 --tcp-flags PSH,ACK ACK -j RETURN || true
+  $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 --tcp-flags PSH PSH -j DROP || true
 
   $ipt -A HIDDIFY_NOTORRENT -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN 2>/dev/null \
     || $ipt -A HIDDIFY_NOTORRENT -m state --state ESTABLISHED,RELATED -j RETURN || true
-  $ipt -A HIDDIFY_NOTORRENT -p tcp -m multiport --dports 80,443 --syn -j RETURN || true
 
   # iptables multiport accepts at most 15 ports — split.
   local chunk="" n=0 p
@@ -969,6 +971,7 @@ PY
 apply_firewall() {
   [[ "${SKIP_FIREWALL:-0}" == "1" ]] && return 0
   ensure_xt_string
+  TLS_INSPECT_OK=0
   apply_nft_ports
   refresh_tracker_ipset
   if has_ipt iptables; then
@@ -976,6 +979,9 @@ apply_firewall() {
   fi
   if has_ipt ip6tables; then
     fill_ipt_chain ip6tables
+  fi
+  if [[ "${TLS_INSPECT_OK:-0}" != "1" ]]; then
+    warn "xt_string не принял TLS-сигнатуру. Пиры на 443 могут пройти. Нужен пакет iptables с xt_string."
   fi
   if [[ "${PERSIST_FIREWALL:-0}" == "1" ]]; then
     if command -v netfilter-persistent >/dev/null 2>&1; then
@@ -1150,11 +1156,7 @@ cmd_status() {
     echo "config:     ${state}  ${f}"
   done
   if command -v nft >/dev/null 2>&1 && nft list table inet hiddify_notorrent >/dev/null 2>&1; then
-    if nft list chain inet hiddify_notorrent out 2>/dev/null | grep -q 'ct state new'; then
-      echo "nftables:   OUTPUT allowlist (NEW non-web dropped)"
-    else
-      echo "nftables:   OK (legacy port-only table — reinstall 1.5.0)"
-    fi
+    echo "nftables:   OK (table inet hiddify_notorrent)"
   else
     echo "nftables:   missing"
   fi
@@ -1587,15 +1589,22 @@ PY
   else
     echo "xray:        not active"
   fi
-  if command -v nft >/dev/null 2>&1 && nft list chain inet hiddify_notorrent out 2>/dev/null | grep -q 'ct state new'; then
-    echo "kernel:      OUTPUT allowlist ON"
+  local nft_ok=0 ipt_ok=0
+  if command -v nft >/dev/null 2>&1 && nft list table inet hiddify_notorrent >/dev/null 2>&1; then
+    nft_ok=1
+  fi
+  if command -v iptables >/dev/null 2>&1 && iptables -nL HIDDIFY_NOTORRENT 2>/dev/null | grep -q DROP; then
+    ipt_ok=1
+  fi
+  if [[ "${nft_ok}" -eq 1 || "${ipt_ok}" -eq 1 ]]; then
+    echo "kernel:      OUTPUT allowlist ON  (nft=${nft_ok} iptables=${ipt_ok})"
   else
-    echo "kernel:      НЕТ allowlist 1.6 — снова install от файла ${VERSION}"
+    echo "kernel:      НЕТ — снова install от файла ${VERSION}"
   fi
   if command -v nft >/dev/null 2>&1 && nft list chain inet hiddify_notorrent inspect_web >/dev/null 2>&1; then
-    echo "l7:          inspect_web ON (443 без TLS / 80 без HTTP — drop)"
+    echo "l7:          nft inspect_web ON (443 без TLS drop)"
   else
-    echo "l7:          iptables connbytes/TLS (пиры на 443)"
+    echo "l7:          iptables TLS-record на 443 (16 03 / 17 03), остальной PSH drop"
   fi
   selftest_firewall || true
   analyze_proxy_peers
