@@ -58,6 +58,7 @@
   const dmDialog = $("#dm-dialog");
   const dmCreateBtn = $("#dm-create-btn");
   const dmJoinKey = $("#dm-join-key");
+  const dmJoinKeyWrap = $("#dm-join-key-wrap");
   const dmLead = null;
   const dmDialogTitle = $("#dm-dialog-title");
   const dmJoinBtn = $("#dm-join-btn");
@@ -1193,7 +1194,10 @@
         lastReadId: existing?.lastReadId || "",
         names: Array.isArray(existing?.names) ? existing.names : [],
         unread: Math.max(0, Number(existing?.unread) || 0),
-        keyed: Boolean(entry?.keyed) || joinKey.length === 4 || Boolean(existing?.keyed),
+        keyed:
+          entry?.access === "keyed" ||
+          Boolean(entry?.keyed) ||
+          joinKey.length === 4,
         closed: typeof entry?.closed === "boolean" ? Boolean(entry.closed) : Boolean(existing?.closed),
         title: typeof existing?.title === "string" ? existing.title.trim().slice(0, MAX_ROOM_TITLE_LEN) : "",
       };
@@ -1314,15 +1318,32 @@
     return String(Number(c));
   }
 
-  /** Key shown in lists/bar; «-» when none (open room or key not saved). */
-  function roomKeyDisplay(code) {
-    const key = loadRoomKey(code);
-    return key || "-";
+  /** Key shown in lists/bar; «-» open, «----» keyed but unknown locally. */
+  function roomKeyDisplay(code, { keyed } = {}) {
+    const c = normalizeDmCodeLocal(code);
+    if (!c) return "-";
+    const key = loadRoomKey(c);
+    if (key) return key;
+    let isKeyed = typeof keyed === "boolean" ? keyed : undefined;
+    if (typeof isKeyed !== "boolean") {
+      const room = loadDmRooms().find((r) => r.code === c);
+      isKeyed = Boolean(room?.keyed) || room?.access === "keyed";
+    }
+    return isKeyed ? "----" : "-";
+  }
+
+  function setJoinKeyFieldAlert(on) {
+    dmJoinKeyWrap?.classList.toggle("is-needs-key", Boolean(on));
+  }
+
+  function clearJoinKeyFieldAlert() {
+    setJoinKeyFieldAlert(false);
   }
 
   function clearHubJoinFields() {
     if (dmCodeInput) dmCodeInput.value = "";
     if (dmJoinKey) dmJoinKey.value = "";
+    clearJoinKeyFieldAlert();
   }
 
   function appendDmBarRoomMeta(container, code) {
@@ -1346,7 +1367,8 @@
     } else {
       const dash = document.createElement("span");
       dash.className = "dm-bar-muted";
-      dash.textContent = "-";
+      const room = loadDmRooms().find((r) => r.code === normalizeDmCodeLocal(code));
+      dash.textContent = room?.keyed || room?.access === "keyed" ? "----" : "-";
       container.append(dash);
     }
   }
@@ -1844,7 +1866,7 @@
             lastReadId: isCurrent
               ? meta.lastMessageId || room.lastReadId || ""
               : room.lastReadId || "",
-            keyed: typeof meta.keyed === "boolean" ? Boolean(meta.keyed) : Boolean(room.keyed),
+            keyed: typeof meta.keyed === "boolean" ? Boolean(meta.keyed) : meta?.access === "keyed" ? true : Boolean(room.keyed),
             closed: typeof meta.closed === "boolean" ? Boolean(meta.closed) : Boolean(room.closed),
           };
         })
@@ -1898,7 +1920,7 @@
               lastReadId: isCurrent
                 ? meta.lastMessageId || room.lastReadId || ""
                 : room.lastReadId || "",
-              keyed: typeof meta.keyed === "boolean" ? Boolean(meta.keyed) : Boolean(room.keyed),
+              keyed: typeof meta.keyed === "boolean" ? Boolean(meta.keyed) : meta?.access === "keyed" ? true : Boolean(room.keyed),
               closed: typeof meta.closed === "boolean" ? Boolean(meta.closed) : Boolean(room.closed),
             };
           })
@@ -2011,18 +2033,27 @@
         }
         if (!res?.ok) {
           const joinErr = res?.error || "Не удалось войти";
-          if (res?.needsKey || res?.wrongKey) {
+          const needsKey = Boolean(res?.needsKey || res?.wrongKey);
+          if (needsKey) {
+            rememberDmRoom(c, {
+              keyed: res?.access === "keyed" || Boolean(res?.keyed) || true,
+              active: false,
+            });
+            if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
+            setJoinKeyFieldAlert(true);
             showJoinHint(joinErr);
           } else {
+            clearJoinKeyFieldAlert();
             showDmDialogError(joinErr);
           }
           if (res?.wrongCode) {
             dmCodeInput?.focus();
             dmCodeInput?.select?.();
-          } else if (res?.needsKey || res?.wrongKey) {
+          } else if (needsKey) {
             clearRoomKey(c);
             if (dmJoinKey) dmJoinKey.value = "";
             dmJoinKey?.focus();
+            if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
           }
           if (res?.wrongCode || /номер комнаты неверный|не найден|такой комнаты нет/i.test(joinErr)) {
             forgetDmRoom(c);
@@ -2030,6 +2061,7 @@
           }
           return;
         }
+        clearJoinKeyFieldAlert();
         if (joinKey) saveRoomKey(c, joinKey);
         else if (res.joinKey) saveRoomKey(c, normalizeRoomKeyLocal(res.joinKey));
         enterDmMode(res, { watchOnly: ghost || Boolean(res.ghost) });
@@ -2041,16 +2073,29 @@
       });
     };
 
-    const needsHubKey =
-      fromList &&
-      !normalizeRoomKeyLocal(key) &&
-      !normalizeRoomKeyLocal(dmJoinKey?.value || "") &&
-      !loadRoomKey(c);
-    if (needsHubKey && socket.connected && !isAdmin) {
-      refreshHubFromServer().finally(runJoin);
+    const tryJoin = () => {
+      const joinKey =
+        normalizeRoomKeyLocal(key) ||
+        normalizeRoomKeyLocal(dmJoinKey?.value || "") ||
+        loadRoomKey(c);
+      const roomMeta = loadDmRooms().find((r) => r.code === c);
+      const roomKeyed = Boolean(roomMeta?.keyed || roomMeta?.access === "keyed");
+      if (fromList && roomKeyed && !joinKey && !isAdmin) {
+        if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
+        setJoinKeyFieldAlert(true);
+        showJoinHint("Нужен ключ из 4 цифр");
+        dmJoinKey?.focus();
+        return;
+      }
+      clearJoinKeyFieldAlert();
+      runJoin();
+    };
+
+    if (fromList && socket.connected && !isAdmin) {
+      refreshHubFromServer({ render: false }).finally(tryJoin);
       return;
     }
-    runJoin();
+    tryJoin();
   }
 
   function renderDmRoomsList({ skipRefresh = false } = {}) {
@@ -2092,7 +2137,7 @@
       enterBtn.type = "button";
       enterBtn.className = "dm-room-enter";
       const storedKey = loadRoomKey(room.code);
-      const keyShown = roomKeyDisplay(room.code);
+      const keyShown = roomKeyDisplay(room.code, { keyed });
       const shown = formatRoomCodeDisplay(room.code);
       const roomTitle = typeof room.title === "string" ? room.title.trim() : "";
       enterBtn.title = roomTitle
@@ -5869,6 +5914,7 @@
   dmJoinKey?.addEventListener("input", () => {
     const digits = normalizeRoomKeyLocal(dmJoinKey.value);
     if (dmJoinKey.value !== digits) dmJoinKey.value = digits;
+    if (digits.length > 0) clearJoinKeyFieldAlert();
   });
   const roomDeleteCodeEl = document.getElementById("room-delete-code");
   roomDeleteCodeEl?.addEventListener("blur", () => formatRoomCodeField(roomDeleteCodeEl));

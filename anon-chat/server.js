@@ -1232,7 +1232,7 @@ function hubRoomsForAccount(accountId, nick = "") {
       code: c,
       owned: Boolean(prev.owned || patch.owned || room.ownerAccountId === accountId),
       member: Boolean(prev.member || patch.member || prev.owned || patch.owned),
-      keyed: typeof patch.keyed === "boolean" ? patch.keyed : roomPublicFlags(room).keyed,
+      keyed: roomPublicFlags(room).keyed || Boolean(patch.keyed) || joinKey.length === 4,
       joinKey: joinKey.length === 4 ? joinKey : prev.joinKey || "",
       messageCount: Array.isArray(room.messages) ? room.messages.length : 0,
       lastActiveAt: room.lastActiveAt || room.createdAt || "",
@@ -1245,7 +1245,6 @@ function hubRoomsForAccount(accountId, nick = "") {
     for (const row of ensureAccountHub(account)) {
       touch(row?.code, {
         member: true,
-        keyed: Boolean(row?.keyed),
         joinKey: row?.joinKey || "",
         forceShow: true,
       });

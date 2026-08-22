@@ -894,6 +894,16 @@ button {
   font-weight: 500;
 }
 
+.dm-key-field.is-needs-key .dm-join-field-inner {
+  border-color: color-mix(in srgb, var(--danger) 78%, var(--line));
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 22%, transparent);
+}
+
+.dm-key-field.is-needs-key .dm-join-field-icon {
+  filter: saturate(1.15);
+}
+
 .dm-action-btn,
 .dm-create-btn,
 .dm-dialog-footer #dm-join-btn,
