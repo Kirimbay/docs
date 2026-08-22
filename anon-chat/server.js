@@ -1597,7 +1597,7 @@ function unreadSince(messages, sinceId) {
   return Math.max(0, list.length - idx - 1);
 }
 
-function roomListMeta(code, exceptName = "", sinceId = "") {
+function roomListMeta(code, exceptName = "", sinceId = "", { accountId = "" } = {}) {
   ensureRooms();
   const room = store.rooms[code];
   if (!room) {
@@ -1622,6 +1622,13 @@ function roomListMeta(code, exceptName = "", sinceId = "") {
   else if (onlineNames.length) peer = onlineNames[0];
   const messages = Array.isArray(room.messages) ? room.messages : [];
   const lastMessageId = messages.length ? String(messages[messages.length - 1]?.id || "") : "";
+  let joinKey = "";
+  if (accountId && room.ownerAccountId === accountId) {
+    ensureAccounts();
+    const account = store.accounts[accountId];
+    const hubRow = account ? ensureAccountHub(account).find((row) => normalizeRoomCode(row?.code) === code) : null;
+    joinKey = normalizeRoomKey(hubRow?.joinKey || "");
+  }
   return {
     code,
     exists: true,
@@ -1630,6 +1637,7 @@ function roomListMeta(code, exceptName = "", sinceId = "") {
     access: roomAccessMode(room),
     closed: isRoomClosed(room),
     keyed: roomAccessMode(room) === "keyed",
+    joinKey: joinKey || undefined,
     peer: isPublicRoomCode(code) ? PUBLIC_CHAT_LABEL : peer,
     // Only people currently in the room — not historical participants.
     names: onlineNames,
@@ -2760,7 +2768,11 @@ io.on("connection", (socket) => {
     if (typeof ack === "function") {
       ack({
         ok: true,
-        rooms: requests.map((req) => roomListMeta(req.code, user.name, req.sinceId)),
+        rooms: requests.map((req) =>
+          roomListMeta(req.code, user.name, req.sinceId, {
+            accountId: getSocketAccountId(socket),
+          })
+        ),
       });
     }
   });

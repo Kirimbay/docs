@@ -376,7 +376,30 @@
   }
 
   function normalizeRoomKeyLocal(raw) {
-    return String(raw || "").replace(/\D/g, "").slice(0, 4);
+    const key = String(raw ?? "").replace(/\D/g, "");
+    return key.length === 4 ? key : "";
+  }
+
+  function resolveJoinKey(code, keyOverride = "") {
+    const fromOverride = normalizeRoomKeyLocal(keyOverride);
+    if (fromOverride) return fromOverride;
+    const fromField = normalizeRoomKeyLocal(dmJoinKey?.value || "");
+    if (fromField) return fromField;
+    const c = normalizeDmCodeLocal(code);
+    if (c.length === 6) {
+      const cached = loadRoomKey(c);
+      if (cached) return cached;
+    }
+    return "";
+  }
+
+  function setJoinCodeFieldAlert(on) {
+    dmCodeInput?.closest(".dm-code-field")?.classList.toggle("is-needs-key", Boolean(on));
+  }
+
+  function setJoinFieldAlerts({ code = false, key = false } = {}) {
+    setJoinCodeFieldAlert(code);
+    setJoinKeyFieldAlert(key);
   }
 
   function loadRoomKeys() {
@@ -1241,8 +1264,15 @@
   }
 
   /** Pull hub keys/access flags from the account (fixes stale «свободный» / missing keys). */
+  let hubRefreshPromise = null;
   function refreshHubFromServer({ render = false } = {}) {
-    return new Promise((resolve) => {
+    if (hubRefreshPromise) {
+      return hubRefreshPromise.then((ok) => {
+        if (render && dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+        return ok;
+      });
+    }
+    hubRefreshPromise = new Promise((resolve) => {
       if (!socket.connected || isAdmin) {
         resolve(false);
         return;
@@ -1267,7 +1297,10 @@
         }
         resolve(false);
       });
+    }).finally(() => {
+      hubRefreshPromise = null;
     });
+    return hubRefreshPromise;
   }
 
   /** Cross-device hub: upload this phone's keys, then make local list match server. */
@@ -1340,10 +1373,14 @@
     setJoinKeyFieldAlert(false);
   }
 
+  function clearJoinFieldAlerts() {
+    setJoinFieldAlerts({ code: false, key: false });
+  }
+
   function clearHubJoinFields() {
     if (dmCodeInput) dmCodeInput.value = "";
     if (dmJoinKey) dmJoinKey.value = "";
-    clearJoinKeyFieldAlert();
+    clearJoinFieldAlerts();
   }
 
   function appendDmBarRoomMeta(container, code) {
@@ -1911,6 +1948,8 @@
             if (!meta.exists) return null;
             const isCurrent = dmCode === room.code;
             const names = Array.isArray(meta.names) ? meta.names : room.names || [];
+            const metaJoinKey = normalizeRoomKeyLocal(meta.joinKey || "");
+            if (metaJoinKey && isOwnedRoom(room.code)) saveRoomKey(room.code, metaJoinKey);
             return {
               ...room,
               peer: meta.peer || room.peer || "",
@@ -1997,7 +2036,9 @@
     showDmDialogError("");
     const c = normalizeDmCodeLocal(code);
     if (c.length !== 6) {
+      setJoinFieldAlerts({ code: true });
       showDmDialogError("Введите номер комнаты цифрами");
+      dmCodeInput?.focus();
       return;
     }
     if (accessRoomsOnly && isPublicRoomCode(c)) {
@@ -2006,12 +2047,22 @@
       return;
     }
     if (joinInFlight) return;
+    if (fromList && dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
 
     const runJoin = () => {
-      const joinKey =
-        normalizeRoomKeyLocal(key) ||
-        normalizeRoomKeyLocal(dmJoinKey?.value || "") ||
-        loadRoomKey(c);
+      const joinKey = resolveJoinKey(c, key);
+      const roomMeta = loadDmRooms().find((r) => r.code === c);
+      const roomKeyed = Boolean(
+        roomMeta?.keyed || roomMeta?.access === "keyed" || isOwnedRoom(c)
+      );
+      if (roomKeyed && !joinKey && !isAdmin) {
+        if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
+        setJoinFieldAlerts({ key: true });
+        showJoinHint("Нужен ключ из 4 цифр");
+        dmJoinKey?.focus();
+        return;
+      }
+      clearJoinFieldAlerts();
       const ghost = Boolean(isAdmin && (watchOnly || roomsForDmList().some((r) => r.code === c && r.foreign)));
       const joinBtnEl = document.getElementById("dm-join-btn");
       joinInFlight = true;
@@ -2040,20 +2091,19 @@
               active: false,
             });
             if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
-            setJoinKeyFieldAlert(true);
+            setJoinFieldAlerts({ key: true });
             showJoinHint(joinErr);
+            if (res?.wrongKey) clearRoomKey(c);
+            dmJoinKey?.focus();
+            if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
           } else {
-            clearJoinKeyFieldAlert();
+            clearJoinFieldAlerts();
             showDmDialogError(joinErr);
           }
           if (res?.wrongCode) {
+            setJoinFieldAlerts({ code: true });
             dmCodeInput?.focus();
             dmCodeInput?.select?.();
-          } else if (needsKey) {
-            clearRoomKey(c);
-            if (dmJoinKey) dmJoinKey.value = "";
-            dmJoinKey?.focus();
-            if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
           }
           if (res?.wrongCode || /номер комнаты неверный|не найден|такой комнаты нет/i.test(joinErr)) {
             forgetDmRoom(c);
@@ -2061,7 +2111,7 @@
           }
           return;
         }
-        clearJoinKeyFieldAlert();
+        clearJoinFieldAlerts();
         if (joinKey) saveRoomKey(c, joinKey);
         else if (res.joinKey) saveRoomKey(c, normalizeRoomKeyLocal(res.joinKey));
         enterDmMode(res, { watchOnly: ghost || Boolean(res.ghost) });
@@ -2074,20 +2124,6 @@
     };
 
     const tryJoin = () => {
-      const joinKey =
-        normalizeRoomKeyLocal(key) ||
-        normalizeRoomKeyLocal(dmJoinKey?.value || "") ||
-        loadRoomKey(c);
-      const roomMeta = loadDmRooms().find((r) => r.code === c);
-      const roomKeyed = Boolean(roomMeta?.keyed || roomMeta?.access === "keyed");
-      if (fromList && roomKeyed && !joinKey && !isAdmin) {
-        if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
-        setJoinKeyFieldAlert(true);
-        showJoinHint("Нужен ключ из 4 цифр");
-        dmJoinKey?.focus();
-        return;
-      }
-      clearJoinKeyFieldAlert();
       runJoin();
     };
 
@@ -5721,7 +5757,15 @@
   });
 
   function joinDmFromInput() {
-    joinDmByCode(dmCodeInput?.value || "", { key: dmJoinKey?.value || "" });
+    const code = normalizeDmCodeLocal(dmCodeInput?.value || "");
+    const key = normalizeRoomKeyLocal(dmJoinKey?.value || "");
+    if (!code) {
+      setJoinFieldAlerts({ code: true });
+      showDmDialogError("Введите номер комнаты");
+      dmCodeInput?.focus();
+      return;
+    }
+    joinDmByCode(code, { key });
   }
 
   function selectedCreateAccess() {
@@ -5914,7 +5958,7 @@
   dmJoinKey?.addEventListener("input", () => {
     const digits = normalizeRoomKeyLocal(dmJoinKey.value);
     if (dmJoinKey.value !== digits) dmJoinKey.value = digits;
-    if (digits.length > 0) clearJoinKeyFieldAlert();
+    if (digits.length > 0) clearJoinFieldAlerts();
   });
   const roomDeleteCodeEl = document.getElementById("room-delete-code");
   roomDeleteCodeEl?.addEventListener("blur", () => formatRoomCodeField(roomDeleteCodeEl));
