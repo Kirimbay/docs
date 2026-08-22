@@ -1078,6 +1078,49 @@ else:
 PY
 }
 
+cmd_doctor() {
+  detect_hiddify
+  echo "version:     ${VERSION}"
+  echo "hiddify:     ${HIDDIFY_DIR}"
+  local live="${HIDDIFY_DIR}/xray/configs/03_routing.json"
+  local tmpl="${HIDDIFY_DIR}/xray/configs/03_routing.json.j2"
+  local f="${live}"
+  [[ -f "${f}" ]] || f="${tmpl}"
+  if [[ ! -f "${f}" ]]; then
+    echo "routing:     MISSING — скрипт не видит конфиг Xray"
+    return 1
+  fi
+  if grep -q "${MARKER_BEGIN}" "${f}"; then
+    echo "patch:       OK (маркер на месте)"
+  else
+    echo "patch:       НЕТ — 1.4 не применён. Снова запусти install."
+  fi
+  local tag
+  tag="$(python3 - "${f}" <<'PY'
+import re, sys
+from pathlib import Path
+t = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+m = re.search(r'"port":\s*"0-65535"[\s\S]{0,120}?"outboundTag":\s*"([^"]+)"', t)
+print(m.group(1) if m else "UNKNOWN")
+PY
+)"
+  echo "catch-all:   ${tag}  (должно быть blocked_torrent)"
+  if [[ "${tag}" == "blocked_torrent" ]]; then
+    echo "server:      фильтр строгий. Если в qBittorrent DHT сотни узлов — трафик НЕ идёт через этот VLESS (утечка на ПК)."
+  else
+    echo "server:      catch-all ещё пускает всё наружу. Переустанови скрипт 1.4.0."
+  fi
+  if systemctl is-active hiddify-xray >/dev/null 2>&1; then
+    echo "xray:        active"
+  else
+    echo "xray:        not active"
+  fi
+  echo
+  echo "Пока качается торрент, на сервере выполни:"
+  echo "  ss -uapn | grep -E 'xray|hiddify' | head"
+  echo "Если пусто, а DHT в клиенте живой — qBittorrent ходит в интернет напрямую, мимо VPN."
+}
+
 cmd_uninstall() {
   need_root
   uninstall_systemd
@@ -1093,15 +1136,17 @@ case "${CMD}" in
   apply)      cmd_apply ;;
   status)     cmd_status ;;
   who|suspects|users) cmd_who ;;
+  doctor|check) cmd_doctor ;;
   uninstall|remove) cmd_uninstall ;;
   -h|--help|help)
     cat <<'EOF'
-Usage: hiddify-block-torrents [install|apply|status|who|uninstall]
+Usage: hiddify-block-torrents [install|apply|status|who|doctor|uninstall]
 
   install     First run on the server. Patches Hiddify, sets firewall, enables timer.
   apply       Re-apply (used by systemd after Hiddify "Apply Configs").
   status      Show whether the block is in place.
   who         Show who eats traffic and who was caught on torrents.
+  doctor      Check whether 1.4 is actually active (catch-all / leak).
   uninstall   Restore original routing and remove firewall rules.
 EOF
     ;;
