@@ -8,12 +8,12 @@
 curl -fsSL -H 'Cache-Control: no-cache' \
   https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh \
   -o /tmp/hiddify-block-torrents.sh
-grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # 1.4.2+
+grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # 1.5.0+
 sudo bash /tmp/hiddify-block-torrents.sh
 hiddify-block-torrents doctor
 ```
 
-Если `doctor` отвечает `Unknown command` — в PATH старая копия, `who` из неё пустой и не чинит фильтр. Скачайте файл заново.
+Нужна строка `kernel: OUTPUT allowlist ON`. Пользователи ничего не настраивают: ядро режет исходящие NEW не на веб-портах. Если `doctor` неизвестен — в PATH старая копия, скачайте файл заново.
 
 ```bash
 hiddify-block-torrents status

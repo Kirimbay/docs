@@ -5,7 +5,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.4.2+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.5.0+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -20,9 +20,12 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.4.2"
+VERSION="1.5.0"
 WEB_TCP_PORTS="80,443,853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
 WEB_UDP_PORTS="53,123,443,853,3478"
+# Extra OUTPUT ports the VPS itself may need (not user-app ports).
+HOST_TCP_PORTS="22,${WEB_TCP_PORTS}"
+HOST_UDP_PORTS="${WEB_UDP_PORTS},2408,500,4500"
 TORRENT_TAG="blocked_torrent"
 INSTALL_DIR="${NOTORRENT_INSTALL_DIR:-/opt/hiddify-notorrent}"
 SELF_PATH="${INSTALL_DIR}/hiddify-block-torrents.sh"
@@ -728,16 +731,34 @@ refresh_tracker_ipset() {
   date > "${stamp}"
 }
 
-apply_nft_ports() {
-  command -v nft >/dev/null 2>&1 || return 0
-  nft delete table inet hiddify_notorrent >/dev/null 2>&1 || true
-  nft -f - <<'NFT' || warn "nftables table not applied"
+nft_set_ports() {
+  echo "$1" | awk -F, '{
+    for (i = 1; i <= NF; i++) {
+      gsub(/ /, "", $i)
+      if ($i != "") {
+        if (n++) printf ", "
+        printf "%s", $i
+      }
+    }
+  }'
+}
+
+emit_nft_table() {
+  local tcp udp
+  tcp="$(nft_set_ports "${HOST_TCP_PORTS}")"
+  udp="$(nft_set_ports "${HOST_UDP_PORTS}")"
+  cat <<NFT
 table inet hiddify_notorrent {
   chain out {
     type filter hook output priority -150; policy accept;
     oifname "lo" accept
-    tcp dport { 6881-6889, 6969, 51413 } drop
-    udp dport { 6881-6889, 6969, 51413, 6771 } drop
+    ct state established,related accept
+    tcp dport { ${tcp} } accept
+    udp dport { ${udp} } accept
+    ip protocol icmp accept
+    ip6 nexthdr ipv6-icmp accept
+    ct state new counter drop
+    counter drop
   }
   chain fwd {
     type filter hook forward priority -150; policy accept;
@@ -746,6 +767,16 @@ table inet hiddify_notorrent {
   }
 }
 NFT
+}
+
+apply_nft_ports() {
+  command -v nft >/dev/null 2>&1 || return 0
+  nft delete table inet hiddify_notorrent >/dev/null 2>&1 || true
+  if emit_nft_table | nft -f -; then
+    log "nftables: host OUTPUT allowlist (NEW non-web dropped)"
+    return 0
+  fi
+  warn "nftables table not applied"
 }
 
 fill_ipt_chain() {
@@ -761,7 +792,36 @@ fill_ipt_chain() {
     $ipt -I FORWARD 1 -j HIDDIFY_NOTORRENT
   fi
 
-  # Classic ports (what the hoster suggested) — not sufficient alone, but cheap.
+  $ipt -A HIDDIFY_NOTORRENT -o lo -j RETURN || true
+  $ipt -A HIDDIFY_NOTORRENT -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN 2>/dev/null \
+    || $ipt -A HIDDIFY_NOTORRENT -m state --state ESTABLISHED,RELATED -j RETURN || true
+
+  # iptables multiport accepts at most 15 ports — split.
+  local chunk="" n=0 p
+  local IFS=','
+  for p in ${HOST_TCP_PORTS}; do
+    p="${p// /}"
+    [[ -n "${p}" ]] || continue
+    if [[ ${n} -eq 0 ]]; then
+      chunk="${p}"
+    else
+      chunk="${chunk},${p}"
+    fi
+    n=$((n + 1))
+    if [[ ${n} -ge 14 ]]; then
+      $ipt -A HIDDIFY_NOTORRENT -p tcp -m multiport --dports "${chunk}" -j RETURN || true
+      chunk=""
+      n=0
+    fi
+  done
+  unset IFS
+  if [[ -n "${chunk}" ]]; then
+    $ipt -A HIDDIFY_NOTORRENT -p tcp -m multiport --dports "${chunk}" -j RETURN || true
+  fi
+  $ipt -A HIDDIFY_NOTORRENT -p udp -m multiport --dports "${HOST_UDP_PORTS}" -j RETURN || true
+  $ipt -A HIDDIFY_NOTORRENT -p icmp -j RETURN || true
+
+  # Classic ports (what the hoster suggested) — extra, not sufficient alone.
   $ipt -A HIDDIFY_NOTORRENT -p tcp -m multiport --dports 6881:6889,6969,51413 -j DROP || true
   $ipt -A HIDDIFY_NOTORRENT -p udp -m multiport --dports 6881:6889,6969,51413,6771 -j DROP || true
 
@@ -791,6 +851,9 @@ fill_ipt_chain() {
   # HTTP tracker announce (both keys together → low false-positive rate)
   $ipt -A HIDDIFY_NOTORRENT -p tcp -m string --algo bm --from 0 --to 2048 --string 'info_hash=' \
         -m string --algo bm --from 0 --to 2048 --string 'peer_id=' -j DROP 2>/dev/null || true
+
+  # Encrypted qBittorrent uses random ports — drop leftover NEW/UNTRACKED outbound.
+  $ipt -A HIDDIFY_NOTORRENT -j DROP || true
 }
 
 apply_firewall() {
@@ -951,7 +1014,7 @@ cmd_install() {
   apply_firewall
   install_systemd
   restart_proxy_cores
-  log "Done. VLESS/VPN stays up; BitTorrent / DHT / public trackers are blocked."
+  log "Done. Users change nothing. Kernel drops NEW outbound that is not a web port."
   log "Version:   ${VERSION}  (if doctor is unknown, this file never reached PATH)"
   log "Check:     hiddify-block-torrents status"
   log "Doctor:    hiddify-block-torrents doctor"
@@ -976,7 +1039,11 @@ cmd_status() {
     echo "config:     ${state}  ${f}"
   done
   if command -v nft >/dev/null 2>&1 && nft list table inet hiddify_notorrent >/dev/null 2>&1; then
-    echo "nftables:   OK (table inet hiddify_notorrent)"
+    if nft list chain inet hiddify_notorrent out 2>/dev/null | grep -q 'ct state new'; then
+      echo "nftables:   OUTPUT allowlist (NEW non-web dropped)"
+    else
+      echo "nftables:   OK (legacy port-only table — reinstall 1.5.0)"
+    fi
   else
     echo "nftables:   missing"
   fi
@@ -1334,10 +1401,9 @@ for log in uniq:
 print()
 print("=== Кого Xray поймал на торренте / трекере (access log) ===")
 if not hits:
-    print("  Пусто. Это не «торрентов нет», а «Xray их не видел».")
-    print("  Если doctor → catch-all: blocked_torrent и DHT в qBittorrent живой —")
-    print("  клиент не через этот VLESS. В qBittorrent обязательна галочка")
-    print("  «Использовать прокси для соединений с пирами» (по умолчанию ВЫКЛ).")
+    print("  Пусто: Xray не подписал bittorrent (часто шифрование). Это нормально.")
+    print("  С 1.5.0 торрент режет ядро: исходящие NEW не на веб-портах drop.")
+    print("  Пользователю ничего настраивать не нужно.")
     print("  Проверка: hiddify-block-torrents doctor")
 else:
     for uuid, n in hits.most_common(20):
@@ -1410,6 +1476,11 @@ PY
   else
     echo "xray:        not active"
   fi
+  if command -v nft >/dev/null 2>&1 && nft list chain inet hiddify_notorrent out 2>/dev/null | grep -q 'ct state new'; then
+    echo "kernel:      OUTPUT allowlist ON (юзеру ничего настраивать не нужно)"
+  else
+    echo "kernel:      НЕТ allowlist 1.5 — снова запустите install от файла ${VERSION}"
+  fi
   analyze_proxy_peers
 }
 
@@ -1471,12 +1542,10 @@ if torrentish:
     for r in torrentish[:8]:
         print(f"             {r}")
 else:
-    print("verdict:     на VPS нет торрент-пиров.")
-    print("             Если qBittorrent качает и DHT живой — клиент идёт МИМО VPN.")
-    print("qbittorrent: Инструменты → Настройки → Соединение → Прокси")
-    print("             тип SOCKS5 127.0.0.1:<порт Hiddify>")
-    print("             галочка «Использовать прокси для соединений с пирами» = ВКЛ")
-    print("             либо Hiddify в режиме TUN/VPN, без split-tunnel для qBittorrent.")
+    print("verdict:     с VPS сейчас нет исходящих торрент-пиров.")
+    print("             Если ваш тест качает — этот клиент, скорее всего, не в TUN,")
+    print("             и хостер такой трафик с IP сервера не увидит.")
+    print("             Реальных пользователей в VPN/TUN режет OUTPUT allowlist 1.5.")
 PY
 }
 
@@ -1496,6 +1565,7 @@ case "${CMD}" in
   status)     cmd_status ;;
   who|suspects|users) cmd_who ;;
   doctor|check) cmd_doctor ;;
+  nft-preview|preview) emit_nft_table ;;
   version|-v|--version) echo "${VERSION}" ;;
   uninstall|remove) cmd_uninstall ;;
   -h|--help|help)
@@ -1506,7 +1576,7 @@ Usage: hiddify-block-torrents [install|apply|status|who|doctor|uninstall]
   apply       Re-apply (used by systemd after Hiddify "Apply Configs").
   status      Show whether the block is in place.
   who         Panel usage (MariaDB/sqlite) + Xray torrent hits. Usage ≠ torrent.
-  doctor      Check catch-all, sing-box patch, and whether peers hit this VPS.
+  doctor      Catch-all, kernel OUTPUT allowlist, and live peers on this VPS.
   uninstall   Restore original routing and remove firewall rules.
 EOF
     ;;
