@@ -485,6 +485,36 @@ button {
   font-weight: 650;
 }
 
+.dm-bar-copy-chip {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--dm-accent);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dm-bar-copy-chip:active {
+  opacity: 0.72;
+}
+
+.dm-bar-emoji,
+.dm-bar-sep,
+.dm-bar-muted {
+  font-weight: 400;
+  color: inherit;
+}
+
+.dm-bar-muted {
+  color: var(--muted);
+}
+
 .dm-bar-presence {
   flex: 0 0 auto;
   font-size: 0.68rem;
@@ -708,6 +738,29 @@ button {
   line-height: 1.15;
   border-radius: 10px;
   box-sizing: border-box;
+}
+
+.dm-join-field-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.dm-join-field-icon {
+  flex: 0 0 auto;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.08em;
+  user-select: none;
+}
+
+.dm-join-field-inner input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
 }
 
 .dm-create-box {
@@ -1162,10 +1215,7 @@ button {
 }
 
 .dm-room-enter {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.35rem;
+  display: block;
   min-width: 0;
   flex: 0 0 auto;
   padding: 0.4rem 0.5rem;
@@ -1174,6 +1224,10 @@ button {
   background: var(--bg-elev);
   color: inherit;
   text-align: left;
+}
+
+.dm-room-row.has-unread .dm-room-enter {
+  border-color: color-mix(in srgb, #8fd9ad 45%, var(--line));
 }
 
 .dm-room-row.is-foreign .dm-room-enter {
@@ -3670,12 +3724,6 @@ body.keyboard-open .pins-dialog.dialog {
 .me-btn.is-admin {
   border-color: var(--ok);
   color: var(--ok);
-}
-
-.dm-bar #dm-copy-btn {
-  font-size: 0.7rem;
-  padding: 0.22rem 0.45rem;
-  white-space: nowrap;
 }
 
 .admin-on #me-btn {
