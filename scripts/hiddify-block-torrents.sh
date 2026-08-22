@@ -5,7 +5,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.5.0+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.0+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -20,12 +20,17 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.5.0"
-WEB_TCP_PORTS="80,443,853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
-WEB_UDP_PORTS="53,123,443,853,3478"
-# Extra OUTPUT ports the VPS itself may need (not user-app ports).
+VERSION="1.6.0"
+# 80/443 are NOT in the blanket allowlist: peers often listen there.
+# Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
+WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
+WEB_UDP_PORTS="53,123,853,3478"
 HOST_TCP_PORTS="22,${WEB_TCP_PORTS}"
 HOST_UDP_PORTS="${WEB_UDP_PORTS},2408,500,4500"
+HTTP_PORTS="80,443"
+# Xray still routes 80/443 to freedom (sites). Kernel checks the first payload.
+XRAY_TCP_PORTS="80,443,${WEB_TCP_PORTS}"
+XRAY_UDP_PORTS="53,123,443,853,3478"
 TORRENT_TAG="blocked_torrent"
 INSTALL_DIR="${NOTORRENT_INSTALL_DIR:-/opt/hiddify-notorrent}"
 SELF_PATH="${INSTALL_DIR}/hiddify-block-torrents.sh"
@@ -453,8 +458,8 @@ patch_hiddify_routing() {
   NOTORRENT_DOMAINS="$(IFS=','; echo "${TRACKER_DOMAINS[*]}")"
   export NOTORRENT_BACKUP_DIR="${INSTALL_DIR}/backups"
   export NOTORRENT_ACCESS_LOG="${HIDDIFY_DIR}/log/system/xray.access.log"
-  export NOTORRENT_WEB_TCP="${WEB_TCP_PORTS}"
-  export NOTORRENT_WEB_UDP="${WEB_UDP_PORTS}"
+  export NOTORRENT_WEB_TCP="${XRAY_TCP_PORTS}"
+  export NOTORRENT_WEB_UDP="${XRAY_UDP_PORTS}"
 
   # Snapshot current files so a bad patch can be reverted before xray restart.
   local session="${INSTALL_DIR}/backups/session"
@@ -690,6 +695,7 @@ ensure_xt_string() {
   modprobe xt_string >/dev/null 2>&1 || true
   modprobe xt_multiport >/dev/null 2>&1 || true
   modprobe xt_set >/dev/null 2>&1 || true
+  modprobe xt_connbytes >/dev/null 2>&1 || true
 }
 
 ensure_ipset() {
@@ -752,12 +758,25 @@ table inet hiddify_notorrent {
   chain out {
     type filter hook output priority -150; policy accept;
     oifname "lo" accept
+    tcp dport { 80, 443 } jump inspect_web
     ct state established,related accept
     tcp dport { ${tcp} } accept
+    tcp dport { 80, 443 } tcp flags syn accept
     udp dport { ${udp} } accept
     ip protocol icmp accept
     ip6 nexthdr ipv6-icmp accept
     ct state new counter drop
+    counter drop
+  }
+  chain inspect_web {
+    tcp dport 443 tcp flags & (syn | ack) == syn accept
+    tcp dport 80 tcp flags & (syn | ack) == syn accept
+    tcp dport 443 tcp flags & ack == ack @th,160,16 0x1603 accept
+    tcp dport 80 tcp flags & ack == ack @th,160,16 0x4745 accept
+    tcp dport 80 tcp flags & ack == ack @th,160,16 0x504f accept
+    tcp dport 80 tcp flags & ack == ack @th,160,16 0x4845 accept
+    tcp dport 80 tcp flags & ack == ack @th,160,16 0x434f accept
+    tcp flags & (psh | ack) == ack accept
     counter drop
   }
   chain fwd {
@@ -769,11 +788,38 @@ table inet hiddify_notorrent {
 NFT
 }
 
+emit_nft_table_simple() {
+  local tcp udp
+  tcp="$(nft_set_ports "${HOST_TCP_PORTS}")"
+  udp="$(nft_set_ports "${HOST_UDP_PORTS}")"
+  cat <<NFT
+table inet hiddify_notorrent {
+  chain out {
+    type filter hook output priority -150; policy accept;
+    oifname "lo" accept
+    ct state established,related accept
+    tcp dport { ${tcp} } accept
+    tcp dport { 80, 443 } tcp flags syn accept
+    udp dport { ${udp} } accept
+    ip protocol icmp accept
+    ip6 nexthdr ipv6-icmp accept
+    ct state new counter drop
+    counter drop
+  }
+}
+NFT
+}
+
 apply_nft_ports() {
   command -v nft >/dev/null 2>&1 || return 0
   nft delete table inet hiddify_notorrent >/dev/null 2>&1 || true
-  if emit_nft_table | nft -f -; then
-    log "nftables: host OUTPUT allowlist (NEW non-web dropped)"
+  if emit_nft_table | nft -f - 2>/dev/null; then
+    log "nftables: OUTPUT allowlist + inspect_web (80/443 first payload)"
+    return 0
+  fi
+  nft delete table inet hiddify_notorrent >/dev/null 2>&1 || true
+  if emit_nft_table_simple | nft -f -; then
+    warn "nftables: payload inspect unsupported; using port allowlist + iptables L7"
     return 0
   fi
   warn "nftables table not applied"
@@ -793,8 +839,29 @@ fill_ipt_chain() {
   fi
 
   $ipt -A HIDDIFY_NOTORRENT -o lo -j RETURN || true
+
+  # Peers on 80/443: SYN is allowed, but the first payload must be TLS/HTTP.
+  # Otherwise ESTABLISHED would let qBittorrent download on "web" ports.
+  if $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 443 \
+        -m connbytes --connbytes 3:16 --connbytes-dir original --connbytes-mode packets \
+        -m string ! --algo bm --from 0 --to 64 --hex-string '|1603|' -j DROP 2>/dev/null; then
+    :
+  else
+    warn "${ipt}: xt_connbytes/string TLS check failed — 443 peers may still pass"
+  fi
+  local meth
+  for meth in "GET " "POST " "HEAD " "PUT " "OPTIONS " "CONNECT " "PATCH "; do
+    $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 \
+      -m connbytes --connbytes 3:16 --connbytes-dir original --connbytes-mode packets \
+      -m string --algo bm --from 0 --to 64 --string "${meth}" -j RETURN 2>/dev/null || true
+  done
+  $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 \
+    -m connbytes --connbytes 3:16 --connbytes-dir original --connbytes-mode packets \
+    -j DROP 2>/dev/null || true
+
   $ipt -A HIDDIFY_NOTORRENT -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN 2>/dev/null \
     || $ipt -A HIDDIFY_NOTORRENT -m state --state ESTABLISHED,RELATED -j RETURN || true
+  $ipt -A HIDDIFY_NOTORRENT -p tcp -m multiport --dports 80,443 --syn -j RETURN || true
 
   # iptables multiport accepts at most 15 ports — split.
   local chunk="" n=0 p
@@ -856,6 +923,49 @@ fill_ipt_chain() {
   $ipt -A HIDDIFY_NOTORRENT -j DROP || true
 }
 
+selftest_firewall() {
+  [[ "${SKIP_FIREWALL:-0}" == "1" ]] && return 0
+  python3 - <<'PY'
+import errno, socket, sys
+
+def try_connect(host, port, timeout=3.0):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    try:
+        s.connect((host, port))
+        s.close()
+        return "open"
+    except socket.timeout:
+        return "timeout"
+    except OSError as e:
+        if e.errno in (errno.EPERM, errno.EACCES):
+            return "drop"
+        if e.errno == errno.ECONNREFUSED:
+            return "rst"
+        return f"err:{e.errno}"
+    finally:
+        try:
+            s.close()
+        except OSError:
+            pass
+
+web = try_connect("1.1.1.1", 443, 4.0)
+peer = try_connect("1.1.1.1", 51413, 2.5)
+print(f"selftest: 1.1.1.1:443={web}  1.1.1.1:51413={peer}")
+if peer == "open":
+    print("selftest: FAIL — торрент-подобный порт вышел с VPS. Allowlist не активен.")
+    sys.exit(2)
+if peer == "rst":
+    print("selftest: FAIL — пакет до 51413 ушёл в интернет (RST). Ядро не дропает OUTPUT.")
+    sys.exit(2)
+if web == "open" and peer in ("timeout", "drop"):
+    print("selftest: OK — веб жив, случайный порт с VPS не выходит.")
+    sys.exit(0)
+print("selftest: WARN — не удалось однозначно проверить (нет маршрута до 1.1.1.1?).")
+sys.exit(0)
+PY
+}
+
 apply_firewall() {
   [[ "${SKIP_FIREWALL:-0}" == "1" ]] && return 0
   ensure_xt_string
@@ -876,6 +986,7 @@ apply_firewall() {
       ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || true
     fi
   fi
+  selftest_firewall || warn "selftest failed — doctor покажет, активен ли блок"
 }
 
 remove_firewall() {
@@ -1477,10 +1588,16 @@ PY
     echo "xray:        not active"
   fi
   if command -v nft >/dev/null 2>&1 && nft list chain inet hiddify_notorrent out 2>/dev/null | grep -q 'ct state new'; then
-    echo "kernel:      OUTPUT allowlist ON (юзеру ничего настраивать не нужно)"
+    echo "kernel:      OUTPUT allowlist ON"
   else
-    echo "kernel:      НЕТ allowlist 1.5 — снова запустите install от файла ${VERSION}"
+    echo "kernel:      НЕТ allowlist 1.6 — снова install от файла ${VERSION}"
   fi
+  if command -v nft >/dev/null 2>&1 && nft list chain inet hiddify_notorrent inspect_web >/dev/null 2>&1; then
+    echo "l7:          inspect_web ON (443 без TLS / 80 без HTTP — drop)"
+  else
+    echo "l7:          iptables connbytes/TLS (пиры на 443)"
+  fi
+  selftest_firewall || true
   analyze_proxy_peers
 }
 

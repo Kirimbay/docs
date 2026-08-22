@@ -16,7 +16,7 @@ sudo bash /tmp/hiddify-block-torrents.sh
 hiddify-block-torrents doctor
 ```
 
-`VERSION` должна быть **1.5.0** или новее. В `doctor` нужна строка **`kernel: OUTPUT allowlist ON`**.
+`VERSION` должна быть **1.6.0** или новее. В `doctor` нужны **`kernel: OUTPUT allowlist ON`** и **`selftest: OK`**. Если `selftest: FAIL` и `:51413=rst` — пакеты с VPS всё ещё уходят, блок не в ядре.
 
 Снять блок:
 
@@ -38,7 +38,7 @@ sudo hiddify-block-torrents uninstall
 
 ## Что делает 1.5.0 на сервере
 
-1. **Ядро (главное).** nftables/iptables на **OUTPUT**: уже установленные сессии (ответ клиенту по VLESS) проходят. **Новые** исходящие с VPS — только веб-порты (80/443 и служебные) плюс DNS/NTP и WARP (2408). Всё остальное, в том числе случайный порт DHT/пира, **drop**. Пользователь в qBittorrent ничего не включает.
+1. **Ядро (главное).** nftables/iptables на **OUTPUT**. Случайные порты DHT/пира — drop. **80/443 не дыра:** SYN пускаем, первый payload обязан быть TLS (`16 03`) или HTTP (`GET `/`POST `/…). Пир qBittorrent на 443 (не TLS) отрезается. UDP/443 тоже не в allowlist — через него часто идёт BT ([Xray #4554](https://github.com/XTLS/Xray-core/pull/4554)). Пользователь ничего не включает.
 2. **Xray / sing-box** — allowlist портов и `bittorrent → blackhole`, как раньше. `hiddify-core` на сервере — это и есть sing-box (`hiddify-singbox.service`).
 3. Подписи handshake/DHT и ipset трекеров — дополнительно, на них одних рассчитывать нельзя.
 
