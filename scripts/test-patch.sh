@@ -48,4 +48,27 @@ PY
 bash "$ROOT/scripts/hiddify-block-torrents.sh" apply >/dev/null
 test "$(grep -c HIDDIFY_NOTORRENT_BEGIN "$TEST/xray/configs/03_routing.json.j2")" -eq 1
 test "$(grep -c HIDDIFY_NOTORRENT_BEGIN "$TEST/singbox/configs/03_routing.json.j2")" -eq 1
+# Live sing-box JSON sometimes flips key order or drops the compact reject object.
+ALT="$(mktemp -d)"
+mkdir -p "$ALT/singbox/configs" "$ALT/xray/configs"
+cat > "$ALT/singbox/configs/03_routing.json" <<'JSON'
+{
+  "route": {
+    "final": "freedom",
+    "rules": [
+      {"action":"sniff"},
+      {"action":"hijack-dns","port":[53]},
+      {"ip_is_private": true, "action": "reject"}
+    ]
+  }
+}
+JSON
+cp "$TEST/xray/configs/03_routing.json.j2" "$ALT/xray/configs/03_routing.json.j2"
+cp "$TEST/xray/configs/06_outbounds.json.j2" "$ALT/xray/configs/06_outbounds.json.j2"
+cp "$TEST/xray/configs/00_log.json.j2" "$ALT/xray/configs/00_log.json.j2"
+HIDDIFY_DIR="$ALT" NOTORRENT_INSTALL_DIR="$(mktemp -d)" \
+  bash "$ROOT/scripts/hiddify-block-torrents.sh" apply >/dev/null
+grep -q HIDDIFY_NOTORRENT_BEGIN "$ALT/singbox/configs/03_routing.json"
+grep -q '"protocol": "bittorrent"' "$ALT/singbox/configs/03_routing.json"
+rm -rf "$ALT"
 echo "patch tests ok"

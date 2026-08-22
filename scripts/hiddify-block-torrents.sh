@@ -5,7 +5,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.4.1+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.4.2+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -20,7 +20,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.4.1"
+VERSION="1.4.2"
 WEB_TCP_PORTS="80,443,853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
 WEB_UDP_PORTS="53,123,443,853,3478"
 TORRENT_TAG="blocked_torrent"
@@ -336,6 +336,35 @@ def patch_access_log(text, log_path):
         raise SystemExit("log object not found")
     return text[:m.end()] + "\n" + line + text[m.end():], True, "inserted"
 
+def _end_of_rules_array(text):
+    m = re.search(r'"rules"\s*:\s*\[', text)
+    if not m:
+        return None
+    i = m.end()
+    depth = 1
+    in_str = False
+    esc = False
+    while i < len(text) and depth:
+        c = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        else:
+            if c == '"':
+                in_str = True
+            elif c == "[":
+                depth += 1
+            elif c == "]":
+                depth -= 1
+                if depth == 0:
+                    return i
+        i += 1
+    return None
+
 def insert_singbox(text, block=None):
     block = singbox_block(text)
     text, changed, how = upsert(text, block)
@@ -348,15 +377,24 @@ def insert_singbox(text, block=None):
         text,
         count=1,
     )
-    anchor = re.search(
-        r"(\{[ \t\n]*\"action\":[ \t]*\"reject\",[ \t]*\"ip_is_private\":[ \t]*true[ \t\n]*\})",
-        text,
+    patterns = (
+        r'\{[ \t\n]*"action":[ \t]*"reject",[ \t]*"ip_is_private":[ \t]*true[ \t\n]*\}',
+        r'\{[ \t\n]*"ip_is_private":[ \t]*true,[ \t]*"action":[ \t]*"reject"[ \t\n]*\}',
+        r'\{[^{}\n]*"ip_is_private"[^{}\n]*\}',
     )
-    if not anchor:
-        raise SystemExit("sing-box routing: cannot find ip_is_private reject rule")
-    insert_at = anchor.end()
-    comma = "" if text[insert_at:insert_at + 8].lstrip().startswith(",") else ","
-    return text[:insert_at] + comma + "\n" + block + text[insert_at:], True, "inserted"
+    anchor = None
+    for pat in patterns:
+        anchor = re.search(pat, text)
+        if anchor:
+            break
+    if anchor:
+        insert_at = anchor.end()
+        comma = "" if text[insert_at:insert_at + 8].lstrip().startswith(",") else ","
+        return text[:insert_at] + comma + "\n" + block + text[insert_at:], True, "inserted"
+    close = _end_of_rules_array(text)
+    if close is None:
+        raise SystemExit("sing-box routing: cannot find rules array or ip_is_private reject")
+    return text[:close] + "\n" + block + text[close:], True, "inserted"
 
 def patch_file(path, kind):
     p = Path(path)
@@ -1296,13 +1334,11 @@ for log in uniq:
 print()
 print("=== Кого Xray поймал на торренте / трекере (access log) ===")
 if not hits:
-    print("  Пусто. Это не «торрентов нет», а «Xray их не видел». Частые причины:")
-    print("  • на сервере старый скрипт (hiddify-block-torrents doctor → Unknown command);")
-    print("  • 1.4 catch-all ещё не в живом конфиге — смотрите doctor, строка catch-all;")
-    print("  • qBittorrent идёт мимо этого VLESS (системный прокси Windows его не кормит);")
-    print("  • access-лог не включён: hiddify-block-torrents status.")
-    print("  Пока качается:  ss -uapn | grep -E 'xray|hiddify'")
-    print("  Пустой ss + живой DHT = утечка на ПК, не дыра в фильтре.")
+    print("  Пусто. Это не «торрентов нет», а «Xray их не видел».")
+    print("  Если doctor → catch-all: blocked_torrent и DHT в qBittorrent живой —")
+    print("  клиент не через этот VLESS. В qBittorrent обязательна галочка")
+    print("  «Использовать прокси для соединений с пирами» (по умолчанию ВЫКЛ).")
+    print("  Проверка: hiddify-block-torrents doctor")
 else:
     for uuid, n in hits.most_common(20):
         inf = users.get(uuid, {})
@@ -1328,7 +1364,7 @@ cmd_doctor() {
   echo "installed:   ${installed}  ${SELF_PATH}"
   echo "hiddify:     ${HIDDIFY_DIR}"
   if [[ "${installed}" == "MISSING" ]]; then
-    echo "PATH:        нет копии в ${SELF_PATH}. Запустите install от файла 1.4.1+."
+    echo "PATH:        нет копии в ${SELF_PATH}. Запустите install от файла ${VERSION}+."
   elif [[ "${installed}" != "${VERSION}" ]]; then
     echo "PATH:        в PATH версия ${installed}, нужна ${VERSION}. Скачайте скрипт заново и снова install."
   fi
@@ -1360,15 +1396,88 @@ PY
   else
     echo "server:      catch-all ещё пускает всё наружу. Переустанови скрипт ${VERSION}."
   fi
+  local sg="${HIDDIFY_DIR}/singbox/configs/03_routing.json"
+  [[ -f "${sg}" ]] || sg="${HIDDIFY_DIR}/singbox/configs/03_routing.json.j2"
+  if [[ -f "${sg}" ]]; then
+    if grep -q "${MARKER_BEGIN}" "${sg}"; then
+      echo "sing-box:    OK (маркер на месте)"
+    else
+      echo "sing-box:    НЕТ маркера — Hysteria2/TUIC без блока. Снова install."
+    fi
+  fi
   if systemctl is-active hiddify-xray >/dev/null 2>&1; then
     echo "xray:        active"
   else
     echo "xray:        not active"
   fi
-  echo
-  echo "Пока качается торрент, на сервере выполни:"
-  echo "  ss -uapn | grep -E 'xray|hiddify' | head"
-  echo "Если пусто, а DHT в клиенте живой — qBittorrent ходит в интернет напрямую, мимо VPN."
+  analyze_proxy_peers
+}
+
+analyze_proxy_peers() {
+  python3 - <<'PY'
+import os, re, subprocess
+from pathlib import Path
+
+dump = os.environ.get("NOTORRENT_SS_DUMP", "")
+if dump and Path(dump).is_file():
+    raw = Path(dump).read_text(encoding="utf-8", errors="replace")
+else:
+    try:
+        raw = subprocess.check_output(
+            ["ss", "-tanup"], stderr=subprocess.DEVNULL, text=True, timeout=8
+        )
+    except Exception:
+        print("peers:       ss недоступен — не могу проверить утечку с сервера")
+        raise SystemExit(0)
+
+ok_ports = {53, 80, 123, 443, 853, 2052, 2053, 2082, 2083, 2086, 2087, 2095, 2096, 8080, 8443, 8880, 5222, 5228, 465, 587, 993, 995, 3478}
+proc_re = re.compile(r'"(xray|hiddify[^"]*|sing-?box)"', re.I)
+# 1.2.3.4:51413 or [2001:db8::1]:6881
+ep_re = re.compile(
+    r"(?:(?:\d{1,3}\.){3}\d{1,3}|\[?[0-9a-fA-F:]+\]?):(\d+)\s*$"
+)
+local_like = re.compile(
+    r"^(127\.|0\.0\.0\.0|::|\[::\]|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)"
+)
+
+torrentish = []
+for line in raw.splitlines():
+    if not proc_re.search(line):
+        continue
+    if re.search(r"\bUNCONN\b|\bLISTEN\b", line):
+        continue
+    parts = line.split()
+    remote = ""
+    for tok in reversed(parts):
+        if ":" in tok and not tok.startswith("users:"):
+            remote = tok
+            break
+    if not remote or remote in ("*:*", "0.0.0.0:*", "[::]:*", "*"):
+        continue
+    m = ep_re.search(remote)
+    if not m:
+        continue
+    port = int(m.group(1))
+    host = remote.rsplit(":", 1)[0].strip("[]")
+    if local_like.match(host) or host in ("*", "0.0.0.0", "::", "::1"):
+        continue
+    if port in ok_ports:
+        continue
+    torrentish.append(remote)
+
+print(f"peers:       {len(torrentish)} исходящих не-веб соединений xray/hiddify")
+if torrentish:
+    print("             трафик идёт через этот сервер. Если качает — пришлите who.")
+    for r in torrentish[:8]:
+        print(f"             {r}")
+else:
+    print("verdict:     на VPS нет торрент-пиров.")
+    print("             Если qBittorrent качает и DHT живой — клиент идёт МИМО VPN.")
+    print("qbittorrent: Инструменты → Настройки → Соединение → Прокси")
+    print("             тип SOCKS5 127.0.0.1:<порт Hiddify>")
+    print("             галочка «Использовать прокси для соединений с пирами» = ВКЛ")
+    print("             либо Hiddify в режиме TUN/VPN, без split-tunnel для qBittorrent.")
+PY
 }
 
 cmd_uninstall() {
@@ -1397,7 +1506,7 @@ Usage: hiddify-block-torrents [install|apply|status|who|doctor|uninstall]
   apply       Re-apply (used by systemd after Hiddify "Apply Configs").
   status      Show whether the block is in place.
   who         Panel usage (MariaDB/sqlite) + Xray torrent hits. Usage ≠ torrent.
-  doctor      Check whether 1.4.1 is actually active (catch-all / leak).
+  doctor      Check catch-all, sing-box patch, and whether peers hit this VPS.
   uninstall   Restore original routing and remove firewall rules.
 EOF
     ;;

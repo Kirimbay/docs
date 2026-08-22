@@ -8,7 +8,7 @@
 curl -fsSL -H 'Cache-Control: no-cache' \
   https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh \
   -o /tmp/hiddify-block-torrents.sh
-grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # 1.4.1+
+grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # 1.4.2+
 sudo bash /tmp/hiddify-block-torrents.sh
 hiddify-block-torrents doctor
 ```

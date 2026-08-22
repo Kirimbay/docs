@@ -32,7 +32,7 @@ export HIDDIFY_DIR="$TEST"
 export SKIP_ROOT=1 SKIP_FIREWALL=1 SKIP_SYSTEMD=1
 
 ver="$(bash "$ROOT/scripts/hiddify-block-torrents.sh" version)"
-[[ "${ver}" == "1.4.1" ]] || { echo "version mismatch: ${ver}"; exit 1; }
+[[ "${ver}" == "1.4.2" ]] || { echo "version mismatch: ${ver}"; exit 1; }
 
 who_out="$(bash "$ROOT/scripts/hiddify-block-torrents.sh" who)"
 printf '%s\n' "${who_out}"
@@ -44,7 +44,31 @@ echo "${who_out}" | grep -q 'срабатываний' || { echo "who missed acc
 doc_out="$(bash "$ROOT/scripts/hiddify-block-torrents.sh" doctor)"
 printf '%s\n' "${doc_out}"
 echo "${doc_out}" | grep -q 'catch-all:   blocked_torrent' || { echo "doctor missed catch-all"; exit 1; }
-echo "${doc_out}" | grep -q '1.4.1' || { echo "doctor missed version"; exit 1; }
+echo "${doc_out}" | grep -q '1.4.2' || { echo "doctor missed version"; exit 1; }
+
+# leak verdict from a dump that matches the user's server (DNS only + UNCONN listeners)
+ss_dump="${TEST}/ss.txt"
+cat > "${ss_dump}" <<'SS'
+udp   UNCONN 0 0 0.0.0.0:39293 0.0.0.0:* users:(("xray",pid=153457,fd=8))
+udp   ESTAB  0 0 10.0.0.5:53122 1.1.1.1:53 users:(("hiddify-core",pid=35885,fd=9))
+SS
+export NOTORRENT_SS_DUMP="${ss_dump}"
+leak_out="$(bash "$ROOT/scripts/hiddify-block-torrents.sh" doctor)"
+echo "${leak_out}" | grep -q 'verdict:' || { echo "doctor missed leak verdict"; echo "${leak_out}"; exit 1; }
+echo "${leak_out}" | grep -q 'пирами' || { echo "doctor missed qbittorrent hint"; exit 1; }
+
+# fake torrent peers through xray — must NOT say leak
+cat > "${ss_dump}" <<'SS'
+udp   ESTAB 0 0 10.0.0.5:41000 203.0.113.9:51413 users:(("xray",pid=1,fd=3))
+tcp   ESTAB 0 0 10.0.0.5:41001 198.51.100.4:6881 users:(("xray",pid=1,fd=4))
+SS
+thru_out="$(bash "$ROOT/scripts/hiddify-block-torrents.sh" doctor)"
+echo "${thru_out}" | grep -q '2 исходящих' || { echo "doctor missed through-server peers"; echo "${thru_out}"; exit 1; }
+if echo "${thru_out}" | grep -q 'verdict:'; then
+  echo "false leak verdict"
+  echo "${thru_out}"
+  exit 1
+fi
 
 help_out="$(bash "$ROOT/scripts/hiddify-block-torrents.sh" help)"
 echo "${help_out}" | grep -q doctor || { echo "help missing doctor"; exit 1; }
