@@ -2131,6 +2131,29 @@
       main.append(enterBtn);
       row.append(main);
 
+      const side = document.createElement("div");
+      side.className = "dm-room-side";
+
+      const meta = document.createElement("div");
+      meta.className = "dm-room-meta";
+      if (owned) {
+        const adminBadge = document.createElement("span");
+        adminBadge.className = "dm-room-badge dm-room-badge--admin";
+        adminBadge.setAttribute("aria-label", "Вы админ");
+        adminBadge.title = "Вы админ";
+        adminBadge.textContent = "👑";
+        meta.append(adminBadge);
+      }
+      if (unread > 0) {
+        const mailBadge = document.createElement("span");
+        mailBadge.className = "dm-room-badge dm-room-badge--mail";
+        mailBadge.setAttribute("aria-label", newMessagesLabel(unread));
+        mailBadge.title = newMessagesLabel(unread);
+        mailBadge.textContent = "✉️";
+        meta.append(mailBadge);
+      }
+      if (meta.childElementCount) side.append(meta);
+
       {
         const forgetBtn = document.createElement("button");
         forgetBtn.type = "button";
@@ -2206,8 +2229,10 @@
             clearForgetArm();
           }, FORGET_ARM_MS);
         });
-        row.append(forgetBtn);
+        side.append(forgetBtn);
       }
+
+      row.append(side);
 
       frag.append(row);
     }

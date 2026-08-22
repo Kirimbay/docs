@@ -993,39 +993,6 @@ button {
   font-size: 0.85em;
 }
 
-.dm-room-row.is-open .dm-room-enter {
-  border-color: color-mix(in srgb, #3d9a6a 55%, var(--line));
-  background: color-mix(in srgb, #3d9a6a 14%, var(--bg-elev));
-}
-
-.dm-room-row.is-open .dm-room-code {
-  color: #6fcf97;
-}
-
-.dm-room-row.is-keyed .dm-room-enter,
-.dm-room-row.has-key:not(.is-owned) .dm-room-enter {
-  border-color: color-mix(in srgb, #d48806 55%, var(--line));
-  background: color-mix(in srgb, #e09a3e 14%, var(--bg-elev));
-}
-
-.dm-room-row.is-keyed .dm-room-code,
-.dm-room-row.has-key:not(.is-owned) .dm-room-code {
-  color: #e0a85a;
-}
-
-.dm-room-row.is-owned .dm-room-enter {
-  border-color: color-mix(in srgb, #4aa3d9 60%, var(--line));
-  background: color-mix(in srgb, #4aa3d9 16%, var(--bg-elev));
-}
-
-.dm-room-row.is-owned .dm-room-code {
-  color: #7ec8f0;
-}
-
-.dm-room-row.is-owned .dm-room-unread {
-  color: #9ad4f5;
-}
-
 .dm-room-row.is-closed {
   opacity: 0.72;
 }
@@ -1252,29 +1219,8 @@ button {
 }
 
 .dm-room-row.is-public .dm-room-code {
-  letter-spacing: 0.01em;
-  font-variant-numeric: normal;
-  color: var(--ink);
-  font-size: 0.95rem;
-}
-
-.dm-room-row.is-public .dm-room-enter {
-  border-color: color-mix(in srgb, var(--name) 40%, var(--line));
-  background: color-mix(in srgb, var(--name) 8%, var(--bg-elev));
-}
-
-.dm-room-row.is-public .dm-room-enter:hover,
-.dm-room-row.is-public .dm-room-enter:active {
-  border-color: color-mix(in srgb, var(--name) 65%, var(--line));
-  background: color-mix(in srgb, var(--name) 14%, var(--bg-elev));
-}
-
-.dm-room-row.is-current .dm-room-enter {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dm-accent) 45%, transparent);
-}
-
-.dm-room-row.is-public.is-current .dm-room-enter {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--name) 50%, transparent);
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
 }
 
 .dm-rooms-list {
@@ -1294,10 +1240,45 @@ button {
 .dm-room-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.3rem;
-  align-items: start;
+  gap: 0.28rem;
+  align-items: center;
   min-width: 0;
   flex: 0 0 auto;
+}
+
+.dm-room-side {
+  display: flex;
+  align-items: center;
+  gap: 0.22rem;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.dm-room-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.18rem;
+  flex: 0 0 auto;
+}
+
+.dm-room-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  font-size: 0.88rem;
+  line-height: 1;
+  flex: 0 0 auto;
+  user-select: none;
+}
+
+.dm-room-badge--admin {
+  opacity: 0.95;
+}
+
+.dm-room-badge--mail {
+  opacity: 0.92;
 }
 
 .dm-room-main {
@@ -1319,31 +1300,9 @@ button {
   text-align: left;
 }
 
-.dm-room-row.has-unread .dm-room-enter {
-  border-color: color-mix(in srgb, #8fd9ad 45%, var(--line));
-}
-
-.dm-room-row.is-foreign .dm-room-enter {
-  border-color: rgba(196, 160, 110, 0.45);
-  background: #221c16;
-}
-
-.dm-room-row.is-foreign .dm-room-code {
-  color: #d4b483;
-}
-
-.dm-room-row.is-foreign .dm-room-unread.has-new {
-  color: #e0c49a;
-}
-
-.dm-room-row.is-foreign .dm-room-names {
-  color: #9a8b74;
-}
-
-.dm-room-row.is-foreign .dm-room-enter:hover,
-.dm-room-row.is-foreign .dm-room-enter:active {
-  border-color: rgba(212, 180, 131, 0.7);
-  background: #2a221a;
+.dm-room-row.is-current .dm-room-enter {
+  border-color: color-mix(in srgb, var(--ink-soft) 45%, var(--line));
+  background: color-mix(in srgb, var(--ink-soft) 8%, var(--bg-elev));
 }
 
 .dm-room-code {
@@ -1567,6 +1526,8 @@ button {
 .dm-room-forget {
   width: 1.65rem;
   min-width: 1.65rem;
+  height: 1.65rem;
+  min-height: 1.65rem;
   padding: 0;
   display: inline-grid;
   place-items: center;
