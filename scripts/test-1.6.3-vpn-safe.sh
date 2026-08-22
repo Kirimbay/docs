@@ -6,7 +6,7 @@ SCRIPT="$ROOT/scripts/hiddify-block-torrents.sh"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-grep -qE 'VERSION="1.6.[345]"' "$SCRIPT" || fail "version"
+grep -qE 'VERSION="1.6.[3-6]"' "$SCRIPT" || fail "version"
 grep -q 'inbound_test_setup' "$SCRIPT" || fail "inbound veth setup missing"
 grep -q 'inbound_baseline' "$SCRIPT" || fail "must baseline inbound test before applying rules"
 grep -q 'iifname' "$SCRIPT" || fail "inbound test must punch INPUT for the veth"

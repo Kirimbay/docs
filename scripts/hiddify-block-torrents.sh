@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.5+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.6+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -21,7 +21,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.6.5"
+VERSION="1.6.6"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -541,6 +541,7 @@ patch_hiddify_routing() {
   fi
   install_logrotate
   rotate_access_log_if_huge
+  patch_happ_subscription
   return 0
 }
 
@@ -678,7 +679,7 @@ configs_need_restart() {
 restart_proxy_cores() {
   [[ "${SKIP_SYSTEMD:-0}" == "1" ]] && return 0
   local svc
-  for svc in hiddify-xray hiddify-singbox; do
+  for svc in hiddify-xray hiddify-singbox hiddify-panel; do
     if systemctl list-unit-files "${svc}.service" >/dev/null 2>&1; then
       if systemctl is-enabled "${svc}.service" >/dev/null 2>&1 || systemctl is-active "${svc}.service" >/dev/null 2>&1; then
         log "Restarting ${svc}..."
@@ -686,6 +687,160 @@ restart_proxy_cores() {
       fi
     fi
   done
+}
+
+# Happ (https://docs.happ.info/main/dev-docs/routing): hourly sub refresh
+# picks up happ://routing/onadd/{base64} in the body or the `routing` header.
+# This blocks TRACKER DOMAINS on the phone. It does not see DHT/encrypted peers.
+happ_routing_uri() {
+  NOTORRENT_DOMAINS="$(IFS=','; echo "${TRACKER_DOMAINS[*]}")" \
+  NOTORRENT_HAPP_NAME="hiddify-notorrent" \
+  python3 - <<'PY'
+import base64, json, os
+
+domains = []
+seen = set()
+for raw in os.environ.get("NOTORRENT_DOMAINS", "").split(","):
+    d = raw.strip().lower()
+    if d and d not in seen:
+        seen.add(d)
+        domains.append(d)
+
+profile = {
+    "Name": os.environ.get("NOTORRENT_HAPP_NAME", "hiddify-notorrent"),
+    "GlobalProxy": "true",
+    "RouteOrder": "block-proxy-direct",
+    "RemoteDNSType": "DoH",
+    "RemoteDNSDomain": "https://cloudflare-dns.com/dns-query",
+    "RemoteDNSIP": "1.1.1.1",
+    "DomesticDNSType": "DoH",
+    "DomesticDNSDomain": "https://cloudflare-dns.com/dns-query",
+    "DomesticDNSIP": "1.1.1.1",
+    "Geoipurl": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat",
+    "Geositeurl": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat",
+    "LastUpdated": "1755907200",
+    "DnsHosts": {"cloudflare-dns.com": "1.1.1.1"},
+    "DirectSites": [],
+    "DirectIp": [
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "169.254.0.0/16",
+        "224.0.0.0/4",
+        "255.255.255.255",
+    ],
+    "ProxySites": [],
+    "ProxyIp": [],
+    "BlockSites": domains,
+    "BlockIp": [],
+    "DomainStrategy": "AsIs",
+    "FakeDNS": "false",
+}
+blob = json.dumps(profile, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+print("happ://routing/onadd/" + base64.b64encode(blob).decode("ascii"))
+PY
+}
+
+find_panel_user_py() {
+  local r
+  for r in ${HIDDIFY_DIR:-} /opt/hiddify-manager /opt/hiddify-config; do
+    [[ -d "${r}" ]] || continue
+    find "${r}" -name user.py -path '*/hiddifypanel/panel/user/user.py' 2>/dev/null || true
+  done | sort -u
+}
+
+patch_happ_subscription() {
+  [[ "${SKIP_HAPP:-0}" == "1" ]] && return 0
+  detect_hiddify
+  local uri dest
+  uri="$(happ_routing_uri)" || { warn "Happ URI не собрался"; return 0; }
+  mkdir -p "${INSTALL_DIR}"
+  printf '%s\n' "${uri}" > "${INSTALL_DIR}/happ-routing.uri"
+  local found=0 f
+  while read -r f; do
+    [[ -f "${f}" ]] || continue
+    found=1
+    backup_file "${f}"
+    local st=0
+    NOTORRENT_HAPP_URI="${uri}" python3 - "${f}" <<'PY' || st=$?
+import os, re, sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+uri = os.environ["NOTORRENT_HAPP_URI"]
+if "'" in uri or "\n" in uri:
+    raise SystemExit("refusing happ uri with quotes")
+text = path.read_text(encoding="utf-8", errors="replace")
+marker = "HIDDIFY_NOTORRENT_HAPP"
+changed = False
+
+header_line = f'    resp.headers["routing"] = "{uri}"  # {marker}\n'
+if marker in text and 'resp.headers["routing"]' in text:
+    text2, n = re.subn(
+        r'    resp\.headers\["routing"\] = "happ://[^"]+"  # ' + re.escape(marker) + r"\n",
+        header_line,
+        text,
+        count=1,
+    )
+    if n:
+        text = text2
+        changed = True
+elif "def add_headers" in text and 'resp.headers["profile-title"]' in text:
+    text2, n = re.subn(
+        r'(    resp\.headers\["profile-title"\] = [^\n]+\n)',
+        r"\1" + header_line,
+        text,
+        count=1,
+    )
+    if n:
+        text = text2
+        changed = True
+
+body_block = (
+    f"        _happ = \"{uri}\"  # {marker}\n"
+    f"        if _happ not in (resp or \"\"):\n"
+    f"            resp = _happ + \"\\n\" + (resp or \"\")\n"
+)
+if "def links_imp" in text:
+    if marker in text and "_happ =" in text:
+        text2, n = re.subn(
+            r'        _happ = "happ://[^"]+"  # ' + re.escape(marker) + r"\n",
+            f'        _happ = "{uri}"  # {marker}\n',
+            text,
+            count=1,
+        )
+        if n:
+            text = text2
+            changed = True
+    elif "self._render_core_config(\"sublink\"" in text:
+        text2, n = re.subn(
+            r'(        resp = self\._render_core_config\("sublink", c, pretty=False\)\n)',
+            r"\1" + body_block,
+            text,
+            count=1,
+        )
+        if n:
+            text = text2
+            changed = True
+
+if changed:
+    path.write_text(text, encoding="utf-8")
+    print(f"patched (happ): {path}")
+else:
+    print(f"skip happ (no insert point): {path}", file=sys.stderr)
+    sys.exit(3)
+PY
+    if [[ "${st}" -eq 0 ]]; then
+      log "Happ routing в подписке: ${f}"
+    else
+      warn "Не смог вшить Happ routing в ${f}"
+    fi
+  done < <(find_panel_user_py)
+
+  if [[ "${found}" -eq 0 ]]; then
+    warn "user.py панели не найден — Happ URI записан в ${INSTALL_DIR}/happ-routing.uri"
+    return 0
+  fi
 }
 
 # --- firewall -----------------------------------------------------------------
@@ -1298,6 +1453,15 @@ restore_backups() {
       log "Restored ${dest}"
     fi
   done
+  local f bak
+  while read -r f; do
+    [[ -f "${f}" ]] || continue
+    bak="${INSTALL_DIR}/backups/$(echo "${f}" | tr '/' '_').orig"
+    if [[ -f "${bak}" ]]; then
+      cp -a "${bak}" "${f}"
+      log "Restored ${f}"
+    fi
+  done < <(find_panel_user_py 2>/dev/null || true)
 }
 
 # --- commands -----------------------------------------------------------------
@@ -1336,6 +1500,7 @@ cmd_install() {
   install_systemd
   restart_proxy_cores
   log "Done. Users change nothing. Kernel drops NEW outbound that is not a web port."
+  log "Happ:      routing header + happ://routing/onadd in /sub (трекеры, не DHT)."
   log "Version:   ${VERSION}  (if doctor is unknown, this file never reached PATH)"
   log "Check:     hiddify-block-torrents status"
   log "Doctor:    hiddify-block-torrents doctor"
@@ -1392,6 +1557,21 @@ cmd_status() {
     echo "timer:      enabled"
   else
     echo "timer:      not enabled"
+  fi
+  local happ_py=""
+  while read -r f; do
+    [[ -f "${f}" ]] || continue
+    if grep -q 'HIDDIFY_NOTORRENT_HAPP' "${f}"; then
+      happ_py="${f}"
+      break
+    fi
+  done < <(find_panel_user_py 2>/dev/null || true)
+  if [[ -n "${happ_py}" ]]; then
+    echo "happ:       routing вшит в ${happ_py}"
+  elif [[ -s "${INSTALL_DIR}/happ-routing.uri" ]]; then
+    echo "happ:       URI есть, панель не пропатчена"
+  else
+    echo "happ:       missing"
   fi
 }
 
@@ -1808,7 +1988,7 @@ PY
   local vpn_safe=1
   if command -v nft >/dev/null 2>&1 && nft list table inet hiddify_notorrent >/dev/null 2>&1; then
     if nft list table inet hiddify_notorrent | grep -qE '^\s+counter drop$'; then
-      echo "vpn-safe:    НЕТ — leftover drop (1.6.2). Срочно uninstall, затем 1.6.5"
+      echo "vpn-safe:    НЕТ — leftover drop (1.6.2). Срочно uninstall, затем 1.6.6"
       vpn_safe=0
     fi
     if ! nft list table inet hiddify_notorrent | grep -q 'ipv6-icmp'; then
@@ -1829,6 +2009,13 @@ PY
     echo "l7:          nft inspect_web ON (443 без TLS drop)"
   else
     echo "l7:          iptables TLS-record на 443 (16 03 / 17 03), остальной PSH drop"
+  fi
+  if [[ -s "${INSTALL_DIR}/happ-routing.uri" ]] && grep -q 'HIDDIFY_NOTORRENT_HAPP' $(find_panel_user_py | head -1) 2>/dev/null; then
+    echo "happ:        routing в подписке (трекеры в Happ; DHT/пиры — только ядро)"
+  elif [[ -s "${INSTALL_DIR}/happ-routing.uri" ]]; then
+    echo "happ:        URI готов, панель не пропатчена — снова install"
+  else
+    echo "happ:        нет (Happ не получит BlockSites из подписки)"
   fi
   if selftest_inbound_reply; then
     echo "inbound:     SYN-ACK OK"
@@ -1934,18 +2121,21 @@ case "${CMD}" in
   who|suspects|users) cmd_who ;;
   doctor|check) cmd_doctor ;;
   nft-preview|preview) emit_nft_table ;;
+  happ-uri|happ) happ_routing_uri ;;
+  happ-patch) detect_hiddify; patch_happ_subscription ;;
   version|-v|--version) echo "${VERSION}" ;;
   recover|fix-vpn) cmd_recover ;;
   uninstall|remove) cmd_uninstall ;;
   -h|--help|help)
     cat <<'EOF'
-Usage: hiddify-block-torrents [install|apply|status|who|doctor|recover|uninstall]
+  Usage: hiddify-block-torrents [install|apply|status|who|doctor|happ-uri|recover|uninstall]
 
   install     First run on the server. Patches Hiddify, sets firewall, enables timer.
   apply       Re-apply (used by systemd after Hiddify "Apply Configs").
   status      Show whether the block is in place.
   who         Panel usage (MariaDB/sqlite) + Xray torrent hits. Usage ≠ torrent.
-  doctor      Catch-all, kernel OUTPUT allowlist, and live peers on this VPS.
+  doctor      Catch-all, kernel OUTPUT allowlist, Happ sub routing, live peers.
+  happ-uri    Print happ://routing/onadd/... (tracker BlockSites).
   recover     Emergency: remove firewall only (VPN answers again). Stops the timer.
   uninstall   Restore original routing and remove firewall rules.
 EOF

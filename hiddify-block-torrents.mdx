@@ -12,7 +12,7 @@ rm -f /tmp/hiddify-block-torrents.sh
 curl -fsSL -H 'Cache-Control: no-cache' \
   "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
   -o /tmp/hiddify-block-torrents.sh
-grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.5
+grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.6
 sudo bash /tmp/hiddify-block-torrents.sh
 hiddify-block-torrents doctor
 ```
@@ -73,6 +73,22 @@ SSH **на** сервер не трогается (это INPUT). Исходящ
 - `kernel: OUTPUT allowlist ON` — ядро режет;
 - `catch-all: blocked_torrent` — Xray тоже режет;
 - `peers: 0` во время *вашего* теста с системным прокси — этот тест на сервер не пришёл.
+
+## Happ: маршрутизация в подписке
+
+Клиенты **Happ** раз в час тянут подписку. По [доке Happ](https://docs.happ.info/main/dev-docs/routing) в тело (`/sub`, `/all.txt`) и в HTTP-заголовок `routing` кладётся
+
+`happ://routing/onadd/{base64 JSON}`.
+
+1.6.6 вшивает это в `hiddifypanel/panel/user/user.py` (функции `add_headers` и `links_imp`). После `install` перезапускается `hiddify-panel`. В профиле `BlockSites` — публичные трекеры/DHT bootstrap. `GlobalProxy=true`, Instagram/YouTube по-прежнему через VPN.
+
+Это **не замена ядра**:
+
+- работает только в Happ, не в Hiddify Next / v2rayNG;
+- Happ режет **домены**, не порты — DHT и пиры на 443 до VPS всё равно дойдут;
+- на обычной (не JSON) подписке пользователь может выключить routing в приложении.
+
+Проверка: `hiddify-block-torrents status` → строка `happ: routing вшит`.
 
 ## VLESS
 

@@ -15,7 +15,7 @@ cp "$ROOT/scripts/fixtures/xray_06_outbounds.json.j2" "$TEST/xray/configs/06_out
 
 export HIDDIFY_DIR="$TEST"
 export NOTORRENT_INSTALL_DIR="$INST"
-export SKIP_FIREWALL=1 SKIP_SYSTEMD=1 SKIP_ROOT=1
+export SKIP_FIREWALL=1 SKIP_SYSTEMD=1 SKIP_ROOT=1 SKIP_HAPP=1
 
 bash "$ROOT/scripts/hiddify-block-torrents.sh" apply >/tmp/hiddify-notorrent-test.log
 
