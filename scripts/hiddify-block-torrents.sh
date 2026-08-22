@@ -15,7 +15,8 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.1.0"
+VERSION="1.2.0"
+TORRENT_TAG="blocked_torrent"
 INSTALL_DIR="${NOTORRENT_INSTALL_DIR:-/opt/hiddify-notorrent}"
 SELF_PATH="${INSTALL_DIR}/hiddify-block-torrents.sh"
 MARKER_BEGIN="HIDDIFY_NOTORRENT_BEGIN"
@@ -112,18 +113,18 @@ def xray_block():
     listed = ",\n                ".join(f'"domain:{d}"' for d in domains)
     return f'''            {{ // {MARKER_BEGIN}
               "type": "field",
-              "outboundTag": "blackhole",
+              "outboundTag": "blocked_torrent",
               "protocol": ["bittorrent"]
             }},
             {{
               "type": "field",
               "network": "tcp,udp",
               "port": "6881-6889,6969,51413,6771,1337,2710,8999,7881",
-              "outboundTag": "blackhole"
+              "outboundTag": "blocked_torrent"
             }},
             {{
               "type": "field",
-              "outboundTag": "blackhole",
+              "outboundTag": "blocked_torrent",
               "domain": [
                 {listed}
               ]
@@ -174,10 +175,22 @@ def upsert(text, block):
     new = "".join(lines[:start]) + blk + "".join(lines[end + 1 :])
     return new, new != text, "replaced"
 
+def retag_official_bt(text):
+    """Point Hiddify's stock bittorrent rule at blocked_torrent so it shows in access logs."""
+    return re.sub(
+        r'("outboundTag":\s*")blackhole("\s*,\s*"protocol":\s*\["bittorrent"\])',
+        r'\1blocked_torrent\2',
+        text,
+        count=1,
+    )
+
 def insert_xray(text, block):
+    text2 = retag_official_bt(text)
+    extra = text2 != text
+    text = text2
     text, changed, how = upsert(text, block)
     if how != "missing":
-        return text, changed, how
+        return text, changed or extra, ("replaced+retag" if extra and not changed else how)
     # Official Hiddify already has a BT protocol rule. Keep it; add ours before catch-all.
     m = re.search(
         r"\n(?=[ \t]*\{[ \t\n/]*\"type\":[ \t]*\"field\",[ \t\n]*\"port\":[ \t]*\"0-65535\")",
@@ -188,6 +201,37 @@ def insert_xray(text, block):
     if not m:
         raise SystemExit("xray routing: cannot find insertion point (port 0-65535)")
     return text[:m.start()] + "\n" + block + text[m.start():], True, "inserted"
+
+def patch_outbound(text):
+    marker = "HIDDIFY_NOTORRENT_OUTBOUND"
+    block = '    { "tag": "blocked_torrent", "protocol": "blackhole" }, // ' + marker + "\n"
+    if marker in text or re.search(r'"tag":\s*"blocked_torrent"', text):
+        return text, False, "exists"
+    m = re.search(r'"outbounds"\s*:\s*\[', text)
+    if not m:
+        raise SystemExit("outbounds array not found")
+    return text[:m.end()] + "\n" + block + text[m.end():], True, "inserted"
+
+def patch_access_log(text, log_path):
+    marker = "HIDDIFY_NOTORRENT_ACCESS"
+    wanted = f'"access": "{log_path}"'
+    if marker in text and wanted in text:
+        return text, False, "exists"
+    if re.search(r'"access":\s*"none"', text):
+        new = re.sub(r'"access":\s*"none"', f"{wanted} // {marker}", text, count=1)
+        return new, True, "replaced-none"
+    if re.search(r'"access":\s*"', text):
+        new = re.sub(r'"access":\s*"[^"]*"', f"{wanted} // {marker}", text, count=1)
+        return new, True, "replaced"
+    new = re.sub(
+        r'("log"\s*:\s*\{)',
+        r"\1\n        " + wanted + f", // {marker}",
+        text,
+        count=1,
+    )
+    if new == text:
+        raise SystemExit("log object not found")
+    return new, True, "inserted"
 
 def insert_singbox(text, block):
     text, changed, how = upsert(text, block)
@@ -216,11 +260,17 @@ def patch_file(path, kind):
         print(f"skip (missing): {p}", file=sys.stderr)
         return False
     original = p.read_text(encoding="utf-8", errors="replace")
-    block = xray_block() if kind == "xray" else singbox_block()
     if kind == "xray":
-        new, changed, how = insert_xray(original, block)
+        new, changed, how = insert_xray(original, xray_block())
+    elif kind == "singbox":
+        new, changed, how = insert_singbox(original, singbox_block())
+    elif kind == "outbound":
+        new, changed, how = patch_outbound(original)
+    elif kind == "log":
+        log_path = os.environ.get("NOTORRENT_ACCESS_LOG", "/opt/hiddify-manager/log/system/xray.access.log")
+        new, changed, how = patch_access_log(original, log_path)
     else:
-        new, changed, how = insert_singbox(original, block)
+        raise SystemExit(f"unknown kind: {kind}")
     if not changed:
         print(f"ok (unchanged, {how}): {p}")
         return False
@@ -233,7 +283,7 @@ def patch_file(path, kind):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        raise SystemExit("usage: patch_routing.py xray|singbox FILE [FILE...]")
+        raise SystemExit("usage: patch_routing.py xray|singbox|outbound|log FILE [FILE...]")
     kind = sys.argv[1]
     any_changed = False
     for f in sys.argv[2:]:
@@ -253,12 +303,12 @@ backup_file() {
 
 patch_hiddify_routing() {
   detect_hiddify
-  mkdir -p "${INSTALL_DIR}/backups"
+  mkdir -p "${INSTALL_DIR}/backups" "${HIDDIFY_DIR}/log/system"
   export NOTORRENT_DOMAINS
   NOTORRENT_DOMAINS="$(IFS=','; echo "${TRACKER_DOMAINS[*]}")"
   export NOTORRENT_BACKUP_DIR="${INSTALL_DIR}/backups"
+  export NOTORRENT_ACCESS_LOG="${HIDDIFY_DIR}/log/system/xray.access.log"
 
-  local changed=0
   local f
   for f in \
       "${HIDDIFY_DIR}/xray/configs/03_routing.json.j2" \
@@ -266,7 +316,7 @@ patch_hiddify_routing() {
   do
     if [[ -f "${f}" ]]; then
       backup_file "${f}"
-      python_patch xray "${f}" && changed=1
+      python_patch xray "${f}"
     fi
   done
   for f in \
@@ -275,10 +325,44 @@ patch_hiddify_routing() {
   do
     if [[ -f "${f}" ]]; then
       backup_file "${f}"
-      python_patch singbox "${f}" && changed=1
+      python_patch singbox "${f}"
     fi
   done
+  for f in \
+      "${HIDDIFY_DIR}/xray/configs/06_outbounds.json.j2" \
+      "${HIDDIFY_DIR}/xray/configs/06_outbounds.json"
+  do
+    if [[ -f "${f}" ]]; then
+      backup_file "${f}"
+      python_patch outbound "${f}"
+    fi
+  done
+  for f in \
+      "${HIDDIFY_DIR}/xray/configs/00_log.json.j2" \
+      "${HIDDIFY_DIR}/xray/configs/00_log.json"
+  do
+    if [[ -f "${f}" ]]; then
+      backup_file "${f}"
+      python_patch log "${f}"
+    fi
+  done
+  install_logrotate
   return 0
+}
+
+install_logrotate() {
+  [[ "${SKIP_SYSTEMD:-0}" == "1" ]] && return 0
+  detect_hiddify
+  cat > /etc/logrotate.d/hiddify-notorrent <<EOF
+${HIDDIFY_DIR}/log/system/xray.access.log {
+  daily
+  rotate 7
+  missingok
+  notifempty
+  compress
+  copytruncate
+}
+EOF
 }
 
 configs_need_restart() {
@@ -292,6 +376,13 @@ configs_need_restart() {
   do
     [[ -f "${f}" ]] || continue
     grep -q "${MARKER_BEGIN}" "${f}" || return 0
+  done
+  for f in \
+      "${HIDDIFY_DIR}/xray/configs/06_outbounds.json" \
+      "${HIDDIFY_DIR}/xray/configs/06_outbounds.json.j2"
+  do
+    [[ -f "${f}" ]] || continue
+    grep -q "blocked_torrent" "${f}" || return 0
   done
   return 1
 }
@@ -527,7 +618,11 @@ restore_backups() {
       "xray/configs/03_routing.json.j2" \
       "xray/configs/03_routing.json" \
       "singbox/configs/03_routing.json.j2" \
-      "singbox/configs/03_routing.json"
+      "singbox/configs/03_routing.json" \
+      "xray/configs/06_outbounds.json.j2" \
+      "xray/configs/06_outbounds.json" \
+      "xray/configs/00_log.json.j2" \
+      "xray/configs/00_log.json"
   do
     src="${INSTALL_DIR}/backups/$(echo "${HIDDIFY_DIR}/${pair}" | tr '/' '_').orig"
     dest="${HIDDIFY_DIR}/${pair}"
@@ -571,9 +666,10 @@ cmd_install() {
   apply_firewall
   install_systemd
   restart_proxy_cores
-  log "Done. VPN stays up; BitTorrent / DHT / public trackers are blocked."
-  log "Check:  hiddify-block-torrents status"
-  log "Remove: hiddify-block-torrents uninstall"
+  log "Done. VLESS/VPN stays up; BitTorrent / DHT / public trackers are blocked."
+  log "Check:     hiddify-block-torrents status"
+  log "Who:       hiddify-block-torrents who"
+  log "Remove:    hiddify-block-torrents uninstall"
 }
 
 cmd_status() {
@@ -607,11 +703,137 @@ cmd_status() {
   else
     echo "ip6tables:  missing"
   fi
+  if grep -q "blocked_torrent" "${HIDDIFY_DIR}/xray/configs/06_outbounds.json" \
+        "${HIDDIFY_DIR}/xray/configs/06_outbounds.json.j2" 2>/dev/null; then
+    echo "outbound:   blocked_torrent OK"
+  else
+    echo "outbound:   missing (who/logs will not tag torrents)"
+  fi
+  local access="${HIDDIFY_DIR}/log/system/xray.access.log"
+  if grep -q "HIDDIFY_NOTORRENT_ACCESS\|xray.access.log" \
+        "${HIDDIFY_DIR}/xray/configs/00_log.json" \
+        "${HIDDIFY_DIR}/xray/configs/00_log.json.j2" 2>/dev/null; then
+    echo "access log: enabled  ${access}"
+  else
+    echo "access log: not patched"
+  fi
   if systemctl is-enabled hiddify-notorrent.timer >/dev/null 2>&1; then
     echo "timer:      enabled"
   else
     echo "timer:      not enabled"
   fi
+}
+
+cmd_who() {
+  detect_hiddify
+  python3 - "$HIDDIFY_DIR" <<'PY'
+import os, re, sqlite3, sys
+from collections import Counter
+from pathlib import Path
+
+root = Path(sys.argv[1])
+uuid_re = re.compile(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
+
+def find_db():
+    candidates = [
+        root / "hiddify-panel" / "hiddifypanel.db",
+        root / "hiddifypanel" / "hiddifypanel.db",
+        Path("/opt/hiddify-config/hiddifypanel/hiddifypanel.db"),
+        Path("/opt/hiddify-manager/hiddify-panel/hiddifypanel.db"),
+    ]
+    for p in candidates:
+        if p.is_file():
+            return p
+    for p in Path("/opt").glob("**/hiddifypanel.db"):
+        return p
+    return None
+
+def load_users(db_path):
+    users = {}
+    if not db_path:
+        return users
+    try:
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        con.row_factory = sqlite3.Row
+        cols = {row[1] for row in con.execute("PRAGMA table_info(user)")}
+        name = "name" if "name" in cols else None
+        uuid = "uuid" if "uuid" in cols else None
+        if not uuid:
+            return users
+        usage = None
+        for c in ("current_usage_GB", "current_usage", "current_usage_gb"):
+            if c in cols:
+                usage = c
+                break
+        sel = [uuid]
+        if name:
+            sel.append(name)
+        if usage:
+            sel.append(usage)
+        for row in con.execute("SELECT " + ", ".join(sel) + " FROM user"):
+            u = row[0]
+            n = row[1] if name else ""
+            gb = None
+            if usage:
+                raw = row[-1]
+                try:
+                    val = float(raw or 0)
+                except (TypeError, ValueError):
+                    val = 0.0
+                gb = val if "GB" in usage or "gb" in usage else val / (1024 ** 3)
+            users[str(u).lower()] = {"name": n or "", "gb": gb}
+        con.close()
+    except Exception as e:
+        print(f"(не удалось прочитать панель: {e})", file=sys.stderr)
+    return users
+
+users = load_users(find_db())
+
+print("=== Кто больше всего качает (панель Hiddify) ===")
+ranked = [(u, inf) for u, inf in users.items() if inf.get("gb") is not None]
+ranked.sort(key=lambda x: x[1]["gb"], reverse=True)
+if not ranked:
+    print("  нет sqlite-базы панели или нет поля трафика.")
+    print("  Откройте Hiddify → Users и отсортируйте по usage — торренты почти всегда топ-1/топ-2.")
+else:
+    for uuid, inf in ranked[:15]:
+        print(f"  {inf['gb']:8.1f} GB   {(inf['name'] or '-'):20s}  {uuid}")
+
+hits = Counter()
+log_files = [
+    root / "log" / "system" / "xray.access.log",
+    Path("/opt/hiddify-manager/log/system/xray.access.log"),
+]
+needle = re.compile(r"blocked_torrent|bittorrent|opentrackr|BitTorrent protocol|announce_peer", re.I)
+for log in log_files:
+    if not log.is_file():
+        continue
+    try:
+        with log.open("r", errors="replace") as fh:
+            for line in fh:
+                if not needle.search(line):
+                    continue
+                m = uuid_re.search(line)
+                if m:
+                    hits[m.group(1).lower()] += 1
+    except OSError:
+        pass
+
+print()
+print("=== Кого Xray поймал на торренте / трекере (access log) ===")
+if not hits:
+    print("  Пока пусто. Так бывает, если:")
+    print("  • скрипт только что поставили — подождите, пока клиент снова откроет торрент;")
+    print("  • access-лог ещё не успел появиться (hiddify-block-torrents status);")
+    print("  • качают через зашифрованный протокол — тогда смотрите топ по трафику выше.")
+else:
+    for uuid, n in hits.most_common(20):
+        inf = users.get(uuid, {})
+        name = inf.get("name") or "-"
+        print(f"  {n:6d} срабатываний   {name:20s}  {uuid}")
+    print()
+    print("Этого пользователя можно отключить в панели Hiddify (Users → enable off).")
+PY
 }
 
 cmd_uninstall() {
@@ -620,7 +842,7 @@ cmd_uninstall() {
   remove_firewall
   restore_backups
   restart_proxy_cores
-  rm -f /usr/local/sbin/hiddify-block-torrents
+  rm -f /usr/local/sbin/hiddify-block-torrents /etc/logrotate.d/hiddify-notorrent
   log "Torrent block removed. Original Hiddify routing restored if backups existed."
 }
 
@@ -628,14 +850,16 @@ case "${CMD}" in
   install|"") cmd_install ;;
   apply)      cmd_apply ;;
   status)     cmd_status ;;
+  who|suspects|users) cmd_who ;;
   uninstall|remove) cmd_uninstall ;;
   -h|--help|help)
     cat <<'EOF'
-Usage: hiddify-block-torrents [install|apply|status|uninstall]
+Usage: hiddify-block-torrents [install|apply|status|who|uninstall]
 
   install     First run on the server. Patches Hiddify, sets firewall, enables timer.
   apply       Re-apply (used by systemd after Hiddify "Apply Configs").
   status      Show whether the block is in place.
+  who         Show who eats traffic and who was caught on torrents.
   uninstall   Restore original routing and remove firewall rules.
 EOF
     ;;

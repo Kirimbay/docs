@@ -10,6 +10,8 @@ trap cleanup EXIT
 mkdir -p "$TEST/xray/configs" "$TEST/singbox/configs"
 cp "$ROOT/scripts/fixtures/xray_03_routing.json.j2" "$TEST/xray/configs/03_routing.json.j2"
 cp "$ROOT/scripts/fixtures/singbox_03_routing.json.j2" "$TEST/singbox/configs/03_routing.json.j2"
+cp "$ROOT/scripts/fixtures/xray_00_log.json.j2" "$TEST/xray/configs/00_log.json.j2"
+cp "$ROOT/scripts/fixtures/xray_06_outbounds.json.j2" "$TEST/xray/configs/06_outbounds.json.j2"
 
 export HIDDIFY_DIR="$TEST"
 export NOTORRENT_INSTALL_DIR="$INST"
@@ -21,6 +23,11 @@ grep -q HIDDIFY_NOTORRENT_BEGIN "$TEST/xray/configs/03_routing.json.j2"
 grep -q HIDDIFY_NOTORRENT_BEGIN "$TEST/singbox/configs/03_routing.json.j2"
 grep -q '"protocol": \["bittorrent"\]' "$TEST/xray/configs/03_routing.json.j2"
 grep -q '"protocol": "bittorrent"' "$TEST/singbox/configs/03_routing.json.j2"
+grep -q '"tag": "blocked_torrent"' "$TEST/xray/configs/06_outbounds.json.j2"
+grep -q 'xray.access.log' "$TEST/xray/configs/00_log.json.j2"
+grep -q 'outboundTag": "blocked_torrent"' "$TEST/xray/configs/03_routing.json.j2"
+# stock Hiddify BT rule retagged for access logs
+grep -q 'outboundTag": "blocked_torrent".*"protocol": \["bittorrent"\]' "$TEST/xray/configs/03_routing.json.j2"
 # catch-all still after our block
 python3 - <<PY
 from pathlib import Path

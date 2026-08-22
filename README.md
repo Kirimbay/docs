@@ -9,6 +9,13 @@ curl -fsSL https://raw.githubusercontent.com/Kirimbay/docs/main/scripts/hiddify-
 sudo bash /tmp/hiddify-block-torrents.sh
 ```
 
+Проверка и кто качает:
+
+```bash
+hiddify-block-torrents status
+hiddify-block-torrents who
+```
+
 Подробности: [hiddify-block-torrents.mdx](./hiddify-block-torrents.mdx). Скрипт: [scripts/hiddify-block-torrents.sh](./scripts/hiddify-block-torrents.sh).
 
 ---
