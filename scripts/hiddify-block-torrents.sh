@@ -2,10 +2,11 @@
 # Hiddify: block BitTorrent for VPN users, keep the rest of the proxy working.
 #
 # One-shot (as root, on the Hiddify server):
+#   rm -f /tmp/hiddify-block-torrents.sh
 #   curl -fsSL -H 'Cache-Control: no-cache' \
-#     https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh \
+#     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.2+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.3+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -20,7 +21,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.6.2"
+VERSION="1.6.3"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -753,34 +754,49 @@ emit_nft_table() {
   local tcp udp
   tcp="$(nft_set_ports "${HOST_TCP_PORTS}")"
   udp="$(nft_set_ports "${HOST_UDP_PORTS}")"
+  # priority 10: after conntrack (-200). Never leftover-drop UNTRACKED:
+  # that is SYN-ACK back to the Hiddify client (VLESS/gRPC/WS/Reality).
   cat <<NFT
 table inet hiddify_notorrent {
   chain out {
-    type filter hook output priority -150; policy accept;
+    type filter hook output priority 10; policy accept;
     oifname "lo" accept
-    tcp dport { 80, 443 } jump inspect_web
-    ct state established,related accept
-    tcp dport { ${tcp} } accept
-    tcp dport { 80, 443 } tcp flags syn accept
-    udp dport { ${udp} } accept
     ip protocol icmp accept
     meta l4proto ipv6-icmp accept
+    ct state established,related tcp dport != { 80, 443 } accept
+    ct state established,related meta l4proto != tcp accept
+    tcp dport { 80, 443 } jump inspect_web
+    tcp dport { ${tcp} } accept
+    udp dport { ${udp} } accept
     ct state new counter drop
-    counter drop
   }
   chain inspect_web {
-    tcp dport 443 tcp flags & (syn | ack) == syn accept
-    tcp dport 80 tcp flags & (syn | ack) == syn accept
-    tcp dport 443 tcp flags & ack == ack @th,160,16 0x1603 accept
-    tcp dport 80 tcp flags & ack == ack @th,160,16 0x4745 accept
-    tcp dport 80 tcp flags & ack == ack @th,160,16 0x504f accept
-    tcp dport 80 tcp flags & ack == ack @th,160,16 0x4845 accept
-    tcp dport 80 tcp flags & ack == ack @th,160,16 0x434f accept
-    tcp flags & (psh | ack) == ack accept
-    counter drop
+    tcp flags syn accept
+    tcp dport 443 @th,160,16 0x1603 accept
+    tcp dport 443 @th,192,16 0x1603 accept
+    tcp dport 443 @th,256,16 0x1603 accept
+    tcp dport 443 @th,320,16 0x1603 accept
+    tcp dport 443 @th,160,16 0x1703 accept
+    tcp dport 443 @th,192,16 0x1703 accept
+    tcp dport 443 @th,256,16 0x1703 accept
+    tcp dport 443 @th,320,16 0x1703 accept
+    tcp dport 443 @th,160,16 0x1503 accept
+    tcp dport 443 @th,256,16 0x1503 accept
+    tcp dport 443 @th,160,16 0x1403 accept
+    tcp dport 443 @th,256,16 0x1403 accept
+    tcp dport 80 @th,160,16 0x4745 accept
+    tcp dport 80 @th,256,16 0x4745 accept
+    tcp dport 80 @th,160,16 0x504f accept
+    tcp dport 80 @th,256,16 0x504f accept
+    tcp dport 80 @th,160,16 0x4845 accept
+    tcp dport 80 @th,256,16 0x4845 accept
+    tcp dport 80 @th,160,16 0x434f accept
+    tcp dport 80 @th,256,16 0x434f accept
+    tcp flags & psh == 0 accept
+    drop
   }
   chain fwd {
-    type filter hook forward priority -150; policy accept;
+    type filter hook forward priority 10; policy accept;
     tcp dport { 6881-6889, 6969, 51413 } drop
     udp dport { 6881-6889, 6969, 51413, 6771 } drop
   }
@@ -795,16 +811,15 @@ emit_nft_table_simple() {
   cat <<NFT
 table inet hiddify_notorrent {
   chain out {
-    type filter hook output priority -150; policy accept;
+    type filter hook output priority 10; policy accept;
     oifname "lo" accept
+    ip protocol icmp accept
+    meta l4proto ipv6-icmp accept
     ct state established,related accept
     tcp dport { ${tcp} } accept
     tcp dport { 80, 443 } tcp flags syn accept
     udp dport { ${udp} } accept
-    ip protocol icmp accept
-    meta l4proto ipv6-icmp accept
     ct state new counter drop
-    counter drop
   }
 }
 NFT
@@ -839,28 +854,45 @@ fill_ipt_chain() {
   fi
 
   $ipt -A HIDDIFY_NOTORRENT -o lo -j RETURN || true
+  # Replies to inbound VLESS/gRPC/Reality (random client dport) + NDP.
+  if [[ "${ipt}" == *6* ]]; then
+    $ipt -A HIDDIFY_NOTORRENT -p ipv6-icmp -j RETURN || true
+  else
+    $ipt -A HIDDIFY_NOTORRENT -p icmp -j RETURN || true
+  fi
+  $ipt -A HIDDIFY_NOTORRENT -m conntrack --ctstate ESTABLISHED,RELATED \
+        ! -p tcp -j RETURN 2>/dev/null \
+    || $ipt -A HIDDIFY_NOTORRENT -m state --state ESTABLISHED,RELATED \
+        ! -p tcp -j RETURN || true
+  $ipt -A HIDDIFY_NOTORRENT -p tcp -m conntrack --ctstate ESTABLISHED,RELATED \
+        -m multiport ! --dports 80,443 -j RETURN 2>/dev/null || true
 
-  # 443 without xt_connbytes: allow TLS record types, drop other PSH (BT/MSE).
-  # TLS: 16 03 handshake, 17 03 appdata, 15 03 alert, 14 03 CCS.
+  # 443: TLS records only. Search past IP+TCP options (not just 32 bytes).
   local rec
   for rec in '|1603|' '|1703|' '|1503|' '|1403|'; do
     if $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 443 \
-          -m string --algo bm --from 0 --to 32 --hex-string "${rec}" -j RETURN 2>/dev/null; then
+          -m string --algo bm --from 0 --to 128 --hex-string "${rec}" -j RETURN 2>/dev/null; then
       TLS_INSPECT_OK=1
     fi
   done
   $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 443 --syn -j RETURN || true
   $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 443 --tcp-flags PSH,ACK ACK -j RETURN || true
-  $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 443 --tcp-flags PSH PSH -j DROP || true
+  if [[ "${TLS_INSPECT_OK:-0}" == "1" ]]; then
+    $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 443 --tcp-flags PSH PSH -j DROP || true
+  fi
 
-  local meth
+  local meth http_ok=0
   for meth in "GET " "POST " "HEAD " "PUT " "OPTIONS " "CONNECT " "PATCH "; do
-    $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 \
-      -m string --algo bm --from 0 --to 16 --string "${meth}" -j RETURN 2>/dev/null || true
+    if $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 \
+      -m string --algo bm --from 0 --to 128 --string "${meth}" -j RETURN 2>/dev/null; then
+      http_ok=1
+    fi
   done
   $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 --syn -j RETURN || true
   $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 --tcp-flags PSH,ACK ACK -j RETURN || true
-  $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 --tcp-flags PSH PSH -j DROP || true
+  if [[ "${http_ok}" -eq 1 ]]; then
+    $ipt -A HIDDIFY_NOTORRENT -p tcp --dport 80 --tcp-flags PSH PSH -j DROP || true
+  fi
 
   $ipt -A HIDDIFY_NOTORRENT -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN 2>/dev/null \
     || $ipt -A HIDDIFY_NOTORRENT -m state --state ESTABLISHED,RELATED -j RETURN || true
@@ -888,7 +920,9 @@ fill_ipt_chain() {
     $ipt -A HIDDIFY_NOTORRENT -p tcp -m multiport --dports "${chunk}" -j RETURN || true
   fi
   $ipt -A HIDDIFY_NOTORRENT -p udp -m multiport --dports "${HOST_UDP_PORTS}" -j RETURN || true
-  $ipt -A HIDDIFY_NOTORRENT -p icmp -j RETURN || true
+  if [[ "${ipt}" != *6* ]]; then
+    $ipt -A HIDDIFY_NOTORRENT -p icmp -j RETURN || true
+  fi
 
   # Classic ports (what the hoster suggested) — extra, not sufficient alone.
   $ipt -A HIDDIFY_NOTORRENT -p tcp -m multiport --dports 6881:6889,6969,51413 -j DROP || true
@@ -921,8 +955,9 @@ fill_ipt_chain() {
   $ipt -A HIDDIFY_NOTORRENT -p tcp -m string --algo bm --from 0 --to 2048 --string 'info_hash=' \
         -m string --algo bm --from 0 --to 2048 --string 'peer_id=' -j DROP 2>/dev/null || true
 
-  # Encrypted qBittorrent uses random ports — drop leftover NEW/UNTRACKED outbound.
-  $ipt -A HIDDIFY_NOTORRENT -j DROP || true
+  # Only NEW leftovers. Never drop UNTRACKED — that is SYN-ACK to the client.
+  $ipt -A HIDDIFY_NOTORRENT -m conntrack --ctstate NEW -j DROP 2>/dev/null \
+    || $ipt -A HIDDIFY_NOTORRENT -m state --state NEW -j DROP || true
 }
 
 selftest_firewall() {
@@ -1601,6 +1636,26 @@ PY
   else
     echo "kernel:      НЕТ — снова install от файла ${VERSION}"
   fi
+  local vpn_safe=1
+  if command -v nft >/dev/null 2>&1 && nft list table inet hiddify_notorrent >/dev/null 2>&1; then
+    if nft list table inet hiddify_notorrent | grep -qE '^\s+counter drop$'; then
+      echo "vpn-safe:    НЕТ — leftover drop (1.6.2). Срочно uninstall, затем 1.6.3"
+      vpn_safe=0
+    fi
+    if ! nft list table inet hiddify_notorrent | grep -q 'ipv6-icmp'; then
+      echo "vpn-safe:    НЕТ ipv6-icmp (NDP). Клиент с AAAA не достучится."
+      vpn_safe=0
+    fi
+  fi
+  if command -v iptables >/dev/null 2>&1 && iptables -S HIDDIFY_NOTORRENT >/dev/null 2>&1; then
+    if iptables -S HIDDIFY_NOTORRENT | grep -qE -- '-A HIDDIFY_NOTORRENT -j DROP'; then
+      echo "vpn-safe:    НЕТ — iptables финальный DROP без NEW (режет SYN-ACK)"
+      vpn_safe=0
+    fi
+  fi
+  if [[ "${vpn_safe}" -eq 1 && ( "${nft_ok}" -eq 1 || "${ipt_ok}" -eq 1 ) ]]; then
+    echo "vpn-safe:    OK (established/icmpv6, drop только NEW)"
+  fi
   if command -v nft >/dev/null 2>&1 && nft list chain inet hiddify_notorrent inspect_web >/dev/null 2>&1; then
     echo "l7:          nft inspect_web ON (443 без TLS drop)"
   else
@@ -1675,6 +1730,15 @@ else:
 PY
 }
 
+cmd_recover() {
+  need_root
+  systemctl stop hiddify-notorrent.timer hiddify-notorrent.path hiddify-notorrent.service >/dev/null 2>&1 || true
+  remove_firewall
+  log "Firewall removed. Inbound VLESS/gRPC/Reality should answer again."
+  log "Timer stopped so rules will not come back in 2 minutes."
+  log "Xray/sing-box patches are still there. Full undo: hiddify-block-torrents uninstall"
+}
+
 cmd_uninstall() {
   need_root
   uninstall_systemd
@@ -1693,16 +1757,18 @@ case "${CMD}" in
   doctor|check) cmd_doctor ;;
   nft-preview|preview) emit_nft_table ;;
   version|-v|--version) echo "${VERSION}" ;;
+  recover|fix-vpn) cmd_recover ;;
   uninstall|remove) cmd_uninstall ;;
   -h|--help|help)
     cat <<'EOF'
-Usage: hiddify-block-torrents [install|apply|status|who|doctor|uninstall]
+Usage: hiddify-block-torrents [install|apply|status|who|doctor|recover|uninstall]
 
   install     First run on the server. Patches Hiddify, sets firewall, enables timer.
   apply       Re-apply (used by systemd after Hiddify "Apply Configs").
   status      Show whether the block is in place.
   who         Panel usage (MariaDB/sqlite) + Xray torrent hits. Usage ≠ torrent.
   doctor      Catch-all, kernel OUTPUT allowlist, and live peers on this VPS.
+  recover     Emergency: remove firewall only (VPN answers again). Stops the timer.
   uninstall   Restore original routing and remove firewall rules.
 EOF
     ;;
