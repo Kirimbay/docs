@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.4+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.5+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -21,7 +21,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.6.4"
+VERSION="1.6.5"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -970,34 +970,54 @@ persist_live_firewall() {
   fi
 }
 
-# 1.6.2 leftover drop killed SYN-ACK to the client. Catch that on a veth
-# (not lo — local sockets are accepted by oifname lo and hide the bug).
-selftest_inbound_reply() {
-  [[ "${SKIP_FIREWALL:-0}" == "1" ]] && return 0
-  command -v ip >/dev/null 2>&1 || { log "inbound-selftest: skip (no ip)"; return 0; }
-  ip netns list >/dev/null 2>&1 || { log "inbound-selftest: skip (no netns)"; return 0; }
+# 1.6.4 selftest was a false alarm: Hiddify INPUT drops the veth SYN
+# (random high port), so the connect timed out even with our rules gone.
+# Punch INPUT for the test iface, take a baseline, then re-test after rules.
+INBOUND_NS="hiddify_nt_st"
+INBOUND_VETH="veth-nt0"
+INBOUND_PEER="veth-nt1"
 
-  local ns="hiddify_nt_st"
-  ip netns del "${ns}" 2>/dev/null || true
-  ip link del veth-nt0 2>/dev/null || true
-  if ! ip netns add "${ns}" 2>/dev/null; then
-    log "inbound-selftest: skip (netns add failed)"
-    return 0
+inbound_test_teardown() {
+  if has_ipt iptables; then
+    iptables -D INPUT -i "${INBOUND_VETH}" -j ACCEPT 2>/dev/null || true
+    iptables -D INPUT -s 10.254.254.2/32 -j ACCEPT 2>/dev/null || true
   fi
-  if ! ip link add veth-nt0 type veth peer name veth-nt1 2>/dev/null; then
-    ip netns del "${ns}" 2>/dev/null || true
-    log "inbound-selftest: skip (veth add failed)"
-    return 0
+  if command -v nft >/dev/null 2>&1; then
+    nft delete table inet hiddify_nt_st_in 2>/dev/null || true
   fi
-  ip link set veth-nt1 netns "${ns}"
-  ip addr add 10.254.254.1/24 dev veth-nt0
-  ip link set veth-nt0 up
-  ip netns exec "${ns}" ip addr add 10.254.254.2/24 dev veth-nt1
-  ip netns exec "${ns}" ip link set veth-nt1 up
-  ip netns exec "${ns}" ip link set lo up
+  ip netns del "${INBOUND_NS}" 2>/dev/null || true
+  ip link del "${INBOUND_VETH}" 2>/dev/null || true
+}
 
-  local rc=0
-  if ! python3 - "${ns}" <<'PY'
+inbound_test_setup() {
+  inbound_test_teardown
+  ip netns add "${INBOUND_NS}" || return 1
+  ip link add "${INBOUND_VETH}" type veth peer name "${INBOUND_PEER}" || return 1
+  ip link set "${INBOUND_PEER}" netns "${INBOUND_NS}"
+  ip addr add 10.254.254.1/24 dev "${INBOUND_VETH}"
+  ip link set "${INBOUND_VETH}" up
+  ip netns exec "${INBOUND_NS}" ip addr add 10.254.254.2/24 dev "${INBOUND_PEER}"
+  ip netns exec "${INBOUND_NS}" ip link set "${INBOUND_PEER}" up
+  ip netns exec "${INBOUND_NS}" ip link set lo up
+  # Host INPUT (Hiddify/ufw) would otherwise drop SYN to a random port.
+  if has_ipt iptables; then
+    iptables -I INPUT 1 -i "${INBOUND_VETH}" -j ACCEPT
+  fi
+  if command -v nft >/dev/null 2>&1; then
+    nft -f - <<'NFT' 2>/dev/null || true
+table inet hiddify_nt_st_in {
+  chain pin {
+    type filter hook input priority -280; policy accept;
+    iifname "veth-nt0" accept
+  }
+}
+NFT
+  fi
+  return 0
+}
+
+inbound_test_connect() {
+  python3 - "${INBOUND_NS}" <<'PY'
 import socket, subprocess, sys, threading
 
 ns = sys.argv[1]
@@ -1017,32 +1037,44 @@ def accept():
         pass
 
 threading.Thread(target=accept, daemon=True).start()
-cli = r"""
-import socket, sys
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.settimeout(2.5)
-s.connect(("10.254.254.1", %d))
-data = s.recv(8)
-s.close()
-sys.exit(0 if data == b"ok" else 2)
-""" % port
+cli = (
+    "import socket, sys\n"
+    "s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
+    "s.settimeout(2.5)\n"
+    "s.connect(('10.254.254.1', %d))\n"
+    "data = s.recv(8)\n"
+    "s.close()\n"
+    "sys.exit(0 if data == b'ok' else 2)\n"
+) % port
 r = subprocess.run(
     ["ip", "netns", "exec", ns, "python3", "-c", cli],
     timeout=5,
     check=False,
     capture_output=True,
+    text=True,
 )
 srv.close()
 if r.returncode != 0:
-    print("selftest: inbound SYN-ACK=timeout  (правила режут ответ клиенту, как 1.6.2)")
+    err = (r.stderr or r.stdout or "").strip().splitlines()
+    extra = err[-1] if err else f"exit {r.returncode}"
+    print(f"selftest: inbound SYN-ACK=timeout ({extra})")
     sys.exit(2)
 print("selftest: inbound SYN-ACK=ok")
 PY
-  then
-    rc=1
+}
+
+selftest_inbound_reply() {
+  [[ "${SKIP_FIREWALL:-0}" == "1" ]] && return 0
+  command -v ip >/dev/null 2>&1 || { log "inbound-selftest: skip (no ip)"; return 0; }
+  ip netns list >/dev/null 2>&1 || { log "inbound-selftest: skip (no netns)"; return 0; }
+  if ! inbound_test_setup; then
+    inbound_test_teardown
+    log "inbound-selftest: skip (veth/netns setup failed)"
+    return 0
   fi
-  ip netns del "${ns}" 2>/dev/null || true
-  ip link del veth-nt0 2>/dev/null || true
+  local rc=0
+  inbound_test_connect || rc=1
+  inbound_test_teardown
   return "${rc}"
 }
 
@@ -1109,6 +1141,23 @@ apply_firewall() {
   [[ "${SKIP_FIREWALL:-0}" == "1" ]] && return 0
   ensure_xt_string
   TLS_INSPECT_OK=0
+
+  local inbound_ready=0 inbound_baseline=0
+  if [[ "${SKIP_INBOUND_SELFTEST:-0}" != "1" ]] && command -v ip >/dev/null 2>&1 && ip netns list >/dev/null 2>&1; then
+    if inbound_test_setup; then
+      inbound_ready=1
+      if inbound_test_connect; then
+        inbound_baseline=1
+        log "inbound-selftest: baseline OK (INPUT для veth открыт)"
+      else
+        log "inbound-selftest: baseline FAIL — тест невалиден, из‑за него правила не откатываю"
+      fi
+    else
+      inbound_test_teardown
+      log "inbound-selftest: skip (veth/netns setup failed)"
+    fi
+  fi
+
   apply_nft_ports
   refresh_tracker_ipset
   if has_ipt iptables; then
@@ -1120,7 +1169,24 @@ apply_firewall() {
   if [[ "${TLS_INSPECT_OK:-0}" != "1" ]]; then
     warn "xt_string не принял TLS-сигнатуру. Пиры на 443 могут пройти. Нужен пакет iptables с xt_string."
   fi
-  if ! firewall_rules_vpn_safe || ! selftest_inbound_reply; then
+
+  local rollback=0
+  if ! firewall_rules_vpn_safe; then
+    rollback=1
+  fi
+  if [[ "${inbound_ready}" -eq 1 && "${inbound_baseline}" -eq 1 ]]; then
+    if inbound_test_connect; then
+      log "inbound-selftest: SYN-ACK OK после правил"
+    else
+      warn "После правил SYN-ACK пропал — это уже наши OUTPUT, откатываю."
+      rollback=1
+    fi
+  fi
+  if [[ "${inbound_ready}" -eq 1 ]]; then
+    inbound_test_teardown
+  fi
+
+  if [[ "${rollback}" -eq 1 ]]; then
     warn "Входящий ответ клиенту не проходит — снимаю фаервол, VLESS не трогаю."
     remove_firewall
     die "Откатил OUTPUT-правила. Соединение в клиенте должно остаться. Пришлите doctor."
@@ -1742,7 +1808,7 @@ PY
   local vpn_safe=1
   if command -v nft >/dev/null 2>&1 && nft list table inet hiddify_notorrent >/dev/null 2>&1; then
     if nft list table inet hiddify_notorrent | grep -qE '^\s+counter drop$'; then
-      echo "vpn-safe:    НЕТ — leftover drop (1.6.2). Срочно uninstall, затем 1.6.4"
+      echo "vpn-safe:    НЕТ — leftover drop (1.6.2). Срочно uninstall, затем 1.6.5"
       vpn_safe=0
     fi
     if ! nft list table inet hiddify_notorrent | grep -q 'ipv6-icmp'; then
@@ -1764,7 +1830,15 @@ PY
   else
     echo "l7:          iptables TLS-record на 443 (16 03 / 17 03), остальной PSH drop"
   fi
-  selftest_inbound_reply || true
+  if selftest_inbound_reply; then
+    echo "inbound:     SYN-ACK OK"
+  else
+    if [[ "${nft_ok}" -eq 0 && "${ipt_ok}" -eq 0 ]]; then
+      echo "inbound:     тест бьётся об INPUT хоста (1.6.4 ложный откат). Ядро выключено."
+    else
+      echo "inbound:     FAIL — OUTPUT режет ответ клиенту. recover."
+    fi
+  fi
   selftest_firewall || true
   analyze_proxy_peers
 }
