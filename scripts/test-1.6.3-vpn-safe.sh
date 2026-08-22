@@ -6,7 +6,11 @@ SCRIPT="$ROOT/scripts/hiddify-block-torrents.sh"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-grep -qE 'VERSION="1.6.[345]"' "$SCRIPT" || fail "version"
+grep -qE 'VERSION="1\.(6\.[345]|7\.[0-9]+)"' "$SCRIPT" || fail "version"
+if grep -qE 'chain fwd \{' "$SCRIPT"; then
+  fail "nft chain name 'fwd' is reserved — inspect_web never loads"
+fi
+grep -qE 'chain fw \{' "$SCRIPT" || fail "forward chain must be named fw"
 grep -q 'inbound_test_setup' "$SCRIPT" || fail "inbound veth setup missing"
 grep -q 'inbound_baseline' "$SCRIPT" || fail "must baseline inbound test before applying rules"
 grep -q 'iifname' "$SCRIPT" || fail "inbound test must punch INPUT for the veth"

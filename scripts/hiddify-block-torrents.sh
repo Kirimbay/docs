@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.5+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.1+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -21,7 +21,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.6.5"
+VERSION="1.7.1"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -711,6 +711,7 @@ ensure_ipset() {
 }
 
 refresh_tracker_ipset() {
+  [[ "${SKIP_IPSET:-0}" == "1" ]] && return 0
   ensure_ipset || { warn "ipset not available, skipping tracker IP block"; return 0; }
   local stamp="${INSTALL_DIR}/ipset.stamp"
   if [[ -f "${stamp}" ]] && [[ $(( $(date +%s) - $(stat -c %Y "${stamp}" 2>/dev/null || echo 0) )) -lt 21600 ]]; then
@@ -795,8 +796,10 @@ table inet hiddify_notorrent {
     tcp flags & psh == 0 accept
     drop
   }
-  chain fwd {
+  # "fwd" is reserved in nftables and rejects the whole table (inspect_web never loads).
+  chain fw {
     type filter hook forward priority 10; policy accept;
+    tcp dport { 80, 443 } jump inspect_web
     tcp dport { 6881-6889, 6969, 51413 } drop
     udp dport { 6881-6889, 6969, 51413, 6771 } drop
   }
@@ -825,13 +828,27 @@ table inet hiddify_notorrent {
 NFT
 }
 
+nft_inspect_loaded() {
+  command -v nft >/dev/null 2>&1 || return 1
+  nft list chain inet hiddify_notorrent inspect_web >/dev/null 2>&1
+}
+
 apply_nft_ports() {
   command -v nft >/dev/null 2>&1 || return 0
   nft delete table inet hiddify_notorrent >/dev/null 2>&1 || true
-  if emit_nft_table | nft -f - 2>/dev/null; then
-    log "nftables: OUTPUT allowlist + inspect_web (80/443 first payload)"
-    return 0
+  local err
+  err="$(mktemp)"
+  if emit_nft_table | nft -f - 2>"${err}"; then
+    if nft_inspect_loaded; then
+      log "nftables: OUTPUT allowlist + inspect_web (80/443 first payload)"
+      rm -f "${err}"
+      return 0
+    fi
+    warn "nftables loaded without inspect_web — treating as failure"
+  else
+    warn "nft inspect table rejected: $(tr '\n' ' ' < "${err}")"
   fi
+  rm -f "${err}"
   nft delete table inet hiddify_notorrent >/dev/null 2>&1 || true
   if emit_nft_table_simple | nft -f -; then
     warn "nftables: payload inspect unsupported; using port allowlist + iptables L7"
@@ -1166,8 +1183,10 @@ apply_firewall() {
   if has_ipt ip6tables; then
     fill_ipt_chain ip6tables
   fi
-  if [[ "${TLS_INSPECT_OK:-0}" != "1" ]]; then
-    warn "xt_string не принял TLS-сигнатуру. Пиры на 443 могут пройти. Нужен пакет iptables с xt_string."
+  if nft_inspect_loaded; then
+    TLS_INSPECT_OK=1
+  elif [[ "${TLS_INSPECT_OK:-0}" != "1" ]]; then
+    warn "L7 на 443 выключен (нет nft inspect_web и нет xt_string). Пиры на 443 пройдут."
   fi
 
   local rollback=0
@@ -1808,7 +1827,7 @@ PY
   local vpn_safe=1
   if command -v nft >/dev/null 2>&1 && nft list table inet hiddify_notorrent >/dev/null 2>&1; then
     if nft list table inet hiddify_notorrent | grep -qE '^\s+counter drop$'; then
-      echo "vpn-safe:    НЕТ — leftover drop (1.6.2). Срочно uninstall, затем 1.6.5"
+      echo "vpn-safe:    НЕТ — leftover drop (1.6.2). Срочно uninstall, затем ${VERSION}"
       vpn_safe=0
     fi
     if ! nft list table inet hiddify_notorrent | grep -q 'ipv6-icmp'; then
@@ -1825,10 +1844,12 @@ PY
   if [[ "${vpn_safe}" -eq 1 && ( "${nft_ok}" -eq 1 || "${ipt_ok}" -eq 1 ) ]]; then
     echo "vpn-safe:    OK (established/icmpv6, drop только NEW)"
   fi
-  if command -v nft >/dev/null 2>&1 && nft list chain inet hiddify_notorrent inspect_web >/dev/null 2>&1; then
+  if nft_inspect_loaded; then
     echo "l7:          nft inspect_web ON (443 без TLS drop)"
-  else
+  elif command -v iptables >/dev/null 2>&1 && iptables -S HIDDIFY_NOTORRENT 2>/dev/null | grep -q -- '--hex-string'; then
     echo "l7:          iptables TLS-record на 443 (16 03 / 17 03), остальной PSH drop"
+  else
+    echo "l7:          OFF — пиры на 443 могут выйти. Переустанови ${VERSION}."
   fi
   if selftest_inbound_reply; then
     echo "inbound:     SYN-ACK OK"
@@ -1927,9 +1948,31 @@ cmd_uninstall() {
   log "Torrent block removed. Original Hiddify routing restored if backups existed."
 }
 
+cmd_apply_fw() {
+  need_root
+  SKIP_INBOUND_SELFTEST="${SKIP_INBOUND_SELFTEST:-1}"
+  SKIP_IPSET="${SKIP_IPSET:-1}"
+  PERSIST_FIREWALL=0
+  export SKIP_INBOUND_SELFTEST SKIP_IPSET PERSIST_FIREWALL
+  apply_firewall
+}
+
+cmd_lab() {
+  need_root
+  local lab
+  lab="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/lab-notorrent.sh"
+  if [[ ! -x "${lab}" && -f "${lab}" ]]; then
+    chmod +x "${lab}" || true
+  fi
+  [[ -f "${lab}" ]] || die "lab-notorrent.sh not found next to the installer"
+  LAB_SCRIPT="${SELF_PATH:-$0}" exec bash "${lab}"
+}
+
 case "${CMD}" in
   install|"") cmd_install ;;
   apply)      cmd_apply ;;
+  apply-fw|lab-fw) cmd_apply_fw ;;
+  lab|lab-test) cmd_lab ;;
   status)     cmd_status ;;
   who|suspects|users) cmd_who ;;
   doctor|check) cmd_doctor ;;
@@ -1939,13 +1982,14 @@ case "${CMD}" in
   uninstall|remove) cmd_uninstall ;;
   -h|--help|help)
     cat <<'EOF'
-Usage: hiddify-block-torrents [install|apply|status|who|doctor|recover|uninstall]
+Usage: hiddify-block-torrents [install|apply|status|who|doctor|lab|recover|uninstall]
 
   install     First run on the server. Patches Hiddify, sets firewall, enables timer.
   apply       Re-apply (used by systemd after Hiddify "Apply Configs").
   status      Show whether the block is in place.
   who         Panel usage (MariaDB/sqlite) + Xray torrent hits. Usage ≠ torrent.
   doctor      Catch-all, kernel OUTPUT allowlist, and live peers on this VPS.
+  lab         Isolated netns proof: VPN reply, HTTPS, BT, fake-443. Must be green.
   recover     Emergency: remove firewall only (VPN answers again). Stops the timer.
   uninstall   Restore original routing and remove firewall rules.
 EOF
