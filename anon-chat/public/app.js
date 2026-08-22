@@ -49,7 +49,6 @@
   const dmBar = $("#dm-bar");
   const dmBarCode = $("#dm-bar-code");
   const dmBarPresence = $("#dm-bar-presence");
-  const dmCopyBtn = $("#dm-copy-btn");
   const dmLeaveBtn = $("#dm-leave-btn");
   const dmBarLabel = $("#dm-bar-label");
   const roomKeyBtn = $("#room-key-btn");
@@ -640,6 +639,31 @@
     syncRoomAdminUi();
   }
 
+  async function copyDmBarValue(value, kind) {
+    const shown = String(value || "").trim();
+    if (!shown) return;
+    try {
+      await navigator.clipboard.writeText(shown);
+      notify(kind === "key" ? `Ключ ${shown} скопирован` : `${shown} скопирован`, { dim: true });
+    } catch {
+      notify(kind === "key" ? `Ключ: ${shown}` : shown, { dim: true });
+    }
+  }
+
+  function makeDmBarCopyChip(display, copyValue, kind) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "dm-bar-copy-chip";
+    btn.textContent = display;
+    btn.title = kind === "key" ? "Скопировать ключ" : "Скопировать";
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void copyDmBarValue(copyValue, kind);
+    });
+    return btn;
+  }
+
   function syncDmBarMeta() {
     if (!dmBar || dmBar.hidden || !dmCode) return;
     const isPublic = isPublicRoomCode(dmCode);
@@ -647,19 +671,36 @@
       dmBarLabel.textContent = "";
     }
     if (!dmBarCode) return;
-    if (isPublic) {
-      dmBarCode.textContent = `${publicChatLabel}, ${formatRoomCodeDisplay(dmCode)}`;
-      return;
-    }
+    dmBarCode.replaceChildren();
     const shown = formatRoomCodeDisplay(dmCode);
-    if (roomKeyed) {
-      const key = loadRoomKey(dmCode);
-      dmBarCode.textContent = key
-        ? `🚪 ${shown} · 🔑 ${key}`
-        : `🚪 ${shown} · 🔑 нужен`;
+    if (isPublic) {
+      dmBarCode.append(`${publicChatLabel}, `, makeDmBarCopyChip(shown, shown, "code"));
       return;
     }
-    dmBarCode.textContent = `🚪 ${shown}`;
+    const door = document.createElement("span");
+    door.className = "dm-bar-emoji";
+    door.setAttribute("aria-hidden", "true");
+    door.textContent = "🚪 ";
+    dmBarCode.append(door, makeDmBarCopyChip(shown, shown, "code"));
+    if (roomKeyed) {
+      const sep = document.createElement("span");
+      sep.className = "dm-bar-sep";
+      sep.textContent = " · ";
+      const keyIcon = document.createElement("span");
+      keyIcon.className = "dm-bar-emoji";
+      keyIcon.setAttribute("aria-hidden", "true");
+      keyIcon.textContent = "🔑 ";
+      dmBarCode.append(sep, keyIcon);
+      const key = loadRoomKey(dmCode);
+      if (key) {
+        dmBarCode.append(makeDmBarCopyChip(key, key, "key"));
+      } else {
+        const need = document.createElement("span");
+        need.className = "dm-bar-muted";
+        need.textContent = "нужен";
+        dmBarCode.append(need);
+      }
+    }
   }
 
   function clearDeleteArm() {
@@ -1871,7 +1912,11 @@
       }
       if (!res?.ok) {
         const joinErr = res?.error || "Не удалось войти";
-        showDmDialogError(joinErr);
+        if (res?.needsKey || res?.wrongKey) {
+          showJoinHint(joinErr);
+        } else {
+          showDmDialogError(joinErr);
+        }
         if (res?.wrongCode) {
           dmCodeInput?.focus();
           dmCodeInput?.select?.();
@@ -2156,6 +2201,14 @@
     } catch {
       /* ignore */
     }
+  }
+
+  function showJoinHint(text) {
+    if (dmDialogError) {
+      dmDialogError.hidden = true;
+      dmDialogError.textContent = "";
+    }
+    notify(text, { dim: false, clearMs: 2800 });
   }
 
   function showDmDialogError(text) {
@@ -6001,16 +6054,6 @@
   dmLeaveBtn?.addEventListener("click", () => {
     if (!dmCode) return;
     leaveDmMode({ quiet: false, openHub: true });
-  });
-  dmCopyBtn?.addEventListener("click", async () => {
-    if (!dmCode) return;
-    const shown = formatRoomCodeDisplay(dmCode);
-    try {
-      await navigator.clipboard.writeText(shown);
-      notify(`Номер ${shown} скопирован`)
-    } catch {
-      notify(`Номер: ${shown}`)
-    }
   });
 
   socket.on("chat:author-renamed", ({ from, to } = {}) => {
