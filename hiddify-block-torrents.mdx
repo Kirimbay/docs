@@ -12,12 +12,12 @@ rm -f /tmp/hiddify-block-torrents.sh
 curl -fsSL -H 'Cache-Control: no-cache' \
   "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
   -o /tmp/hiddify-block-torrents.sh
-grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.3
+grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.4
 sudo bash /tmp/hiddify-block-torrents.sh
 hiddify-block-torrents doctor
 ```
 
-`VERSION` должна быть **1.6.3** или новее. В `doctor` нужны **`kernel: OUTPUT allowlist ON`**, **`vpn-safe: OK`** и **`selftest: OK`**. Если `selftest: FAIL` и `:51413=rst` — пакеты с VPS всё ещё уходят, блок не в ядре.
+`VERSION` должна быть **1.6.4** или новее. В `doctor` нужны **`kernel: OUTPUT allowlist ON`**, **`vpn-safe: OK`**, **`inbound SYN-ACK=ok`** и **`selftest: OK`**. Если `selftest: FAIL` и `:51413=rst` — пакеты с VPS всё ещё уходят, блок не в ядре. Если входящий SYN-ACK не проходит, скрипт **сам снимает фаервол** и не оставляет мёртвый VPN.
 
 **1.6.2** роняла входящий VLESS/gRPC/Reality: финальный `drop` резал SYN-ACK клиенту, без `ipv6-icmp` ломался NDP. Если клиент «подключён», а все серверы `n/a` — сначала снимите фаервол:
 
@@ -29,7 +29,7 @@ iptables -D OUTPUT -j HIDDIFY_NOTORRENT
 ip6tables -D OUTPUT -j HIDDIFY_NOTORRENT
 ```
 
-Потом ставьте **1.6.3** (curl с `?$(date +%s)`, `grep VERSION` должен показать 1.6.3).
+Потом ставьте **1.6.4** (curl с `?$(date +%s)`, `grep VERSION` должен показать 1.6.4).
 
 Снять блок:
 
@@ -49,11 +49,12 @@ sudo hiddify-block-torrents uninstall
 
 Сниффер и порты 6881–6889 (то, что предложил хостер) для современного клиента недостаточны.
 
-## Что делает 1.6.3 на сервере
+## Что делает 1.6.4 на сервере
 
 1. **Ядро (главное).** nftables/iptables на **OUTPUT**. Случайные порты DHT/пира — drop. **80/443 не дыра:** SYN пускаем, первый payload обязан быть TLS (`16 03`) или HTTP (`GET `/`POST `/…). Пир qBittorrent на 443 (не TLS) отрезается. UDP/443 тоже не в allowlist — через него часто идёт BT ([Xray #4554](https://github.com/XTLS/Xray-core/pull/4554)). Пользователь ничего не включает.
-2. **Xray / sing-box** — allowlist портов и `bittorrent → blackhole`, как раньше. `hiddify-core` на сервере — это и есть sing-box (`hiddify-singbox.service`).
-3. Подписи handshake/DHT и ipset трекеров — дополнительно, на них одних рассчитывать нельзя.
+2. **Нельзя повторить 1.6.2.** Drop только `NEW`, не UNTRACKED. После установки скрипт сам проверяет SYN-ACK через veth; если ответ клиенту не проходит — фаервол снимается сам.
+3. **Xray / sing-box** — allowlist портов и `bittorrent → blackhole`, как раньше. `hiddify-core` на сервере — это и есть sing-box (`hiddify-singbox.service`).
+4. Подписи handshake/DHT и ipset трекеров — дополнительно, на них одних рассчитывать нельзя.
 
 SSH **на** сервер не трогается (это INPUT). Исходящий SSH с машины на порт 22 тоже разрешён. Instagram / YouTube / Telegram / сайты остаются. Могут отвалиться игры и голосовой Discord через VPN.
 

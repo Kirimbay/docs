@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.3+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.6.4+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -21,7 +21,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.6.3"
+VERSION="1.6.4"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -960,6 +960,108 @@ fill_ipt_chain() {
     || $ipt -A HIDDIFY_NOTORRENT -m state --state NEW -j DROP || true
 }
 
+persist_live_firewall() {
+  if command -v netfilter-persistent >/dev/null 2>&1; then
+    netfilter-persistent save >/dev/null 2>&1 || true
+  elif command -v iptables-save >/dev/null 2>&1 && [[ -d /etc/iptables || "${PERSIST_FIREWALL:-0}" == "1" ]]; then
+    mkdir -p /etc/iptables
+    iptables-save  > /etc/iptables/rules.v4 2>/dev/null || true
+    ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || true
+  fi
+}
+
+# 1.6.2 leftover drop killed SYN-ACK to the client. Catch that on a veth
+# (not lo — local sockets are accepted by oifname lo and hide the bug).
+selftest_inbound_reply() {
+  [[ "${SKIP_FIREWALL:-0}" == "1" ]] && return 0
+  command -v ip >/dev/null 2>&1 || { log "inbound-selftest: skip (no ip)"; return 0; }
+  ip netns list >/dev/null 2>&1 || { log "inbound-selftest: skip (no netns)"; return 0; }
+
+  local ns="hiddify_nt_st"
+  ip netns del "${ns}" 2>/dev/null || true
+  ip link del veth-nt0 2>/dev/null || true
+  if ! ip netns add "${ns}" 2>/dev/null; then
+    log "inbound-selftest: skip (netns add failed)"
+    return 0
+  fi
+  if ! ip link add veth-nt0 type veth peer name veth-nt1 2>/dev/null; then
+    ip netns del "${ns}" 2>/dev/null || true
+    log "inbound-selftest: skip (veth add failed)"
+    return 0
+  fi
+  ip link set veth-nt1 netns "${ns}"
+  ip addr add 10.254.254.1/24 dev veth-nt0
+  ip link set veth-nt0 up
+  ip netns exec "${ns}" ip addr add 10.254.254.2/24 dev veth-nt1
+  ip netns exec "${ns}" ip link set veth-nt1 up
+  ip netns exec "${ns}" ip link set lo up
+
+  local rc=0
+  if ! python3 - "${ns}" <<'PY'
+import socket, subprocess, sys, threading
+
+ns = sys.argv[1]
+srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+srv.bind(("10.254.254.1", 0))
+srv.listen(1)
+srv.settimeout(3.0)
+port = srv.getsockname()[1]
+
+def accept():
+    try:
+        c, _ = srv.accept()
+        c.sendall(b"ok")
+        c.close()
+    except OSError:
+        pass
+
+threading.Thread(target=accept, daemon=True).start()
+cli = r"""
+import socket, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(2.5)
+s.connect(("10.254.254.1", %d))
+data = s.recv(8)
+s.close()
+sys.exit(0 if data == b"ok" else 2)
+""" % port
+r = subprocess.run(
+    ["ip", "netns", "exec", ns, "python3", "-c", cli],
+    timeout=5,
+    check=False,
+    capture_output=True,
+)
+srv.close()
+if r.returncode != 0:
+    print("selftest: inbound SYN-ACK=timeout  (правила режут ответ клиенту, как 1.6.2)")
+    sys.exit(2)
+print("selftest: inbound SYN-ACK=ok")
+PY
+  then
+    rc=1
+  fi
+  ip netns del "${ns}" 2>/dev/null || true
+  ip link del veth-nt0 2>/dev/null || true
+  return "${rc}"
+}
+
+firewall_rules_vpn_safe() {
+  if command -v nft >/dev/null 2>&1 && nft list table inet hiddify_notorrent >/dev/null 2>&1; then
+    if nft list table inet hiddify_notorrent | grep -qE '^\s+counter drop$'; then
+      warn "nft leftover counter drop — это 1.6.2, VPN умрёт"
+      return 1
+    fi
+  fi
+  if command -v iptables >/dev/null 2>&1 && iptables -S HIDDIFY_NOTORRENT >/dev/null 2>&1; then
+    if iptables -S HIDDIFY_NOTORRENT | grep -qE -- '-A HIDDIFY_NOTORRENT -j DROP$'; then
+      warn "iptables финальный DROP без NEW — режет SYN-ACK"
+      return 1
+    fi
+  fi
+  return 0
+}
+
 selftest_firewall() {
   [[ "${SKIP_FIREWALL:-0}" == "1" ]] && return 0
   python3 - <<'PY'
@@ -1018,16 +1120,15 @@ apply_firewall() {
   if [[ "${TLS_INSPECT_OK:-0}" != "1" ]]; then
     warn "xt_string не принял TLS-сигнатуру. Пиры на 443 могут пройти. Нужен пакет iptables с xt_string."
   fi
-  if [[ "${PERSIST_FIREWALL:-0}" == "1" ]]; then
-    if command -v netfilter-persistent >/dev/null 2>&1; then
-      netfilter-persistent save >/dev/null 2>&1 || true
-    elif command -v iptables-save >/dev/null 2>&1; then
-      mkdir -p /etc/iptables
-      iptables-save  > /etc/iptables/rules.v4 2>/dev/null || true
-      ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || true
-    fi
+  if ! firewall_rules_vpn_safe || ! selftest_inbound_reply; then
+    warn "Входящий ответ клиенту не проходит — снимаю фаервол, VLESS не трогаю."
+    remove_firewall
+    die "Откатил OUTPUT-правила. Соединение в клиенте должно остаться. Пришлите doctor."
   fi
   selftest_firewall || warn "selftest failed — doctor покажет, активен ли блок"
+  if [[ "${PERSIST_FIREWALL:-0}" == "1" ]]; then
+    persist_live_firewall
+  fi
 }
 
 remove_firewall() {
@@ -1046,6 +1147,8 @@ remove_firewall() {
     ipset destroy notorrent-trackers  2>/dev/null || true
     ipset destroy notorrent-trackers6 2>/dev/null || true
   fi
+  # 1.6.2 persist мог оставить яд в /etc/iptables — перезаписываем живое состояние.
+  persist_live_firewall
 }
 
 # --- systemd ------------------------------------------------------------------
@@ -1639,7 +1742,7 @@ PY
   local vpn_safe=1
   if command -v nft >/dev/null 2>&1 && nft list table inet hiddify_notorrent >/dev/null 2>&1; then
     if nft list table inet hiddify_notorrent | grep -qE '^\s+counter drop$'; then
-      echo "vpn-safe:    НЕТ — leftover drop (1.6.2). Срочно uninstall, затем 1.6.3"
+      echo "vpn-safe:    НЕТ — leftover drop (1.6.2). Срочно uninstall, затем 1.6.4"
       vpn_safe=0
     fi
     if ! nft list table inet hiddify_notorrent | grep -q 'ipv6-icmp'; then
@@ -1661,6 +1764,7 @@ PY
   else
     echo "l7:          iptables TLS-record на 443 (16 03 / 17 03), остальной PSH drop"
   fi
+  selftest_inbound_reply || true
   selftest_firewall || true
   analyze_proxy_peers
 }

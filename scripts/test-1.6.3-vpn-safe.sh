@@ -6,7 +6,9 @@ SCRIPT="$ROOT/scripts/hiddify-block-torrents.sh"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-grep -q 'VERSION="1.6.3"' "$SCRIPT" || fail "version"
+grep -qE 'VERSION="1.6.[34]"' "$SCRIPT" || fail "version"
+grep -q 'selftest_inbound_reply' "$SCRIPT" || fail "inbound SYN-ACK selftest missing"
+grep -q 'persist_live_firewall' "$SCRIPT" || fail "must persist only after selftest / on uninstall"
 
 # nft: after conntrack, never drop leftovers / untracked
 grep -q 'priority 10' "$SCRIPT" || fail "nft priority must be after conntrack (not -150)"
