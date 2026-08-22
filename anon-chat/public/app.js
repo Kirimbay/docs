@@ -58,7 +58,6 @@
   const dmDialog = $("#dm-dialog");
   const dmCreateBtn = $("#dm-create-btn");
   const dmJoinKey = $("#dm-join-key");
-  const dmJoinKeyWrap = $("#dm-join-key-wrap");
   const dmLead = null;
   const dmDialogTitle = $("#dm-dialog-title");
   const dmJoinBtn = $("#dm-join-btn");
