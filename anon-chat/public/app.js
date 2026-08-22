@@ -505,24 +505,6 @@
     return name;
   }
 
-  function setJoinKeyVisible(visible, { focus = false, clear = false } = {}) {
-    const fields = document.querySelector(".dm-join-box .dm-action-fields");
-    if (dmJoinKeyWrap) dmJoinKeyWrap.hidden = !visible;
-    fields?.classList.toggle("join-key-visible", visible);
-    if (clear && dmJoinKey) dmJoinKey.value = "";
-    if (focus && visible) {
-      try {
-        dmJoinKey?.focus({ preventScroll: true });
-      } catch {
-        dmJoinKey?.focus();
-      }
-    }
-  }
-
-  function syncJoinKeyField() {
-    setJoinKeyVisible(false, { clear: true });
-  }
-
   function syncRoomAdminUi() {
     const superInRoom = Boolean(isAdmin && dmCode && !isPublicRoomCode(dmCode));
     document.body.classList.toggle("room-admin-on", Boolean((isRoomAdmin && !isAdmin) || superInRoom));
@@ -1866,11 +1848,9 @@
     if (joinInFlight) return;
     const joinKey =
       normalizeRoomKeyLocal(key) ||
-      (dmJoinKeyWrap?.hidden ? "" : normalizeRoomKeyLocal(dmJoinKey?.value || "")) ||
+      normalizeRoomKeyLocal(dmJoinKey?.value || "") ||
       loadRoomKey(c);
-    if (!dmJoinKeyWrap?.hidden && dmJoinKey && joinKey && dmJoinKey.value !== joinKey) {
-      dmJoinKey.value = joinKey;
-    }
+    if (dmJoinKey && joinKey && dmJoinKey.value !== joinKey) dmJoinKey.value = joinKey;
     const ghost = Boolean(isAdmin && (watchOnly || roomsForDmList().some((r) => r.code === c && r.foreign)));
     const joinBtnEl = document.getElementById("dm-join-btn");
     joinInFlight = true;
@@ -1898,7 +1878,8 @@
           dmCodeInput?.select?.();
         } else if (res?.needsKey || res?.wrongKey) {
           clearRoomKey(c);
-          setJoinKeyVisible(true, { focus: true, clear: true });
+          if (dmJoinKey) dmJoinKey.value = "";
+          dmJoinKey?.focus();
         }
         if (res?.wrongCode || /номер комнаты неверный|не найден|такой комнаты нет/i.test(joinErr)) {
           forgetDmRoom(c);
@@ -1907,7 +1888,6 @@
         return;
       }
       if (joinKey) saveRoomKey(c, joinKey);
-      setJoinKeyVisible(false, { clear: true });
       enterDmMode(res, { watchOnly: ghost || Boolean(res.ghost) });
       markSessionLive();
       if (!ghost && !res.ghost) saveLastDest(c);
@@ -2444,7 +2424,6 @@
     }
     if (dmPeopleWrap) dmPeopleWrap.hidden = Boolean(isAdmin);
     syncHubPeopleChrome();
-    syncJoinKeyField();
   }
 
   function openDmDialog({ requirePick = false } = {}) {
@@ -2466,7 +2445,6 @@
       renderDmRoomsList();
     }
     if (dmCodeInput) dmCodeInput.value = "";
-    syncJoinKeyField();
     dmDialog.showModal();
     layoutDmDialog();
     keepDialogAboveKeyboard(dmDialog, dmCodeInput);
@@ -5732,7 +5710,6 @@
   dmCodeInput?.addEventListener("input", () => {
     const digits = (dmCodeInput.value || "").replace(/\D/g, "").slice(0, 6);
     if (dmCodeInput.value !== digits) dmCodeInput.value = digits;
-    setJoinKeyVisible(false, { clear: true });
   });
   dmCodeInput?.addEventListener("blur", () => formatRoomCodeField(dmCodeInput));
   dmJoinKey?.addEventListener("input", () => {

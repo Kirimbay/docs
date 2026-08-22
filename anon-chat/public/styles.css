@@ -714,9 +714,6 @@ button {
   display: flex;
   justify-content: center;
   padding: 0.35rem;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--dm-accent) 40%, var(--line));
-  background: color-mix(in srgb, var(--dm-accent) 12%, var(--bg));
 }
 
 .dm-create-box #dm-create-btn {
@@ -727,42 +724,24 @@ button {
   justify-self: center;
 }
 
-.dm-join-box .dm-action-fields {
-  grid-template-columns: minmax(0, 1.35fr) 5.75rem;
-}
-
-.dm-join-box .dm-action-fields.join-key-visible {
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) 5.75rem;
-}
-
-.dm-join-box .dm-key-field[hidden] {
-  display: none !important;
-}
-
-.dm-join-box {
-  padding: 0.35rem;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, #6ea8ff 35%, var(--line));
-  background: color-mix(in srgb, #6ea8ff 10%, var(--bg));
-}
-
 .dm-create-box .dm-action-fields input {
-  border-color: color-mix(in srgb, var(--dm-accent) 50%, var(--line));
-  background: color-mix(in srgb, var(--dm-accent) 14%, var(--bg-elev));
+  border-color: color-mix(in srgb, var(--dm-accent) 42%, var(--line));
+  background: color-mix(in srgb, var(--dm-accent) 10%, var(--bg-elev));
 }
 
 .dm-create-box .dm-action-fields input:focus {
-  border-color: color-mix(in srgb, var(--dm-accent) 80%, var(--line));
+  border-color: color-mix(in srgb, var(--dm-accent) 70%, var(--line));
 }
 
 .dm-join-box .dm-action-fields input {
-  border-style: solid;
-  border-color: color-mix(in srgb, #6ea8ff 45%, var(--line));
-  background: color-mix(in srgb, #6ea8ff 12%, var(--bg-elev));
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--ink-soft) 35%, var(--line));
+  background: var(--bg);
 }
 
 .dm-join-box .dm-action-fields input:focus {
-  border-color: color-mix(in srgb, #6ea8ff 75%, var(--line));
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--ink) 28%, var(--line));
 }
 
 .dm-action-btn,
@@ -800,15 +779,16 @@ button {
 }
 
 .dm-dialog-footer #dm-join-btn {
-  background: color-mix(in srgb, #6ea8ff 78%, #fff);
-  border-color: transparent;
-  color: #0e1a2c;
-  font-weight: 650;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .dm-dialog-footer #dm-join-btn:hover,
 .dm-dialog-footer #dm-join-btn:active {
-  background: color-mix(in srgb, #6ea8ff 90%, #fff);
+  border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
 }
 
 .dm-action-btn:disabled,
