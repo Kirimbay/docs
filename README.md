@@ -5,11 +5,15 @@
 На сервере с Hiddify Manager (от root):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Kirimbay/docs/main/scripts/hiddify-block-torrents.sh -o /tmp/hiddify-block-torrents.sh
+curl -fsSL -H 'Cache-Control: no-cache' \
+  https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh \
+  -o /tmp/hiddify-block-torrents.sh
+grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # 1.4.1+
 sudo bash /tmp/hiddify-block-torrents.sh
+hiddify-block-torrents doctor
 ```
 
-Проверка и кто качает:
+Если `doctor` отвечает `Unknown command` — в PATH старая копия, `who` из неё пустой и не чинит фильтр. Скачайте файл заново.
 
 ```bash
 hiddify-block-torrents status

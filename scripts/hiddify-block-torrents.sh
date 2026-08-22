@@ -2,10 +2,15 @@
 # Hiddify: block BitTorrent for VPN users, keep the rest of the proxy working.
 #
 # One-shot (as root, on the Hiddify server):
-#   curl -fsSL https://raw.githubusercontent.com/Kirimbay/docs/main/scripts/hiddify-block-torrents.sh | bash
+#   curl -fsSL -H 'Cache-Control: no-cache' \
+#     https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh \
+#     -o /tmp/hiddify-block-torrents.sh
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.4.1+
+#   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
 #   hiddify-block-torrents status
+#   hiddify-block-torrents doctor
 #   hiddify-block-torrents uninstall
 #
 # Why the hoster's iptables snippet is not enough:
@@ -15,7 +20,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.4.0"
+VERSION="1.4.1"
 WEB_TCP_PORTS="80,443,853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
 WEB_UDP_PORTS="53,123,443,853,3478"
 TORRENT_TAG="blocked_torrent"
@@ -909,7 +914,9 @@ cmd_install() {
   install_systemd
   restart_proxy_cores
   log "Done. VLESS/VPN stays up; BitTorrent / DHT / public trackers are blocked."
+  log "Version:   ${VERSION}  (if doctor is unknown, this file never reached PATH)"
   log "Check:     hiddify-block-torrents status"
+  log "Doctor:    hiddify-block-torrents doctor"
   log "Who:       hiddify-block-torrents who"
   log "Remove:    hiddify-block-torrents uninstall"
 }
@@ -968,86 +975,311 @@ cmd_status() {
 
 cmd_who() {
   detect_hiddify
+  echo "version:     ${VERSION}  (doctor обязан существовать с 1.4.0+; иначе PATH со старым скриптом)"
   python3 - "$HIDDIFY_DIR" <<'PY'
-import os, re, sqlite3, sys
+import os, re, shutil, sqlite3, subprocess, sys
 from collections import Counter
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 root = Path(sys.argv[1])
-uuid_re = re.compile(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
+uuid_re = re.compile(
+    r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"
+)
+SOURCE = {"kind": "none", "detail": ""}
 
-def find_db():
+
+def find_sqlite():
     candidates = [
         root / "hiddify-panel" / "hiddifypanel.db",
+        root / "hiddify-panel" / "src" / "hiddifypanel.db",
         root / "hiddifypanel" / "hiddifypanel.db",
-        Path("/opt/hiddify-config/hiddifypanel/hiddifypanel.db"),
         Path("/opt/hiddify-manager/hiddify-panel/hiddifypanel.db"),
+        Path("/opt/hiddify-manager/hiddify-panel/src/hiddifypanel.db"),
+        Path("/opt/hiddify-config/hiddifypanel/hiddifypanel.db"),
+        Path("/opt/hiddify-config/hiddify-panel/hiddifypanel.db"),
     ]
     for p in candidates:
         if p.is_file():
             return p
-    for p in Path("/opt").glob("**/hiddifypanel.db"):
-        return p
+    for base in (
+        root / "hiddify-panel",
+        root / "hiddifypanel",
+        Path("/opt/hiddify-manager/hiddify-panel"),
+        Path("/opt/hiddify-config/hiddifypanel"),
+        Path("/opt/hiddify-config/hiddify-panel"),
+    ):
+        if not base.is_dir():
+            continue
+        for p in base.rglob("hiddifypanel.db"):
+            return p
     return None
 
-def load_users(db_path):
+
+def ingest_rows(users, col_names, rows):
+    idx = {n.lower(): i for i, n in enumerate(col_names)}
+    uuid_i = next((idx[k] for k in ("uuid", "uuid4") if k in idx), None)
+    if uuid_i is None:
+        return 0
+    name_i = next((idx[k] for k in ("name", "username", "comment") if k in idx), None)
+    usage_i = None
+    usage_is_gb = False
+    for k in ("current_usage_gb", "current_usage", "usage"):
+        if k in idx:
+            usage_i = idx[k]
+            usage_is_gb = "gb" in k
+            break
+    added = 0
+    for row in rows:
+        uid = str(row[uuid_i] or "").lower()
+        if not uid:
+            continue
+        name = str(row[name_i] or "") if name_i is not None else ""
+        gb = None
+        if usage_i is not None:
+            try:
+                val = float(row[usage_i] or 0)
+            except (TypeError, ValueError):
+                val = 0.0
+            gb = val if usage_is_gb else val / (1024 ** 3)
+        users[uid] = {"name": name, "gb": gb}
+        added += 1
+    return added
+
+
+def pick_table(tables, columns_of):
+    preferred = [t for t in tables if t.lower() in ("user", "users")]
+    for t in preferred + [x for x in tables if x not in preferred]:
+        cols = columns_of(t)
+        cl = {c.lower() for c in cols}
+        if "uuid" in cl and ({"current_usage", "current_usage_gb"} & cl):
+            return t, cols
+    for t in preferred + [x for x in tables if x not in preferred]:
+        cols = columns_of(t)
+        if any(c.lower() == "uuid" for c in cols):
+            return t, cols
+    return None, []
+
+
+def load_sqlite(db_path):
     users = {}
     if not db_path:
         return users
+    con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
-        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-        con.row_factory = sqlite3.Row
-        cols = {row[1] for row in con.execute("PRAGMA table_info(user)")}
-        name = "name" if "name" in cols else None
-        uuid = "uuid" if "uuid" in cols else None
-        if not uuid:
+        tables = [
+            r[0]
+            for r in con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        ]
+
+        def columns_of(table):
+            return [r[1] for r in con.execute(f'PRAGMA table_info("{table}")')]
+
+        table, cols = pick_table(tables, columns_of)
+        if not table:
             return users
-        usage = None
-        for c in ("current_usage_GB", "current_usage", "current_usage_gb"):
-            if c in cols:
-                usage = c
-                break
-        sel = [uuid]
-        if name:
-            sel.append(name)
-        if usage:
-            sel.append(usage)
-        for row in con.execute("SELECT " + ", ".join(sel) + " FROM user"):
-            u = row[0]
-            n = row[1] if name else ""
-            gb = None
-            if usage:
-                raw = row[-1]
-                try:
-                    val = float(raw or 0)
-                except (TypeError, ValueError):
-                    val = 0.0
-                gb = val if "GB" in usage or "gb" in usage else val / (1024 ** 3)
-            users[str(u).lower()] = {"name": n or "", "gb": gb}
+        qcols = ", ".join(f'"{c}"' for c in cols)
+        rows = list(con.execute(f'SELECT {qcols} FROM "{table}"'))
+        ingest_rows(users, cols, rows)
+        SOURCE["kind"] = "sqlite"
+        SOURCE["detail"] = str(db_path)
+    finally:
         con.close()
-    except Exception as e:
-        print(f"(не удалось прочитать панель: {e})", file=sys.stderr)
     return users
 
-users = load_users(find_db())
 
-print("=== Кто больше всего качает (панель Hiddify) ===")
+def mysql_pass_files():
+    return [
+        root / "other" / "mysql" / "mysql_pass",
+        Path("/opt/hiddify-manager/other/mysql/mysql_pass"),
+        Path("/opt/hiddify-config/other/mysql/mysql_pass"),
+    ]
+
+
+def parse_app_cfg_uri():
+    for p in (
+        root / "hiddify-panel" / "app.cfg",
+        Path("/opt/hiddify-manager/hiddify-panel/app.cfg"),
+        Path("/opt/hiddify-config/hiddify-panel/app.cfg"),
+    ):
+        if not p.is_file():
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        m = re.search(r"SQLALCHEMY_DATABASE_URI\s*=\s*['\"]([^'\"]+)", text)
+        if m:
+            return m.group(1)
+    return None
+
+
+def uri_to_mysql_args(uri):
+    # mysql+mysqldb://user:pass@host/db?charset=utf8mb4
+    raw = uri.split("://", 1)[-1]
+    parsed = urlparse("mysql://" + raw)
+    user = unquote(parsed.username or "hiddifypanel")
+    password = unquote(parsed.password or "")
+    host = parsed.hostname or "127.0.0.1"
+    port = str(parsed.port or 3306)
+    db = (parsed.path or "/hiddifypanel").lstrip("/") or "hiddifypanel"
+    return user, password, host, port, db
+
+
+def mysql_run(args, env, sql):
+    full = args + ["-e", sql]
+    return subprocess.run(
+        full,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=15,
+        check=False,
+    )
+
+
+def load_mysql():
+    users = {}
+    mysql = shutil.which("mariadb") or shutil.which("mysql")
+    if not mysql:
+        return users
+
+    attempts = []
+    uri = parse_app_cfg_uri()
+    if uri and "sqlite" not in uri:
+        user, password, host, port, db = uri_to_mysql_args(uri)
+        env = os.environ.copy()
+        if password:
+            env["MYSQL_PWD"] = password
+        attempts.append(
+            (
+                [mysql, "-N", "-B", "-u", user, "-h", host, "-P", port, db],
+                env,
+                f"{user}@{host}/{db}",
+            )
+        )
+    for pf in mysql_pass_files():
+        if not pf.is_file():
+            continue
+        try:
+            password = pf.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            continue
+        if not password:
+            continue
+        env = os.environ.copy()
+        env["MYSQL_PWD"] = password
+        attempts.append(
+            (
+                [mysql, "-N", "-B", "-u", "hiddifypanel", "-h", "127.0.0.1", "hiddifypanel"],
+                env,
+                f"hiddifypanel@127.0.0.1 via {pf}",
+            )
+        )
+    attempts.append(
+        (
+            [mysql, "-N", "-B", "hiddifypanel"],
+            os.environ.copy(),
+            "unix-socket root/hiddifypanel",
+        )
+    )
+
+    last_err = ""
+    for args, env, label in attempts:
+        probe = mysql_run(args, env, "SHOW TABLES")
+        if probe.returncode != 0:
+            last_err = (probe.stderr or probe.stdout or "").strip().splitlines()
+            last_err = last_err[-1] if last_err else f"exit {probe.returncode}"
+            continue
+        tables = [ln.strip() for ln in probe.stdout.splitlines() if ln.strip()]
+
+        def columns_of(table):
+            r = mysql_run(args, env, f"SHOW COLUMNS FROM `{table}`")
+            cols = []
+            for line in r.stdout.splitlines():
+                name = line.split("\t", 1)[0].strip()
+                if name:
+                    cols.append(name)
+            return cols
+
+        table, cols = pick_table(tables, columns_of)
+        if not table or not cols:
+            last_err = f"tables={tables!r} but no uuid/usage"
+            continue
+        quoted = ", ".join(f"`{c}`" for c in cols)
+        data = mysql_run(args, env, f"SELECT {quoted} FROM `{table}`")
+        if data.returncode != 0:
+            last_err = (data.stderr or "").strip()
+            continue
+        rows = [ln.split("\t") for ln in data.stdout.splitlines() if ln.strip()]
+        ingest_rows(users, cols, rows)
+        SOURCE["kind"] = "mariadb"
+        SOURCE["detail"] = f"{label} table={table}"
+        return users
+    if last_err:
+        SOURCE["detail"] = last_err
+    return users
+
+
+users = {}
+sqlite_path = find_sqlite()
+try:
+    users = load_sqlite(sqlite_path)
+except Exception as e:
+    print(f"(sqlite: {e})", file=sys.stderr)
+if not users:
+    try:
+        users = load_mysql()
+    except Exception as e:
+        print(f"(mariadb: {e})", file=sys.stderr)
+
+print("=== Трафик из панели (это НЕ доказательство торрента) ===")
+if SOURCE["kind"] != "none":
+    print(f"  источник: {SOURCE['kind']}  {SOURCE['detail']}")
 ranked = [(u, inf) for u, inf in users.items() if inf.get("gb") is not None]
 ranked.sort(key=lambda x: x[1]["gb"], reverse=True)
 if not ranked:
-    print("  нет sqlite-базы панели или нет поля трафика.")
-    print("  Откройте Hiddify → Users и отсортируйте по usage — торренты почти всегда топ-1/топ-2.")
+    print("  панель не прочиталась (современный Hiddify держит users в MariaDB, не в sqlite).")
+    print("  смотрите Hiddify → Users. Большой usage бывает и у Instagram/YouTube.")
+    if SOURCE["detail"]:
+        print(f"  деталь: {SOURCE['detail']}")
 else:
     for uuid, inf in ranked[:15]:
         print(f"  {inf['gb']:8.1f} GB   {(inf['name'] or '-'):20s}  {uuid}")
 
 hits = Counter()
-log_files = [
-    root / "log" / "system" / "xray.access.log",
-    Path("/opt/hiddify-manager/log/system/xray.access.log"),
+log_dirs = [
+    root / "log" / "system",
+    Path("/opt/hiddify-manager/log/system"),
+    Path("/opt/hiddify-config/log/system"),
 ]
-needle = re.compile(r"blocked_torrent|bittorrent|opentrackr|BitTorrent protocol|announce_peer", re.I)
-for log in log_files:
+log_files = []
+for d in log_dirs:
+    if not d.is_dir():
+        continue
+    for p in sorted(d.glob("xray*.log")):
+        log_files.append(p)
+    for name in ("xray.access.log", "xray.access.log.1", "access.log"):
+        p = d / name
+        if p.is_file():
+            log_files.append(p)
+# unique preserve order
+seen = set()
+uniq = []
+for p in log_files:
+    rp = str(p.resolve()) if p.exists() else str(p)
+    if rp in seen:
+        continue
+    seen.add(rp)
+    uniq.append(p)
+
+needle = re.compile(
+    r"blocked_torrent|bittorrent|opentrackr|BitTorrent protocol|announce_peer",
+    re.I,
+)
+for log in uniq:
     if not log.is_file():
         continue
     try:
@@ -1064,10 +1296,13 @@ for log in log_files:
 print()
 print("=== Кого Xray поймал на торренте / трекере (access log) ===")
 if not hits:
-    print("  Пока пусто. Так бывает, если:")
-    print("  • скрипт только что поставили — подождите, пока клиент снова откроет торрент;")
-    print("  • access-лог ещё не успел появиться (hiddify-block-torrents status);")
-    print("  • качают через зашифрованный протокол — тогда смотрите топ по трафику выше.")
+    print("  Пусто. Это не «торрентов нет», а «Xray их не видел». Частые причины:")
+    print("  • на сервере старый скрипт (hiddify-block-torrents doctor → Unknown command);")
+    print("  • 1.4 catch-all ещё не в живом конфиге — смотрите doctor, строка catch-all;")
+    print("  • qBittorrent идёт мимо этого VLESS (системный прокси Windows его не кормит);")
+    print("  • access-лог не включён: hiddify-block-torrents status.")
+    print("  Пока качается:  ss -uapn | grep -E 'xray|hiddify'")
+    print("  Пустой ss + живой DHT = утечка на ПК, не дыра в фильтре.")
 else:
     for uuid, n in hits.most_common(20):
         inf = users.get(uuid, {})
@@ -1078,10 +1313,25 @@ else:
 PY
 }
 
+installed_script_version() {
+  local f="${SELF_PATH}"
+  [[ -r "${f}" ]] || f="/usr/local/sbin/hiddify-block-torrents"
+  [[ -r "${f}" ]] || { echo "MISSING"; return; }
+  grep -m1 '^VERSION=' "${f}" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "unknown"
+}
+
 cmd_doctor() {
   detect_hiddify
-  echo "version:     ${VERSION}"
+  local installed
+  installed="$(installed_script_version)"
+  echo "version:     ${VERSION}  (этот процесс)"
+  echo "installed:   ${installed}  ${SELF_PATH}"
   echo "hiddify:     ${HIDDIFY_DIR}"
+  if [[ "${installed}" == "MISSING" ]]; then
+    echo "PATH:        нет копии в ${SELF_PATH}. Запустите install от файла 1.4.1+."
+  elif [[ "${installed}" != "${VERSION}" ]]; then
+    echo "PATH:        в PATH версия ${installed}, нужна ${VERSION}. Скачайте скрипт заново и снова install."
+  fi
   local live="${HIDDIFY_DIR}/xray/configs/03_routing.json"
   local tmpl="${HIDDIFY_DIR}/xray/configs/03_routing.json.j2"
   local f="${live}"
@@ -1091,7 +1341,7 @@ cmd_doctor() {
     return 1
   fi
   if grep -q "${MARKER_BEGIN}" "${f}"; then
-    echo "patch:       OK (маркер на месте)"
+    echo "patch:       OK (маркер на месте)  ${f}"
   else
     echo "patch:       НЕТ — 1.4 не применён. Снова запусти install."
   fi
@@ -1108,7 +1358,7 @@ PY
   if [[ "${tag}" == "blocked_torrent" ]]; then
     echo "server:      фильтр строгий. Если в qBittorrent DHT сотни узлов — трафик НЕ идёт через этот VLESS (утечка на ПК)."
   else
-    echo "server:      catch-all ещё пускает всё наружу. Переустанови скрипт 1.4.0."
+    echo "server:      catch-all ещё пускает всё наружу. Переустанови скрипт ${VERSION}."
   fi
   if systemctl is-active hiddify-xray >/dev/null 2>&1; then
     echo "xray:        active"
@@ -1137,6 +1387,7 @@ case "${CMD}" in
   status)     cmd_status ;;
   who|suspects|users) cmd_who ;;
   doctor|check) cmd_doctor ;;
+  version|-v|--version) echo "${VERSION}" ;;
   uninstall|remove) cmd_uninstall ;;
   -h|--help|help)
     cat <<'EOF'
@@ -1145,8 +1396,8 @@ Usage: hiddify-block-torrents [install|apply|status|who|doctor|uninstall]
   install     First run on the server. Patches Hiddify, sets firewall, enables timer.
   apply       Re-apply (used by systemd after Hiddify "Apply Configs").
   status      Show whether the block is in place.
-  who         Show who eats traffic and who was caught on torrents.
-  doctor      Check whether 1.4 is actually active (catch-all / leak).
+  who         Panel usage (MariaDB/sqlite) + Xray torrent hits. Usage ≠ torrent.
+  doctor      Check whether 1.4.1 is actually active (catch-all / leak).
   uninstall   Restore original routing and remove firewall rules.
 EOF
     ;;

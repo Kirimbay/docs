@@ -5,24 +5,41 @@ description: "Одна команда на сервере с Hiddify Manager —
 
 ## Что выполнить на сервере
 
-Под root, по SSH, на каждой машине с Hiddify Manager:
+Под root, по SSH, на каждой машине с Hiddify Manager. Пока PR не в `main`, берите файл **с ветки** и проверяйте версию **до** запуска:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Kirimbay/docs/main/scripts/hiddify-block-torrents.sh -o /tmp/hiddify-block-torrents.sh
+curl -fsSL -H 'Cache-Control: no-cache' \
+  https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh \
+  -o /tmp/hiddify-block-torrents.sh
+grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh
 sudo bash /tmp/hiddify-block-torrents.sh
+hiddify-block-torrents doctor
 ```
 
-Проверка:
-
-```bash
-hiddify-block-torrents status
-```
+`VERSION` должна быть **1.4.1** или новее. Если `hiddify-block-torrents doctor` отвечает `Unknown command: doctor` — в PATH старая копия. Команды `who` / `status` из неё ничего не чинят: скачайте файл заново и снова запустите `install`.
 
 Снять блок (вернуть как было):
 
 ```bash
 sudo hiddify-block-torrents uninstall
 ```
+
+## Что значит «who пустой, doctor неизвестен»
+
+Это не «торрентов нет». Так бывает в двух разных случаях, и их путают:
+
+1. **Старый скрипт.** `who` есть, `doctor` нет. Живой конфиг Xray, скорее всего, ещё без catch-all 1.4. Переустановите 1.4.1.
+2. **Утечка на ПК.** После 1.4.1 `doctor` пишет `catch-all: blocked_torrent`, а в qBittorrent DHT всё равно сотни узлов и качает мегабайты. Тогда клиент **не идёт через этот VLESS**. Windows не кормит qBittorrent системным прокси: нужны SOCKS5/TUN того же ключа и «use proxy for peer connections» + DNS через прокси. Пока торрент качается, на сервере:
+
+```bash
+ss -uapn | grep -E 'xray|hiddify'
+```
+
+Пустой вывод + живой DHT = трафик мимо VPS, фильтр его не увидит.
+
+`who` по гигабайтам **не** ищет торрентщиков. Instagram и YouTube тоже жрут трафик. Смотрите только блок «кого Xray поймал» и `doctor`.
+
+Современный Hiddify хранит пользователей в **MariaDB**, не в `hiddifypanel.db`. Версии до 1.4.1 поэтому писали «нет sqlite-базы». 1.4.1 читает `other/mysql/mysql_pass` и `hiddify-panel/app.cfg`.
 
 ## VLESS и остальной VPN
 
@@ -35,27 +52,21 @@ sudo hiddify-block-torrents uninstall
 
 На время установки ядро Xray перезапускается на пару секунд, потом сессии поднимаются сами.
 
-## Как вычислить, кто качает
+## Как посмотреть, кого поймали
 
-После установки (или повторного запуска того же скрипта):
+После установки **1.4.1**:
 
 ```bash
+hiddify-block-torrents doctor
 hiddify-block-torrents who
 ```
 
-Будет два списка:
+- **doctor** — версия в PATH, маркер патча, куда уходит catch-all `0-65535`. Нужно `blocked_torrent`.
+- **who** — usage из панели (MariaDB/sqlite, это не торрент) и хиты access-лога с тегом `blocked_torrent` / uuid пользователя.
 
-1. **Топ по трафику из панели** — торренты почти всегда это 1–2 человека с десятками/сотнями гигабайт. Это самый надёжный признак, даже если протокол зашифрован и Xray его не подписал.
-2. **Кого Xray уже поймал** — строки access-лога с тегом `blocked_torrent` и `email: <uuid>@hiddify.com`. UUID совпадает с пользователем в панели.
-
-Вручную, без скрипта:
-
-- Hiddify → **Users** → сортировка по usage.
-- `grep blocked_torrent /opt/hiddify-manager/log/system/xray.access.log`
+Вручную: `grep blocked_torrent /opt/hiddify-manager/log/system/xray.access.log`
 
 Дальше в панели этому UUID ставите enable = off. Скрипт сам никого не банит.
-
-Если лог пустой: либо ещё никто не открывал торрент после установки, либо качают с шифрованием протокола — тогда ориентируйтесь только на топ по гигабайтам.
 
 ## Почему команды хостера не помогли
 
@@ -92,7 +103,7 @@ hiddify-block-torrents who
 - трекеры и DHT (без них клиент долго не находит пиров);
 - порты по умолчанию.
 
-Это закрывает типичную абузу с qBittorrent / Transmission / uTorrent через VPN. Это не анти-DPI операторского класса: dedicated seedbox с шифрованием и private tracker теоретически может просочиться. Если после установки абуза повторится — смотрите, какой пользователь жрёт трафик, и отключайте его в панели.
+В 1.4.0 это закрыто allowlist портов. Если после повторной установки 1.4.1 qBittorrent всё ещё качает — клиент, скорее всего, идёт мимо VPN (утечка). Проверьте, что в qBittorrent включён прокси/TUN того же VLESS.
 
 ## Файлы, которые трогает установка
 
