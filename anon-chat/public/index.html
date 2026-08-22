@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=212" />
+    <link rel="stylesheet" href="/styles.css?v=213" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -265,6 +265,7 @@
             <button type="button" id="dm-create-btn" class="dm-action-btn">Создать</button>
           </div>
           <div class="dm-action-box dm-join-box">
+            <p id="dm-dialog-error" class="error dm-join-hint" hidden></p>
             <div class="dm-action-fields">
               <label class="field dm-code-field">
                 <span class="visually-hidden">Номер комнаты</span>
@@ -301,7 +302,6 @@
               <button type="button" id="dm-join-btn" class="dm-action-btn">Войти</button>
             </div>
           </div>
-          <p id="dm-dialog-error" class="error" hidden></p>
         </div>
       </div>
     </dialog>
@@ -419,6 +419,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=212"></script>
+    <script src="/app.js?v=213"></script>
   </body>
 </html>

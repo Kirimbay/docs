@@ -872,6 +872,17 @@ button {
   justify-self: center;
 }
 
+.dm-join-hint {
+  flex: 1 1 100%;
+  width: 100%;
+  text-align: center;
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.25;
+  padding: 0.15rem 0.35rem 0.35rem;
+  order: -1;
+}
+
 .dm-join-box {
   display: grid;
   gap: 0;

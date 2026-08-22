@@ -1381,6 +1381,7 @@
     if (dmCodeInput) dmCodeInput.value = "";
     if (dmJoinKey) dmJoinKey.value = "";
     clearJoinFieldAlerts();
+    clearJoinHint();
   }
 
   function appendDmBarRoomMeta(container, code) {
@@ -2034,10 +2035,11 @@
 
   function joinDmByCode(code, { fromList = false, watchOnly = false, key = "" } = {}) {
     showDmDialogError("");
+    clearJoinHint();
     const c = normalizeDmCodeLocal(code);
     if (c.length !== 6) {
       setJoinFieldAlerts({ code: true });
-      showDmDialogError("Введите номер комнаты цифрами");
+      showJoinHint("Введите номер комнаты цифрами");
       dmCodeInput?.focus();
       return;
     }
@@ -2083,9 +2085,31 @@
           return;
         }
         if (!res?.ok) {
-          const joinErr = res?.error || "Не удалось войти";
-          const needsKey = Boolean(res?.needsKey || res?.wrongKey);
-          if (needsKey) {
+          const joinErr = joinFailureMessage(res, res?.error || "Не удалось войти");
+          if (res?.wrongCode) {
+            clearJoinFieldAlerts();
+            setJoinFieldAlerts({ code: true });
+            showJoinHint(joinErr);
+            dmCodeInput?.focus();
+            dmCodeInput?.select?.();
+            forgetDmRoom(c);
+            renderDmRoomsList();
+            return;
+          }
+          if (res?.wrongKey) {
+            rememberDmRoom(c, {
+              keyed: res?.access === "keyed" || Boolean(res?.keyed) || true,
+              active: false,
+            });
+            if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
+            setJoinFieldAlerts({ key: true });
+            showJoinHint("Ключ неверный");
+            clearRoomKey(c);
+            dmJoinKey?.focus();
+            if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+            return;
+          }
+          if (res?.needsKey) {
             rememberDmRoom(c, {
               keyed: res?.access === "keyed" || Boolean(res?.keyed) || true,
               active: false,
@@ -2093,25 +2117,17 @@
             if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
             setJoinFieldAlerts({ key: true });
             showJoinHint(joinErr);
-            if (res?.wrongKey) clearRoomKey(c);
             dmJoinKey?.focus();
             if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
-          } else {
-            clearJoinFieldAlerts();
-            showDmDialogError(joinErr);
+            return;
           }
-          if (res?.wrongCode) {
-            setJoinFieldAlerts({ code: true });
-            dmCodeInput?.focus();
-            dmCodeInput?.select?.();
-          }
-          if (res?.wrongCode || /номер комнаты неверный|не найден|такой комнаты нет/i.test(joinErr)) {
-            forgetDmRoom(c);
-            renderDmRoomsList();
-          }
+          clearJoinFieldAlerts();
+          clearJoinHint();
+          showDmDialogError(joinErr);
           return;
         }
         clearJoinFieldAlerts();
+        clearJoinHint();
         if (joinKey) saveRoomKey(c, joinKey);
         else if (res.joinKey) saveRoomKey(c, normalizeRoomKeyLocal(res.joinKey));
         enterDmMode(res, { watchOnly: ghost || Boolean(res.ghost) });
@@ -2371,10 +2387,36 @@
 
   function showJoinHint(text) {
     if (dmDialogError) {
-      dmDialogError.hidden = true;
-      dmDialogError.textContent = "";
+      if (text) {
+        dmDialogError.hidden = false;
+        dmDialogError.textContent = text;
+        try {
+          dmDialogError.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        } catch {
+          /* ignore */
+        }
+      } else {
+        dmDialogError.hidden = true;
+        dmDialogError.textContent = "";
+      }
     }
-    notify(text, { dim: false, clearMs: 2800 });
+  }
+
+  function clearJoinHint() {
+    showJoinHint("");
+  }
+
+  function joinFailureMessage(res, fallback = "") {
+    if (!res) return fallback || "Не удалось войти";
+    if (res.wrongCode) return "Номер комнаты неверный · такой комнаты нет";
+    if (res.wrongKey) return "Ключ неверный";
+    if (res.needsKey) {
+      const err = String(res.error || "").trim();
+      if (/ключ неверный/i.test(err)) return "Ключ неверный";
+      if (/нужен ключ|4 цифр/i.test(err)) return "Нужен ключ из 4 цифр";
+      return err || "Нужен ключ из 4 цифр";
+    }
+    return String(res.error || fallback || "Не удалось войти").trim();
   }
 
   function showDmDialogError(text) {
@@ -5759,9 +5801,10 @@
   function joinDmFromInput() {
     const code = normalizeDmCodeLocal(dmCodeInput?.value || "");
     const key = normalizeRoomKeyLocal(dmJoinKey?.value || "");
+    clearJoinHint();
     if (!code) {
       setJoinFieldAlerts({ code: true });
-      showDmDialogError("Введите номер комнаты");
+      showJoinHint("Введите номер комнаты");
       dmCodeInput?.focus();
       return;
     }
@@ -5953,12 +5996,19 @@
   dmCodeInput?.addEventListener("input", () => {
     const digits = (dmCodeInput.value || "").replace(/\D/g, "").slice(0, 6);
     if (dmCodeInput.value !== digits) dmCodeInput.value = digits;
+    if (digits.length > 0) {
+      setJoinCodeFieldAlert(false);
+      clearJoinHint();
+    }
   });
   dmCodeInput?.addEventListener("blur", () => formatRoomCodeField(dmCodeInput));
   dmJoinKey?.addEventListener("input", () => {
     const digits = normalizeRoomKeyLocal(dmJoinKey.value);
     if (dmJoinKey.value !== digits) dmJoinKey.value = digits;
-    if (digits.length > 0) clearJoinFieldAlerts();
+    if (digits.length > 0) {
+      clearJoinFieldAlerts();
+      clearJoinHint();
+    }
   });
   const roomDeleteCodeEl = document.getElementById("room-delete-code");
   roomDeleteCodeEl?.addEventListener("blur", () => formatRoomCodeField(roomDeleteCodeEl));
