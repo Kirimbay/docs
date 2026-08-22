@@ -724,24 +724,28 @@ button {
   justify-self: center;
 }
 
-.dm-create-box .dm-action-fields input {
-  border-color: color-mix(in srgb, var(--dm-accent) 42%, var(--line));
-  background: color-mix(in srgb, var(--dm-accent) 10%, var(--bg-elev));
+.dm-join-box {
+  display: grid;
+  gap: 0;
+  padding: 0.35rem;
 }
 
-.dm-create-box .dm-action-fields input:focus {
-  border-color: color-mix(in srgb, var(--dm-accent) 70%, var(--line));
-}
-
-.dm-join-box .dm-action-fields input {
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--ink-soft) 35%, var(--line));
-  background: var(--bg);
-}
-
-.dm-join-box .dm-action-fields input:focus {
+/* Footer hub actions — monochrome */
+.dm-dialog-footer .dm-join-box .dm-action-fields input {
+  border: 1px solid var(--line);
   border-style: solid;
-  border-color: color-mix(in srgb, var(--ink) 28%, var(--line));
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.dm-dialog-footer .dm-join-box .dm-action-fields input:focus {
+  border-color: color-mix(in srgb, var(--ink-soft) 50%, var(--line));
+  background: var(--bg-elev);
+  outline: none;
+}
+
+.dm-dialog-footer .dm-join-box .dm-action-fields input::placeholder {
+  color: var(--ink-soft);
 }
 
 .dm-action-btn,
@@ -772,35 +776,27 @@ button {
   box-sizing: border-box;
 }
 
-.dm-dialog-footer #dm-create-btn {
-  background: color-mix(in srgb, var(--dm-accent) 88%, #fff);
-  border-color: transparent;
-  color: #102418;
-}
-
+.dm-dialog-footer #dm-create-btn,
 .dm-dialog-footer #dm-join-btn {
-  background: transparent;
+  background: color-mix(in srgb, var(--ink-soft) 24%, var(--bg-elev));
   border: 1px solid var(--line);
   color: var(--ink);
   font-weight: 600;
 }
 
+.dm-dialog-footer #dm-create-btn:hover,
+.dm-dialog-footer #dm-create-btn:active,
 .dm-dialog-footer #dm-join-btn:hover,
 .dm-dialog-footer #dm-join-btn:active {
-  border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
-  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+  background: color-mix(in srgb, var(--ink-soft) 34%, var(--bg-elev));
+  border-color: color-mix(in srgb, var(--ink-soft) 38%, var(--line));
 }
 
 .dm-action-btn:disabled,
-.dm-dialog-footer #dm-create-btn:disabled {
+.dm-dialog-footer #dm-create-btn:disabled,
+.dm-dialog-footer #dm-join-btn:disabled {
   opacity: 0.55;
   cursor: wait;
-}
-
-.dm-create-box,
-.dm-join-box {
-  display: grid;
-  gap: 0;
 }
 
 .dm-create-title {
