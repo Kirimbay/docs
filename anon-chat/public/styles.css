@@ -710,6 +710,26 @@ button {
   box-sizing: border-box;
 }
 
+.dm-join-field-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.dm-join-field-icon {
+  flex: 0 0 auto;
+  font-size: 0.92rem;
+  line-height: 1;
+  user-select: none;
+}
+
+.dm-join-field-inner input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
 .dm-create-box {
   display: flex;
   justify-content: center;
