@@ -71,8 +71,21 @@ SSH **на** сервер не трогается (это INPUT). Исходящ
 `doctor` после 1.5.0:
 
 - `kernel: OUTPUT allowlist ON` — ядро режет;
+- `l7: nft inspect_web ON` — 443 без TLS режется;
 - `catch-all: blocked_torrent` — Xray тоже режет;
 - `peers: 0` во время *вашего* теста с системным прокси — этот тест на сервер не пришёл.
+
+## Лаборатория (без вашего VPS)
+
+Три network namespace: «VPS», «пир» и «клиент». Хостовый маршрут не трогается.
+
+```bash
+sudo bash scripts/lab-notorrent.sh
+# после install:
+sudo hiddify-block-torrents lab
+```
+
+Зелёный прогон — 11/11: входящий SYN-ACK (VLESS-подобный и случайный порт), HTTP GET/POST, TLS ClientHello, DNS UDP/53, drop :51413, BitTorrent handshake на 80 и 443, случайный MSE-подобный PSH на 443, UDP DHT.
 
 ## VLESS
 
