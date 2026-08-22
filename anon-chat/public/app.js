@@ -1171,7 +1171,8 @@
   function applyKnownRoomsFromServer(rooms, accountPin, { markOwned = false, replace = false } = {}) {
     if (!Array.isArray(rooms)) return;
     const pin = normalizeRoomKeyLocal(accountPin || loadPin() || "");
-    const publicRow = loadDmRooms().find((r) => r.code === PUBLIC_ROOM_CODE);
+    const existingByCode = new Map(loadDmRooms().map((r) => [r.code, r]));
+    const publicRow = existingByCode.get(PUBLIC_ROOM_CODE);
     const built = [];
     for (const entry of rooms) {
       const code = normalizeDmCodeLocal(
@@ -1182,16 +1183,19 @@
       if (isOwned) markOwnedRoom(code);
       const joinKey = normalizeRoomKeyLocal(entry?.joinKey || entry?.key || "");
       if (joinKey.length === 4) saveRoomKey(code, joinKey);
+      const existing = existingByCode.get(code);
+      const serverLastAt = Date.parse(String(entry?.lastActiveAt || "")) || 0;
       const row = {
         code,
-        lastAt: Date.parse(String(entry?.lastActiveAt || "")) || Date.now(),
-        peer: "",
-        messageCount: Math.max(0, Number(entry?.messageCount) || 0),
-        lastReadId: "",
-        names: [],
-        unread: 0,
-        keyed: Boolean(entry?.keyed) || joinKey.length === 4,
-        closed: Boolean(entry?.closed),
+        lastAt: Math.max(Number(existing?.lastAt) || 0, serverLastAt || Date.now()),
+        peer: existing?.peer || "",
+        messageCount: Math.max(0, Number(entry?.messageCount) || Number(existing?.messageCount) || 0),
+        lastReadId: existing?.lastReadId || "",
+        names: Array.isArray(existing?.names) ? existing.names : [],
+        unread: Math.max(0, Number(existing?.unread) || 0),
+        keyed: Boolean(entry?.keyed) || joinKey.length === 4 || Boolean(existing?.keyed),
+        closed: typeof entry?.closed === "boolean" ? Boolean(entry.closed) : Boolean(existing?.closed),
+        title: typeof existing?.title === "string" ? existing.title.trim().slice(0, MAX_ROOM_TITLE_LEN) : "",
       };
       built.push(row);
       if (isOwned && pin.length === 4) saveAdminPin(code, pin);
@@ -2332,6 +2336,7 @@
 
   function enterDmMode(res, { watchOnly = false } = {}) {
     if (!res?.ok || !res.code) return;
+    if (dmCode) commitTopbarRoomTitle();
     if (accessRoomsOnly && isPublicRoomCode(res.code)) {
       notify(`«${publicChatLabel}» недоступен на этом устройстве`);
       openDmDialog({ requirePick: true });
@@ -2405,6 +2410,7 @@
   }
 
   function leaveDmMode({ quiet = false, openHub = false } = {}) {
+    commitTopbarRoomTitle();
     const prev = dmCode;
     const peer = peerFromDmPayload({
       names: [],
