@@ -376,8 +376,9 @@
   }
 
   function normalizeRoomKeyLocal(raw) {
-    const key = String(raw ?? "").replace(/\D/g, "");
-    return key.length === 4 ? key : "";
+    // Keep partial input (1–3 digits) so the key field is typeable; join still
+    // requires a full 4-digit key elsewhere.
+    return String(raw ?? "").replace(/\D/g, "").slice(0, 4);
   }
 
   function resolveJoinKey(code, keyOverride = "") {
