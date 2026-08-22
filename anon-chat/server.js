@@ -2781,6 +2781,13 @@ io.on("connection", (socket) => {
       return;
     }
     ensureRooms();
+    // Public chat is always available and never keyed/closed.
+    if (isPublicRoomCode(code)) {
+      const pub = ensurePublicRoom();
+      pub.access = "open";
+      pub.closed = false;
+      pub.keyHash = "";
+    }
     if (isPublicRoomCode(code) && !asAdmin && isRoomsOnlyClient(user.clientId)) {
       if (typeof ack === "function") {
         ack({ ok: false, error: `${PUBLIC_CHAT_LABEL} недоступен для этого устройства` });
@@ -2803,6 +2810,7 @@ io.on("connection", (socket) => {
     const alreadyHere = socket.data.roomCode === code;
     // Already inside: stay even if the join key was just changed.
     // Fresh join / other device: must present the current key.
+    // Public room (0 / 000000) never requires a key.
     if (!asAdmin && !isPublicRoomCode(code) && !alreadyHere) {
       if (isRoomClosed(room)) {
         if (typeof ack === "function") ack({ ok: false, error: "Комната закрыта" });

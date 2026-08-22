@@ -748,6 +748,14 @@ button {
   color: var(--ink-soft);
 }
 
+.dm-join-box .dm-action-fields input.is-error,
+#dm-join-key.is-error {
+  border-color: #f04545 !important;
+  background: color-mix(in srgb, #f04545 55%, #1a0a0a) !important;
+  color: #fff !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 120, 120, 0.55);
+}
+
 .dm-action-btn,
 .dm-create-btn,
 .dm-dialog-footer #dm-join-btn,
