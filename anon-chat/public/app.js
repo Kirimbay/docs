@@ -57,9 +57,8 @@
   const roomCloseBtn = $("#room-close-btn");
   const dmDialog = $("#dm-dialog");
   const dmCreateBtn = $("#dm-create-btn");
-  const dmCreateJoinKey = $("#dm-create-join-key");
-  const dmCreateCode = $("#dm-create-code");
   const dmJoinKey = $("#dm-join-key");
+  const dmJoinKeyWrap = $("#dm-join-key-wrap");
   const dmLead = null;
   const dmDialogTitle = $("#dm-dialog-title");
   const dmJoinBtn = $("#dm-join-btn");
@@ -504,6 +503,24 @@
     if (msg?.admin || name === "АДМИН") return `${name || "АДМИН"} · супер`;
     if (msg?.roomAdmin) return `${name} · админ`;
     return name;
+  }
+
+  function setJoinKeyVisible(visible, { focus = false, clear = false } = {}) {
+    const fields = document.querySelector(".dm-join-box .dm-action-fields");
+    if (dmJoinKeyWrap) dmJoinKeyWrap.hidden = !visible;
+    fields?.classList.toggle("join-key-visible", visible);
+    if (clear && dmJoinKey) dmJoinKey.value = "";
+    if (focus && visible) {
+      try {
+        dmJoinKey?.focus({ preventScroll: true });
+      } catch {
+        dmJoinKey?.focus();
+      }
+    }
+  }
+
+  function syncJoinKeyField() {
+    setJoinKeyVisible(false, { clear: true });
   }
 
   function syncRoomAdminUi() {
@@ -1849,9 +1866,11 @@
     if (joinInFlight) return;
     const joinKey =
       normalizeRoomKeyLocal(key) ||
-      normalizeRoomKeyLocal(dmJoinKey?.value || "") ||
+      (dmJoinKeyWrap?.hidden ? "" : normalizeRoomKeyLocal(dmJoinKey?.value || "")) ||
       loadRoomKey(c);
-    if (dmJoinKey && joinKey && dmJoinKey.value !== joinKey) dmJoinKey.value = joinKey;
+    if (!dmJoinKeyWrap?.hidden && dmJoinKey && joinKey && dmJoinKey.value !== joinKey) {
+      dmJoinKey.value = joinKey;
+    }
     const ghost = Boolean(isAdmin && (watchOnly || roomsForDmList().some((r) => r.code === c && r.foreign)));
     const joinBtnEl = document.getElementById("dm-join-btn");
     joinInFlight = true;
@@ -1879,8 +1898,7 @@
           dmCodeInput?.select?.();
         } else if (res?.needsKey || res?.wrongKey) {
           clearRoomKey(c);
-          if (dmJoinKey) dmJoinKey.value = "";
-          dmJoinKey?.focus();
+          setJoinKeyVisible(true, { focus: true, clear: true });
         }
         if (res?.wrongCode || /номер комнаты неверный|не найден|такой комнаты нет/i.test(joinErr)) {
           forgetDmRoom(c);
@@ -1889,6 +1907,7 @@
         return;
       }
       if (joinKey) saveRoomKey(c, joinKey);
+      setJoinKeyVisible(false, { clear: true });
       enterDmMode(res, { watchOnly: ghost || Boolean(res.ghost) });
       markSessionLive();
       if (!ghost && !res.ghost) saveLastDest(c);
@@ -2425,6 +2444,7 @@
     }
     if (dmPeopleWrap) dmPeopleWrap.hidden = Boolean(isAdmin);
     syncHubPeopleChrome();
+    syncJoinKeyField();
   }
 
   function openDmDialog({ requirePick = false } = {}) {
@@ -2446,6 +2466,7 @@
       renderDmRoomsList();
     }
     if (dmCodeInput) dmCodeInput.value = "";
+    syncJoinKeyField();
     dmDialog.showModal();
     layoutDmDialog();
     keepDialogAboveKeyboard(dmDialog, dmCodeInput);
@@ -3284,7 +3305,7 @@
     }
 
     const active = document.activeElement;
-    const actionFields = [dmCodeInput, dmCreateCode, dmCreateJoinKey, dmJoinKey].filter(Boolean);
+    const actionFields = [dmCodeInput, dmJoinKey].filter(Boolean);
     const actionFocused = actionFields.includes(active);
     if (actionFocused && hubPeopleOpen) setHubPeopleOpen(false);
 
@@ -5595,30 +5616,7 @@
       showDmDialogError("Сначала войдите с пином аккаунта");
       return;
     }
-    const createCodeEl = document.getElementById("dm-create-code");
-    const createKeyEl = document.getElementById("dm-create-join-key");
     const createBtnEl = document.getElementById("dm-create-btn");
-    const joinRaw = String(createKeyEl?.value || "")
-      .replace(/\D/g, "")
-      .slice(0, 4);
-    if (joinRaw && joinRaw.length !== 4) {
-      showDmDialogError("Ключ от комнаты — ровно 4 цифры, или оставьте пустым");
-      createKeyEl?.focus();
-      return;
-    }
-    const preferredRaw = normalizeDmCodeLocal(createCodeEl?.value || "");
-    if (preferredRaw.length === 6 && createCodeEl) createCodeEl.value = preferredRaw;
-    if (String(createCodeEl?.value || "").replace(/\D/g, "") && preferredRaw.length !== 6) {
-      showDmDialogError("Введите номер комнаты цифрами или оставьте пустым");
-      createCodeEl?.focus();
-      return;
-    }
-    const joinKey = joinRaw.length === 4 ? joinRaw : "";
-    const payload = {
-      joinKey,
-      access: joinKey ? "keyed" : "open",
-    };
-    if (preferredRaw.length === 6) payload.code = preferredRaw;
     createInFlight = true;
     if (createBtnEl) createBtnEl.disabled = true;
     notify("Создаём комнату…");
@@ -5630,7 +5628,7 @@
       finishCreate();
       showDmDialogError("Долго нет ответа · попробуйте ещё раз");
     }, 12000);
-    socket.timeout(10000).emit("dm:create", payload, (err, res) => {
+    socket.timeout(10000).emit("dm:create", {}, (err, res) => {
       clearTimeout(createTimer);
       finishCreate();
       if (err) {
@@ -5642,29 +5640,19 @@
         return;
       }
       if (accountPin.length === 4) saveAdminPin(res.code, accountPin);
-      if (joinKey) saveRoomKey(res.code, joinKey);
-      else clearRoomKey(res.code);
+      const joinKey = normalizeRoomKeyLocal(res.joinKey || "");
+      if (joinKey.length === 4) saveRoomKey(res.code, joinKey);
       markOwnedRoom(res.code);
-      if (createKeyEl) createKeyEl.value = "";
-      if (createCodeEl) createCodeEl.value = "";
       enterDmMode(res);
       saveLastDest(res.code);
       markSessionLive();
       hubRequirePick = false;
       void closeDmDialogSoft();
-      if (res.remapped && preferredRaw) {
-        notify(
-          joinKey
-            ? `Номер ${formatRoomCodeDisplay(preferredRaw)} занят · выдан ${formatRoomCodeDisplay(res.code)} · для других ключ ${joinKey}`
-            : `Номер ${formatRoomCodeDisplay(preferredRaw)} занят · выдан ${formatRoomCodeDisplay(res.code)} · для других свободный`
-        );
-      } else {
-        notify(
-          joinKey
-            ? `Номер ${formatRoomCodeDisplay(res.code)} · для других ключ ${joinKey}`
-            : `Номер ${formatRoomCodeDisplay(res.code)} · для других свободный`
-        );
-      }
+      notify(
+        joinKey
+          ? `Номер ${formatRoomCodeDisplay(res.code)} · закрытая · ключ ${joinKey}`
+          : `Номер ${formatRoomCodeDisplay(res.code)} · закрытая`
+      );
     });
   }
 
@@ -5744,17 +5732,9 @@
   dmCodeInput?.addEventListener("input", () => {
     const digits = (dmCodeInput.value || "").replace(/\D/g, "").slice(0, 6);
     if (dmCodeInput.value !== digits) dmCodeInput.value = digits;
+    setJoinKeyVisible(false, { clear: true });
   });
   dmCodeInput?.addEventListener("blur", () => formatRoomCodeField(dmCodeInput));
-  dmCreateCode?.addEventListener("input", () => {
-    const digits = (dmCreateCode.value || "").replace(/\D/g, "").slice(0, 6);
-    if (dmCreateCode.value !== digits) dmCreateCode.value = digits;
-  });
-  dmCreateCode?.addEventListener("blur", () => formatRoomCodeField(dmCreateCode));
-  dmCreateJoinKey?.addEventListener("input", () => {
-    const digits = normalizeRoomKeyLocal(dmCreateJoinKey.value);
-    if (dmCreateJoinKey.value !== digits) dmCreateJoinKey.value = digits;
-  });
   dmJoinKey?.addEventListener("input", () => {
     const digits = normalizeRoomKeyLocal(dmJoinKey.value);
     if (dmJoinKey.value !== digits) dmJoinKey.value = digits;
@@ -5771,18 +5751,6 @@
     if (e.key === "Enter") {
       e.preventDefault();
       joinDmFromInput();
-    }
-  });
-  dmCreateCode?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      createDmRoomFromForm();
-    }
-  });
-  dmCreateJoinKey?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      createDmRoomFromForm();
     }
   });
 
@@ -6053,8 +6021,6 @@
   }
   bindHubFieldKeyboard(dmCodeInput, "join");
   bindHubFieldKeyboard(dmJoinKey, "join");
-  bindHubFieldKeyboard(dmCreateCode, "create");
-  bindHubFieldKeyboard(dmCreateJoinKey, "create");
   bindHubFieldKeyboard(dmPeopleSearch, "people");
   dmLeaveBtn?.addEventListener("click", () => {
     if (!dmCode) return;

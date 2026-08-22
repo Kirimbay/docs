@@ -2475,23 +2475,21 @@ io.on("connection", (socket) => {
     const adminDigest = adminKey
       ? hashRoomKey(adminKey)
       : account?.pinHash || "";
-    // joinKey field: empty → open for others; 4 digits → keyed.
-    // Legacy clients: access + single key (admin pin doubles as join key).
+    // joinKey: explicit 4 digits → keyed; access "open" + empty joinKey → open;
+    // otherwise default to a random keyed room.
     const hasJoinField = Object.prototype.hasOwnProperty.call(payload, "joinKey");
-    const joinKey = normalizeRoomKey(payload.joinKey);
+    let joinKey = normalizeRoomKey(payload.joinKey);
     let roomAccess;
     let joinDigest = "";
-    if (hasJoinField) {
-      roomAccess = joinKey ? "keyed" : "open";
-      joinDigest = joinKey ? hashRoomKey(joinKey) : "";
+    if (payload.access === "open" && hasJoinField && !joinKey) {
+      roomAccess = "open";
+    } else if (joinKey) {
+      roomAccess = "keyed";
+      joinDigest = hashRoomKey(joinKey);
     } else {
-      roomAccess = payload.access === "keyed" ? "keyed" : "open";
-      joinDigest =
-        roomAccess === "keyed"
-          ? adminKey
-            ? hashRoomKey(adminKey)
-            : account?.pinHash || ""
-          : "";
+      joinKey = generateRoomJoinKey();
+      roomAccess = "keyed";
+      joinDigest = hashRoomKey(joinKey);
     }
     leaveDmRoom(socket);
     ensureRooms();
@@ -2558,6 +2556,7 @@ io.on("connection", (socket) => {
         ghost: false,
         roomAdmin: false,
         isOwner: true,
+        ...(roomAccess === "keyed" ? { joinKey } : {}),
         ...roomPublicFlags(store.rooms[code]),
       });
     }

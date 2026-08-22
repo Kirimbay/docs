@@ -711,10 +711,32 @@ button {
 }
 
 .dm-create-box {
+  display: flex;
+  justify-content: center;
   padding: 0.35rem;
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--dm-accent) 40%, var(--line));
   background: color-mix(in srgb, var(--dm-accent) 12%, var(--bg));
+}
+
+.dm-create-box #dm-create-btn {
+  width: auto !important;
+  min-width: 9rem;
+  max-width: 14rem;
+  padding: 0 1.75rem;
+  justify-self: center;
+}
+
+.dm-join-box .dm-action-fields {
+  grid-template-columns: minmax(0, 1.35fr) 5.75rem;
+}
+
+.dm-join-box .dm-action-fields.join-key-visible {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) 5.75rem;
+}
+
+.dm-join-box .dm-key-field[hidden] {
+  display: none !important;
 }
 
 .dm-join-box {

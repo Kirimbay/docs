@@ -101,10 +101,12 @@ const nameA = `UserA${Date.now().toString().slice(-4)}`;
 const nameB = `UserB${Date.now().toString().slice(-4)}`;
 const nameC = `UserC${Date.now().toString().slice(-4)}`;
 
-await check("1. Обычный юзер: создать открытую комнату и писать", async () => {
+await check("1. Обычный юзер: создать закрытую комнату и писать", async () => {
   const a = await joinAs(nameA, pinA);
-  const created = await emitAck(a.socket, "dm:create", { joinKey: "", access: "open" });
+  const created = await emitAck(a.socket, "dm:create", {});
   assert(created?.ok, created?.error || "create failed");
+  assert(created.keyed === true || created.access === "keyed", "default create should be keyed");
+  assert(String(created.joinKey || "").length === 4, "create should return joinKey");
   assert(created.isOwner === true, "creator should be owner");
   assert(created.roomAdmin === false, "create should not auto room-admin");
   const msg = await emitAck(a.socket, "chat:message", { text: "привет из A" });
@@ -114,7 +116,7 @@ await check("1. Обычный юзер: создать открытую ком�
 
 await check("2. Обычный юзер: войти в чужую открытую комнату без ключа", async () => {
   const owner = await joinAs(nameA + "o", pinA);
-  const created = await emitAck(owner.socket, "dm:create", { joinKey: "" });
+  const created = await emitAck(owner.socket, "dm:create", { joinKey: "", access: "open" });
   assert(created?.ok, created?.error || "create failed");
   const code = created.code;
   const guest = await joinAs(nameB, pinB);
@@ -216,7 +218,7 @@ await check("5. Реконнект: chat:join с пином восстанавл
   await onceReady(s1);
   const j1 = await emitAck(s1, "chat:join", { name, pin, clientId: cid });
   assert(j1?.ok, j1?.error || "first join failed");
-  const created = await emitAck(s1, "dm:create", { joinKey: "" });
+  const created = await emitAck(s1, "dm:create", { joinKey: "", access: "open" });
   assert(created?.ok, created?.error || "create failed");
   const code = created.code;
   s1.close();

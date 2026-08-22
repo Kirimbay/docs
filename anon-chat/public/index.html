@@ -254,35 +254,7 @@
         </div>
         <div class="dm-dialog-footer">
           <div class="dm-action-box dm-create-box">
-            <div class="dm-action-fields">
-              <label class="field dm-code-field">
-                <span class="visually-hidden">Новый номер</span>
-                <input
-                  id="dm-create-code"
-                  type="text"
-                  inputmode="numeric"
-                  pattern="[0-9]{1,6}"
-                  maxlength="6"
-                  autocomplete="off"
-                  placeholder="новый"
-                  aria-label="Новый номер комнаты"
-                />
-              </label>
-              <label class="field dm-key-field">
-                <span class="visually-hidden">Ключ для других</span>
-                <input
-                  id="dm-create-join-key"
-                  type="text"
-                  inputmode="numeric"
-                  pattern="[0-9]{4}"
-                  maxlength="4"
-                  autocomplete="off"
-                  placeholder="ключ?"
-                  aria-label="Ключ для других"
-                />
-              </label>
-              <button type="button" id="dm-create-btn" class="primary dm-action-btn">Создать</button>
-            </div>
+            <button type="button" id="dm-create-btn" class="primary dm-action-btn">Создать</button>
           </div>
           <div class="dm-action-box dm-join-box">
             <div class="dm-action-fields">
@@ -301,7 +273,7 @@
                   aria-label="Номер комнаты"
                 />
               </label>
-              <label class="field dm-key-field" id="dm-join-key-wrap">
+              <label class="field dm-key-field" id="dm-join-key-wrap" hidden>
                 <span class="visually-hidden">Ключ</span>
                 <input
                   id="dm-join-key"
