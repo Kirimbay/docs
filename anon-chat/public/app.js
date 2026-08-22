@@ -17,7 +17,6 @@
   const pinsList = $("#pins-list");
   const pinsCloseBtn = $("#pins-close-btn");
   const presence = $("#presence");
-  const topbarBrandTitle = $("#topbar-brand-title");
   const topbarRoomTitle = $("#topbar-room-title");
   const messageInput = $("#message-input");
   const sendBtn = $("#send-btn");
@@ -671,7 +670,6 @@
 
   function syncTopbarRoomTitle() {
     const inRoom = Boolean(dmCode);
-    if (topbarBrandTitle) topbarBrandTitle.hidden = inRoom;
     if (!topbarRoomTitle) return;
     topbarRoomTitle.hidden = !inRoom;
     if (!inRoom) {
