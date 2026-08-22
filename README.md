@@ -1,3 +1,18 @@
+# Docs
+
+## Hiddify: блок торрентов одной командой
+
+На сервере с Hiddify Manager (от root):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Kirimbay/docs/main/scripts/hiddify-block-torrents.sh -o /tmp/hiddify-block-torrents.sh
+sudo bash /tmp/hiddify-block-torrents.sh
+```
+
+Подробности: [hiddify-block-torrents.mdx](./hiddify-block-torrents.mdx). Скрипт: [scripts/hiddify-block-torrents.sh](./scripts/hiddify-block-torrents.sh).
+
+---
+
 # Mintlify Starter Kit
 
 Click on `Use this template` to copy the Mintlify starter kit. The starter kit contains examples including

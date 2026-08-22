@@ -1,0 +1,71 @@
+---
+title: "Hiddify: блок торрентов"
+description: "Одна команда на сервере с Hiddify Manager — пользователи остаются онлайн, BitTorrent через VPN перестаёт качаться."
+---
+
+## Что выполнить на сервере
+
+Под root, по SSH, на каждой машине с Hiddify Manager:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Kirimbay/docs/main/scripts/hiddify-block-torrents.sh -o /tmp/hiddify-block-torrents.sh
+sudo bash /tmp/hiddify-block-torrents.sh
+```
+
+Проверка:
+
+```bash
+hiddify-block-torrents status
+```
+
+Снять блок (вернуть как было):
+
+```bash
+sudo hiddify-block-torrents uninstall
+```
+
+VPN, сайты, YouTube, Telegram и панель Hiddify не отключаются. Короткий рестарт `hiddify-xray` / `hiddify-singbox` (пара секунд) бывает только в момент установки и после «Apply Configs».
+
+## Почему команды хостера не помогли
+
+Поддержка предложила закрыть TCP/UDP **6881–6889** и **6969**. Это классические порты BitTorrent 2004 года. Сейчас клиенты:
+
+- берут **случайный порт**;
+- ходят в **DHT** и на **публичные трекеры**;
+- часто включают **шифрование протокола**.
+
+Второй момент важнее портов. Hiddify — это **прокси** (Xray / Sing-box), а не классический TUN-VPN. Трафик пользователя расшифровывается на сервере, и уже **процесс xray/sing-box сам открывает исходящие соединения**. Они идут в цепочку **OUTPUT**, не **FORWARD**. Правила только в `FORWARD` хостерский сниппет почти никогда не видит.
+
+Третье: в Xray у Hiddify правило «blackhole для `bittorrent`» уже есть. В **Sing-box** (Hysteria2, TUIC и часть других протоколов) то же правило **закомментировано**. Если люди сидят не на Reality/VLESS, торренты спокойно выходят в интернет.
+
+## Что делает скрипт
+
+1. **Xray** — оставляет штатный blackhole и добавляет блок портов + публичных трекеров / DHT-bootstrap **до** catch-all правила.
+2. **Sing-box** — включает рабочий `protocol: bittorrent → reject` (не тот закомментированный кусок с синтаксисом Xray) плюс те же трекеры.
+3. **nftables + iptables/ip6tables** — отдельная таблица/цепочка `HIDDIFY_NOTORRENT` на **OUTPUT и FORWARD**:
+   - порты 6881–6889, 6969, 51413;
+   - handshake `\x13BitTorrent protocol`;
+   - DHT (`get_peers`, `announce_peer`, `find_node`);
+   - IP публичных трекеров (ipset).
+4. **Автоповтор каждые 2 минуты** и сразу после «Apply Configs» / обновления Hiddify, чтобы панель не затёрла правки.
+
+Не используются широкие строки вроде `torrent` или `announce` — они ломают обычные сайты.
+
+## Честно про лимиты
+
+Зашифрованный BitTorrent (MSE/PE) без handshake не всегда ловится по сигнатуре. Тогда остаются:
+
+- блок на уровне Xray/Sing-box (sniff);
+- трекеры и DHT (без них клиент долго не находит пиров);
+- порты по умолчанию.
+
+Это закрывает типичную абузу с qBittorrent / Transmission / uTorrent через VPN. Это не анти-DPI операторского класса: dedicated seedbox с шифрованием и private tracker теоретически может просочиться. Если после установки абуза повторится — смотрите, какой пользователь жрёт трафик, и отключайте его в панели.
+
+## Файлы, которые трогает установка
+
+- `/opt/hiddify-manager/xray/configs/03_routing.json.j2` (+ сгенерированный `.json`)
+- `/opt/hiddify-manager/singbox/configs/03_routing.json.j2` (+ `.json`)
+- `/opt/hiddify-notorrent/` — копия скрипта и бэкапы
+- systemd: `hiddify-notorrent.service` / `.timer` / `.path`
+
+Исходники перед правкой копируются в `/opt/hiddify-notorrent/backups/`. `uninstall` их возвращает.
