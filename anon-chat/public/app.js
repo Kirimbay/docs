@@ -17,6 +17,8 @@
   const pinsList = $("#pins-list");
   const pinsCloseBtn = $("#pins-close-btn");
   const presence = $("#presence");
+  const topbarBrandTitle = $("#topbar-brand-title");
+  const topbarRoomTitle = $("#topbar-room-title");
   const messageInput = $("#message-input");
   const sendBtn = $("#send-btn");
   const photoInput = $("#photo-input");
@@ -139,6 +141,7 @@
   const CLIENT_ID_KEY = "sarafan_client_id";
   const PUBLIC_CHAT_LABEL_DEFAULT = "Сарафан ВПН";
   const MAX_DM_ROOMS = 24;
+  const MAX_ROOM_TITLE_LEN = 32;
   const ADMIN_TOKEN_KEY = "sarafan_admin_token";
   const PREV_NAME_KEY = "sarafan_prev_name";
   const NOTIFY_KEY = "sarafan_notify";
@@ -664,6 +667,46 @@
       void copyDmBarValue(copyValue, kind);
     });
     return btn;
+  }
+
+  function syncTopbarRoomTitle() {
+    const inRoom = Boolean(dmCode);
+    if (topbarBrandTitle) topbarBrandTitle.hidden = inRoom;
+    if (!topbarRoomTitle) return;
+    topbarRoomTitle.hidden = !inRoom;
+    if (!inRoom) {
+      topbarRoomTitle.value = "";
+      return;
+    }
+    topbarRoomTitle.value = roomTitleForCode(dmCode);
+    topbarRoomTitle.placeholder = "Название комнаты";
+  }
+
+  function roomTitleForCode(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return "";
+    const room = loadDmRooms().find((r) => r.code === c);
+    return typeof room?.title === "string" ? room.title.trim() : "";
+  }
+
+  function setRoomTitle(code, rawTitle) {
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return;
+    const title =
+      typeof rawTitle === "string" ? rawTitle.trim().slice(0, MAX_ROOM_TITLE_LEN) : "";
+    rememberDmRoom(c, {
+      title,
+      active: Boolean(dmCode && dmCode === c),
+    });
+    if (dmCode === c && topbarRoomTitle && topbarRoomTitle.value.trim() !== title) {
+      topbarRoomTitle.value = title;
+    }
+    if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+  }
+
+  function commitTopbarRoomTitle() {
+    if (!dmCode || !topbarRoomTitle) return;
+    setRoomTitle(dmCode, topbarRoomTitle.value);
   }
 
   function syncDmBarMeta() {
@@ -1489,6 +1532,7 @@
               unread: Math.max(0, Number(item?.unread) || 0),
               keyed: Boolean(item?.keyed),
               closed: Boolean(item?.closed),
+              title: typeof item?.title === "string" ? item.title.trim().slice(0, MAX_ROOM_TITLE_LEN) : "",
             }))
             .filter((item) => item.code.length === 6);
         }
@@ -1506,6 +1550,7 @@
         lastReadId: "",
         names: [],
         unread: 0,
+        title: "",
       });
     }
     rooms.sort((a, b) => b.lastAt - a.lastAt);
@@ -1539,6 +1584,9 @@
                     .slice(0, 100)
                 : [],
               unread: Math.max(0, Number(r.unread) || 0),
+              keyed: Boolean(r.keyed),
+              closed: Boolean(r.closed),
+              title: typeof r.title === "string" ? r.title.trim().slice(0, MAX_ROOM_TITLE_LEN) : "",
             }))
             .slice(0, MAX_DM_ROOMS)
         )
@@ -1620,7 +1668,7 @@
 
   function rememberDmRoom(
     code,
-    { active = true, peer, messageCount, lastReadId, names, unread, keyed, closed } = {}
+    { active = true, peer, messageCount, lastReadId, names, unread, keyed, closed, title } = {}
   ) {
     const c = normalizeDmCodeLocal(code);
     if (c.length !== 6) return;
@@ -1652,6 +1700,8 @@
           : prev?.unread || 0;
     const nextKeyed = typeof keyed === "boolean" ? keyed : Boolean(prev?.keyed);
     const nextClosed = typeof closed === "boolean" ? closed : Boolean(prev?.closed);
+    const nextTitle =
+      typeof title === "string" ? title.trim().slice(0, MAX_ROOM_TITLE_LEN) : prev?.title || "";
     rooms.unshift({
       code: c,
       lastAt: Date.now(),
@@ -1662,6 +1712,7 @@
       unread: nextUnread,
       keyed: nextKeyed,
       closed: nextClosed,
+      title: nextTitle,
     });
     saveDmRooms(rooms);
     if (active) saveDmCode(c);
@@ -2041,19 +2092,32 @@
       const storedKey = loadRoomKey(room.code);
       const keyShown = roomKeyDisplay(room.code);
       const shown = formatRoomCodeDisplay(room.code);
-      enterBtn.title = owned
-        ? `Админ · комната ${shown} · ключ ${keyShown}`
-        : keyed
-          ? storedKey
-            ? `Комната ${shown} · ключ ${storedKey}`
-            : `Комната ${shown} · ключ -`
-          : unread
-            ? `Комната ${shown} · ${newMessagesLabel(unread)}`
-            : `Комната ${shown} · ключ ${keyShown}`;
+      const roomTitle = typeof room.title === "string" ? room.title.trim() : "";
+      enterBtn.title = roomTitle
+        ? owned
+          ? `Админ · ${roomTitle} · ${shown} · ключ ${keyShown}`
+          : keyed
+            ? storedKey
+              ? `${roomTitle} · ${shown} · ключ ${storedKey}`
+              : `${roomTitle} · ${shown} · ключ -`
+            : unread
+              ? `${roomTitle} · ${shown} · ${newMessagesLabel(unread)}`
+              : `${roomTitle} · ${shown} · ключ ${keyShown}`
+        : owned
+          ? `Админ · комната ${shown} · ключ ${keyShown}`
+          : keyed
+            ? storedKey
+              ? `Комната ${shown} · ключ ${storedKey}`
+              : `Комната ${shown} · ключ -`
+            : unread
+              ? `Комната ${shown} · ${newMessagesLabel(unread)}`
+              : `Комната ${shown} · ключ ${keyShown}`;
 
       const codeEl = document.createElement("strong");
       codeEl.className = "dm-room-code";
-      codeEl.textContent = `🚪 ${shown} · 🔑 ${keyShown}`;
+      codeEl.textContent = roomTitle
+        ? `🚪 ${shown} · 🔑 ${keyShown} · ${roomTitle}`
+        : `🚪 ${shown} · 🔑 ${keyShown}`;
 
       enterBtn.append(codeEl);
       enterBtn.addEventListener("click", (e) => {
@@ -2318,6 +2382,7 @@
     if (dmBar) dmBar.hidden = false;
     if (!dmDialog?.open) setUiView("room");
     syncDmBarMeta();
+    syncTopbarRoomTitle();
     syncRoomAdminUi();
     clearReply();
     renderAll(
@@ -2362,6 +2427,7 @@
     setUiView("hub");
     document.body.classList.remove("dm-on", "dm-ghost");
     if (dmBar) dmBar.hidden = true;
+    syncTopbarRoomTitle();
     if (messageInput) messageInput.placeholder = "Написать сообщение…";
     clearReply();
     publicStateBackup = null;
@@ -5084,6 +5150,20 @@
     if (!myName) return;
     openOnlineList();
   });
+  topbarRoomTitle?.addEventListener("blur", () => {
+    commitTopbarRoomTitle();
+  });
+  topbarRoomTitle?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      topbarRoomTitle.blur();
+    }
+  });
+  topbarRoomTitle?.addEventListener("input", () => {
+    if (topbarRoomTitle.value.length > MAX_ROOM_TITLE_LEN) {
+      topbarRoomTitle.value = topbarRoomTitle.value.slice(0, MAX_ROOM_TITLE_LEN);
+    }
+  });
   onlineCloseBtn?.addEventListener("click", closeOnlineList);
   onlineDialog?.addEventListener("click", (e) => {
     if (e.target === onlineDialog) closeOnlineList();
@@ -6149,6 +6229,7 @@
     document.body.classList.remove("dm-on", "admin-on", "dm-ghost", "room-admin-on");
     clearRoomAdminState();
     if (dmBar) dmBar.hidden = true;
+    syncTopbarRoomTitle();
     if (dmDialog?.open) dmDialog.close();
     closeOnlineList();
     closeAllReactMenus();
