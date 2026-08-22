@@ -1212,10 +1212,7 @@ button {
 }
 
 .dm-room-enter {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.35rem;
+  display: block;
   min-width: 0;
   flex: 0 0 auto;
   padding: 0.4rem 0.5rem;
@@ -1224,6 +1221,10 @@ button {
   background: var(--bg-elev);
   color: inherit;
   text-align: left;
+}
+
+.dm-room-row.has-unread .dm-room-enter {
+  border-color: color-mix(in srgb, #8fd9ad 45%, var(--line));
 }
 
 .dm-room-row.is-foreign .dm-room-enter {

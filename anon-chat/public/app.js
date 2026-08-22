@@ -1275,6 +1275,11 @@
     return key || "-";
   }
 
+  function clearHubJoinFields() {
+    if (dmCodeInput) dmCodeInput.value = "";
+    if (dmJoinKey) dmJoinKey.value = "";
+  }
+
   function appendDmBarRoomMeta(container, code) {
     const shown = formatRoomCodeDisplay(code);
     const door = document.createElement("span");
@@ -1916,7 +1921,6 @@
   function joinDmByCode(code, { fromList = false, watchOnly = false, key = "" } = {}) {
     showDmDialogError("");
     const c = normalizeDmCodeLocal(code);
-    if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c) || c;
     if (c.length !== 6) {
       showDmDialogError("Введите номер комнаты цифрами");
       return;
@@ -1933,7 +1937,6 @@
         normalizeRoomKeyLocal(key) ||
         normalizeRoomKeyLocal(dmJoinKey?.value || "") ||
         loadRoomKey(c);
-      if (dmJoinKey && joinKey && dmJoinKey.value !== joinKey) dmJoinKey.value = joinKey;
       const ghost = Boolean(isAdmin && (watchOnly || roomsForDmList().some((r) => r.code === c && r.foreign)));
       const joinBtnEl = document.getElementById("dm-join-btn");
       joinInFlight = true;
@@ -1980,6 +1983,7 @@
         markSessionLive();
         if (!ghost && !res.ghost) saveLastDest(c);
         hubRequirePick = false;
+        clearHubJoinFields();
         void closeDmDialogSoft();
       });
     };
@@ -2015,6 +2019,7 @@
       const row = document.createElement("div");
       const keyed = Boolean(room.keyed);
       const owned = isOwnedRoom(room.code);
+      const unread = dmCode === room.code ? 0 : Math.max(0, Number(room.unread) || 0);
       row.className =
         "dm-room-row" +
         (room.foreign ? " is-foreign" : "") +
@@ -2022,7 +2027,8 @@
         (keyed ? " has-key" : "") +
         (room.closed ? " is-closed" : "") +
         (dmCode === room.code ? " is-current" : "") +
-        (hubBulkSelectOn && hubBulkSelectedCodes.has(room.code) ? " is-bulk-selected" : "");
+        (hubBulkSelectOn && hubBulkSelectedCodes.has(room.code) ? " is-bulk-selected" : "") +
+        (unread > 0 ? " has-unread" : "");
       row.setAttribute("role", "listitem");
       row.dataset.code = room.code;
 
@@ -2032,7 +2038,6 @@
       const enterBtn = document.createElement("button");
       enterBtn.type = "button";
       enterBtn.className = "dm-room-enter";
-      const unread = dmCode === room.code ? 0 : Math.max(0, Number(room.unread) || 0);
       const storedKey = loadRoomKey(room.code);
       const keyShown = roomKeyDisplay(room.code);
       const shown = formatRoomCodeDisplay(room.code);
@@ -2040,51 +2045,24 @@
         ? `Админ · комната ${shown} · ключ ${keyShown}`
         : keyed
           ? storedKey
-            ? `Закрытая · комната ${shown} · ключ ${storedKey}`
-            : `Закрытая · комната ${shown} · ключ -`
-          : room.foreign
-            ? unread
-              ? `Смотреть · ${newMessagesLabel(unread)}`
-              : `Смотреть · комната ${shown}`
-            : unread
-              ? `Войти · ${newMessagesLabel(unread)}`
-              : `Войти · комната ${shown} · ключ ${keyShown}`;
+            ? `Комната ${shown} · ключ ${storedKey}`
+            : `Комната ${shown} · ключ -`
+          : unread
+            ? `Комната ${shown} · ${newMessagesLabel(unread)}`
+            : `Комната ${shown} · ключ ${keyShown}`;
 
       const codeEl = document.createElement("strong");
       codeEl.className = "dm-room-code";
       codeEl.textContent = `🚪 ${shown} · 🔑 ${keyShown}`;
 
-      const unreadEl = document.createElement("span");
-      unreadEl.className = "dm-room-unread" + (unread > 0 ? " has-new" : "");
-      const msgCount = Math.max(0, Number(room.messageCount) || 0);
-      const here = dmCode === room.code;
-      const counts = roomCountsLabel(msgCount, unread, { here });
-      const keyPart = `ключ ${keyShown}`;
-      if (owned) {
-        unreadEl.textContent = `${counts} · админ · ${keyPart}`;
-      } else if (here && (room.foreign || isAdmin)) {
-        unreadEl.textContent = `${counts} · смотр · ${keyPart}`;
-      } else {
-        unreadEl.textContent = `${counts} · ${keyPart}`;
-      }
-
-      enterBtn.append(codeEl, unreadEl);
+      enterBtn.append(codeEl);
       enterBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
         handleHubRoomEnterTap(room);
       });
 
-      const namesInfo = document.createElement("div");
-      namesInfo.className = "dm-room-names";
-      const fullNames = Array.isArray(room.names) ? room.names : [];
-      const accessHint = `${keyPart} · `;
-      namesInfo.textContent = accessHint + namesLabel(fullNames, { collapsed: false });
-      namesInfo.title = fullNames.length
-        ? fullNames.join(", ")
-        : `${keyPart} · пока никого`;
-
-      main.append(enterBtn, namesInfo);
+      main.append(enterBtn);
       row.append(main);
 
       {
@@ -2304,7 +2282,6 @@
     removePendingInvite(res.code);
     const ghost = Boolean(watchOnly || res.ghost);
     dmSessionGhost = ghost;
-    const isPublic = isPublicRoomCode(res.code);
     if (ghost) {
       markAdminRoomRead(res.code, res.messages || []);
       if (loadDmRooms().some((r) => r.code === res.code)) {
@@ -2395,6 +2372,7 @@
     });
     syncDmBtn();
     updatePresenceChrome();
+    clearHubJoinFields();
     if (prev) {
       if (!wasGhost) {
         markDmRoomRead(prev, snapshotMessages, {
@@ -2512,7 +2490,7 @@
     } else {
       refreshHubFromServer({ render: false }).finally(() => renderDmRoomsList());
     }
-    if (dmCodeInput) dmCodeInput.value = "";
+    clearHubJoinFields();
     dmDialog.showModal();
     layoutDmDialog();
     keepDialogAboveKeyboard(dmDialog, dmCodeInput);
