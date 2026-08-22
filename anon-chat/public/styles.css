@@ -751,8 +751,8 @@ button {
   flex-direction: column;
 }
 
-.dm-action-fields .field span,
-.dm-action-row .field span {
+.dm-action-fields .field > span.visually-hidden,
+.dm-action-row .field > span.visually-hidden {
   font-size: 0.62rem;
   letter-spacing: 0.03em;
   text-transform: none;
@@ -821,6 +821,8 @@ button {
   background: var(--bg-elev);
 }
 
+.dm-action-fields .field .dm-join-field-icon,
+.dm-action-row .field .dm-join-field-icon,
 .dm-join-field-icon {
   flex: 0 0 auto;
   font-family: var(--font-body);
@@ -830,6 +832,8 @@ button {
   letter-spacing: 0.08em;
   color: #8fd9ad;
   user-select: none;
+  text-transform: none;
+  min-height: auto;
 }
 
 .dm-join-field-inner input {
@@ -1211,7 +1215,7 @@ button {
   gap: 0.18rem;
 }
 
-.dm-code-field span {
+.dm-code-field > span.visually-hidden {
   font-size: 0.68rem;
 }
 
