@@ -485,6 +485,36 @@ button {
   font-weight: 650;
 }
 
+.dm-bar-copy-chip {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--dm-accent);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dm-bar-copy-chip:active {
+  opacity: 0.72;
+}
+
+.dm-bar-emoji,
+.dm-bar-sep,
+.dm-bar-muted {
+  font-weight: 400;
+  color: inherit;
+}
+
+.dm-bar-muted {
+  color: var(--muted);
+}
+
 .dm-bar-presence {
   flex: 0 0 auto;
   font-size: 0.68rem;
@@ -3690,12 +3720,6 @@ body.keyboard-open .pins-dialog.dialog {
 .me-btn.is-admin {
   border-color: var(--ok);
   color: var(--ok);
-}
-
-.dm-bar #dm-copy-btn {
-  font-size: 0.7rem;
-  padding: 0.22rem 0.45rem;
-  white-space: nowrap;
 }
 
 .admin-on #me-btn {
