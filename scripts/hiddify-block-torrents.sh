@@ -15,7 +15,9 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.3.0"
+VERSION="1.4.0"
+WEB_TCP_PORTS="80,443,853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
+WEB_UDP_PORTS="53,123,443,853,3478"
 TORRENT_TAG="blocked_torrent"
 INSTALL_DIR="${NOTORRENT_INSTALL_DIR:-/opt/hiddify-notorrent}"
 SELF_PATH="${INSTALL_DIR}/hiddify-block-torrents.sh"
@@ -109,8 +111,37 @@ for d in domains:
         uniq.append(d)
 domains = uniq
 
-def xray_block():
+TCP_PORTS = os.environ.get("NOTORRENT_WEB_TCP", "80,443,853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478")
+UDP_PORTS = os.environ.get("NOTORRENT_WEB_UDP", "53,123,443,853,3478")
+TCP_LIST = ", ".join(p.strip() for p in TCP_PORTS.split(",") if p.strip())
+UDP_LIST = ", ".join(p.strip() for p in UDP_PORTS.split(",") if p.strip())
+
+def web_outbound(text):
+    """Where Instagram/YouTube should still go: freedom, or WARP if the panel sends everything there."""
+    m = re.search(
+        r"HIDDIFY_NOTORRENT_BEGIN[\s\S]{0,4000}?"
+        r'"network":\s*"tcp"[\s\S]{0,250}?"outboundTag":\s*'
+        r'(\{%[\s\S]*?%\}|"WARP"|"freedom")',
+        text,
+    )
+    if m:
+        return m.group(1).strip()
+    if "{% if hconfigs['warp_mode'] == 'all' %}" in text:
+        return '{% if hconfigs[\'warp_mode\'] == \'all\' %}"WARP"{% else %}"freedom"{% endif %}'
+    m = re.search(
+        r'"port":\s*"0-65535"[\s\S]{0,120}?"outboundTag":\s*("WARP"|"freedom")',
+        text,
+    )
+    if m:
+        return m.group(1)
+    m = re.search(r'"final":\s*("WARP"|"freedom")', text)
+    if m:
+        return m.group(1)
+    return '"freedom"'
+
+def xray_block(text):
     listed = ",\n                ".join(f'"domain:{d}"' for d in domains)
+    dest = web_outbound(text)
     return f'''            {{ // {MARKER_BEGIN}
               "type": "field",
               "outboundTag": "blocked_torrent",
@@ -129,11 +160,24 @@ def xray_block():
                 {listed}
               ]
             }},
+            {{
+              "type": "field",
+              "network": "tcp",
+              "port": "{TCP_PORTS}",
+              "outboundTag": {dest}
+            }},
+            {{
+              "type": "field",
+              "network": "udp",
+              "port": "{UDP_PORTS}",
+              "outboundTag": {dest}
+            }},
             // {MARKER_END}
 '''
 
-def singbox_block():
+def singbox_block(text):
     listed = ",\n                ".join(f'"{d}"' for d in domains)
+    dest = web_outbound(text)
     return f'''            // {MARKER_BEGIN}
             {{
               "protocol": "bittorrent",
@@ -154,6 +198,20 @@ def singbox_block():
               "domain_suffix": [
                 {listed}
               ],
+              "action": "reject",
+              "method": "default"
+            }},
+            {{
+              "port": [{TCP_LIST}],
+              "network": "tcp",
+              "outbound": {dest}
+            }},
+            {{
+              "port": [{UDP_LIST}],
+              "network": "udp",
+              "outbound": {dest}
+            }},
+            {{
               "action": "reject",
               "method": "default"
             }},
@@ -184,23 +242,37 @@ def retag_official_bt(text):
         count=1,
     )
 
-def insert_xray(text, block):
+def retarget_catchall(text):
+    """Last-resort 0-65535 must NOT go to freedom — that is how encrypted torrents leak.
+    Replace the whole outboundTag value (quoted tag or a full jinja if/else)."""
+    new, n = re.subn(
+        r'("port":\s*"0-65535"\s*,\s*"outboundTag":\s*).*',
+        r'\1"blocked_torrent"',
+        text,
+        count=1,
+    )
+    return new, n == 1 and new != text
+
+def insert_xray(text, block=None):
+    block = xray_block(text)
     text2 = retag_official_bt(text)
     extra = text2 != text
     text = text2
     text, changed, how = upsert(text, block)
-    if how != "missing":
-        return text, changed or extra, ("replaced+retag" if extra and not changed else how)
-    # Official Hiddify already has a BT protocol rule. Keep it; add ours before catch-all.
-    m = re.search(
-        r"\n(?=[ \t]*\{[ \t\n/]*\"type\":[ \t]*\"field\",[ \t\n]*\"port\":[ \t]*\"0-65535\")",
-        text,
-    )
-    if not m:
-        m = re.search(r"\n(?=[ \t]*\{[^\n]*\"port\":[ \t]*\"0-65535\")", text)
-    if not m:
-        raise SystemExit("xray routing: cannot find insertion point (port 0-65535)")
-    return text[:m.start()] + "\n" + block + text[m.start():], True, "inserted"
+    if how == "missing":
+        m = re.search(
+            r"\n(?=[ \t]*\{[ \t\n/]*\"type\":[ \t]*\"field\",[ \t\n]*\"port\":[ \t]*\"0-65535\")",
+            text,
+        )
+        if not m:
+            m = re.search(r"\n(?=[ \t]*\{[^\n]*\"port\":[ \t]*\"0-65535\")", text)
+        if not m:
+            raise SystemExit("xray routing: cannot find insertion point (port 0-65535)")
+        text = text[:m.start()] + "\n" + block + text[m.start():]
+        changed = True
+        how = "inserted"
+    text, ch2 = retarget_catchall(text)
+    return text, changed or extra or ch2, how
 
 def patch_outbound(text):
     """Add blocked_torrent AFTER the stock blackhole. Never as the first outbound
@@ -259,7 +331,8 @@ def patch_access_log(text, log_path):
         raise SystemExit("log object not found")
     return text[:m.end()] + "\n" + line + text[m.end():], True, "inserted"
 
-def insert_singbox(text, block):
+def insert_singbox(text, block=None):
+    block = singbox_block(text)
     text, changed, how = upsert(text, block)
     if how != "missing":
         return text, changed, how
@@ -287,9 +360,9 @@ def patch_file(path, kind):
         return False
     original = p.read_text(encoding="utf-8", errors="replace")
     if kind == "xray":
-        new, changed, how = insert_xray(original, xray_block())
+        new, changed, how = insert_xray(original)
     elif kind == "singbox":
-        new, changed, how = insert_singbox(original, singbox_block())
+        new, changed, how = insert_singbox(original)
     elif kind == "outbound":
         new, changed, how = patch_outbound(original)
     elif kind == "log":
@@ -334,6 +407,8 @@ patch_hiddify_routing() {
   NOTORRENT_DOMAINS="$(IFS=','; echo "${TRACKER_DOMAINS[*]}")"
   export NOTORRENT_BACKUP_DIR="${INSTALL_DIR}/backups"
   export NOTORRENT_ACCESS_LOG="${HIDDIFY_DIR}/log/system/xray.access.log"
+  export NOTORRENT_WEB_TCP="${WEB_TCP_PORTS}"
+  export NOTORRENT_WEB_UDP="${WEB_UDP_PORTS}"
 
   # Snapshot current files so a bad patch can be reverted before xray restart.
   local session="${INSTALL_DIR}/backups/session"
@@ -479,12 +554,24 @@ for label, text in (("routing.j2", rt_j2), ("routing.json", rt_js)):
         ob = ob_js or ob_j2 or ""
         if "blocked_torrent" not in ob:
             errors.append(f"{label}: references blocked_torrent but outbound was not added")
+    if '"80,443' not in text:
+        errors.append(f"{label}: web-port allowlist missing")
+    cm = re.search(
+        r'"port":\s*"0-65535"[\s\S]{0,120}?"outboundTag":\s*("[^"]+"|\{%[\s\S]*?%\})',
+        text,
+    )
+    if not cm or cm.group(1).strip() != '"blocked_torrent"':
+        errors.append(f"{label}: catch-all still allows all ports (encrypted torrents leak)")
+    if "{% else %}" in text.split("0-65535", 1)[-1][:200]:
+        errors.append(f"{label}: leftover jinja after catch-all retarget")
 
 if sg_j2 is not None:
     if "HIDDIFY_NOTORRENT_BEGIN" not in sg_j2:
         errors.append("singbox routing: torrent block marker missing")
     if '"protocol": "bittorrent"' not in sg_j2:
         errors.append("singbox routing: bittorrent reject missing")
+    if '"action": "reject"' not in sg_j2:
+        errors.append("singbox routing: final reject missing")
 
 if lg_j2 is not None and "HIDDIFY_NOTORRENT_ACCESS" in lg_j2:
     if re.search(r'HIDDIFY_NOTORRENT_ACCESS\s*,', lg_j2):

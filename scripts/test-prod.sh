@@ -127,19 +127,20 @@ for cfg in variants:
             rules = data["routing"]["rules"]
             assert rules[-1].get("port") == "0-65535", rules[-1]
             last_tag = rules[-1]["outboundTag"]
-            assert last_tag in ("freedom", "WARP"), last_tag
-            bt_tags = [r.get("outboundTag") for r in rules if r.get("protocol") == ["bittorrent"] or "bittorrent" in (r.get("protocol") or [])]
+            assert last_tag == "blocked_torrent", last_tag
             assert "blocked_torrent" in [r.get("outboundTag") for r in rules]
-            # catch-all after our block
-            idx_bt = next(i for i, r in enumerate(rules) if r.get("outboundTag") == "blocked_torrent")
+            idx_web = next(i for i, r in enumerate(rules) if r.get("port") and str(r.get("port")).startswith("80,443"))
             idx_all = next(i for i, r in enumerate(rules) if r.get("port") == "0-65535")
+            idx_bt = next(i for i, r in enumerate(rules) if r.get("outboundTag") == "blocked_torrent")
             assert idx_bt < idx_all
+            assert idx_web < idx_all
         if "route" in data:
             assert data["route"]["final"] in ("freedom", "WARP")
             protos = [r.get("protocol") for r in data["route"]["rules"]]
             assert "bittorrent" in protos
             sniff = data["route"]["rules"][0]
             assert sniff.get("action") == "sniff"
+            assert any(r.get("action") == "reject" and not r.get("protocol") and not r.get("port") and not r.get("ip_is_private") for r in data["route"]["rules"])
         if "log" in data:
             assert "loglevel" in data["log"]
     print("render ok:", label)

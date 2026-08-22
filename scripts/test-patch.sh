@@ -33,9 +33,15 @@ python3 - <<PY
 from pathlib import Path
 x = Path("$TEST/xray/configs/03_routing.json.j2").read_text()
 assert x.index("HIDDIFY_NOTORRENT_BEGIN") < x.index('"0-65535"')
+assert '"80,443' in x
+# leftover ports must not go to freedom
+import re as _re
+cm = _re.search(r'"port":\s*"0-65535"[\s\S]{0,80}"outboundTag":\s*"([^"]+)"', x)
+assert cm and cm.group(1) == "blocked_torrent", cm.group(1) if cm else None
 s = Path("$TEST/singbox/configs/03_routing.json.j2").read_text()
 assert "Block BitTorrent protocol" not in s  # stub removed
 assert s.index("HIDDIFY_NOTORRENT_BEGIN") > s.index("ip_is_private")
+assert '"action": "reject"' in s
 PY
 
 # idempotent
