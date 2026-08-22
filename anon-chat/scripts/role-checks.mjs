@@ -230,6 +230,30 @@ await check("5. Реконнект: chat:join с пином восстанавл
   s2.close();
 });
 
+await check("6. Личное сообщение из списка: комната закрыта по ключу", async () => {
+  const inviter = await joinAs(`Inv${Date.now().toString().slice(-4)}`, pinA);
+  const target = await joinAs(`Tgt${Date.now().toString().slice(-4)}`, pinB);
+  const invited = await emitAck(inviter.socket, "dm:invite", {
+    toId: target.socket.id,
+    toAccountId: target.accountId,
+    toName: target.name,
+  });
+  assert(invited?.ok, invited?.error || "invite failed");
+  assert(invited.keyed === true || invited.access === "keyed", "invite room should be keyed");
+  assert(String(invited.joinKey || "").length === 4, "invite should return joinKey");
+  const stranger = await joinAs(`Str${Date.now().toString().slice(-4)}`, "4444");
+  const bad = await emitAck(stranger.socket, "dm:join", { code: invited.code });
+  assert(!bad?.ok && bad?.needsKey, "keyed invite room should need key");
+  const good = await emitAck(target.socket, "dm:join", {
+    code: invited.code,
+    key: invited.joinKey,
+  });
+  assert(good?.ok, good?.error || "target join with key failed");
+  inviter.socket.close();
+  target.socket.close();
+  stranger.socket.close();
+});
+
 const failed = results.filter((r) => !r.ok);
 console.log("\n---");
 console.log(`Passed ${results.length - failed.length}/${results.length}`);

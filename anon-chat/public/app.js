@@ -105,6 +105,7 @@
   const roomAdminPanelLead = $("#room-admin-panel-lead");
   const roomAdminPanelError = $("#room-admin-panel-error");
   const roomAdminPanelClose = $("#room-admin-panel-close");
+  const roomAdminLogoutBtn = $("#room-admin-logout-btn");
   const roomNewAdminKey = $("#room-new-admin-key");
   const roomConfirmAdminKey = $("#room-confirm-admin-key");
   const roomChangeAdminKeyBtn = $("#room-change-admin-key-btn");
@@ -514,12 +515,17 @@
       !isAdmin &&
       (roomIsOwner || isOwnedRoom(dmCode));
     if (roomKeyBtn) {
-      roomKeyBtn.hidden = !canOwn;
-      roomKeyBtn.textContent = isRoomAdmin ? "Выйти" : "Админ";
+      roomKeyBtn.hidden = !canOwn || isRoomAdmin;
+      roomKeyBtn.textContent = "Админ";
       roomKeyBtn.classList.toggle("active", isRoomAdmin);
-      roomKeyBtn.title = isRoomAdmin
-        ? "Выключить режим админа — снова обычный участник"
-        : "Пин аккаунта · удаление и закрепы";
+      roomKeyBtn.title = "Пин аккаунта · удаление и закрепы";
+    }
+    if (dmLeaveBtn) {
+      // «Чаты» already opens the hub; hide duplicate «Выйти» while in room-admin mode.
+      dmLeaveBtn.hidden = Boolean(isRoomAdmin && !isAdmin && dmCode);
+    }
+    if (roomAdminLogoutBtn) {
+      roomAdminLogoutBtn.hidden = !(isRoomAdmin && !isAdmin && dmCode);
     }
     if (roomAdminPanelBtn) {
       roomAdminPanelBtn.hidden = !(
@@ -2257,6 +2263,8 @@
         unread: 0,
         keyed: Boolean(res.keyed),
       });
+      const joinKey = normalizeRoomKeyLocal(res.joinKey || "");
+      if (joinKey.length === 4) saveRoomKey(res.code, joinKey);
       saveLastDest(res.code);
     }
     markSessionLive();
@@ -2814,10 +2822,12 @@
     const code = normalizeDmCodeLocal(payload.code);
     if (!code || !myName) return;
     if (dmCode && dmCode === code) return;
+    const joinKey = normalizeRoomKeyLocal(payload.joinKey || "");
+    if (joinKey.length === 4) saveRoomKey(code, joinKey);
     rememberDmRoom(code, {
       peer: payload.from || payload.peer || "",
       names: Array.isArray(payload.participants) ? payload.participants : [payload.from, myName].filter(Boolean),
-      keyed: Boolean(payload.keyed),
+      keyed: Boolean(payload.keyed) || joinKey.length === 4,
       closed: Boolean(payload.closed),
       messageCount: Number(payload.messageCount) || 0,
       unread: dmCode === code ? 0 : 1,
@@ -5776,16 +5786,21 @@
     }
   });
 
+  function exitRoomAdminMode() {
+    if (!dmCode || isAdmin || !isRoomAdmin) return;
+    socket.emit("room:admin-logout", {}, () => {
+      isRoomAdmin = false;
+      syncRoomAdminUi();
+      roomAdminPanel?.close();
+      notify("Снова обычный участник");
+      renderAll(lastState, { force: true });
+    });
+  }
+
   roomKeyBtn?.addEventListener("click", () => {
     if (!dmCode || isAdmin) return;
     if (isRoomAdmin) {
-      socket.emit("room:admin-logout", {}, () => {
-        isRoomAdmin = false;
-        syncRoomAdminUi();
-        roomAdminPanel?.close();
-        notify("Снова обычный участник");
-        renderAll(lastState, { force: true });
-      });
+      exitRoomAdminMode();
       return;
     }
     if (roomKeyError) {
@@ -5856,6 +5871,7 @@
 
   roomAdminPanelBtn?.addEventListener("click", openRoomAdminPanel);
   roomAdminPanelClose?.addEventListener("click", () => roomAdminPanel?.close());
+  roomAdminLogoutBtn?.addEventListener("click", exitRoomAdminMode);
 
   roomChangeAdminKeyBtn?.addEventListener("click", () => {
     const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || accountPinForRoom(dmCode) || "");

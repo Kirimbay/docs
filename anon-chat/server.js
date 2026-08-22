@@ -1022,6 +1022,11 @@ function generateRoomCode() {
   return null;
 }
 
+/** @returns {string} random 4-digit join key for keyed rooms */
+function generateRoomJoinKey() {
+  return String(1000 + Math.floor(Math.random() * 9000));
+}
+
 function normalizeRoomCode(raw) {
   // 6-digit room number. Pure short digits pad: 75 → 000075. Reject alphanumeric.
   const s = String(raw ?? "").trim();
@@ -2644,6 +2649,8 @@ io.on("connection", (socket) => {
       return;
     }
     const myAccount = store.accounts[myAccountId];
+    const joinKey = generateRoomJoinKey();
+    const joinDigest = hashRoomKey(joinKey);
     store.rooms[code] = {
       code,
       createdAt: new Date().toISOString(),
@@ -2651,9 +2658,9 @@ io.on("connection", (socket) => {
       createdBy: user.name,
       ownerClientId: normalizeClientId(user.clientId || socket.data.clientId) || "",
       ownerAccountId: myAccountId,
-      access: "open",
+      access: "keyed",
       adminKeyHash: myAccount?.pinHash || "",
-      keyHash: "",
+      keyHash: joinDigest,
       closed: false,
       participants: [user.name, targetName],
       messages: [],
@@ -2661,8 +2668,8 @@ io.on("connection", (socket) => {
     };
     rememberRoomParticipant(code, user.name);
     rememberRoomParticipant(code, targetName);
-    pinAccountHubRoom(myAccountId, code, { keyed: false });
-    pinAccountHubRoom(targetAccount.id, code, { keyed: false });
+    pinAccountHubRoom(myAccountId, code, { keyed: true, joinKey });
+    pinAccountHubRoom(targetAccount.id, code, { keyed: true, joinKey });
     saveStore(store, { flush: true });
 
     socket.join(roomChannel(code));
@@ -2678,7 +2685,8 @@ io.on("connection", (socket) => {
         from: user.name,
         fromId: socket.id,
         peer: user.name,
-        keyed: false,
+        keyed: true,
+        joinKey,
         closed: false,
         participants: roomParticipantNames(code),
         messageCount: 0,
@@ -2697,6 +2705,7 @@ io.on("connection", (socket) => {
         ...roomPresenceFields(code),
         participants: roomParticipantNames(code),
         invited: targetName,
+        joinKey,
         maxMembers: MAX_ROOM_MEMBERS,
         ghost: false,
         roomAdmin: false,
