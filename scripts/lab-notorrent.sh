@@ -83,8 +83,8 @@ try:
         .issuer_name(name)
         .public_key(key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.utcnow() - datetime.timedelta(days=1))
-        .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=7))
+        .not_valid_before(datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=1))
+        .not_valid_after(datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=7))
         .sign(key, hashes.SHA256())
     )
     (d / "key.pem").write_bytes(
@@ -149,7 +149,9 @@ def tls_h(c):
 
 threading.Thread(target=serve_tcp, args=("10.67.0.2", 80, http_h), daemon=True).start()
 threading.Thread(target=serve_tcp, args=("10.67.0.2", 443, tls_h), daemon=True).start()
+threading.Thread(target=serve_tcp, args=("10.67.0.2", 53, echo_h), daemon=True).start()
 threading.Thread(target=serve_tcp, args=("10.67.0.2", 51413, echo_h), daemon=True).start()
+threading.Thread(target=serve_tcp, args=("10.67.0.3", 80, echo_h), daemon=True).start()
 threading.Thread(target=serve_tcp, args=("10.67.0.3", 443, echo_h), daemon=True).start()
 Path(d / "peer.ready").write_text("1")
 import time
@@ -320,6 +322,103 @@ PY
   fi
 }
 
+case_bt_on_80() {
+  if ip netns exec "${NS_VPS}" python3 - <<'PY'
+import socket, sys
+hs = b"\x13BitTorrent protocol" + b"\x00" * 8 + b"A" * 20 + b"B" * 20
+s = socket.socket()
+s.settimeout(1.5)
+try:
+    s.connect(("10.67.0.3", 80))
+    s.sendall(hs)
+    data = s.recv(32)
+except TimeoutError:
+    sys.exit(0)
+except OSError:
+    sys.exit(0)
+else:
+    s.close()
+    sys.exit(3 if data.startswith(b"ECHO") else 0)
+PY
+  then
+    ok "BitTorrent handshake on :80 dropped"
+  else
+    bad "BitTorrent handshake on :80 passed"
+  fi
+}
+
+case_http_post() {
+  if ip netns exec "${NS_VPS}" python3 - <<'PY'
+import socket, sys
+s = socket.socket()
+s.settimeout(2.5)
+s.connect(("10.67.0.2", 80))
+s.sendall(b"POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n")
+data = s.recv(64)
+s.close()
+sys.exit(0 if b"200" in data or b"ok" in data else 2)
+PY
+  then
+    ok "HTTP :80 POST"
+  else
+    bad "HTTP :80 POST blocked — sites would die"
+  fi
+}
+
+case_inbound_highport() {
+  ip netns exec "${NS_VPS}" python3 - <<'PY' &
+import socket, threading, time
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("10.67.1.1", 12345))
+s.listen(5)
+def acc():
+    c, _ = s.accept()
+    c.sendall(b"VLESS")
+    c.close()
+threading.Thread(target=acc, daemon=True).start()
+time.sleep(8)
+PY
+  sleep 0.2
+  if ip netns exec "${NS_CLI}" python3 - <<'PY'
+import socket, sys
+s = socket.socket()
+s.settimeout(2.5)
+s.connect(("10.67.1.1", 12345))
+data = s.recv(8)
+s.close()
+sys.exit(0 if data == b"VLESS" else 2)
+PY
+  then
+    ok "inbound SYN-ACK on random :12345"
+  else
+    bad "inbound high-port reply died — Reality/VLESS n/a"
+  fi
+}
+
+case_dns_udp() {
+  if ip netns exec "${NS_VPS}" python3 - <<'PY'
+import socket, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(1.2)
+try:
+    s.sendto(b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01", ("10.67.0.2", 53))
+    s.recvfrom(64)
+except TimeoutError:
+    # no DNS server in lab; allowlist must at least let the packet out (no EPERM)
+    sys.exit(0)
+except OSError as e:
+    sys.exit(2 if e.errno in (1, 13) else 0)
+else:
+    sys.exit(0)
+PY
+  then
+    ok "UDP :53 left the VPS (DNS)"
+  else
+    bad "UDP :53 dropped — DNS through VPN would die"
+  fi
+}
+
 case_udp_dht() {
   if ip netns exec "${NS_VPS}" python3 - <<'PY'
 import socket, sys
@@ -349,13 +448,17 @@ log "apply OUTPUT rules inside VPS ns"
 apply_rules
 log "cases"
 case_inbound
+case_inbound_highport
 case_http
+case_http_post
 case_tls
+case_dns_udp
 case_highport
 case_bt_on_443
+case_bt_on_80
 case_mse_on_443
 case_udp_dht
 
 echo
 echo "lab: ${PASS} passed, ${FAIL} failed"
-[[ "${FAIL}" -eq 0 && "${PASS}" -ge 7 ]]
+[[ "${FAIL}" -eq 0 && "${PASS}" -ge 11 ]]

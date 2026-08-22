@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.1+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.2+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -21,7 +21,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.7.1"
+VERSION="1.7.2"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -914,36 +914,34 @@ fill_ipt_chain() {
   $ipt -A HIDDIFY_NOTORRENT -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN 2>/dev/null \
     || $ipt -A HIDDIFY_NOTORRENT -m state --state ESTABLISHED,RELATED -j RETURN || true
 
-  # iptables multiport accepts at most 15 ports — split.
-  local chunk="" n=0 p
+  # One rule per port. xt_multiport is missing on some kernels; if the allow
+  # rules fail and NEW DROP still lands, DNS/SSH die (seen in the netns lab).
+  local p tcp_ok=0 udp53_ok=0
   local IFS=','
   for p in ${HOST_TCP_PORTS}; do
     p="${p// /}"
     [[ -n "${p}" ]] || continue
-    if [[ ${n} -eq 0 ]]; then
-      chunk="${p}"
-    else
-      chunk="${chunk},${p}"
+    if $ipt -A HIDDIFY_NOTORRENT -p tcp --dport "${p}" -j RETURN; then
+      tcp_ok=1
     fi
-    n=$((n + 1))
-    if [[ ${n} -ge 14 ]]; then
-      $ipt -A HIDDIFY_NOTORRENT -p tcp -m multiport --dports "${chunk}" -j RETURN || true
-      chunk=""
-      n=0
+  done
+  for p in ${HOST_UDP_PORTS}; do
+    p="${p// /}"
+    [[ -n "${p}" ]] || continue
+    if $ipt -A HIDDIFY_NOTORRENT -p udp --dport "${p}" -j RETURN; then
+      [[ "${p}" == "53" ]] && udp53_ok=1
     fi
   done
   unset IFS
-  if [[ -n "${chunk}" ]]; then
-    $ipt -A HIDDIFY_NOTORRENT -p tcp -m multiport --dports "${chunk}" -j RETURN || true
-  fi
-  $ipt -A HIDDIFY_NOTORRENT -p udp -m multiport --dports "${HOST_UDP_PORTS}" -j RETURN || true
   if [[ "${ipt}" != *6* ]]; then
     $ipt -A HIDDIFY_NOTORRENT -p icmp -j RETURN || true
   fi
 
   # Classic ports (what the hoster suggested) — extra, not sufficient alone.
-  $ipt -A HIDDIFY_NOTORRENT -p tcp -m multiport --dports 6881:6889,6969,51413 -j DROP || true
-  $ipt -A HIDDIFY_NOTORRENT -p udp -m multiport --dports 6881:6889,6969,51413,6771 -j DROP || true
+  for p in 6881 6882 6883 6884 6885 6886 6887 6888 6889 6969 51413 6771; do
+    $ipt -A HIDDIFY_NOTORRENT -p tcp --dport "${p}" -j DROP || true
+    $ipt -A HIDDIFY_NOTORRENT -p udp --dport "${p}" -j DROP || true
+  done
 
   if $ipt -m set -h >/dev/null 2>&1; then
     if [[ "${ipt}" == *6* ]]; then
@@ -973,8 +971,13 @@ fill_ipt_chain() {
         -m string --algo bm --from 0 --to 2048 --string 'peer_id=' -j DROP 2>/dev/null || true
 
   # Only NEW leftovers. Never drop UNTRACKED — that is SYN-ACK to the client.
-  $ipt -A HIDDIFY_NOTORRENT -m conntrack --ctstate NEW -j DROP 2>/dev/null \
-    || $ipt -A HIDDIFY_NOTORRENT -m state --state NEW -j DROP || true
+  # Never install this DROP if the allowlist did not land (kills DNS).
+  if [[ "${tcp_ok}" -eq 1 && "${udp53_ok}" -eq 1 ]]; then
+    $ipt -A HIDDIFY_NOTORRENT -m conntrack --ctstate NEW -j DROP 2>/dev/null \
+      || $ipt -A HIDDIFY_NOTORRENT -m state --state NEW -j DROP || true
+  else
+    warn "${ipt}: allowlist incomplete (tcp=${tcp_ok} udp53=${udp53_ok}); skip NEW DROP"
+  fi
 }
 
 persist_live_firewall() {

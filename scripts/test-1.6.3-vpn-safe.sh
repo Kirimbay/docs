@@ -32,6 +32,10 @@ grep -q 'tcp dport != { 80, 443 }' "$SCRIPT" || fail "nft must accept non-web es
 grep -q 'multiport ! --dports 80,443' "$SCRIPT" || fail "iptables must accept non-web established before L7"
 grep -q '! -p tcp -j RETURN' "$SCRIPT" || fail "iptables must accept non-tcp established"
 grep -q -- '--ctstate NEW -j DROP' "$SCRIPT" || fail "iptables final drop must be NEW only"
+grep -q 'udp53_ok' "$SCRIPT" || fail "must not install NEW DROP if UDP/53 allow failed"
+if grep -q 'multiport --dports "${HOST_UDP_PORTS}"' "$SCRIPT"; then
+  fail "UDP allowlist must not depend on xt_multiport"
+fi
 if grep -qE 'HIDDIFY_NOTORRENT -j DROP \|\| true' "$SCRIPT"; then
   fail "iptables still has catch-all DROP (kills UNTRACKED SYN-ACK)"
 fi
