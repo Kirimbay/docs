@@ -1220,6 +1220,36 @@
     });
   }
 
+  /** Pull hub keys/access flags from the account (fixes stale «свободный» / missing keys). */
+  function refreshHubFromServer({ render = false } = {}) {
+    return new Promise((resolve) => {
+      if (!socket.connected || isAdmin) {
+        resolve(false);
+        return;
+      }
+      const localPayload = loadDmRooms()
+        .filter((r) => r.code && r.code !== PUBLIC_ROOM_CODE)
+        .map((r) => ({
+          code: r.code,
+          keyed: Boolean(r.keyed),
+          joinKey: loadRoomKey(r.code) || "",
+        }));
+      if (!localPayload.length) {
+        resolve(false);
+        return;
+      }
+      socket.emit("rooms:sync", { rooms: localPayload }, (syncRes) => {
+        if (syncRes?.ok && Array.isArray(syncRes.knownRooms)) {
+          applyKnownRoomsFromServer(syncRes.knownRooms, loadPin(), { replace: true });
+          if (render && dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+          resolve(true);
+          return;
+        }
+        resolve(false);
+      });
+    });
+  }
+
   /** Cross-device hub: upload this phone's keys, then make local list match server. */
   function pullHubFromServer(res, pin) {
     const serverList = Array.isArray(res?.knownRooms)
@@ -1893,58 +1923,73 @@
       return;
     }
     if (joinInFlight) return;
-    const joinKey =
-      normalizeRoomKeyLocal(key) ||
-      normalizeRoomKeyLocal(dmJoinKey?.value || "") ||
-      loadRoomKey(c);
-    if (dmJoinKey && joinKey && dmJoinKey.value !== joinKey) dmJoinKey.value = joinKey;
-    const ghost = Boolean(isAdmin && (watchOnly || roomsForDmList().some((r) => r.code === c && r.foreign)));
-    const joinBtnEl = document.getElementById("dm-join-btn");
-    joinInFlight = true;
-    if (joinBtnEl) joinBtnEl.disabled = true;
-    const finishJoin = () => {
-      joinInFlight = false;
-      if (joinBtnEl) joinBtnEl.disabled = false;
+
+    const runJoin = () => {
+      const joinKey =
+        normalizeRoomKeyLocal(key) ||
+        normalizeRoomKeyLocal(dmJoinKey?.value || "") ||
+        loadRoomKey(c);
+      if (dmJoinKey && joinKey && dmJoinKey.value !== joinKey) dmJoinKey.value = joinKey;
+      const ghost = Boolean(isAdmin && (watchOnly || roomsForDmList().some((r) => r.code === c && r.foreign)));
+      const joinBtnEl = document.getElementById("dm-join-btn");
+      joinInFlight = true;
+      if (joinBtnEl) joinBtnEl.disabled = true;
+      const finishJoin = () => {
+        joinInFlight = false;
+        if (joinBtnEl) joinBtnEl.disabled = false;
+      };
+      const joinTimer = setTimeout(() => {
+        finishJoin();
+        showDmDialogError("Долго нет ответа · попробуйте ещё раз");
+      }, 12000);
+      socket.timeout(10000).emit("dm:join", { code: c, key: joinKey || undefined }, (err, res) => {
+        clearTimeout(joinTimer);
+        finishJoin();
+        if (err) {
+          showDmDialogError("Нет связи · проверьте интернет");
+          return;
+        }
+        if (!res?.ok) {
+          const joinErr = res?.error || "Не удалось войти";
+          if (res?.needsKey || res?.wrongKey) {
+            showJoinHint(joinErr);
+          } else {
+            showDmDialogError(joinErr);
+          }
+          if (res?.wrongCode) {
+            dmCodeInput?.focus();
+            dmCodeInput?.select?.();
+          } else if (res?.needsKey || res?.wrongKey) {
+            clearRoomKey(c);
+            if (dmJoinKey) dmJoinKey.value = "";
+            dmJoinKey?.focus();
+          }
+          if (res?.wrongCode || /номер комнаты неверный|не найден|такой комнаты нет/i.test(joinErr)) {
+            forgetDmRoom(c);
+            renderDmRoomsList();
+          }
+          return;
+        }
+        if (joinKey) saveRoomKey(c, joinKey);
+        else if (res.joinKey) saveRoomKey(c, normalizeRoomKeyLocal(res.joinKey));
+        enterDmMode(res, { watchOnly: ghost || Boolean(res.ghost) });
+        markSessionLive();
+        if (!ghost && !res.ghost) saveLastDest(c);
+        hubRequirePick = false;
+        void closeDmDialogSoft();
+      });
     };
-    const joinTimer = setTimeout(() => {
-      finishJoin();
-      showDmDialogError("Долго нет ответа · попробуйте ещё раз");
-    }, 12000);
-    socket.timeout(10000).emit("dm:join", { code: c, key: joinKey || undefined }, (err, res) => {
-      clearTimeout(joinTimer);
-      finishJoin();
-      if (err) {
-        showDmDialogError("Нет связи · проверьте интернет");
-        return;
-      }
-      if (!res?.ok) {
-        const joinErr = res?.error || "Не удалось войти";
-        if (res?.needsKey || res?.wrongKey) {
-          showJoinHint(joinErr);
-        } else {
-          showDmDialogError(joinErr);
-        }
-        if (res?.wrongCode) {
-          dmCodeInput?.focus();
-          dmCodeInput?.select?.();
-        } else if (res?.needsKey || res?.wrongKey) {
-          clearRoomKey(c);
-          if (dmJoinKey) dmJoinKey.value = "";
-          dmJoinKey?.focus();
-        }
-        if (res?.wrongCode || /номер комнаты неверный|не найден|такой комнаты нет/i.test(joinErr)) {
-          forgetDmRoom(c);
-          renderDmRoomsList();
-        }
-        return;
-      }
-      if (joinKey) saveRoomKey(c, joinKey);
-      enterDmMode(res, { watchOnly: ghost || Boolean(res.ghost) });
-      markSessionLive();
-      if (!ghost && !res.ghost) saveLastDest(c);
-      hubRequirePick = false;
-      void closeDmDialogSoft();
-    });
+
+    const needsHubKey =
+      fromList &&
+      !normalizeRoomKeyLocal(key) &&
+      !normalizeRoomKeyLocal(dmJoinKey?.value || "") &&
+      !loadRoomKey(c);
+    if (needsHubKey && socket.connected && !isAdmin) {
+      refreshHubFromServer().finally(runJoin);
+      return;
+    }
+    runJoin();
   }
 
   function renderDmRoomsList({ skipRefresh = false } = {}) {
@@ -2510,7 +2555,7 @@
       renderDmRoomsList({ skipRefresh: true });
       refreshAdminRoomCatalog({ render: true });
     } else {
-      renderDmRoomsList();
+      refreshHubFromServer({ render: false }).finally(() => renderDmRoomsList());
     }
     if (dmCodeInput) dmCodeInput.value = "";
     dmDialog.showModal();
