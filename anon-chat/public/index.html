@@ -30,7 +30,7 @@
     <meta name="apple-mobile-web-app-title" content="Сарафан" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=197" />
+    <link rel="stylesheet" href="/styles.css?v=201" />
   </head>
   <body>
     <section id="gate" class="gate">
@@ -92,7 +92,6 @@
         <span class="dm-bar-text"><span id="dm-bar-label" class="visually-hidden">номер</span><strong id="dm-bar-code"></strong></span>
         <span id="dm-bar-presence" class="dm-bar-presence">1/5000</span>
         <button type="button" id="dm-leave-btn" class="ghost compact" title="Выйти из комнаты">Выйти</button>
-        <button type="button" id="dm-copy-btn" class="ghost compact" title="Скопировать номер">Номер</button>
         <button type="button" id="room-key-btn" class="ghost compact" hidden title="Режим админа комнаты">Админ</button>
         <button type="button" id="room-admin-panel-btn" class="ghost compact" hidden title="Настройки комнаты">Ещё</button>
       </div>
@@ -260,31 +259,35 @@
             <div class="dm-action-fields">
               <label class="field dm-code-field">
                 <span class="visually-hidden">Номер комнаты</span>
-                <input
-                  id="dm-code-input"
-                  type="text"
-                  inputmode="numeric"
-                  pattern="[0-9]{1,6}"
-                  maxlength="6"
-                  autocomplete="one-time-code"
-                  autocapitalize="off"
-                  spellcheck="false"
-                  placeholder="войти №"
-                  aria-label="Номер комнаты"
-                />
+                <span class="dm-join-field-inner">
+                  <span class="dm-join-field-icon" aria-hidden="true">🚪</span>
+                  <input
+                    id="dm-code-input"
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]{1,6}"
+                    maxlength="6"
+                    autocomplete="one-time-code"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    aria-label="Номер комнаты"
+                  />
+                </span>
               </label>
               <label class="field dm-key-field" id="dm-join-key-wrap">
                 <span class="visually-hidden">Ключ</span>
-                <input
-                  id="dm-join-key"
-                  type="text"
-                  inputmode="numeric"
-                  pattern="[0-9]{4}"
-                  maxlength="4"
-                  autocomplete="off"
-                  placeholder="ключ"
-                  aria-label="Ключ комнаты"
-                />
+                <span class="dm-join-field-inner">
+                  <span class="dm-join-field-icon" aria-hidden="true">🔑</span>
+                  <input
+                    id="dm-join-key"
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]{4}"
+                    maxlength="4"
+                    autocomplete="off"
+                    aria-label="Ключ комнаты"
+                  />
+                </span>
               </label>
               <button type="button" id="dm-join-btn" class="dm-action-btn">Войти</button>
             </div>
@@ -407,6 +410,6 @@
     </dialog>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js?v=197"></script>
+    <script src="/app.js?v=201"></script>
   </body>
 </html>
