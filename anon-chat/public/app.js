@@ -655,11 +655,11 @@
     if (roomKeyed) {
       const key = loadRoomKey(dmCode);
       dmBarCode.textContent = key
-        ? `комната ${shown}, ключ ${key}`
-        : `комната ${shown}, ключ нужен`;
+        ? `🚪 ${shown} · 🔑 ${key}`
+        : `🚪 ${shown} · 🔑 нужен`;
       return;
     }
-    dmBarCode.textContent = `комната ${shown}`;
+    dmBarCode.textContent = `🚪 ${shown}`;
   }
 
   function clearDeleteArm() {
