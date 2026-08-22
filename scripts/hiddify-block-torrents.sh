@@ -1458,7 +1458,7 @@ PY
 )"
   echo "catch-all:   ${tag}  (должно быть blocked_torrent)"
   if [[ "${tag}" == "blocked_torrent" ]]; then
-    echo "server:      фильтр строгий. Если в qBittorrent DHT сотни узлов — трафик НЕ идёт через этот VLESS (утечка на ПК)."
+    echo "server:      Xray catch-all закрыт. Основной блок абузы — kernel OUTPUT allowlist."
   else
     echo "server:      catch-all ещё пускает всё наружу. Переустанови скрипт ${VERSION}."
   fi
