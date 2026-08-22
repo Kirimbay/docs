@@ -2121,20 +2121,11 @@
         ? `🚪 ${shown} · 🔑 ${keyShown} · ${roomTitle}`
         : `🚪 ${shown} · 🔑 ${keyShown}`;
 
-      enterBtn.append(codeEl);
-      enterBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        handleHubRoomEnterTap(room);
-      });
+      const enterText = document.createElement("span");
+      enterText.className = "dm-room-enter-text";
+      enterText.append(codeEl);
 
-      main.append(enterBtn);
-      row.append(main);
-
-      const side = document.createElement("div");
-      side.className = "dm-room-side";
-
-      const meta = document.createElement("div");
+      const meta = document.createElement("span");
       meta.className = "dm-room-meta";
       if (owned) {
         const adminBadge = document.createElement("span");
@@ -2152,7 +2143,17 @@
         mailBadge.textContent = "✉️";
         meta.append(mailBadge);
       }
-      if (meta.childElementCount) side.append(meta);
+
+      enterBtn.append(enterText);
+      if (meta.childElementCount) enterBtn.append(meta);
+      enterBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handleHubRoomEnterTap(room);
+      });
+
+      main.append(enterBtn);
+      row.append(main);
 
       {
         const forgetBtn = document.createElement("button");
@@ -2229,10 +2230,8 @@
             clearForgetArm();
           }, FORGET_ARM_MS);
         });
-        side.append(forgetBtn);
+        row.append(forgetBtn);
       }
-
-      row.append(side);
 
       frag.append(row);
     }

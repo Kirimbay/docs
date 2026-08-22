@@ -1240,33 +1240,27 @@ button {
 .dm-room-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.28rem;
-  align-items: center;
+  gap: 0.3rem;
+  align-items: start;
   min-width: 0;
   flex: 0 0 auto;
 }
 
-.dm-room-side {
-  display: flex;
-  align-items: center;
-  gap: 0.22rem;
-  flex: 0 0 auto;
-  align-self: center;
-}
-
 .dm-room-meta {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0.18rem;
   flex: 0 0 auto;
+  margin-left: auto;
+  pointer-events: none;
 }
 
 .dm-room-badge {
   display: inline-grid;
   place-items: center;
-  width: 1.45rem;
-  height: 1.45rem;
+  width: 1.35rem;
+  height: 1.35rem;
   font-size: 0.88rem;
   line-height: 1;
   flex: 0 0 auto;
@@ -1286,10 +1280,15 @@ button {
   flex-direction: column;
   gap: 0.2rem;
   min-width: 0;
+  width: 100%;
 }
 
 .dm-room-enter {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  width: 100%;
   min-width: 0;
   flex: 0 0 auto;
   padding: 0.4rem 0.5rem;
@@ -1300,17 +1299,27 @@ button {
   text-align: left;
 }
 
+.dm-room-enter-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+}
+
 .dm-room-row.is-current .dm-room-enter {
   border-color: color-mix(in srgb, var(--ink-soft) 45%, var(--line));
   background: color-mix(in srgb, var(--ink-soft) 8%, var(--bg-elev));
 }
 
 .dm-room-code {
+  display: block;
   font-family: var(--font-body);
   font-size: 0.88rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #8fd9ad;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dm-room-unread {
