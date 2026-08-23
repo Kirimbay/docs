@@ -352,7 +352,7 @@
 
   <div class="rmw-header">
     <h3 class="rmw-title">Карта России</h3>
-    <p class="rmw-hint">Наведите на город — откроется видео</p>
+    <p class="rmw-hint">Наведите на город — откроется видео (VK — в новой вкладке)</p>
   </div>
 
   <div class="rmw-stage" id="rmw-stage">
@@ -471,8 +471,8 @@
           moscow: {
             name: "Москва",
             videoUrl: "https://vkvideo.ru/video-228459905_456239098",
-            videoType: "iframe",
-            openOnHover: true
+            openOnHover: true,
+            openMode: "link"
           },
           spb: {
             name: "Санкт-Петербург",
@@ -545,6 +545,7 @@
       var particles = [];
       var activeCity = null;
       var currentVideoCity = null;
+      var openedLinkThisHover = {};
 
       function getCityConfig(id) {
         return RUSSIA_MAP_CONFIG.cities[id] || null;
@@ -642,6 +643,18 @@
         return iframe;
       }
 
+      function openCityVideo(cityId) {
+        var city = getCityConfig(cityId);
+        if (!city || !city.videoUrl) return;
+        if (city.openMode === "link") {
+          if (openedLinkThisHover[cityId]) return;
+          openedLinkThisHover[cityId] = true;
+          window.open(city.videoUrl, "_blank", "noopener,noreferrer");
+          return;
+        }
+        openVideo(cityId);
+      }
+
       function openVideo(cityId) {
         var city = getCityConfig(cityId);
         if (!city || !city.videoUrl) return;
@@ -666,8 +679,11 @@
         var cfg = getCityConfig(cityId);
         var name = (cfg && cfg.name) || (node && node.getAttribute("aria-label")) || cityId;
         var hasVideo = !!(cfg && cfg.videoUrl);
+        var videoHint = hasVideo
+          ? (cfg.openMode === "link" ? " — открыть видео" : " — видео")
+          : "";
         var rect = stage.getBoundingClientRect();
-        label.textContent = name + (hasVideo ? " — видео" : "");
+        label.textContent = name + videoHint;
         label.style.left = Math.max(50, Math.min(rect.width - 50, clientX - rect.left)) + "px";
         label.style.top = Math.max(24, clientY - rect.top) + "px";
         label.classList.add("is-visible");
@@ -681,13 +697,17 @@
           node.classList.add("is-active");
           showLabel(cityId, e.clientX, e.clientY);
           var cfg = getCityConfig(cityId);
-          if (cfg && cfg.videoUrl && cfg.openOnHover !== false) openVideo(cityId);
+          if (cfg && cfg.videoUrl && cfg.openOnHover !== false) openCityVideo(cityId);
         });
         node.addEventListener("mousemove", function (e) { showLabel(cityId, e.clientX, e.clientY); });
-        node.addEventListener("mouseleave", function () { node.classList.remove("is-active"); hideLabel(); });
-        node.addEventListener("click", function (e) { e.preventDefault(); openVideo(cityId); });
+        node.addEventListener("mouseleave", function () {
+          node.classList.remove("is-active");
+          hideLabel();
+          openedLinkThisHover[cityId] = false;
+        });
+        node.addEventListener("click", function (e) { e.preventDefault(); openCityVideo(cityId); });
         node.addEventListener("keydown", function (e) {
-          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openVideo(cityId); }
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCityVideo(cityId); }
         });
       });
 
