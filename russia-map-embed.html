@@ -192,53 +192,81 @@
       outline: none;
     }
 
-    #russia-map-widget .rmw-city-glow {
-      fill: rgba(255, 220, 120, 0.22);
-      filter: blur(2px);
-      animation: rmw-city-glow 2.4s ease-in-out infinite;
+    #russia-map-widget .rmw-city-name {
+      fill: rgba(255, 233, 163, 0.82);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      pointer-events: none;
+      user-select: none;
+      paint-order: stroke fill;
+      stroke: rgba(4, 4, 4, 0.85);
+      stroke-width: 3px;
+      animation: rmw-city-name-shimmer 4.8s ease-in-out infinite;
     }
 
-    @keyframes rmw-city-glow {
-      0%, 100% { opacity: 0.35; r: 8; }
-      50% { opacity: 0.85; r: 13; }
+    @keyframes rmw-city-name-shimmer {
+      0%, 100% { fill: rgba(255, 233, 163, 0.55); }
+      50% { fill: rgba(255, 243, 196, 0.95); }
     }
 
     #russia-map-widget .rmw-city-dot {
       fill: url(#rmw-dot-fill);
-      stroke: #fff8d6;
-      stroke-width: 1.2;
-      filter: drop-shadow(0 0 6px rgba(255, 220, 120, 0.9));
-      animation: rmw-dot-pulse 2.2s ease-in-out infinite;
+      stroke: rgba(255, 248, 214, 0.85);
+      stroke-width: 1;
+      filter: drop-shadow(0 0 5px rgba(255, 220, 120, 0.55));
+      animation: rmw-dot-shimmer 3.6s ease-in-out infinite;
       transform-origin: center;
       transform-box: fill-box;
     }
 
-    @keyframes rmw-dot-pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.18); }
+    @keyframes rmw-dot-shimmer {
+      0%, 100% {
+        opacity: 0.42;
+        filter: drop-shadow(0 0 2px rgba(255, 220, 120, 0.25));
+      }
+      50% {
+        opacity: 1;
+        filter: drop-shadow(0 0 9px rgba(255, 235, 170, 0.95));
+      }
     }
 
-    #russia-map-widget .rmw-city-pulse {
-      fill: none;
-      stroke: rgba(255, 230, 150, 0.75);
-      stroke-width: 1.2;
-      animation: rmw-pulse-ring 2.4s ease-out infinite;
-    }
-
-    #russia-map-widget .rmw-city-pulse-2 {
-      animation-delay: 1.2s;
-    }
-
-    @keyframes rmw-pulse-ring {
-      0% { r: 5; opacity: 0.85; }
-      100% { r: 22; opacity: 0; }
-    }
+    #russia-map-widget .rmw-city[data-city-id="moscow"] .rmw-city-dot,
+    #russia-map-widget .rmw-city[data-city-id="moscow"] .rmw-city-name { animation-delay: 0s; }
+    #russia-map-widget .rmw-city[data-city-id="spb"] .rmw-city-dot,
+    #russia-map-widget .rmw-city[data-city-id="spb"] .rmw-city-name { animation-delay: 0.45s; }
+    #russia-map-widget .rmw-city[data-city-id="kazan"] .rmw-city-dot,
+    #russia-map-widget .rmw-city[data-city-id="kazan"] .rmw-city-name { animation-delay: 0.9s; }
+    #russia-map-widget .rmw-city[data-city-id="ekb"] .rmw-city-dot,
+    #russia-map-widget .rmw-city[data-city-id="ekb"] .rmw-city-name { animation-delay: 1.35s; }
+    #russia-map-widget .rmw-city[data-city-id="novosibirsk"] .rmw-city-dot,
+    #russia-map-widget .rmw-city[data-city-id="novosibirsk"] .rmw-city-name { animation-delay: 1.8s; }
+    #russia-map-widget .rmw-city[data-city-id="krasnoyarsk"] .rmw-city-dot,
+    #russia-map-widget .rmw-city[data-city-id="krasnoyarsk"] .rmw-city-name { animation-delay: 2.25s; }
+    #russia-map-widget .rmw-city[data-city-id="vladivostok"] .rmw-city-dot,
+    #russia-map-widget .rmw-city[data-city-id="vladivostok"] .rmw-city-name { animation-delay: 2.7s; }
+    #russia-map-widget .rmw-city[data-city-id="sochi"] .rmw-city-dot,
+    #russia-map-widget .rmw-city[data-city-id="sochi"] .rmw-city-name { animation-delay: 3.15s; }
 
     #russia-map-widget .rmw-city:hover .rmw-city-dot,
     #russia-map-widget .rmw-city:focus-visible .rmw-city-dot,
     #russia-map-widget .rmw-city.is-active .rmw-city-dot {
-      transform: scale(1.45);
-      animation: none;
+      opacity: 1;
+      filter: drop-shadow(0 0 10px rgba(255, 240, 180, 1));
+    }
+
+    #russia-map-widget .rmw-city:hover .rmw-city-name,
+    #russia-map-widget .rmw-city:focus-visible .rmw-city-name,
+    #russia-map-widget .rmw-city.is-active .rmw-city-name {
+      fill: rgba(255, 248, 220, 1);
+    }
+
+    @media (max-width: 640px), (hover: none) and (pointer: coarse) {
+      #russia-map-widget .rmw-city-name {
+        font-size: 11px;
+        stroke-width: 2.5px;
+      }
     }
 
     #russia-map-widget .rmw-label {
@@ -263,19 +291,6 @@
     #russia-map-widget .rmw-label.is-visible {
       opacity: 1;
       transform: translate(-50%, calc(-100% - 16px)) scale(1);
-    }
-
-    #russia-map-widget .rmw-tooltip {
-      position: relative;
-      flex: 0 0 auto;
-      z-index: 10;
-      font-size: clamp(11px, 1.3vw, 13px);
-      opacity: 0.55;
-      text-align: center;
-      padding: clamp(6px, 1vh, 14px) 16px clamp(10px, 1.5vh, 18px);
-      pointer-events: none;
-      max-width: 100%;
-      line-height: 1.4;
     }
 
     #russia-map-widget .rmw-modal {
@@ -504,7 +519,7 @@
 
   <div class="rmw-header">
     <h3 class="rmw-title">Карта России</h3>
-    <p class="rmw-hint">Нажмите на город — откроется видео поверх карты</p>
+    <p class="rmw-hint">Нажмите на город — откроется видео</p>
   </div>
 
   <div class="rmw-stage" id="rmw-stage">
@@ -552,67 +567,49 @@
           <path class="rmw-land-stroke" d="M214.39,-3.91 L204.53,-2.14 L197.93,-1.12 L196.90,1.08 L188.32,3.31 L180.36,0.12 L184.55,-4.08 L168.20,-4.48 L182.54,-6.93 L193.70,-7.09 L195.20,-3.47 L199.41,-6.69 L206.34,-8.91 L217.23,-5.96 L214.39,-3.91 Z"/>          <path class="rmw-land-fill" d="M572.80,18.48 L556.77,20.16 L536.32,16.28 L524.13,11.15 L518.49,1.51 L508.47,-1.15 L527.54,-10.33 L543.43,-13.36 L557.70,-6.60 L574.61,6.40 L572.80,18.48 Z"/>
           <path class="rmw-land-stroke" d="M572.80,18.48 L556.77,20.16 L536.32,16.28 L524.13,11.15 L518.49,1.51 L508.47,-1.15 L527.54,-10.33 L543.43,-13.36 L557.70,-6.60 L574.61,6.40 L572.80,18.48 Z"/>        </g>
       <g class="rmw-city" data-city-id="moscow" tabindex="0" role="button" aria-label="Москва">
-        <circle class="rmw-city-glow" cx="115.11" cy="329.31" r="10"/>
-        <circle class="rmw-city-pulse" cx="115.11" cy="329.31" r="4"/>
-        <circle class="rmw-city-pulse rmw-city-pulse-2" cx="115.11" cy="329.31" r="4"/>
-        <circle class="rmw-city-dot" cx="115.11" cy="329.31" r="5"/>
+        <text class="rmw-city-name" x="115.11" y="329.31" dy="-12" text-anchor="middle">Москва</text>
+        <circle class="rmw-city-dot" cx="115.11" cy="329.31" r="4.5"/>
         <circle class="rmw-city-hit" cx="115.11" cy="329.31" r="24"/>
       </g>
       <g class="rmw-city" data-city-id="spb" tabindex="0" role="button" aria-label="Санкт-Петербург">
-        <circle class="rmw-city-glow" cx="61.63" cy="273.15" r="10"/>
-        <circle class="rmw-city-pulse" cx="61.63" cy="273.15" r="4"/>
-        <circle class="rmw-city-pulse rmw-city-pulse-2" cx="61.63" cy="273.15" r="4"/>
-        <circle class="rmw-city-dot" cx="61.63" cy="273.15" r="5"/>
+        <text class="rmw-city-name" x="61.63" y="273.15" dy="-12" text-anchor="middle">Санкт-Петербург</text>
+        <circle class="rmw-city-dot" cx="61.63" cy="273.15" r="4.5"/>
         <circle class="rmw-city-hit" cx="61.63" cy="273.15" r="24"/>
       </g>
       <g class="rmw-city" data-city-id="kazan" tabindex="0" role="button" aria-label="Казань">
-        <circle class="rmw-city-glow" cx="199.6" cy="328.87" r="10"/>
-        <circle class="rmw-city-pulse" cx="199.6" cy="328.87" r="4"/>
-        <circle class="rmw-city-pulse rmw-city-pulse-2" cx="199.6" cy="328.87" r="4"/>
-        <circle class="rmw-city-dot" cx="199.6" cy="328.87" r="5"/>
+        <text class="rmw-city-name" x="199.6" y="328.87" dy="-12" text-anchor="middle">Казань</text>
+        <circle class="rmw-city-dot" cx="199.6" cy="328.87" r="4.5"/>
         <circle class="rmw-city-hit" cx="199.6" cy="328.87" r="24"/>
       </g>
       <g class="rmw-city" data-city-id="ekb" tabindex="0" role="button" aria-label="Екатеринбург">
-        <circle class="rmw-city-glow" cx="283.87" cy="314.76" r="10"/>
-        <circle class="rmw-city-pulse" cx="283.87" cy="314.76" r="4"/>
-        <circle class="rmw-city-pulse rmw-city-pulse-2" cx="283.87" cy="314.76" r="4"/>
-        <circle class="rmw-city-dot" cx="283.87" cy="314.76" r="5"/>
+        <text class="rmw-city-name" x="283.87" y="314.76" dy="-12" text-anchor="middle">Екатеринбург</text>
+        <circle class="rmw-city-dot" cx="283.87" cy="314.76" r="4.5"/>
         <circle class="rmw-city-hit" cx="283.87" cy="314.76" r="24"/>
       </g>
       <g class="rmw-city" data-city-id="novosibirsk" tabindex="0" role="button" aria-label="Новосибирск">
-        <circle class="rmw-city-glow" cx="447.91" cy="339.36" r="10"/>
-        <circle class="rmw-city-pulse" cx="447.91" cy="339.36" r="4"/>
-        <circle class="rmw-city-pulse rmw-city-pulse-2" cx="447.91" cy="339.36" r="4"/>
-        <circle class="rmw-city-dot" cx="447.91" cy="339.36" r="5"/>
+        <text class="rmw-city-name" x="447.91" y="339.36" dy="-12" text-anchor="middle">Новосибирск</text>
+        <circle class="rmw-city-dot" cx="447.91" cy="339.36" r="4.5"/>
         <circle class="rmw-city-hit" cx="447.91" cy="339.36" r="24"/>
       </g>
       <g class="rmw-city" data-city-id="krasnoyarsk" tabindex="0" role="button" aria-label="Красноярск">
-        <circle class="rmw-city-glow" cx="521.05" cy="325.83" r="10"/>
-        <circle class="rmw-city-pulse" cx="521.05" cy="325.83" r="4"/>
-        <circle class="rmw-city-pulse rmw-city-pulse-2" cx="521.05" cy="325.83" r="4"/>
-        <circle class="rmw-city-dot" cx="521.05" cy="325.83" r="5"/>
+        <text class="rmw-city-name" x="521.05" y="325.83" dy="-12" text-anchor="middle">Красноярск</text>
+        <circle class="rmw-city-dot" cx="521.05" cy="325.83" r="4.5"/>
         <circle class="rmw-city-hit" cx="521.05" cy="325.83" r="24"/>
       </g>
       <g class="rmw-city" data-city-id="vladivostok" tabindex="0" role="button" aria-label="Владивосток">
-        <circle class="rmw-city-glow" cx="807.4" cy="499.16" r="10"/>
-        <circle class="rmw-city-pulse" cx="807.4" cy="499.16" r="4"/>
-        <circle class="rmw-city-pulse rmw-city-pulse-2" cx="807.4" cy="499.16" r="4"/>
-        <circle class="rmw-city-dot" cx="807.4" cy="499.16" r="5"/>
+        <text class="rmw-city-name" x="807.4" y="499.16" dy="-12" text-anchor="middle">Владивосток</text>
+        <circle class="rmw-city-dot" cx="807.4" cy="499.16" r="4.5"/>
         <circle class="rmw-city-hit" cx="807.4" cy="499.16" r="24"/>
       </g>
       <g class="rmw-city" data-city-id="sochi" tabindex="0" role="button" aria-label="Сочи">
-        <circle class="rmw-city-glow" cx="130.57" cy="492.66" r="10"/>
-        <circle class="rmw-city-pulse" cx="130.57" cy="492.66" r="4"/>
-        <circle class="rmw-city-pulse rmw-city-pulse-2" cx="130.57" cy="492.66" r="4"/>
-        <circle class="rmw-city-dot" cx="130.57" cy="492.66" r="5"/>
+        <text class="rmw-city-name" x="130.57" y="492.66" dy="-12" text-anchor="middle">Сочи</text>
+        <circle class="rmw-city-dot" cx="130.57" cy="492.66" r="4.5"/>
         <circle class="rmw-city-hit" cx="130.57" cy="492.66" r="24"/>
       </g>
       </svg>
     </div>
     <div class="rmw-label" id="rmw-city-label" aria-hidden="true"></div>
   </div>
-
-  <div class="rmw-tooltip">Москва · Санкт-Петербург · Казань · Екатеринбург · Новосибирск · Красноярск · Владивосток · Сочи</div>
 
   <div class="rmw-modal" id="rmw-video-modal" aria-hidden="true">
     <div class="rmw-modal-frame">

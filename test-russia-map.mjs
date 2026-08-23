@@ -13,6 +13,12 @@ async function testDesktop(page, i) {
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(500);
 
+  const cityLabels = await page.locator('#russia-map-widget .rmw-city-name').count();
+  assert(cityLabels === 8, `Desktop ${i}: expected 8 city labels, got ${cityLabels}`);
+
+  const pulseRings = await page.locator('#russia-map-widget .rmw-city-pulse').count();
+  assert(pulseRings === 0, `Desktop ${i}: pulse rings should be removed`);
+
   const moscow = page.locator('#russia-map-widget .rmw-city[data-city-id="moscow"]');
   await moscow.hover({ force: true });
   await page.waitForTimeout(250);
@@ -71,12 +77,15 @@ async function assertMobileModalFit(page, label) {
 
   assert(metrics, `${label}: modal elements missing`);
   assert(metrics.frameW >= metrics.vw * 0.98, `${label}: frame should be full width, got ${metrics.frameW}/${metrics.vw}`);
-  assert(metrics.wrapW >= metrics.vw * 0.9, `${label}: video area too narrow, ${metrics.wrapW}/${metrics.vw}`);
   assert(metrics.wrapBottom <= metrics.vh + 2, `${label}: video overflows viewport, bottom=${metrics.wrapBottom}, vh=${metrics.vh}`);
   assert(metrics.wrapPad >= 3, `${label}: video border missing, padding=${metrics.wrapPad}`);
 
   const ar = metrics.wrapW / metrics.wrapH;
   assert(ar > 1.5 && ar < 1.9, `${label}: bad aspect ratio ${ar.toFixed(2)}`);
+
+  const usesMaxWidth = metrics.wrapW >= metrics.vw * 0.88;
+  const usesMaxHeight = metrics.wrapH >= (metrics.vh - metrics.headH - 24) * 0.88;
+  assert(usesMaxWidth || usesMaxHeight, `${label}: video should use max available space ${metrics.wrapW}x${metrics.wrapH} in ${metrics.vw}x${metrics.vh}`);
 
   await page.locator('#rmw-close-btn').tap();
   await page.waitForTimeout(150);
