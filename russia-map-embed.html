@@ -23,8 +23,10 @@
       margin-right: calc(50% - 50vw);
       position: relative;
       left: auto;
-      min-height: 100vh;
-      min-height: 100dvh;
+      height: 100vh;
+      height: 100dvh;
+      max-height: 100dvh;
+      min-height: 320px;
       overflow: hidden;
       isolation: isolate;
       font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -103,6 +105,8 @@
       justify-content: center;
       width: 100%;
       min-height: 0;
+      max-height: 100%;
+      overflow: hidden;
       z-index: 3;
     }
 
@@ -158,15 +162,11 @@
     }
 
     #russia-map-widget .rmw-map-svg {
-      width: auto;
-      height: auto;
-      max-width: 100%;
-      max-height: 100%;
-      flex: 0 1 auto;
       display: block;
       overflow: visible;
       user-select: none;
       touch-action: manipulation;
+      flex: 0 0 auto;
     }
 
     #russia-map-widget .rmw-land-fill {
@@ -484,21 +484,53 @@
       var root = document.getElementById("russia-map-widget");
       if (!root) return;
 
+      function fitMapToStage() {
+        var svg = root.querySelector(".rmw-map-svg");
+        var stageEl = root.querySelector("#rmw-stage");
+        if (!svg || !stageEl) return;
+        var vb = svg.viewBox.baseVal;
+        if (!vb || !vb.width || !vb.height) return;
+        var ar = vb.width / vb.height;
+        var pad = 12;
+        var sw = stageEl.clientWidth - pad * 2;
+        var sh = stageEl.clientHeight - pad * 2;
+        if (sw <= 0 || sh <= 0) return;
+        var w, h;
+        if (sw / sh > ar) {
+          h = sh;
+          w = h * ar;
+        } else {
+          w = sw;
+          h = w / ar;
+        }
+        svg.style.width = Math.floor(w) + "px";
+        svg.style.height = Math.floor(h) + "px";
+      }
+
       function stretchToViewport() {
         var vh = window.innerHeight || document.documentElement.clientHeight;
-        if (vh > 0) root.style.minHeight = vh + "px";
-        var header = root.querySelector(".rmw-header");
-        var tip = root.querySelector(".rmw-tooltip");
-        var stageEl = root.querySelector("#rmw-stage");
-        if (stageEl && vh > 0) {
-          var used = (header ? header.offsetHeight : 0) + (tip ? tip.offsetHeight : 0);
-          stageEl.style.minHeight = Math.max(360, vh - used) + "px";
-        }
+        if (vh <= 0) return;
+
+        var rect = root.getBoundingClientRect();
+        var available = Math.floor(vh - Math.max(0, rect.top));
+
+        if (available < 280) available = Math.floor(vh * 0.92);
+
+        root.style.height = available + "px";
+        root.style.maxHeight = available + "px";
+        root.style.minHeight = Math.min(available, 320) + "px";
+
+        fitMapToStage();
       }
 
       stretchToViewport();
       window.addEventListener("resize", stretchToViewport);
       window.addEventListener("load", stretchToViewport);
+      window.addEventListener("orientationchange", stretchToViewport);
+      if (window.ResizeObserver) {
+        var ro = new ResizeObserver(stretchToViewport);
+        ro.observe(root);
+      }
 
       var stage = root.querySelector("#rmw-stage");
       var label = root.querySelector("#rmw-city-label");
