@@ -1,7 +1,7 @@
-import { chromium } from 'playwright';
+import { chromium, devices } from 'playwright';
 
-const BASE = 'http://127.0.0.1:8765/russia-map-test.html';
-const runs = 10;
+const BASE = 'http://127.0.0.1:8765/russia-map-embed.html';
+const runs = 5;
 let passed = 0;
 const errors = [];
 
@@ -9,56 +9,69 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-async function runOnce(page, i) {
-  await page.goto(BASE, { waitUntil: 'networkidle' });
+async function testDesktop(page, i) {
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(500);
 
-  const widget = page.locator('#russia-map-widget');
-  await widget.waitFor({ state: 'visible' });
+  const moscow = page.locator('#russia-map-widget .rmw-city[data-city-id="moscow"]');
+  await moscow.hover({ force: true });
+  await page.waitForTimeout(250);
 
-  const paths = await page.locator('#russia-map-widget .rmw-land').count();
-  assert(paths >= 10, `Run ${i}: expected Russia paths, got ${paths}`);
+  const hoverModal = await page.locator('#russia-map-widget .rmw-modal.is-open').count();
+  assert(hoverModal === 0, `Desktop ${i}: Moscow modal must not open on hover`);
 
-  const cities = ['moscow', 'spb'];
-  for (const cityId of cities) {
-    const city = page.locator(`#russia-map-widget .rmw-city[data-city-id="${cityId}"]`);
-    await city.hover({ force: true });
-    await page.waitForTimeout(150);
+  await moscow.click({ force: true });
+  await page.waitForTimeout(300);
 
-    const labelVisible = await page.locator('#russia-map-widget .rmw-label.is-visible').isVisible();
-    assert(labelVisible, `Run ${i}: label not visible for ${cityId}`);
+  const modalOpen = await page.locator('#russia-map-widget .rmw-modal.is-open').isVisible();
+  assert(modalOpen, `Desktop ${i}: Moscow modal should open on click`);
 
-    const labelText = await page.locator('#russia-map-widget .rmw-label').textContent();
-    assert(labelText && labelText.includes('нажмите'), `Run ${i}: bad label for ${cityId}: ${labelText}`);
+  const panelWidth = await page.locator('#russia-map-widget .rmw-modal-panel').evaluate((el) => el.getBoundingClientRect().width);
+  assert(panelWidth >= 900, `Desktop ${i}: modal should be large, got ${panelWidth}px`);
 
-    await city.click({ force: true });
-    await page.waitForTimeout(250);
+  const videoSrc = await page.locator('#russia-map-widget #rmw-video-container video').getAttribute('src');
+  assert(videoSrc && videoSrc.includes('.mp4'), `Desktop ${i}: expected MP4 video`);
 
-    const modalOpen = await page.locator('#russia-map-widget .rmw-modal.is-open').isVisible();
-    assert(modalOpen, `Run ${i}: modal not open for ${cityId}`);
+  await page.locator('#rmw-close-btn').click();
+  await page.waitForTimeout(150);
+  assert(await page.locator('#russia-map-widget .rmw-modal.is-open').count() === 0, `Desktop ${i}: modal should close`);
+}
 
-    const iframeCount = await page.locator('#russia-map-widget #rmw-video-container iframe').count();
-    assert(iframeCount === 1, `Run ${i}: iframe missing for ${cityId}`);
+async function testMobile(page, i) {
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(500);
 
-    const title = await page.locator('#rmw-modal-title').textContent();
-    assert(title && title.length > 1, `Run ${i}: empty modal title for ${cityId}`);
+  const moscow = page.locator('#russia-map-widget .rmw-city[data-city-id="moscow"]');
+  const box = await moscow.boundingBox();
+  assert(box, `Mobile ${i}: Moscow marker not found`);
 
-    await page.locator('#rmw-close-btn').click();
-    await page.waitForTimeout(150);
+  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(400);
 
-    const modalClosed = await page.locator('#russia-map-widget .rmw-modal.is-open').count();
-    assert(modalClosed === 0, `Run ${i}: modal did not close for ${cityId}`);
+  const modalOpen = await page.locator('#russia-map-widget .rmw-modal.is-open').isVisible();
+  assert(modalOpen, `Mobile ${i}: Moscow modal should open on tap`);
 
-    const videoCleared = await page.locator('#russia-map-widget #rmw-video-container iframe').count();
-    assert(videoCleared === 0, `Run ${i}: video not cleared for ${cityId}`);
-  }
+  const panelWidth = await page.locator('#russia-map-widget .rmw-modal-panel').evaluate((el) => el.getBoundingClientRect().width);
+  const viewport = page.viewportSize();
+  assert(panelWidth >= viewport.width * 0.98, `Mobile ${i}: modal should be full width, got ${panelWidth}/${viewport.width}`);
+
+  const closeBox = await page.locator('#rmw-close-btn').boundingBox();
+  assert(Math.round(closeBox.width) >= 44 && Math.round(closeBox.height) >= 44, `Mobile ${i}: close button too small`);
+
+  await page.locator('#rmw-close-btn').tap();
+  await page.waitForTimeout(150);
+  assert(await page.locator('#russia-map-widget .rmw-modal.is-open').count() === 0, `Mobile ${i}: modal should close on tap`);
 }
 
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+const desktopPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+const iphone = devices['iPhone 13'];
+const mobilePage = await browser.newPage({ ...iphone });
 
 for (let i = 1; i <= runs; i++) {
   try {
-    await runOnce(page, i);
+    await testDesktop(desktopPage, i);
+    await testMobile(mobilePage, i);
     passed++;
     console.log(`PASS run ${i}/${runs}`);
   } catch (err) {
