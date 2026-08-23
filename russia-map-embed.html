@@ -352,7 +352,7 @@
 
   <div class="rmw-header">
     <h3 class="rmw-title">Карта России</h3>
-    <p class="rmw-hint">Наведите на город · двигайте мышью по карте · нажмите для видео</p>
+    <p class="rmw-hint">Наведите на город — откроется видео</p>
   </div>
 
   <div class="rmw-stage" id="rmw-stage">
@@ -470,13 +470,15 @@
         cities: {
           moscow: {
             name: "Москва",
-            videoUrl: "https://www.youtube.com/embed/Scxs7L0vhZ4?autoplay=1&rel=0",
-            videoType: "iframe"
+            videoUrl: "https://vkvideo.ru/video-228459905_456239098",
+            videoType: "iframe",
+            openOnHover: true
           },
           spb: {
             name: "Санкт-Петербург",
             videoUrl: "https://www.youtube.com/embed/1L30rDMeZDs?autoplay=1&rel=0",
-            videoType: "iframe"
+            videoType: "iframe",
+            openOnHover: false
           }
         }
       };
@@ -542,6 +544,7 @@
       var ctx = canvas.getContext("2d");
       var particles = [];
       var activeCity = null;
+      var currentVideoCity = null;
 
       function getCityConfig(id) {
         return RUSSIA_MAP_CONFIG.cities[id] || null;
@@ -616,6 +619,11 @@
         if (!url) return url;
         var ytWatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{11})/i);
         if (ytWatch) return "https://www.youtube.com/embed/" + ytWatch[1] + "?autoplay=1&rel=0";
+        var vkLink = url.match(/(?:vkvideo\.ru|vk\.com)\/video(-?\d+)_(\d+)/i);
+        if (vkLink) {
+          var oid = vkLink[1].charAt(0) === "-" ? vkLink[1] : "-" + vkLink[1];
+          return "https://vkvideo.ru/video_ext.php?oid=" + oid + "&id=" + vkLink[2] + "&hd=2&autoplay=1";
+        }
         return url;
       }
 
@@ -628,7 +636,7 @@
         }
         var iframe = document.createElement("iframe");
         iframe.src = url;
-        iframe.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+        iframe.allow = "autoplay; encrypted-media; picture-in-picture; screen-wake-lock; fullscreen";
         iframe.allowFullscreen = true;
         iframe.title = city.name + " — видео";
         return iframe;
@@ -637,18 +645,20 @@
       function openVideo(cityId) {
         var city = getCityConfig(cityId);
         if (!city || !city.videoUrl) return;
+        if (currentVideoCity === cityId && modal.classList.contains("is-open")) return;
         clearVideo();
         modalTitle.textContent = city.name;
         videoContainer.appendChild(buildVideoElement(city));
         modal.classList.add("is-open");
         modal.setAttribute("aria-hidden", "false");
-        closeBtn.focus();
+        currentVideoCity = cityId;
       }
 
       function closeVideo() {
         modal.classList.remove("is-open");
         modal.setAttribute("aria-hidden", "true");
         clearVideo();
+        currentVideoCity = null;
       }
 
       function showLabel(cityId, clientX, clientY) {
@@ -657,7 +667,7 @@
         var name = (cfg && cfg.name) || (node && node.getAttribute("aria-label")) || cityId;
         var hasVideo = !!(cfg && cfg.videoUrl);
         var rect = stage.getBoundingClientRect();
-        label.textContent = name + (hasVideo ? " — нажмите для видео" : "");
+        label.textContent = name + (hasVideo ? " — видео" : "");
         label.style.left = Math.max(50, Math.min(rect.width - 50, clientX - rect.left)) + "px";
         label.style.top = Math.max(24, clientY - rect.top) + "px";
         label.classList.add("is-visible");
@@ -670,6 +680,8 @@
         node.addEventListener("mouseenter", function (e) {
           node.classList.add("is-active");
           showLabel(cityId, e.clientX, e.clientY);
+          var cfg = getCityConfig(cityId);
+          if (cfg && cfg.videoUrl && cfg.openOnHover !== false) openVideo(cityId);
         });
         node.addEventListener("mousemove", function (e) { showLabel(cityId, e.clientX, e.clientY); });
         node.addEventListener("mouseleave", function () { node.classList.remove("is-active"); hideLabel(); });
