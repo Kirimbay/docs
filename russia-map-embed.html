@@ -16,6 +16,7 @@
       --rmw-gold-deep: #9a7720;
       --rmw-text: #f5ecd4;
       --rmw-stroke: 3.9;
+      --rmw-frame-w: calc(var(--rmw-stroke) * 1px);
       position: relative;
       display: flex;
       flex-direction: column;
@@ -280,13 +281,30 @@
     #russia-map-widget .rmw-modal {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.88);
+      background: rgba(0, 0, 0, 0.94);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       display: none;
       align-items: center;
       justify-content: center;
       padding: clamp(8px, 2vw, 20px);
       z-index: 999999;
       -webkit-overflow-scrolling: touch;
+    }
+
+    #russia-map-widget .rmw-modal::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(
+          ellipse min(980px, 94vw) min(680px, 82vh) at 50% 50%,
+          rgba(0, 0, 0, 0.08) 0%,
+          rgba(0, 0, 0, 0.68) 58%,
+          rgba(0, 0, 0, 0.97) 100%
+        );
     }
 
     #russia-map-widget .rmw-modal.is-open { display: flex; }
@@ -297,9 +315,11 @@
     }
 
     #russia-map-widget .rmw-modal-frame {
+      position: relative;
+      z-index: 1;
       width: min(1280px, 96vw);
       max-height: min(96vh, 96dvh);
-      padding: 3px;
+      padding: var(--rmw-frame-w);
       border-radius: 16px;
       background: linear-gradient(
         90deg,
@@ -313,17 +333,21 @@
       );
       background-size: 220% 100%;
       animation: rmw-shine-border 18s linear infinite;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.65), 0 0 40px rgba(212,175,55,0.18);
+      box-shadow:
+        0 0 0 1px rgba(212, 175, 55, 0.12),
+        0 24px 80px rgba(0,0,0,0.75),
+        0 0 48px rgba(212,175,55,0.22);
+      filter: drop-shadow(0 0 1px rgba(255, 243, 196, 0.35));
     }
 
     #russia-map-widget .rmw-modal-panel {
       width: 100%;
-      max-height: calc(min(96vh, 96dvh) - 6px);
+      max-height: calc(min(96vh, 96dvh) - (var(--rmw-frame-w) * 2));
       display: flex;
       flex-direction: column;
       background: #0a0a0a;
       border: none;
-      border-radius: 13px;
+      border-radius: calc(16px - var(--rmw-frame-w));
       overflow: hidden;
     }
 
@@ -365,7 +389,7 @@
       flex: 1 1 auto;
       min-height: 0;
       margin: 0 14px 14px;
-      padding: 3px;
+      padding: var(--rmw-frame-w);
       border-radius: 10px;
       background: linear-gradient(
         90deg,
@@ -381,13 +405,14 @@
       animation: rmw-shine-border 18s linear infinite;
       aspect-ratio: 16 / 9;
       max-height: calc(min(96vh, 96dvh) - 88px);
+      filter: drop-shadow(0 0 1px rgba(255, 243, 196, 0.35));
     }
 
     #russia-map-widget .rmw-video-wrap::before {
       content: "";
       position: absolute;
-      inset: 3px;
-      border-radius: 8px;
+      inset: var(--rmw-frame-w);
+      border-radius: calc(10px - var(--rmw-frame-w));
       background: #000;
       z-index: 0;
       pointer-events: none;
@@ -396,14 +421,14 @@
     #russia-map-widget .rmw-video-wrap iframe,
     #russia-map-widget .rmw-video-wrap video {
       position: absolute;
-      inset: 3px;
-      width: calc(100% - 6px);
-      height: calc(100% - 6px);
+      inset: var(--rmw-frame-w);
+      width: calc(100% - (var(--rmw-frame-w) * 2));
+      height: calc(100% - (var(--rmw-frame-w) * 2));
       border: 0;
       display: block;
       object-fit: contain;
       background: #000;
-      border-radius: 8px;
+      border-radius: calc(10px - var(--rmw-frame-w));
       z-index: 1;
     }
 
@@ -428,11 +453,11 @@
         max-height: 100dvh;
         height: 100%;
         border-radius: 0;
-        padding: 2px;
+        padding: var(--rmw-frame-w);
       }
 
       #russia-map-widget .rmw-modal-panel {
-        max-height: calc(100dvh - 4px);
+        max-height: calc(100dvh - (var(--rmw-frame-w) * 2));
         height: 100%;
         border-radius: 0;
       }
