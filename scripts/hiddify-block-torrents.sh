@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.2+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.3+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -21,7 +21,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.7.2"
+VERSION="1.7.3"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -1246,7 +1246,7 @@ install_systemd() {
   cat > /etc/systemd/system/hiddify-notorrent.service <<EOF
 [Unit]
 Description=Re-apply Hiddify BitTorrent block
-After=network-online.target
+After=network-online.target hiddify-xray.service hiddify-singbox.service
 
 [Service]
 Type=oneshot
@@ -1256,6 +1256,17 @@ Nice=10
 [Install]
 WantedBy=multi-user.target
 EOF
+
+  # Hiddify restarts rewrite iptables/nft. Put the allowlist back after the core is up.
+  local svc d
+  for svc in hiddify-xray hiddify-singbox; do
+    d="/etc/systemd/system/${svc}.service.d"
+    mkdir -p "${d}"
+    cat > "${d}/hiddify-notorrent.conf" <<EOF
+[Service]
+ExecStartPost=-${SELF_PATH} apply-fw
+EOF
+  done
 
   cat > /etc/systemd/system/hiddify-notorrent.timer <<'EOF'
 [Unit]
@@ -1297,6 +1308,10 @@ uninstall_systemd() {
   rm -f /etc/systemd/system/hiddify-notorrent.service \
         /etc/systemd/system/hiddify-notorrent.timer \
         /etc/systemd/system/hiddify-notorrent.path
+  rm -f /etc/systemd/system/hiddify-xray.service.d/hiddify-notorrent.conf \
+        /etc/systemd/system/hiddify-singbox.service.d/hiddify-notorrent.conf
+  rmdir /etc/systemd/system/hiddify-xray.service.d \
+        /etc/systemd/system/hiddify-singbox.service.d 2>/dev/null || true
   systemctl daemon-reload 2>/dev/null || true
 }
 
@@ -1339,10 +1354,13 @@ cmd_apply() {
     # still missing marker on some file — patch failed
     warn "Some routing files still lack the torrent block. Check the log above."
   fi
-  apply_firewall
   if [[ "${need_restart}" -eq 1 ]]; then
     restart_proxy_cores
   fi
+  # Hiddify restart flushes nft/iptables — firewall must be last.
+  PERSIST_FIREWALL="${PERSIST_FIREWALL:-1}"
+  export PERSIST_FIREWALL
+  apply_firewall
 }
 
 cmd_install() {
@@ -1354,9 +1372,11 @@ cmd_install() {
   ALLOW_APT=1 PERSIST_FIREWALL=1
   export ALLOW_APT PERSIST_FIREWALL
   patch_hiddify_routing
-  apply_firewall
   install_systemd
   restart_proxy_cores
+  # Hiddify restart flushes nft/iptables — firewall must be last.
+  apply_firewall
+  systemctl start hiddify-notorrent.service >/dev/null 2>&1 || true
   log "Done. Users change nothing. Kernel drops NEW outbound that is not a web port."
   log "Version:   ${VERSION}  (if doctor is unknown, this file never reached PATH)"
   log "Check:     hiddify-block-torrents status"
@@ -1825,7 +1845,11 @@ PY
   if [[ "${nft_ok}" -eq 1 || "${ipt_ok}" -eq 1 ]]; then
     echo "kernel:      OUTPUT allowlist ON  (nft=${nft_ok} iptables=${ipt_ok})"
   else
-    echo "kernel:      НЕТ — снова install от файла ${VERSION}"
+    echo "kernel:      НЕТ — nft/iptables пустые (Hiddify после restart сносит правила)."
+    if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+      echo "             doctor без root не видит таблицу. sudo hiddify-block-torrents doctor"
+    fi
+    echo "             Сейчас: sudo hiddify-block-torrents apply-fw && sudo hiddify-block-torrents doctor"
   fi
   local vpn_safe=1
   if command -v nft >/dev/null 2>&1 && nft list table inet hiddify_notorrent >/dev/null 2>&1; then

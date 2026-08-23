@@ -42,6 +42,9 @@ fi
 if awk '/^emit_nft_table/,/^}$/' "$SCRIPT" | grep -q 'tcp flags ack accept'; then
   fail "inspect_web tcp flags ack accept lets torrent PSH+ACK through"
 fi
-grep -q 'cmd_recover' "$SCRIPT" || fail "recover command missing"
+grep -q 'ExecStartPost=-' "$SCRIPT" || fail "must re-apply firewall after hiddify-xray start"
+# firewall must come after restart_proxy_cores in cmd_install
+install_order="$(awk '/^cmd_install\(\)/,/^cmd_status\(\)/' "$SCRIPT" | grep -nE 'restart_proxy_cores|apply_firewall')"
+echo "${install_order}" | tr '\n' ' ' | grep -q 'restart_proxy_cores.*apply_firewall' || fail "install must apply firewall AFTER hiddify restart"
 
 echo "test-1.6.3-vpn-safe: ok"
