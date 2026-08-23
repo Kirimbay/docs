@@ -37,41 +37,77 @@ async function testDesktop(page, i) {
   assert(await page.locator('#russia-map-widget .rmw-modal.is-open').count() === 0, `Desktop ${i}: modal should close`);
 }
 
-async function testMobile(page, i) {
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(500);
-
+async function openMoscowMobile(page) {
   const moscow = page.locator('#russia-map-widget .rmw-city[data-city-id="moscow"]');
   const box = await moscow.boundingBox();
-  assert(box, `Mobile ${i}: Moscow marker not found`);
-
+  assert(box, 'Moscow marker not found');
   await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(450);
+}
 
+async function assertMobileModalFit(page, label) {
   const modalOpen = await page.locator('#russia-map-widget .rmw-modal.is-open').isVisible();
-  assert(modalOpen, `Mobile ${i}: Moscow modal should open on tap`);
+  assert(modalOpen, `${label}: Moscow modal should open on tap`);
 
-  const panelWidth = await page.locator('#russia-map-widget .rmw-modal-panel').evaluate((el) => el.getBoundingClientRect().width);
-  const viewport = page.viewportSize();
-  assert(panelWidth >= viewport.width * 0.98, `Mobile ${i}: modal should be full width, got ${panelWidth}/${viewport.width}`);
+  const metrics = await page.evaluate(() => {
+    const frame = document.querySelector('#russia-map-widget .rmw-modal-frame');
+    const wrap = document.querySelector('#russia-map-widget .rmw-video-wrap');
+    const head = document.querySelector('#russia-map-widget .rmw-modal-head');
+    if (!frame || !wrap || !head) return null;
+    const frameRect = frame.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    const wrapStyle = getComputedStyle(wrap);
+    return {
+      vw: window.innerWidth,
+      vh: window.innerHeight,
+      frameW: frameRect.width,
+      wrapW: wrapRect.width,
+      wrapH: wrapRect.height,
+      wrapPad: parseFloat(wrapStyle.paddingLeft) || 0,
+      wrapBottom: wrapRect.bottom,
+      headH: head.getBoundingClientRect().height
+    };
+  });
 
-  const closeBox = await page.locator('#rmw-close-btn').boundingBox();
-  assert(Math.round(closeBox.width) >= 44 && Math.round(closeBox.height) >= 44, `Mobile ${i}: close button too small`);
+  assert(metrics, `${label}: modal elements missing`);
+  assert(metrics.frameW >= metrics.vw * 0.98, `${label}: frame should be full width, got ${metrics.frameW}/${metrics.vw}`);
+  assert(metrics.wrapW >= metrics.vw * 0.9, `${label}: video area too narrow, ${metrics.wrapW}/${metrics.vw}`);
+  assert(metrics.wrapBottom <= metrics.vh + 2, `${label}: video overflows viewport, bottom=${metrics.wrapBottom}, vh=${metrics.vh}`);
+  assert(metrics.wrapPad >= 3, `${label}: video border missing, padding=${metrics.wrapPad}`);
+
+  const ar = metrics.wrapW / metrics.wrapH;
+  assert(ar > 1.5 && ar < 1.9, `${label}: bad aspect ratio ${ar.toFixed(2)}`);
 
   await page.locator('#rmw-close-btn').tap();
   await page.waitForTimeout(150);
-  assert(await page.locator('#russia-map-widget .rmw-modal.is-open').count() === 0, `Mobile ${i}: modal should close on tap`);
+  assert(await page.locator('#russia-map-widget .rmw-modal.is-open').count() === 0, `${label}: modal should close`);
+}
+
+async function testMobilePortrait(page, i) {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(500);
+  await openMoscowMobile(page);
+  await assertMobileModalFit(page, `Mobile portrait ${i}`);
+}
+
+async function testMobileLandscape(page, i) {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(500);
+  await openMoscowMobile(page);
+  await assertMobileModalFit(page, `Mobile landscape ${i}`);
 }
 
 const browser = await chromium.launch({ headless: true });
 const desktopPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-const iphone = devices['iPhone 13'];
-const mobilePage = await browser.newPage({ ...iphone });
+const mobilePage = await browser.newPage({ ...devices['iPhone 13'] });
 
 for (let i = 1; i <= runs; i++) {
   try {
     await testDesktop(desktopPage, i);
-    await testMobile(mobilePage, i);
+    await testMobilePortrait(mobilePage, i);
+    await testMobileLandscape(mobilePage, i);
     passed++;
     console.log(`PASS run ${i}/${runs}`);
   } catch (err) {

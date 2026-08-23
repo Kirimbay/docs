@@ -444,34 +444,57 @@
       }
 
       #russia-map-widget .rmw-modal {
-        padding: 0;
-        align-items: stretch;
+        padding:
+          env(safe-area-inset-top, 0px)
+          env(safe-area-inset-right, 0px)
+          env(safe-area-inset-bottom, 0px)
+          env(safe-area-inset-left, 0px);
+        align-items: center;
+        justify-content: center;
+      }
+
+      #russia-map-widget .rmw-modal::before {
+        background:
+          radial-gradient(
+            ellipse 100vw 85vh at 50% 50%,
+            rgba(0, 0, 0, 0.12) 0%,
+            rgba(0, 0, 0, 0.9) 100%
+          );
       }
 
       #russia-map-widget .rmw-modal-frame {
         width: 100%;
+        max-width: 100vw;
+        height: auto;
         max-height: 100dvh;
-        height: 100%;
         border-radius: 0;
         padding: var(--rmw-frame-w);
+        box-sizing: border-box;
       }
 
       #russia-map-widget .rmw-modal-panel {
-        max-height: calc(100dvh - (var(--rmw-frame-w) * 2));
-        height: 100%;
+        width: 100%;
+        height: auto;
+        max-height: none;
         border-radius: 0;
+        align-items: center;
       }
 
       #russia-map-widget .rmw-modal-head {
-        padding: 12px 14px;
+        width: 100%;
+        padding: 10px 12px;
+        box-sizing: border-box;
       }
 
       #russia-map-widget .rmw-video-wrap {
-        width: calc(100% - 20px);
-        margin: 0 10px 10px;
-        aspect-ratio: auto;
+        width: 100%;
+        max-width: 100%;
+        margin: 0 auto 8px;
+        aspect-ratio: 16 / 9;
+        flex: 0 0 auto;
+        height: auto;
         max-height: none;
-        flex: 1;
+        box-sizing: border-box;
       }
     }
   </style>
@@ -665,9 +688,15 @@
       }
 
       stretchToViewport();
-      window.addEventListener("resize", stretchToViewport);
+      window.addEventListener("resize", function () {
+        stretchToViewport();
+        fitVideoModal();
+      });
       window.addEventListener("load", stretchToViewport);
-      window.addEventListener("orientationchange", stretchToViewport);
+      window.addEventListener("orientationchange", function () {
+        stretchToViewport();
+        setTimeout(fitVideoModal, 120);
+      });
       if (window.ResizeObserver) {
         var ro = new ResizeObserver(stretchToViewport);
         ro.observe(root);
@@ -699,6 +728,65 @@
 
       function getCityConfig(id) {
         return RUSSIA_MAP_CONFIG.cities[id] || null;
+      }
+
+      function isCompactModal() {
+        return window.matchMedia("(max-width: 640px), (hover: none) and (pointer: coarse)").matches;
+      }
+
+      function resetVideoWrapSize() {
+        var wrap = root.querySelector(".rmw-video-wrap");
+        if (!wrap) return;
+        wrap.style.width = "";
+        wrap.style.height = "";
+        wrap.style.maxWidth = "";
+        wrap.style.maxHeight = "";
+        wrap.style.margin = "";
+      }
+
+      function fitVideoModal() {
+        var frame = root.querySelector(".rmw-modal-frame");
+        var head = root.querySelector(".rmw-modal-head");
+        var wrap = root.querySelector(".rmw-video-wrap");
+        if (!frame || !head || !wrap) return;
+
+        resetVideoWrapSize();
+        if (!isCompactModal() || !modal.classList.contains("is-open")) return;
+
+        var frameStyle = getComputedStyle(frame);
+        var padX = parseFloat(frameStyle.paddingLeft) + parseFloat(frameStyle.paddingRight);
+        var padY = parseFloat(frameStyle.paddingTop) + parseFloat(frameStyle.paddingBottom);
+        var wrapStyle = getComputedStyle(wrap);
+        var borderW = parseFloat(wrapStyle.paddingLeft) || 3.9;
+        var bottomGap = 8;
+
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
+        var headH = head.getBoundingClientRect().height;
+
+        var availW = Math.max(0, vw - padX - borderW * 2);
+        var availH = Math.max(0, vh - padY - headH - bottomGap - borderW * 2);
+        if (availW <= 0 || availH <= 0) return;
+
+        var ar = 16 / 9;
+        var innerW, innerH;
+        if (availW / availH > ar) {
+          innerH = availH;
+          innerW = innerH * ar;
+        } else {
+          innerW = availW;
+          innerH = innerW / ar;
+        }
+
+        innerW = Math.floor(innerW);
+        innerH = Math.floor(innerH);
+
+        wrap.style.width = (innerW + borderW * 2) + "px";
+        wrap.style.height = (innerH + borderW * 2) + "px";
+        wrap.style.maxWidth = "100%";
+        wrap.style.maxHeight = (innerH + borderW * 2) + "px";
+        wrap.style.margin = "0 auto " + bottomGap + "px";
+        wrap.style.flex = "0 0 auto";
       }
 
       function resizeCanvas() {
@@ -823,6 +911,10 @@
         modal.setAttribute("aria-hidden", "false");
         currentVideoCity = cityId;
         lockPageScroll();
+        requestAnimationFrame(function () {
+          fitVideoModal();
+          requestAnimationFrame(fitVideoModal);
+        });
       }
 
       function closeVideo() {
@@ -831,6 +923,7 @@
         clearVideo();
         currentVideoCity = null;
         unlockPageScroll();
+        resetVideoWrapSize();
       }
 
       function showLabel(cityId, clientX, clientY) {
