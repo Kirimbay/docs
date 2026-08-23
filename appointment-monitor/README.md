@@ -1,111 +1,113 @@
 # Монитор записи к врачу (Дубна / Московская область)
 
-Скрипт раз в N минут проверяет свободные талоны на [zdrav.mosreg.ru](https://zdrav.mosreg.ru/) и сразу пишет вам в Telegram, когда появляются места.
+Telegram-бот и CLI для мониторинга свободных талонов на [zdrav.mosreg.ru](https://zdrav.mosreg.ru/).
 
-- Только **чтение** расписания — запись сам не создаёт
-- Нужны номер полиса ОМС и дата рождения (как на портале)
-- Лучше запускать с компьютера/VPS **в России** (портал часто недоступен из-за рубежа)
+- Только **чтение** расписания — запись не создаёт
+- Проверка каждые 5 минут (настраивается)
+- Данные хранятся локально в папке `data/` на вашем компьютере
+- Запускайте **в России** (ПК, ноутбук или VPS)
 
-Готовый чужой бот с похожей идеей: [@zdrav_mosreg_subscribe_bot](https://t.me/zdrav_mosreg_subscribe_bot).  
-Официальная запись: [@eregistratura_mo_bot](https://t.me/eregistratura_mo_bot) (Денис) или сайт / 122.
+## Быстрый старт (Telegram-бот)
 
-## Быстрый старт
+### 1. Создайте бота
+
+1. Напишите [@BotFather](https://t.me/BotFather) → `/newbot`
+2. Скопируйте токен
+
+### 2. Установка
 
 ```bash
 cd appointment-monitor
 python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Откройте `.env` и заполните:
-
-1. `OMS_NUMBER` — полис ОМС (только цифры)
-2. `OMS_BIRTHDAY` — дата рождения в формате `ДД.ММ.ГГГГ`
-3. Telegram (см. ниже)
-
-### Telegram-оповещения
-
-1. Напишите [@BotFather](https://t.me/BotFather) → `/newbot` → получите `TELEGRAM_BOT_TOKEN`
-2. Напишите своему боту любое сообщение
-3. Узнайте `TELEGRAM_CHAT_ID`:
-   - откройте `https://api.telegram.org/bot<TOKEN>/getUpdates`
-   - в ответе найдите `"chat":{"id": 123456789`
-4. Впишите токен и chat id в `.env`
-5. Проверка: `python monitor.py notify-test`
-
-## Настройка «кого смотреть» (Дубна)
-
-```bash
-# 1) список специальностей → скопируйте id нужной
-python monitor.py departments
-
-# 2) больницы по специальности (ищите Дубну в адресе/названии)
-python monitor.py hospitals <DEPARTMENT_ID>
-
-# 3) врачи и текущие талоны
-python monitor.py doctors <DEPARTMENT_ID> <LPU_CODE>
-```
-
-Впишите в `.env`:
+В `.env` укажите только:
 
 ```env
-DEPARTMENT_ID=...   # из departments
-LPU_CODE=...        # код больницы в Дубне (из hospitals)
-DOCTOR_ID=          # опционально: конкретный врач
+TELEGRAM_BOT_TOKEN=123456:ABC...
 CHECK_INTERVAL_SEC=300
 DAYS=21
 ```
 
-## Запуск мониторинга
-
-Одна проверка:
+### 3. Запуск
 
 ```bash
-python monitor.py check
+python bot.py
 ```
 
-Постоянно (каждые 5 минут по умолчанию):
+Окно должно оставаться открытым (или используйте systemd — ниже).
+
+### 4. Настройка в Telegram
+
+1. Откройте своего бота → `/start`
+2. `/polis 5040200838017611 01.12.2000` — ваш полис и дата рождения
+3. `/departments` — выберите специальность → поликлинику в Дубне → «Подписаться»
+4. `/check` — проверить сейчас
+5. `/list` — ваши подписки
+
+Когда появятся талоны — бот пришлёт сообщение. Записывайтесь сразу на [zdrav.mosreg.ru](https://zdrav.mosreg.ru/) или через [@eregistratura_mo_bot](https://t.me/eregistratura_mo_bot).
+
+## Команды бота
+
+| Команда | Описание |
+|--------|----------|
+| `/start`, `/help` | Справка |
+| `/polis номер дата` | Сохранить полис ОМС |
+| `/departments` | Выбрать специальность и поликлинику |
+| `/list` | Список подписок |
+| `/check` | Проверить все подписки сейчас |
+| `/unfollow 1` | Удалить подписку по номеру из `/list` |
+| `/me` | Ваши данные |
+| `/delete` | Удалить все данные из бота |
+
+## CLI-режим (без интерактива)
+
+Если нужен простой скрипт для одного врача через `.env`:
 
 ```bash
+# заполните OMS_NUMBER, OMS_BIRTHDAY, DEPARTMENT_ID, LPU_CODE, TELEGRAM_CHAT_ID
+python monitor.py departments
 python monitor.py watch
 ```
 
-Чтобы работало, пока компьютер выключен, оставьте скрипт на всегда включённом ПК / Raspberry Pi / дешёвом VPS в РФ, либо через `systemd` / Task Scheduler.
-
-Пример `systemd` (Linux):
+## systemd (Linux, чтобы работало 24/7)
 
 ```ini
 [Unit]
-Description=Doctor appointment monitor
+Description=Zdrav appointment Telegram bot
 After=network-online.target
 
 [Service]
 WorkingDirectory=/path/to/appointment-monitor
-ExecStart=/path/to/appointment-monitor/.venv/bin/python monitor.py watch
+EnvironmentFile=/path/to/appointment-monitor/.env
+ExecStart=/path/to/appointment-monitor/.venv/bin/python bot.py
 Restart=always
-RestartSec=30
+RestartSec=20
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-## Важно
+## Когда ловить талоны
 
-- **Не коммитьте** `.env` и полис — в `.gitignore` это уже учтено
-- Скрипт шлёт уведомление, когда талонов стало больше или набор дат изменился; повторно не спамит, пока картина та же
-- Когда придёт оповещение — сразу записывайтесь на сайте или через [@eregistratura_mo_bot](https://t.me/eregistratura_mo_bot): места разбирают за минуты
-- Часто новые окна открывают **утром** — имеет смысл держать монитор включённым ночью и с утра
-- Если API портала сменится, команды `departments` / `doctors` начнут падать с ошибкой HTTP — тогда нужно обновить URL в `monitor.py`
+Новые окна часто открывают **около 7:00 в будни**. Имеет смысл держать бота включённым с утра. Также иногда появляются отменённые записи днём.
 
-## Команды
+## Безопасность
 
-| Команда | Что делает |
-|--------|------------|
-| `departments` | Специальности |
-| `hospitals [id]` | ЛПУ по специальности |
-| `doctors [id] [lpu]` | Врачи и талоны |
-| `check` | Одна проверка + уведомление |
-| `watch` | Цикл каждые N секунд |
-| `notify-test` | Тест Telegram |
+- Не публикуйте `.env` и папку `data/`
+- Бот неофициальный; полис хранится только у вас локально
+- При смене API портала может потребоваться обновление
+
+## Структура
+
+```
+appointment-monitor/
+  bot.py           # Telegram-бот (основной режим)
+  monitor.py       # CLI для одного пользователя
+  zdrav_client.py  # API zdrav.mosreg.ru
+  storage.py       # локальная база подписок
+  data/            # создаётся при работе (не коммитить)
+```

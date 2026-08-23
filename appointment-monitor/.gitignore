@@ -4,5 +4,6 @@ venv/
 __pycache__/
 *.pyc
 .state.json
+data/
 *.log
 .DS_Store
