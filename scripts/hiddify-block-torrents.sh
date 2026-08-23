@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.5+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.6+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -21,7 +21,10 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.7.5"
+# sshd/sudo often have no /usr/sbin — doctor then lies that the kernel is empty.
+export PATH="/usr/sbin:/sbin:/usr/local/sbin:/usr/bin:/bin:${PATH:-}"
+
+VERSION="1.7.6"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -207,7 +210,7 @@ def singbox_block(text):
               "method": "default"
             }},
             {{
-              "port": "6881:6889",
+              "port": [6881, 6882, 6883, 6884, 6885, 6886, 6887, 6888, 6889],
               "action": "reject",
               "method": "default"
             }},
@@ -236,7 +239,7 @@ def singbox_block(text):
             {{
               "action": "reject",
               "method": "default"
-            }},
+            }}
             // {MARKER_END}
 '''
 
@@ -382,11 +385,25 @@ def _end_of_rules_array(text):
         i += 1
     return None
 
+def _ensure_comma_before_marker(text):
+    """Hiddify re-renders 03_routing.json and drops the comma before our block."""
+    m = re.search(rf'(\}})(\s*)(//\s*{re.escape(MARKER_BEGIN)})', text)
+    if not m:
+        return text, False
+    before = text[:m.start(1)+1]
+    # already ",\n // BEGIN" or "}\n,"
+    window = text[max(0, m.start()-3):m.start(3)]
+    if re.search(r',\s*$', window):
+        return text, False
+    return text[:m.start(1)+1] + "," + text[m.start(2):], True
+
+
 def insert_singbox(text, block=None):
     block = singbox_block(text)
     text, changed, how = upsert(text, block)
     if how != "missing":
-        return text, changed, how
+        text2, repaired = _ensure_comma_before_marker(text)
+        return text2, changed or repaired, ("repaired-comma" if repaired and not changed else how)
     # Drop the commented-out official stub so we don't leave broken Xray syntax in sing-box.
     text = re.sub(
         r"[ \t]*//\s*\{//\s*Block BitTorrent protocol[\s\S]*?//\s*\},?\n?",
@@ -567,7 +584,7 @@ rotate_access_log_if_huge() {
 validate_patched_configs() {
   detect_hiddify
   python3 - "$HIDDIFY_DIR" <<'PY'
-import re, sys
+import json, re, sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
@@ -587,6 +604,7 @@ ob_js = read("xray/configs/06_outbounds.json")
 rt_j2 = read("xray/configs/03_routing.json.j2")
 rt_js = read("xray/configs/03_routing.json")
 sg_j2 = read("singbox/configs/03_routing.json.j2")
+sg_js = read("singbox/configs/03_routing.json")
 lg_j2 = read("xray/configs/00_log.json.j2")
 
 for label, text in (("outbounds.j2", ob_j2), ("outbounds.json", ob_js)):
@@ -632,6 +650,16 @@ if sg_j2 is not None:
         errors.append("singbox routing: bittorrent reject missing")
     if '"action": "reject"' not in sg_j2:
         errors.append("singbox routing: final reject missing")
+
+if sg_js is not None and "HIDDIFY_NOTORRENT_BEGIN" in sg_js and "{%" not in sg_js:
+    if re.search(r'\}\s*\n\s*//\s*HIDDIFY_NOTORRENT_BEGIN', sg_js) and not re.search(r',\s*\n\s*//\s*HIDDIFY_NOTORRENT_BEGIN', sg_js):
+        errors.append("singbox routing.json: missing comma before torrent block (hiddify-core will not start)")
+    try:
+        stripped = re.sub(r"//.*?$", "", sg_js, flags=re.M)
+        stripped = re.sub(r",\s*(?=[}\]])", "", stripped)
+        json.loads(stripped)
+    except Exception as e:
+        errors.append(f"singbox routing.json: invalid JSONC ({e})")
 
 if lg_j2 is not None and "HIDDIFY_NOTORRENT_ACCESS" in lg_j2:
     if re.search(r'HIDDIFY_NOTORRENT_ACCESS\s*,', lg_j2):
@@ -848,6 +876,12 @@ nft_inspect_loaded() {
 }
 
 apply_nft_ports() {
+  if ! command -v nft >/dev/null 2>&1; then
+    if [[ "${ALLOW_APT:-0}" == "1" ]] && command -v apt-get >/dev/null 2>&1; then
+      log "Installing nftables..."
+      DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nftables >/dev/null 2>&1 || true
+    fi
+  fi
   command -v nft >/dev/null 2>&1 || return 0
   nft delete table inet hiddify_notorrent >/dev/null 2>&1 || true
   local err
@@ -1286,7 +1320,7 @@ EOF
   # Do not run apply-fw inside ExecStartPost: that can fail hiddify-singbox
   # ("control process exited") and then a follow-up apply rolls the table back.
   local svc d
-  for svc in hiddify-xray hiddify-singbox; do
+  for svc in hiddify-xray; do
     d="/etc/systemd/system/${svc}.service.d"
     mkdir -p "${d}"
     cat > "${d}/hiddify-notorrent.conf" <<'EOF'

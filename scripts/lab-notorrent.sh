@@ -83,8 +83,8 @@ try:
         .issuer_name(name)
         .public_key(key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=1))
-        .not_valid_after(datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=7))
+        .not_valid_before(datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1))
+        .not_valid_after(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7))
         .sign(key, hashes.SHA256())
     )
     (d / "key.pem").write_bytes(

@@ -71,4 +71,46 @@ HIDDIFY_DIR="$ALT" NOTORRENT_INSTALL_DIR="$(mktemp -d)" \
 grep -q HIDDIFY_NOTORRENT_BEGIN "$ALT/singbox/configs/03_routing.json"
 grep -q '"protocol": "bittorrent"' "$ALT/singbox/configs/03_routing.json"
 rm -rf "$ALT"
+# Live JSON missing comma before our block (Hiddify re-render). Must stay valid JSONC.
+BROKEN="$(mktemp -d)"
+mkdir -p "$BROKEN/singbox/configs" "$BROKEN/xray/configs"
+cat > "$BROKEN/singbox/configs/03_routing.json" <<'JSON'
+{
+  "route": {
+    "final": "freedom",
+    "rules": [
+      {"action":"sniff"},
+      {
+        "action": "reject",
+        "ip_is_private": true
+      }
+            // HIDDIFY_NOTORRENT_BEGIN
+            {
+              "protocol": "bittorrent",
+              "action": "reject",
+              "method": "default"
+            },
+            {
+              "action": "reject",
+              "method": "default"
+            },
+            // HIDDIFY_NOTORRENT_END
+    ]
+  }
+}
+JSON
+cp "$TEST/xray/configs/03_routing.json.j2" "$BROKEN/xray/configs/03_routing.json.j2"
+cp "$TEST/xray/configs/06_outbounds.json.j2" "$BROKEN/xray/configs/06_outbounds.json.j2"
+cp "$TEST/xray/configs/00_log.json.j2" "$BROKEN/xray/configs/00_log.json.j2"
+HIDDIFY_DIR="$BROKEN" NOTORRENT_INSTALL_DIR="$(mktemp -d)" \
+  bash "$ROOT/scripts/hiddify-block-torrents.sh" apply >/dev/null
+python3 - "$BROKEN/singbox/configs/03_routing.json" <<'PY'
+import json, re, sys
+from pathlib import Path
+t = Path(sys.argv[1]).read_text()
+assert re.search(r',\s*//\s*HIDDIFY_NOTORRENT_BEGIN', t), t[t.find("ip_is_private")-20:t.find("ip_is_private")+200]
+json.loads(re.sub(r"//.*?$", "", t, flags=re.M))
+print("comma repair ok")
+PY
+rm -rf "$BROKEN"
 echo "patch tests ok"

@@ -9,7 +9,7 @@ rm -f /tmp/hiddify-block-torrents.sh
 curl -fsSL -H 'Cache-Control: no-cache' \
   "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
   -o /tmp/hiddify-block-torrents.sh
-grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.5+
+grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.6+
 sudo bash /tmp/hiddify-block-torrents.sh
 hiddify-block-torrents doctor
 ```
