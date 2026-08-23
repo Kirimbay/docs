@@ -291,16 +291,40 @@
 
     #russia-map-widget .rmw-modal.is-open { display: flex; }
 
-    #russia-map-widget .rmw-modal-panel {
+    @keyframes rmw-shine-border {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 220% 50%; }
+    }
+
+    #russia-map-widget .rmw-modal-frame {
       width: min(1280px, 96vw);
       max-height: min(96vh, 96dvh);
+      padding: 3px;
+      border-radius: 16px;
+      background: linear-gradient(
+        90deg,
+        #7a6424 0%,
+        #7a6424 35%,
+        #fff3c4 48%,
+        #ffe9a3 52%,
+        #fff3c4 56%,
+        #7a6424 65%,
+        #7a6424 100%
+      );
+      background-size: 220% 100%;
+      animation: rmw-shine-border 18s linear infinite;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.65), 0 0 40px rgba(212,175,55,0.18);
+    }
+
+    #russia-map-widget .rmw-modal-panel {
+      width: 100%;
+      max-height: calc(min(96vh, 96dvh) - 6px);
       display: flex;
       flex-direction: column;
       background: #0a0a0a;
-      border: 1px solid rgba(212, 175, 55, 0.45);
-      border-radius: 14px;
+      border: none;
+      border-radius: 13px;
       overflow: hidden;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.65), 0 0 40px rgba(212,175,55,0.12);
     }
 
     #russia-map-widget .rmw-modal-head {
@@ -337,24 +361,50 @@
 
     #russia-map-widget .rmw-video-wrap {
       position: relative;
-      width: 100%;
+      width: calc(100% - 28px);
       flex: 1 1 auto;
       min-height: 0;
+      margin: 0 14px 14px;
+      padding: 3px;
+      border-radius: 10px;
+      background: linear-gradient(
+        90deg,
+        #7a6424 0%,
+        #7a6424 35%,
+        #fff3c4 48%,
+        #ffe9a3 52%,
+        #fff3c4 56%,
+        #7a6424 65%,
+        #7a6424 100%
+      );
+      background-size: 220% 100%;
+      animation: rmw-shine-border 18s linear infinite;
       aspect-ratio: 16 / 9;
-      max-height: calc(min(96vh, 96dvh) - 58px);
+      max-height: calc(min(96vh, 96dvh) - 88px);
+    }
+
+    #russia-map-widget .rmw-video-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      border-radius: 8px;
       background: #000;
+      z-index: 0;
+      pointer-events: none;
     }
 
     #russia-map-widget .rmw-video-wrap iframe,
     #russia-map-widget .rmw-video-wrap video {
       position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
+      inset: 3px;
+      width: calc(100% - 6px);
+      height: calc(100% - 6px);
       border: 0;
       display: block;
       object-fit: contain;
       background: #000;
+      border-radius: 8px;
+      z-index: 1;
     }
 
     #russia-map-widget .rmw-city-hit {
@@ -373,13 +423,18 @@
         align-items: stretch;
       }
 
-      #russia-map-widget .rmw-modal-panel {
+      #russia-map-widget .rmw-modal-frame {
         width: 100%;
         max-height: 100dvh;
         height: 100%;
         border-radius: 0;
-        border-left: 0;
-        border-right: 0;
+        padding: 2px;
+      }
+
+      #russia-map-widget .rmw-modal-panel {
+        max-height: calc(100dvh - 4px);
+        height: 100%;
+        border-radius: 0;
       }
 
       #russia-map-widget .rmw-modal-head {
@@ -387,6 +442,8 @@
       }
 
       #russia-map-widget .rmw-video-wrap {
+        width: calc(100% - 20px);
+        margin: 0 10px 10px;
         aspect-ratio: auto;
         max-height: none;
         flex: 1;
@@ -510,12 +567,14 @@
   <div class="rmw-tooltip">Москва · Санкт-Петербург · Казань · Екатеринбург · Новосибирск · Красноярск · Владивосток · Сочи</div>
 
   <div class="rmw-modal" id="rmw-video-modal" aria-hidden="true">
-    <div class="rmw-modal-panel" role="dialog" aria-modal="true" aria-labelledby="rmw-modal-title">
-      <div class="rmw-modal-head">
-        <span id="rmw-modal-title">Видео</span>
-        <button type="button" class="rmw-close" id="rmw-close-btn" aria-label="Закрыть">&times;</button>
+    <div class="rmw-modal-frame">
+      <div class="rmw-modal-panel" role="dialog" aria-modal="true" aria-labelledby="rmw-modal-title">
+        <div class="rmw-modal-head">
+          <span id="rmw-modal-title">Видео</span>
+          <button type="button" class="rmw-close" id="rmw-close-btn" aria-label="Закрыть">&times;</button>
+        </div>
+        <div class="rmw-video-wrap" id="rmw-video-container"></div>
       </div>
-      <div class="rmw-video-wrap" id="rmw-video-container"></div>
     </div>
   </div>
 
