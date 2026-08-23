@@ -16,6 +16,9 @@ async function testDesktop(page, i) {
   const cityLabels = await page.locator('#russia-map-widget .rmw-city-name').count();
   assert(cityLabels === 8, `Desktop ${i}: expected 8 city labels, got ${cityLabels}`);
 
+  const listItems = await page.locator('#russia-map-widget .rmw-city-list-item').count();
+  assert(listItems === 8, `Desktop ${i}: expected 8 city list items, got ${listItems}`);
+
   const pulseRings = await page.locator('#russia-map-widget .rmw-city-pulse').count();
   assert(pulseRings === 0, `Desktop ${i}: pulse rings should be removed`);
 
@@ -52,6 +55,12 @@ async function openMoscowMobile(page) {
 }
 
 async function assertMobileModalFit(page, label) {
+  const namesHidden = await page.locator('#russia-map-widget .rmw-city-name').first().evaluate((el) => getComputedStyle(el).display === "none");
+  assert(namesHidden, `${label}: map city names should be hidden on mobile`);
+
+  const listItems = await page.locator('#russia-map-widget .rmw-city-list-item:not(.is-disabled)').count();
+  assert(listItems >= 2, `${label}: expected clickable city list items`);
+
   const modalOpen = await page.locator('#russia-map-widget .rmw-modal.is-open').isVisible();
   assert(modalOpen, `${label}: Moscow modal should open on tap`);
 
