@@ -1,0 +1,6912 @@
+(() => {
+  const $ = (sel) => document.querySelector(sel);
+
+  const gate = $("#gate");
+  const app = $("#app");
+  const nameInput = $("#name-input");
+  const pinInput = $("#pin-input");
+  const joinBtn = $("#join-btn");
+  const gateError = $("#gate-error");
+  const feed = $("#feed");
+  const jumpBottomBtn = $("#jump-bottom");
+  const pins = $("#pins");
+  const pinBarLabel = $("#pin-bar-label");
+  const pinBarPreview = $("#pin-bar-preview");
+  const pinBarMeta = $("#pin-bar-meta");
+  const pinsDialog = $("#pins-dialog");
+  const pinsList = $("#pins-list");
+  const pinsCloseBtn = $("#pins-close-btn");
+  const presence = $("#presence");
+  const topbarRoomTitle = $("#topbar-room-title");
+  const messageInput = $("#message-input");
+  const sendBtn = $("#send-btn");
+  const photoInput = $("#photo-input");
+  const preview = $("#preview");
+  const previewImg = $("#preview-img");
+  const previewClear = $("#preview-clear");
+  const appToast = $("#app-toast");
+  const appToastText = $("#app-toast-text");
+  const bulkBar = $("#bulk-bar");
+  const bulkBarCount = $("#bulk-bar-count");
+  const bulkCancelBtn = $("#bulk-cancel-btn");
+  const bulkDeleteBtn = $("#bulk-delete-btn");
+  const replyBar = $("#reply-bar");
+  const replyBarLabel = $("#reply-bar-label");
+  const replyBarPreview = $("#reply-bar-preview");
+  const replyCancelBtn = $("#reply-cancel-btn");
+  const renameDialog = $("#rename-dialog");
+  const renameInput = $("#rename-input");
+  const renamePinInput = $("#rename-pin-input");
+  const renamePinField = $("#rename-pin-field");
+  const renameNameField = $("#rename-name-field");
+  const renameLead = $("#rename-lead");
+  const renameError = $("#rename-error");
+  const renameSuggestBtn = $("#rename-suggest-btn");
+  const renameCancelBtn = $("#rename-cancel-btn");
+  const renameApplyBtn = $("#rename-apply-btn");
+  const logoutBtn = $("#logout-btn");
+  const meBtn = $("#me-btn");
+  const dmBtn = $("#dm-btn");
+  const dmBar = $("#dm-bar");
+  const dmBarCode = $("#dm-bar-code");
+  const dmBarPresence = $("#dm-bar-presence");
+  const dmLeaveBtn = $("#dm-leave-btn");
+  const dmBarLabel = $("#dm-bar-label");
+  const roomKeyBtn = $("#room-key-btn");
+  const roomAdminPanelBtn = $("#room-admin-panel-btn");
+  const roomCloseBtn = $("#room-close-btn");
+  const dmDialog = $("#dm-dialog");
+  const dmCreateBtn = $("#dm-create-btn");
+  const dmJoinKey = $("#dm-join-key");
+  const dmJoinKeyWrap = $("#dm-join-key-wrap");
+  const dmLead = null;
+  const dmDialogTitle = $("#dm-dialog-title");
+  const dmJoinBtn = $("#dm-join-btn");
+  const dmCodeInput = $("#dm-code-input");
+  const dmDialogError = $("#dm-dialog-error");
+  const dmDialogClose = null;
+  const hubMeBtn = $("#hub-me-btn");
+  const dmPeopleWrap = $("#dm-people-wrap");
+  const dmPeopleToggle = $("#dm-people-toggle");
+  const dmPeopleToggleMeta = $("#dm-people-toggle-meta");
+  const dmPeoplePanel = $("#dm-people-panel");
+  const dmPeopleSearch = $("#dm-people-search");
+  const dmPeopleList = $("#dm-people-list");
+  const dmRoomsWrap = $("#dm-rooms-wrap");
+  const dmRoomsList = $("#dm-rooms-list");
+  const hubBulkBar = $("#hub-bulk-bar");
+  const hubBulkBarCount = $("#hub-bulk-bar-count");
+  const hubBulkCancelBtn = $("#hub-bulk-cancel-btn");
+  const hubBulkDeleteBtn = $("#hub-bulk-delete-btn");
+  const confirmDialog = $("#confirm-dialog");
+  const confirmDialogTitle = $("#confirm-dialog-title");
+  const confirmDialogText = $("#confirm-dialog-text");
+  const confirmCancelBtn = $("#confirm-cancel-btn");
+  const confirmOkBtn = $("#confirm-ok-btn");
+  const onlineDialog = $("#online-dialog");
+  const onlineList = $("#online-list");
+  const onlineCloseBtn = $("#online-close-btn");
+  const invitesBtn = null;
+  const invitesDialog = null;
+  const invitesList = null;
+  const invitesCloseBtn = null;
+  const adminDialog = $("#admin-dialog");
+  const adminPassword = $("#admin-password");
+  const adminError = $("#admin-error");
+  const adminSubmit = $("#admin-submit");
+  const adminCancelBtn = $("#admin-cancel-btn");
+  const roomKeyDialog = $("#room-key-dialog");
+  const roomKeyInput = $("#room-key-input");
+  const roomKeyError = $("#room-key-error");
+  const roomKeySubmit = $("#room-key-submit");
+  const roomKeyCancel = $("#room-key-cancel");
+  const roomAdminPanel = $("#room-admin-panel");
+  const roomAdminPanelLead = $("#room-admin-panel-lead");
+  const roomAdminPanelError = $("#room-admin-panel-error");
+  const roomAdminPanelClose = $("#room-admin-panel-close");
+  const roomAdminLogoutBtn = $("#room-admin-logout-btn");
+  const roomNewAdminKey = $("#room-new-admin-key");
+  const roomConfirmAdminKey = $("#room-confirm-admin-key");
+  const roomChangeAdminKeyBtn = $("#room-change-admin-key-btn");
+  const roomNewJoinKey = $("#room-new-join-key");
+  const roomJoinKeyField = $("#room-join-key-field");
+  const roomJoinKeyLabel = $("#room-join-key-label");
+  const roomChangeJoinKeyBtn = $("#room-change-join-key-btn");
+  const roomMakeOpenBtn = $("#room-make-open-btn");
+  const roomMakeKeyedBtn = $("#room-make-keyed-btn");
+  const roomAccessStatus = $("#room-access-status");
+  const roomDeleteCode = $("#room-delete-code");
+  const roomDeleteKey = $("#room-delete-key");
+  const roomDeleteBtn = $("#room-delete-btn");
+  const lightbox = $("#lightbox");
+  const lightboxImg = $("#lightbox-img");
+  const lightboxClose = $("#lightbox-close");
+  const notifyBtn = $("#notify-btn");
+  const notifyMenu = $("#notify-menu");
+  const notifyPublicInput = $("#notify-public");
+  const notifyDmInput = $("#notify-dm");
+  const notifyOffBtn = $("#notify-off-btn");
+
+  const socket = io({ autoConnect: true });
+  const NAME_KEY = "sarafan_name";
+  const NAME_KEY_LEGACY = "komnata_name";
+  const PIN_KEY = "sarafan_pin";
+  const DM_CODE_KEY = "sarafan_dm_code";
+  const DM_ROOMS_KEY = "sarafan_dm_rooms";
+  const LAST_DEST_KEY = "sarafan_last_dest";
+  const LAST_DEST_PUBLIC = "public";
+  const PUBLIC_ROOM_CODE = "000000";
+  const SESSION_LIVE_KEY = "sarafan_session_live";
+  const UI_VIEW_KEY = "sarafan_ui_view";
+  const CLIENT_ID_KEY = "sarafan_client_id";
+  const PUBLIC_CHAT_LABEL_DEFAULT = "Сарафан ВПН";
+  const MAX_DM_ROOMS = 24;
+  const MAX_ROOM_TITLE_LEN = 32;
+  const ADMIN_TOKEN_KEY = "sarafan_admin_token";
+  const PREV_NAME_KEY = "sarafan_prev_name";
+  const NOTIFY_KEY = "sarafan_notify";
+  const NOTIFY_PUBLIC_KEY = "sarafan_notify_public";
+  const NOTIFY_DM_KEY = "sarafan_notify_dm";
+  const ADMIN_ROOM_READS_KEY = "sarafan_admin_room_reads";
+  const ROOM_KEYS_KEY = "sarafan_room_keys";
+  const ADMIN_PINS_KEY = "sarafan_admin_pins";
+  const OWNED_ROOMS_KEY = "sarafan_owned_rooms";
+  const MAX_ADMIN_ROOM_READS = 200;
+  const LIKE_EMOJI = "❤️";
+  const REACTIONS = [
+    { emoji: "😊", title: "смайл" },
+    { emoji: LIKE_EMOJI, title: "любовь" },
+    { emoji: "😢", title: "грусть" },
+    { emoji: "💩", title: "говно" },
+    { emoji: "🔥", title: "огонь" },
+  ];
+
+  let myName = "";
+  let isAdmin = false;
+  /** Room creator unlocked via 4-digit key (not super-admin). */
+  let isRoomAdmin = false;
+  let roomIsOwner = false;
+  let roomAccess = "open";
+  let roomClosed = false;
+  let roomKeyed = false;
+  /** @type {Map<string, "super" | "admin">} */
+  let roomModerators = new Map();
+  /** @type {string[]} */
+  let lastRoomOnlineNames = [];
+  /** @type {{ id: string, name: string }[]} */
+  let lastRoomOnlinePeople = [];
+  let lastRoomOnlineCount = 0;
+  /** Device-scoped restriction: hub hides public chat. */
+  let accessRoomsOnly = false;
+  let publicChatLabel = PUBLIC_CHAT_LABEL_DEFAULT;
+  let pendingImageUrl = null;
+  let uploading = false;
+  let pendingReply = null;
+  const knownIds = new Set();
+  let lastState = { messages: [], pinned: [] };
+  /** @type {{ id: string, name: string }[]} */
+  let lastPeople = [];
+  let lastPresenceCount = 0;
+  /** @type {{ accountId: string, name: string, online: boolean, id: string }[]} */
+  let lastDirectory = [];
+  let hubPeopleOpen = false;
+  let hubPeopleQuery = "";
+  /** @type {{ code: string, from: string, fromId: string, at: number }[]} */
+  let pendingInvites = [];
+  let publicStateBackup = null;
+  let dmCode = null;
+  /** True while inside a room as admin ghost (watch-only) — do not pin to hub on leave. */
+  let dmSessionGhost = false;
+  /** When true, hub must be dismissed by picking a chat (first entry). */
+  let hubRequirePick = false;
+  let createInFlight = false;
+  let joinInFlight = false;
+  /** @type {{ code: string, peer?: string, names?: string[], messageCount?: number, unread?: number, lastReadId?: string, foreign?: boolean, lastActiveAt?: string }[]} */
+  let adminRoomCatalog = [];
+  let pinCycleIndex = 0;
+  let pinHoldTimer = null;
+  let pinHoldOpened = false;
+  let pinHoldStart = null;
+  const PIN_HOLD_MS = 420;
+  const PIN_HOLD_MOVE_PX = 12;
+  const MSG_HOLD_MS = 420;
+  const MSG_HOLD_MOVE_PX = 12;
+  let deleteArmedId = null;
+  let deleteArmedTimer = null;
+  const DELETE_ARM_MS = 1000;
+  let unpinArmedId = null;
+  let unpinArmedTimer = null;
+  const UNPIN_ARM_MS = 1000;
+  let forgetArmedCode = null;
+  let forgetArmedTimer = null;
+  const FORGET_ARM_MS = 1000;
+  /** @type {Set<string>} */
+  let hubBulkSelectedCodes = new Set();
+  let hubBulkSelectOn = false;
+  let hubBulkDeleting = false;
+  const HUB_ROOM_TAP_MS = 320;
+  let hubRoomTap = { code: "", count: 0, timer: null };
+  /** @type {Set<string>} */
+  let bulkSelectedIds = new Set();
+  let bulkSelectOn = false;
+  let bulkDeleting = false;
+
+  function prefersTouchAdminDelete() {
+    try {
+      if (typeof matchMedia !== "function") return Boolean(navigator.maxTouchPoints > 0);
+      // iPhone / iPad / phones: finger primary, no hover.
+      return (
+        matchMedia("(pointer: coarse)").matches ||
+        (navigator.maxTouchPoints > 0 && matchMedia("(hover: none)").matches)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function requestAdminDelete(id) {
+    if (!id) return;
+    socket.emit("admin:delete", { id }, (res) => {
+      if (!res?.ok) {
+        notify(res?.error || "Ошибка");
+        return;
+      }
+      removeMessageById(id);
+    });
+  }
+
+  function resetMsgSwipe(wrap, animate) {
+    if (!wrap) return;
+    const bubble = wrap.querySelector(".msg");
+    wrap.classList.remove("is-swiping", "is-open");
+    if (bubble) {
+      bubble.style.transition = animate
+        ? "transform 200ms cubic-bezier(0.33, 1, 0.68, 1)"
+        : "none";
+      bubble.style.transform = "";
+    }
+  }
+
+  function closeOpenMsgSwipes(except) {
+    feed.querySelectorAll(".msg-swipe.is-open, .msg-swipe.is-swiping").forEach((wrap) => {
+      if (except && wrap === except) return;
+      resetMsgSwipe(wrap, true);
+    });
+  }
+
+  function bindAdminSwipeDelete(wrap, el, msg) {
+    const rail = wrap.querySelector(".msg-swipe-rail");
+    const MAX = 92;
+    const COMMIT = 56;
+    let start = null;
+    let axis = null;
+    let dx = 0;
+
+    const setOffset = (x, withTransition) => {
+      const open = x < -6;
+      wrap.classList.toggle("is-swiping", !withTransition && x !== 0);
+      wrap.classList.toggle("is-open", open);
+      el.style.transition = withTransition
+        ? "transform 200ms cubic-bezier(0.33, 1, 0.68, 1)"
+        : "none";
+      el.style.transform = x ? `translate3d(${x}px, 0, 0)` : "";
+      if (rail) {
+        rail.style.opacity = String(Math.min(1, Math.abs(x) / 36));
+      }
+    };
+
+    wrap.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (!canModerate() || bulkSelectOn) return;
+        if (e.pointerType === "mouse") return;
+        if (
+          e.target.closest(
+            "a, button, input, textarea, label, .msg-react-chip, .msg-admin-icon, .msg-quote, .msg-name"
+          )
+        ) {
+          return;
+        }
+        closeOpenMsgSwipes(wrap);
+        start = { x: e.clientX, y: e.clientY };
+        axis = null;
+        dx = 0;
+        try {
+          wrap.setPointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+      },
+      { passive: true }
+    );
+
+    wrap.addEventListener(
+      "pointermove",
+      (e) => {
+        if (!start) return;
+        const rawDx = e.clientX - start.x;
+        const rawDy = e.clientY - start.y;
+        if (!axis) {
+          if (Math.abs(rawDx) < 10 && Math.abs(rawDy) < 10) return;
+          axis = Math.abs(rawDx) > Math.abs(rawDy) * 1.2 ? "h" : "v";
+          if (axis === "v") {
+            start = null;
+            axis = null;
+            return;
+          }
+          // Cancel tap / long-press / copy on the bubble.
+          el.dataset.swipeIgnore = "1";
+          el.dispatchEvent(new CustomEvent("msg-swipe-cancel"));
+        }
+        if (axis !== "h") return;
+        if (e.cancelable) e.preventDefault();
+        // Only swipe left (reveal delete on the right).
+        dx = Math.min(0, Math.max(-MAX, rawDx));
+        setOffset(dx, false);
+      },
+      { passive: false }
+    );
+
+    const endSwipe = () => {
+      if (axis === "h") {
+        if (dx <= -COMMIT) {
+          setOffset(-MAX, true);
+          el.dataset.swipeIgnore = "1";
+          requestAdminDelete(msg.id);
+        } else {
+          resetMsgSwipe(wrap, true);
+        }
+      }
+      start = null;
+      axis = null;
+      dx = 0;
+    };
+
+    wrap.addEventListener("pointerup", endSwipe);
+    wrap.addEventListener("pointercancel", () => {
+      if (axis === "h") resetMsgSwipe(wrap, true);
+      start = null;
+      axis = null;
+      dx = 0;
+    });
+  }
+
+  function canModerate() {
+    return Boolean(isAdmin || isRoomAdmin);
+  }
+
+  function normalizeRoomKeyLocal(raw) {
+    // Keep partial input (1–3 digits) so the key field is typeable; join still
+    // requires a full 4-digit key elsewhere.
+    return String(raw ?? "").replace(/\D/g, "").slice(0, 4);
+  }
+
+  function resolveJoinKey(code, keyOverride = "") {
+    const c = normalizeDmCodeLocal(code);
+    // Public chat 0 is always open — ignore leftover/cached keys.
+    if (c && isPublicRoomCode(c)) return "";
+    const fromOverride = normalizeRoomKeyLocal(keyOverride);
+    if (fromOverride) return fromOverride;
+    const fromField = normalizeRoomKeyLocal(dmJoinKey?.value || "");
+    if (fromField) return fromField;
+    if (c.length === 6) {
+      const cached = loadRoomKey(c);
+      if (cached) return cached;
+    }
+    return "";
+  }
+
+  function setJoinCodeFieldAlert(on) {
+    dmCodeInput?.closest(".dm-code-field")?.classList.toggle("is-needs-key", Boolean(on));
+  }
+
+  function setJoinFieldAlerts({ code = false, key = false } = {}) {
+    setJoinCodeFieldAlert(code);
+    setJoinKeyFieldAlert(key);
+  }
+
+  function loadRoomKeys() {
+    try {
+      const raw = localStorage.getItem(ROOM_KEYS_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveRoomKey(code, key) {
+    const c = normalizeDmCodeLocal(code);
+    const k = normalizeRoomKeyLocal(key);
+    if (c.length !== 6 || k.length !== 4) return;
+    try {
+      const map = loadRoomKeys();
+      map[c] = k;
+      localStorage.setItem(ROOM_KEYS_KEY, JSON.stringify(map));
+    } catch {
+      /* ignore */
+    }
+    if (dmCode === c) syncDmBarMeta();
+  }
+
+  function clearRoomKey(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return;
+    try {
+      const map = loadRoomKeys();
+      if (!(c in map)) return;
+      delete map[c];
+      localStorage.setItem(ROOM_KEYS_KEY, JSON.stringify(map));
+    } catch {
+      /* ignore */
+    }
+    if (dmCode === c) syncDmBarMeta();
+  }
+
+  function loadRoomKey(code) {
+    const c = normalizeDmCodeLocal(code);
+    const k = normalizeRoomKeyLocal(loadRoomKeys()[c] || "");
+    return k.length === 4 ? k : "";
+  }
+
+  function loadAdminPins() {
+    try {
+      const raw = localStorage.getItem(ADMIN_PINS_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveAdminPin(code, pin) {
+    const c = normalizeDmCodeLocal(code);
+    const p = normalizeRoomKeyLocal(pin);
+    if (c.length !== 6 || p.length !== 4) return;
+    try {
+      const map = loadAdminPins();
+      map[c] = p;
+      localStorage.setItem(ADMIN_PINS_KEY, JSON.stringify(map));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function loadAdminPin(code) {
+    const c = normalizeDmCodeLocal(code);
+    const fromPins = normalizeRoomKeyLocal(loadAdminPins()[c] || "");
+    if (fromPins.length === 4) return fromPins;
+    // Legacy: admin pin was stored in the join-key map.
+    return loadRoomKey(c);
+  }
+
+  function loadOwnedRooms() {
+    try {
+      const raw = localStorage.getItem(OWNED_ROOMS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed)
+        ? parsed.map(normalizeDmCodeLocal).filter((c) => c.length === 6)
+        : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function markOwnedRoom(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return;
+    try {
+      const set = new Set(loadOwnedRooms());
+      set.add(c);
+      localStorage.setItem(OWNED_ROOMS_KEY, JSON.stringify([...set].slice(-MAX_DM_ROOMS)));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function unmarkOwnedRoom(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (!c) return;
+    try {
+      localStorage.setItem(
+        OWNED_ROOMS_KEY,
+        JSON.stringify(loadOwnedRooms().filter((x) => x !== c))
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function isOwnedRoom(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (!c) return false;
+    if (dmCode === c && roomIsOwner) return true;
+    return loadOwnedRooms().includes(c);
+  }
+
+  function displayAuthorLabel(msg) {
+    const name = msg?.name || "";
+    if (msg?.admin || name === "АДМИН") return `${name || "АДМИН"} · супер`;
+    if (msg?.roomAdmin) return `${name} · админ`;
+    return name;
+  }
+
+  function syncRoomAdminUi() {
+    const superInRoom = Boolean(isAdmin && dmCode && !isPublicRoomCode(dmCode));
+    document.body.classList.toggle("room-admin-on", Boolean((isRoomAdmin && !isAdmin) || superInRoom));
+    const canOwn =
+      Boolean(dmCode) &&
+      !isPublicRoomCode(dmCode) &&
+      !isAdmin &&
+      (roomIsOwner || isOwnedRoom(dmCode));
+    if (roomKeyBtn) {
+      roomKeyBtn.hidden = !canOwn || isRoomAdmin;
+      roomKeyBtn.textContent = "Админ";
+      roomKeyBtn.classList.toggle("active", isRoomAdmin);
+      roomKeyBtn.title = "Пин аккаунта · удаление и закрепы";
+    }
+    if (dmLeaveBtn) {
+      // «Чаты» already opens the hub; hide duplicate «Выйти» while in room-admin mode.
+      dmLeaveBtn.hidden = Boolean(isRoomAdmin && !isAdmin && dmCode);
+    }
+    if (roomAdminLogoutBtn) {
+      roomAdminLogoutBtn.hidden = !(isRoomAdmin && !isAdmin && dmCode);
+    }
+    if (roomAdminPanelBtn) {
+      roomAdminPanelBtn.hidden = !(
+        dmCode &&
+        !isPublicRoomCode(dmCode) &&
+        (isRoomAdmin || isAdmin)
+      );
+      roomAdminPanelBtn.title = isAdmin
+        ? "Супер-админ · полный доступ к комнате"
+        : "Настройки комнаты";
+    }
+    if (roomCloseBtn) {
+      roomCloseBtn.textContent = roomClosed
+        ? "Открыть вход снова"
+        : "Закрыть вход · выгнать всех";
+    }
+    if (roomAdminPanelLead && dmCode) {
+      const shown = formatRoomCodeDisplay(dmCode);
+      roomAdminPanelLead.textContent = isAdmin
+        ? `Супер-админ · номер ${shown}${roomKeyed ? " · закрытая" : " · открытая"}${
+            roomClosed ? " · вход закрыт" : ""
+          }`
+        : `Номер ${shown}${roomKeyed ? " · закрытая" : " · открытая"}${
+            roomClosed ? " · вход закрыт" : ""
+          }`;
+    }
+    if (roomAccessStatus) {
+      const key = dmCode ? loadRoomKey(dmCode) : "";
+      roomAccessStatus.textContent = roomKeyed
+        ? key
+          ? `Сейчас: закрытая · для других ключ ${key}`
+          : "Сейчас: закрытая · для других по ключу"
+        : "Сейчас: открытая · для других свободный вход";
+    }
+    const canOwnTune = Boolean(isAdmin || roomIsOwner);
+    // Closed → open + change key; open → key field + close.
+    if (roomMakeOpenBtn) {
+      roomMakeOpenBtn.hidden = !roomKeyed;
+      roomMakeOpenBtn.disabled = !canOwnTune;
+    }
+    if (roomMakeKeyedBtn) {
+      roomMakeKeyedBtn.hidden = Boolean(roomKeyed);
+      roomMakeKeyedBtn.disabled = !canOwnTune;
+    }
+    if (roomChangeJoinKeyBtn) {
+      roomChangeJoinKeyBtn.hidden = !roomKeyed;
+      roomChangeJoinKeyBtn.disabled = !canOwnTune;
+    }
+    if (roomChangeAdminKeyBtn) {
+      roomChangeAdminKeyBtn.disabled = !canOwnTune;
+    }
+    if (roomDeleteBtn) {
+      // Super-admin and owner may delete; room-admin who is not owner cannot.
+      roomDeleteBtn.disabled = !canOwnTune;
+    }
+    if (roomJoinKeyField) {
+      roomJoinKeyField.hidden = false;
+    }
+    if (roomJoinKeyLabel) {
+      roomJoinKeyLabel.textContent = roomKeyed
+        ? "Новый ключ комнаты"
+        : "Ключ комнаты";
+    }
+    const accessHint = $("#room-access-hint");
+    if (accessHint) {
+      accessHint.hidden = !roomKeyed;
+    }
+    const deleteKeyLabel = roomDeleteKey?.closest("label")?.querySelector("span");
+    const deleteLead = document.querySelector(".room-delete-lead");
+    if (isAdmin) {
+      if (deleteLead) {
+        deleteLead.textContent =
+          "Супер-админ: введите номер комнаты — пин владельца не нужен";
+      }
+      if (deleteKeyLabel) deleteKeyLabel.textContent = "Пин (необязательно)";
+      if (roomDeleteKey) {
+        roomDeleteKey.placeholder = "не нужен";
+        roomDeleteKey.closest("label").hidden = true;
+      }
+    } else {
+      if (deleteLead) {
+        deleteLead.textContent = dmCode
+          ? `Чтобы удалить — номер этой комнаты ${formatRoomCodeDisplay(dmCode)} и пин аккаунта`
+          : "Чтобы удалить — введите номер комнаты и пин аккаунта";
+      }
+      if (deleteKeyLabel) deleteKeyLabel.textContent = "Пин аккаунта";
+      if (roomDeleteKey) {
+        roomDeleteKey.placeholder = "пин аккаунта";
+        roomDeleteKey.closest("label").hidden = false;
+      }
+    }
+  }
+
+  function applyRoomFlags(res = {}) {
+    if (typeof res.roomAdmin === "boolean") isRoomAdmin = res.roomAdmin;
+    if (typeof res.isOwner === "boolean") roomIsOwner = res.isOwner;
+    if (res.access === "keyed" || res.access === "open") roomAccess = res.access;
+    if (typeof res.closed === "boolean") roomClosed = res.closed;
+    if (typeof res.keyed === "boolean") roomKeyed = res.keyed;
+    else roomKeyed = roomAccess === "keyed";
+    if (dmCode && !isPublicRoomCode(dmCode)) {
+      rememberDmRoom(dmCode, { keyed: roomKeyed, closed: roomClosed });
+    }
+    syncRoomAdminUi();
+    syncDmBarMeta();
+  }
+
+  function clearRoomAdminState() {
+    isRoomAdmin = false;
+    roomIsOwner = false;
+    roomAccess = "open";
+    roomClosed = false;
+    roomKeyed = false;
+    syncRoomAdminUi();
+  }
+
+  async function copyDmBarValue(value, kind) {
+    const shown = String(value || "").trim();
+    if (!shown) return;
+    try {
+      await navigator.clipboard.writeText(shown);
+      notify(kind === "key" ? `Ключ ${shown} скопирован` : `${shown} скопирован`, { dim: true });
+    } catch {
+      notify(kind === "key" ? `Ключ: ${shown}` : shown, { dim: true });
+    }
+  }
+
+  function makeDmBarCopyChip(display, copyValue, kind) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "dm-bar-copy-chip";
+    btn.textContent = display;
+    btn.title = kind === "key" ? "Скопировать ключ" : "Скопировать";
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void copyDmBarValue(copyValue, kind);
+    });
+    return btn;
+  }
+
+  function syncTopbarRoomTitle() {
+    const inRoom = Boolean(dmCode);
+    if (!topbarRoomTitle) return;
+    topbarRoomTitle.hidden = !inRoom;
+    if (!inRoom) {
+      topbarRoomTitle.value = "";
+      return;
+    }
+    topbarRoomTitle.value = roomTitleForCode(dmCode);
+    topbarRoomTitle.placeholder = "Название комнаты";
+  }
+
+  function roomTitleForCode(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return "";
+    const room = loadDmRooms().find((r) => r.code === c);
+    return typeof room?.title === "string" ? room.title.trim() : "";
+  }
+
+  function setRoomTitle(code, rawTitle) {
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return;
+    const title =
+      typeof rawTitle === "string" ? rawTitle.trim().slice(0, MAX_ROOM_TITLE_LEN) : "";
+    rememberDmRoom(c, {
+      title,
+      active: Boolean(dmCode && dmCode === c),
+    });
+    if (dmCode === c && topbarRoomTitle && topbarRoomTitle.value.trim() !== title) {
+      topbarRoomTitle.value = title;
+    }
+    if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+  }
+
+  function commitTopbarRoomTitle() {
+    if (!dmCode || !topbarRoomTitle) return;
+    setRoomTitle(dmCode, topbarRoomTitle.value);
+  }
+
+  function syncDmBarMeta() {
+    if (!dmBar || dmBar.hidden || !dmCode) return;
+    if (dmBarLabel) {
+      dmBarLabel.textContent = "";
+    }
+    if (!dmBarCode) return;
+    dmBarCode.replaceChildren();
+    appendDmBarRoomMeta(dmBarCode, dmCode);
+  }
+
+  function clearDeleteArm() {
+    if (deleteArmedTimer) {
+      clearTimeout(deleteArmedTimer);
+      deleteArmedTimer = null;
+    }
+    deleteArmedId = null;
+    document.querySelectorAll(".msg-delete.armed").forEach((btn) => {
+      btn.classList.remove("armed");
+      btn.title = "Нажмите дважды, чтобы удалить";
+    });
+  }
+
+  function clearUnpinArm() {
+    if (unpinArmedTimer) {
+      clearTimeout(unpinArmedTimer);
+      unpinArmedTimer = null;
+    }
+    unpinArmedId = null;
+    document.querySelectorAll(".pins-unpin.armed").forEach((btn) => {
+      btn.classList.remove("armed");
+      btn.title = "Нажмите дважды, чтобы открепить";
+    });
+  }
+
+  function clearForgetArm() {
+    if (forgetArmedTimer) {
+      clearTimeout(forgetArmedTimer);
+      forgetArmedTimer = null;
+    }
+    forgetArmedCode = null;
+    document.querySelectorAll(".dm-room-forget").forEach((btn) => {
+      const wasArmed = btn.classList.contains("armed");
+      btn.classList.remove("armed");
+      btn.title = "Нажмите дважды, чтобы убрать";
+      btn.textContent = "×";
+      // Drop sticky focus/hover paint after the arm window ends (esp. iOS).
+      if (wasArmed || document.activeElement === btn) {
+        try {
+          btn.blur();
+        } catch {
+          /* ignore */
+        }
+      }
+    });
+  }
+
+  function clearHubRoomTap() {
+    if (hubRoomTap.timer) {
+      clearTimeout(hubRoomTap.timer);
+      hubRoomTap.timer = null;
+    }
+    hubRoomTap = { code: "", count: 0, timer: null };
+  }
+
+  /** In-app confirm (chat style) instead of browser alert. */
+  let confirmResolver = null;
+  function closeConfirmDialog(result) {
+    const resolve = confirmResolver;
+    confirmResolver = null;
+    try {
+      confirmDialog?.close();
+    } catch {
+      /* ignore */
+    }
+    if (typeof resolve === "function") resolve(Boolean(result));
+  }
+
+  function askConfirm({
+    title = "Подтвердите",
+    text = "",
+    okLabel = "Удалить",
+    cancelLabel = "Отмена",
+  } = {}) {
+    return new Promise((resolve) => {
+      if (!confirmDialog || !confirmOkBtn) {
+        resolve(false);
+        return;
+      }
+      if (confirmResolver) closeConfirmDialog(false);
+      confirmResolver = resolve;
+      if (confirmDialogTitle) confirmDialogTitle.textContent = title;
+      if (confirmDialogText) confirmDialogText.textContent = text;
+      confirmOkBtn.textContent = okLabel || "Удалить";
+      if (confirmCancelBtn) confirmCancelBtn.textContent = cancelLabel || "Отмена";
+      try {
+        if (!confirmDialog.open) confirmDialog.showModal();
+      } catch {
+        closeConfirmDialog(false);
+      }
+    });
+  }
+
+  confirmCancelBtn?.addEventListener("click", () => closeConfirmDialog(false));
+  confirmOkBtn?.addEventListener("click", () => closeConfirmDialog(true));
+  confirmDialog?.addEventListener("cancel", (e) => {
+    e.preventDefault();
+    closeConfirmDialog(false);
+  });
+  confirmDialog?.addEventListener("close", () => {
+    if (confirmResolver) closeConfirmDialog(false);
+  });
+
+  function syncHubBulkBar() {
+    if (!hubBulkBar) return;
+    const n = hubBulkSelectedCodes.size;
+    if (!hubBulkSelectOn) {
+      hubBulkBar.hidden = true;
+      document.body.classList.remove("hub-bulk-select-on");
+      return;
+    }
+    hubBulkBar.hidden = false;
+    document.body.classList.add("hub-bulk-select-on");
+    if (hubBulkBarCount) {
+      hubBulkBarCount.textContent = n === 1 ? "Выбрано 1" : `Выбрано ${n}`;
+    }
+    if (hubBulkDeleteBtn) {
+      hubBulkDeleteBtn.disabled = n === 0 || hubBulkDeleting;
+      hubBulkDeleteBtn.textContent = n > 0 ? `Убрать · ${n}` : "Убрать";
+    }
+  }
+
+  function exitHubBulkSelectMode() {
+    hubBulkSelectOn = false;
+    hubBulkSelectedCodes = new Set();
+    hubBulkDeleting = false;
+    clearHubRoomTap();
+    document.querySelectorAll(".dm-room-row.is-bulk-selected").forEach((node) => {
+      node.classList.remove("is-bulk-selected");
+    });
+    syncHubBulkBar();
+  }
+
+  function enterHubBulkSelectMode(code) {
+    clearForgetArm();
+    clearHubRoomTap();
+    hubBulkSelectOn = true;
+    hubBulkSelectedCodes = new Set();
+    const c = normalizeDmCodeLocal(code);
+    if (c.length === 6) hubBulkSelectedCodes.add(c);
+    if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+    syncHubBulkBar();
+    try {
+      navigator.vibrate?.(14);
+    } catch {
+      /* ignore */
+    }
+    notify("Режим выбора · отметьте комнаты, чтобы убрать", { dim: true, clearMs: 1800 });
+  }
+
+  function toggleHubBulkRoom(code, rowEl) {
+    if (!hubBulkSelectOn) return;
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return;
+    if (hubBulkSelectedCodes.has(c)) {
+      hubBulkSelectedCodes.delete(c);
+      rowEl?.classList.remove("is-bulk-selected");
+    } else {
+      hubBulkSelectedCodes.add(c);
+      rowEl?.classList.add("is-bulk-selected");
+    }
+    syncHubBulkBar();
+    if (hubBulkSelectedCodes.size === 0) exitHubBulkSelectMode();
+  }
+
+  function roomDeleteKind(room) {
+    if (!room) return "forget";
+    // Only super-admin deletes foreign rooms from the hub ×.
+    // Regular users (incl. owners) only «убрать» — permanent delete is in settings.
+    if (room.foreign && isAdmin) return "admin";
+    return "forget";
+  }
+
+  function emitRoomDelete(code, { key = "", admin = false } = {}) {
+    return new Promise((resolve) => {
+      const payload = { code };
+      if (!admin) payload.key = key;
+      socket.emit("room:delete", payload, (res) => resolve(res || { ok: false }));
+    });
+  }
+
+  async function deleteHubBulkSelected() {
+    if (!hubBulkSelectOn || hubBulkDeleting) return;
+    const codes = [...hubBulkSelectedCodes];
+    if (!codes.length) return;
+    const byCode = new Map(roomsForDmList().map((r) => [r.code, r]));
+    const foreverN = codes.filter((c) => {
+      const kind = roomDeleteKind(byCode.get(c) || { code: c });
+      return kind === "admin";
+    }).length;
+    const ok = await askConfirm({
+      title: foreverN ? "Удалить комнату?" : "Убрать из списка?",
+      text:
+        codes.length === 1
+          ? foreverN
+            ? `Комната ${formatRoomCodeDisplay(codes[0])} пропадёт навсегда.\nСообщения и участники тоже.`
+            : `Убрать комнату ${formatRoomCodeDisplay(codes[0])} из списка?`
+          : foreverN
+            ? `Удалить ${codes.length} комнат?\nВыбранные чужие пропадут навсегда.`
+            : `Убрать ${codes.length} комнат из списка?`,
+      okLabel: foreverN ? "Удалить навсегда" : "Убрать",
+    });
+    if (!ok) return;
+
+    hubBulkDeleting = true;
+    syncHubBulkBar();
+    let deleted = 0;
+    let failed = 0;
+    for (const code of codes) {
+      const room = byCode.get(code) || { code };
+      const kind = roomDeleteKind(room);
+      if (kind === "admin") {
+        const res = await emitRoomDelete(code, { admin: true });
+        if (!res?.ok) {
+          failed += 1;
+          continue;
+        }
+        adminRoomCatalog = adminRoomCatalog.filter((r) => r.code !== code);
+        forgetDmRoom(code);
+        expandedDmRoomCodes.delete(code);
+        deleted += 1;
+        continue;
+      }
+      forgetDmRoom(code);
+      expandedDmRoomCodes.delete(code);
+      deleted += 1;
+    }
+    exitHubBulkSelectMode();
+    renderDmRoomsList({ skipRefresh: true });
+    if (failed && deleted) notify(`Готово ${deleted} · не вышло ${failed}`);
+    else if (failed) notify("Не получилось");
+    else if (deleted === 1) notify(foreverN ? `Комната ${formatRoomCodeDisplay(codes[0])} удалена` : `Комната ${formatRoomCodeDisplay(codes[0])} убрана`);
+    else notify(foreverN ? `Удалено комнат: ${deleted}` : `Убрано комнат: ${deleted}`);
+  }
+
+  function handleHubRoomEnterTap(room) {
+    if (hubBulkSelectOn) {
+      const row = dmRoomsList?.querySelector(`.dm-room-row[data-code="${CSS.escape(room.code)}"]`);
+      toggleHubBulkRoom(room.code, row);
+      return;
+    }
+    if (hubRoomTap.code !== room.code) {
+      clearHubRoomTap();
+      hubRoomTap.code = room.code;
+      hubRoomTap.count = 0;
+    }
+    hubRoomTap.count += 1;
+    if (hubRoomTap.timer) {
+      clearTimeout(hubRoomTap.timer);
+      hubRoomTap.timer = null;
+    }
+    if (hubRoomTap.count >= 3) {
+      clearHubRoomTap();
+      enterHubBulkSelectMode(room.code);
+      return;
+    }
+    hubRoomTap.timer = setTimeout(() => {
+      hubRoomTap.timer = null;
+      hubRoomTap.count = 0;
+      joinDmByCode(room.code, { fromList: true, watchOnly: Boolean(room.foreign) });
+    }, HUB_ROOM_TAP_MS);
+  }
+
+  function syncBulkBar() {
+    if (!bulkBar) return;
+    const n = bulkSelectedIds.size;
+    if (!bulkSelectOn) {
+      bulkBar.hidden = true;
+      document.body.classList.remove("bulk-select-on");
+      return;
+    }
+    bulkBar.hidden = false;
+    document.body.classList.add("bulk-select-on");
+    if (bulkBarCount) {
+      bulkBarCount.textContent = n === 1 ? "Выбрано 1" : `Выбрано ${n}`;
+    }
+    if (bulkDeleteBtn) {
+      bulkDeleteBtn.disabled = n === 0 || bulkDeleting;
+      bulkDeleteBtn.textContent = n > 0 ? `Удалить · ${n}` : "Удалить";
+    }
+  }
+
+  function clearBulkSelectionClasses() {
+    feed.querySelectorAll(".msg.msg-bulk-selected").forEach((node) => {
+      node.classList.remove("msg-bulk-selected");
+    });
+  }
+
+  function exitBulkSelectMode() {
+    bulkSelectOn = false;
+    bulkSelectedIds = new Set();
+    bulkDeleting = false;
+    clearBulkSelectionClasses();
+    syncBulkBar();
+  }
+
+  function enterBulkSelectMode(msg) {
+    if (!isAdmin) return;
+    closeMsgActionMenu();
+    closeAllReactMenus();
+    clearDeleteArm();
+    bulkSelectOn = true;
+    bulkSelectedIds = new Set();
+    if (msg?.id) {
+      bulkSelectedIds.add(msg.id);
+      const el = feed.querySelector(`[data-id="${CSS.escape(msg.id)}"]`);
+      el?.classList.add("msg-bulk-selected");
+    }
+    syncBulkBar();
+    try {
+      navigator.vibrate?.(14);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function toggleBulkSelectMessage(msg, el) {
+    if (!bulkSelectOn || !msg?.id || !el) return;
+    if (bulkSelectedIds.has(msg.id)) {
+      bulkSelectedIds.delete(msg.id);
+      el.classList.remove("msg-bulk-selected");
+    } else {
+      bulkSelectedIds.add(msg.id);
+      el.classList.add("msg-bulk-selected");
+    }
+    syncBulkBar();
+    if (bulkSelectedIds.size === 0) exitBulkSelectMode();
+  }
+
+  function captureFeedAnchor(excludeIds) {
+    const excluded = excludeIds instanceof Set ? excludeIds : new Set(excludeIds || []);
+    const feedRect = feed.getBoundingClientRect();
+    const msgs = feed.querySelectorAll(".msg");
+    for (const el of msgs) {
+      const id = el.dataset.id;
+      if (!id || excluded.has(id)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.bottom > feedRect.top + 4 && r.top < feedRect.bottom - 4) {
+        return { id, offset: r.top - feedRect.top };
+      }
+    }
+    return {
+      scrollTop: feed.scrollTop,
+      maxScroll: Math.max(0, feed.scrollHeight - feed.clientHeight),
+    };
+  }
+
+  function restoreFeedAnchor(anchor) {
+    if (!anchor) return;
+    if (anchor.id) {
+      const el = feed.querySelector(`.msg[data-id="${CSS.escape(anchor.id)}"]`);
+      if (el) {
+        const feedRect = feed.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        feed.scrollTop += r.top - feedRect.top - anchor.offset;
+        return;
+      }
+    }
+    const max = Math.max(0, feed.scrollHeight - feed.clientHeight);
+    if (typeof anchor.scrollTop === "number") {
+      // Prefer staying near the previous viewport; clamp if content shrank.
+      feed.scrollTop = Math.min(anchor.scrollTop, max);
+    } else {
+      feed.scrollTop = max;
+    }
+  }
+
+  function deleteBulkSelected() {
+    if (!isAdmin || bulkDeleting) return;
+    const ids = [...bulkSelectedIds];
+    if (!ids.length) return;
+    bulkDeleting = true;
+    syncBulkBar();
+
+    const exclude = new Set(ids);
+    const anchor = captureFeedAnchor(exclude);
+
+    // Instant batch remove — no per-bubble collapse (that stacked and scrolled the feed away).
+    for (const id of ids) {
+      removeMessageById(id, { animate: false, adjustScroll: false });
+    }
+    restoreFeedAnchor(anchor);
+    exitBulkSelectMode();
+    updatePinBar();
+    updateJumpBottom();
+
+    // Fire server deletes in parallel; DOM is already cleaned up.
+    let fail = null;
+    let pending = ids.length;
+    for (const id of ids) {
+      socket.emit("admin:delete", { id }, (res) => {
+        if (!res?.ok && res?.error) fail = res.error;
+        pending -= 1;
+        if (pending <= 0 && fail) notify(fail);
+      });
+    }
+  }
+
+  function loadSavedName() {
+    try {
+      const next = (localStorage.getItem(NAME_KEY) || "").trim().slice(0, 24);
+      if (next) return next;
+      const legacy = (localStorage.getItem(NAME_KEY_LEGACY) || "").trim().slice(0, 24);
+      if (legacy) {
+        localStorage.setItem(NAME_KEY, legacy);
+        return legacy;
+      }
+      return "";
+    } catch {
+      return "";
+    }
+  }
+
+  function saveName(name) {
+    try {
+      localStorage.setItem(NAME_KEY, name);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function savePin(pin) {
+    const p = normalizeRoomKeyLocal(pin);
+    try {
+      if (p.length === 4) localStorage.setItem(PIN_KEY, p);
+      else localStorage.removeItem(PIN_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function loadPin() {
+    try {
+      const p = normalizeRoomKeyLocal(localStorage.getItem(PIN_KEY) || "");
+      return p.length === 4 ? p : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function accountPinForRoom(code) {
+    return loadPin() || loadAdminPin(code) || "";
+  }
+
+  function applyOwnedRoomsFromServer(ownedRooms, accountPin) {
+    applyKnownRoomsFromServer(ownedRooms, accountPin, { markOwned: true, replace: false });
+  }
+
+  /**
+   * Apply account hub from server. With replace:true the list becomes the
+   * same on every device.
+   */
+  function applyKnownRoomsFromServer(rooms, accountPin, { markOwned = false, replace = false } = {}) {
+    if (!Array.isArray(rooms)) return;
+    const pin = normalizeRoomKeyLocal(accountPin || loadPin() || "");
+    const existingByCode = new Map(loadDmRooms().map((r) => [r.code, r]));
+    const publicRow = existingByCode.get(PUBLIC_ROOM_CODE);
+    const built = [];
+    for (const entry of rooms) {
+      const code = normalizeDmCodeLocal(
+        typeof entry === "string" ? entry : entry?.code || ""
+      );
+      if (code.length !== 6 || code === PUBLIC_ROOM_CODE) continue;
+      const isOwned = markOwned || Boolean(entry?.owned);
+      if (isOwned) markOwnedRoom(code);
+      const joinKey = normalizeRoomKeyLocal(entry?.joinKey || entry?.key || "");
+      if (joinKey.length === 4) saveRoomKey(code, joinKey);
+      const existing = existingByCode.get(code);
+      const serverLastAt = Date.parse(String(entry?.lastActiveAt || "")) || 0;
+      const row = {
+        code,
+        lastAt: Math.max(Number(existing?.lastAt) || 0, serverLastAt || Date.now()),
+        peer: existing?.peer || "",
+        messageCount: Math.max(0, Number(entry?.messageCount) || Number(existing?.messageCount) || 0),
+        lastReadId: existing?.lastReadId || "",
+        names: Array.isArray(existing?.names) ? existing.names : [],
+        unread: Math.max(0, Number(existing?.unread) || 0),
+        keyed:
+          entry?.access === "keyed" ||
+          Boolean(entry?.keyed) ||
+          joinKey.length === 4,
+        closed: typeof entry?.closed === "boolean" ? Boolean(entry.closed) : Boolean(existing?.closed),
+        title: typeof existing?.title === "string" ? existing.title.trim().slice(0, MAX_ROOM_TITLE_LEN) : "",
+      };
+      built.push(row);
+      if (isOwned && pin.length === 4) saveAdminPin(code, pin);
+    }
+    if (replace) {
+      const next = publicRow ? [publicRow, ...built.filter((r) => r.code !== PUBLIC_ROOM_CODE)] : built;
+      saveDmRooms(next);
+      return;
+    }
+    for (const row of built) {
+      rememberDmRoom(row.code, {
+        active: false,
+        keyed: row.keyed,
+        closed: row.closed,
+        messageCount: row.messageCount,
+      });
+    }
+  }
+
+  function syncHubRoomsToServer() {
+    if (!socket.connected || isAdmin) return;
+    const rooms = loadDmRooms()
+      .filter((r) => r.code && r.code !== PUBLIC_ROOM_CODE)
+      .map((r) => ({
+        code: r.code,
+        keyed: Boolean(r.keyed),
+        joinKey: loadRoomKey(r.code) || "",
+      }));
+    if (!rooms.length) return;
+    socket.emit("rooms:sync", { rooms }, (res) => {
+      if (!res?.ok) return;
+      applyKnownRoomsFromServer(
+        Array.isArray(res.knownRooms) ? res.knownRooms : rooms,
+        loadPin(),
+        { replace: true }
+      );
+      if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+    });
+  }
+
+  /** Pull hub keys/access flags from the account (fixes stale «свободный» / missing keys). */
+  let hubRefreshPromise = null;
+  function refreshHubFromServer({ render = false } = {}) {
+    if (hubRefreshPromise) {
+      return hubRefreshPromise.then((ok) => {
+        if (render && dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+        return ok;
+      });
+    }
+    hubRefreshPromise = new Promise((resolve) => {
+      if (!socket.connected || isAdmin) {
+        resolve(false);
+        return;
+      }
+      const localPayload = loadDmRooms()
+        .filter((r) => r.code && r.code !== PUBLIC_ROOM_CODE)
+        .map((r) => ({
+          code: r.code,
+          keyed: Boolean(r.keyed),
+          joinKey: loadRoomKey(r.code) || "",
+        }));
+      if (!localPayload.length) {
+        resolve(false);
+        return;
+      }
+      socket.emit("rooms:sync", { rooms: localPayload }, (syncRes) => {
+        if (syncRes?.ok && Array.isArray(syncRes.knownRooms)) {
+          applyKnownRoomsFromServer(syncRes.knownRooms, loadPin(), { replace: true });
+          if (render && dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+          resolve(true);
+          return;
+        }
+        resolve(false);
+      });
+    }).finally(() => {
+      hubRefreshPromise = null;
+    });
+    return hubRefreshPromise;
+  }
+
+  /** Cross-device hub: upload this phone's keys, then make local list match server. */
+  function pullHubFromServer(res, pin) {
+    const serverList = Array.isArray(res?.knownRooms)
+      ? res.knownRooms
+      : Array.isArray(res?.ownedRooms)
+        ? res.ownedRooms
+        : [];
+    const localPayload = loadDmRooms()
+      .filter((r) => r.code && r.code !== PUBLIC_ROOM_CODE)
+      .map((r) => ({
+        code: r.code,
+        keyed: Boolean(r.keyed),
+        joinKey: loadRoomKey(r.code) || "",
+      }));
+
+    const finish = (known) => {
+      applyKnownRoomsFromServer(known, pin, { replace: true });
+      if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+    };
+
+    if (!socket.connected || isAdmin || !localPayload.length) {
+      finish(serverList);
+      return;
+    }
+    socket.emit("rooms:sync", { rooms: localPayload }, (syncRes) => {
+      if (syncRes?.ok && Array.isArray(syncRes.knownRooms)) finish(syncRes.knownRooms);
+      else finish(serverList);
+    });
+  }
+
+  function normalizeDmCodeLocal(raw) {
+    // Exactly 6 digits after normalize. Short pure numbers pad: 75 → 000075.
+    // Alphanumeric legacy codes (75WECX) are rejected — not room numbers.
+    const s = String(raw ?? "").trim();
+    if (/^\d{6}$/.test(s)) return s;
+    if (/^\d{1,5}$/.test(s)) return s.padStart(6, "0");
+    const compact = s.replace(/\s+/g, "");
+    if (/^\d{1,6}$/.test(compact)) return compact.padStart(6, "0");
+    return "";
+  }
+
+  /** User-facing room number without leading zeros: 000002 → "2", 000000 → "0". */
+  function formatRoomCodeDisplay(raw) {
+    const c = normalizeDmCodeLocal(raw);
+    if (!c) return "";
+    return String(Number(c));
+  }
+
+  /** Key shown in lists/bar; «-» open, «----» keyed but unknown locally. */
+  function roomKeyDisplay(code, { keyed } = {}) {
+    const c = normalizeDmCodeLocal(code);
+    if (!c) return "-";
+    const key = loadRoomKey(c);
+    if (key) return key;
+    let isKeyed = typeof keyed === "boolean" ? keyed : undefined;
+    if (typeof isKeyed !== "boolean") {
+      const room = loadDmRooms().find((r) => r.code === c);
+      isKeyed = Boolean(room?.keyed) || room?.access === "keyed";
+    }
+    return isKeyed ? "----" : "-";
+  }
+
+  function setJoinKeyFieldAlert(on) {
+    dmJoinKeyWrap?.classList.toggle("is-needs-key", Boolean(on));
+  }
+
+  function clearJoinKeyFieldAlert() {
+    setJoinKeyFieldAlert(false);
+  }
+
+  function clearJoinFieldAlerts() {
+    setJoinFieldAlerts({ code: false, key: false });
+  }
+
+  function clearHubJoinFields() {
+    if (dmCodeInput) dmCodeInput.value = "";
+    if (dmJoinKey) dmJoinKey.value = "";
+    clearJoinFieldAlerts();
+    clearJoinHint();
+  }
+
+  function appendDmBarRoomMeta(container, code) {
+    const shown = formatRoomCodeDisplay(code);
+    const door = document.createElement("span");
+    door.className = "dm-bar-emoji";
+    door.setAttribute("aria-hidden", "true");
+    door.textContent = "🚪 ";
+    container.append(door, makeDmBarCopyChip(shown, shown, "code"));
+    const sep = document.createElement("span");
+    sep.className = "dm-bar-sep";
+    sep.textContent = " · ";
+    const keyIcon = document.createElement("span");
+    keyIcon.className = "dm-bar-emoji";
+    keyIcon.setAttribute("aria-hidden", "true");
+    keyIcon.textContent = "🔑 ";
+    container.append(sep, keyIcon);
+    const key = loadRoomKey(code);
+    if (key) {
+      container.append(makeDmBarCopyChip(key, key, "key"));
+    } else {
+      const dash = document.createElement("span");
+      dash.className = "dm-bar-muted";
+      const room = loadDmRooms().find((r) => r.code === normalizeDmCodeLocal(code));
+      dash.textContent = room?.keyed || room?.access === "keyed" ? "----" : "-";
+      container.append(dash);
+    }
+  }
+
+  function loadDmCode() {
+    try {
+      return normalizeDmCodeLocal(localStorage.getItem(DM_CODE_KEY) || "");
+    } catch {
+      return "";
+    }
+  }
+
+  function saveDmCode(code) {
+    const c = normalizeDmCodeLocal(code);
+    try {
+      if (c.length === 6) localStorage.setItem(DM_CODE_KEY, c);
+      else localStorage.removeItem(DM_CODE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function markSessionLive() {
+    try {
+      sessionStorage.setItem(SESSION_LIVE_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function isSessionLive() {
+    try {
+      return sessionStorage.getItem(SESSION_LIVE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function clearSessionLive() {
+    try {
+      sessionStorage.removeItem(SESSION_LIVE_KEY);
+      sessionStorage.removeItem(UI_VIEW_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** @param {"hub" | "room" | ""} view */
+  function setUiView(view) {
+    try {
+      if (view === "hub" || view === "room") {
+        sessionStorage.setItem(UI_VIEW_KEY, view);
+      } else {
+        sessionStorage.removeItem(UI_VIEW_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** @returns {"hub" | "room" | ""} */
+  function loadUiView() {
+    try {
+      const view = sessionStorage.getItem(UI_VIEW_KEY);
+      return view === "hub" || view === "room" ? view : "";
+    } catch {
+      return "";
+    }
+  }
+
+  /** @returns {{ kind: "room", code: string } | null} */
+  function loadLastDest() {
+    try {
+      const raw = String(localStorage.getItem(LAST_DEST_KEY) || "").trim();
+      if (raw === LAST_DEST_PUBLIC || raw === "public") {
+        return { kind: "room", code: PUBLIC_ROOM_CODE };
+      }
+      const code = normalizeDmCodeLocal(raw);
+      if (code.length === 6) return { kind: "room", code };
+    } catch {
+      /* ignore */
+    }
+    const legacy = loadDmCode();
+    if (legacy.length === 6) return { kind: "room", code: legacy };
+    return null;
+  }
+
+  function isPublicRoomCode(code) {
+    return normalizeDmCodeLocal(code) === PUBLIC_ROOM_CODE;
+  }
+
+  function loadClientId() {
+    try {
+      let id = String(localStorage.getItem(CLIENT_ID_KEY) || "").trim();
+      if (!/^[a-zA-Z0-9_-]{8,80}$/.test(id)) {
+        id =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID().replace(/-/g, "")
+            : `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+        localStorage.setItem(CLIENT_ID_KEY, id);
+      }
+      return id;
+    } catch {
+      return `c${Date.now().toString(36)}`;
+    }
+  }
+
+  function applyAccessFlags({ roomsOnly, publicLabel } = {}) {
+    if (typeof roomsOnly === "boolean") accessRoomsOnly = roomsOnly;
+    if (typeof publicLabel === "string" && publicLabel.trim()) {
+      publicChatLabel = publicLabel.trim().slice(0, 40);
+    }
+    if (accessRoomsOnly) {
+      if (isPublicRoomCode(dmCode)) {
+        leaveDmMode({ quiet: true, openHub: true });
+      }
+      if (loadLastDest()?.code === PUBLIC_ROOM_CODE) saveLastDest("");
+      forgetDmRoom(PUBLIC_ROOM_CODE);
+    } else {
+      ensurePublicRoomListed();
+    }
+    const notifyPublicLabel = notifyPublicInput?.closest("label")?.querySelector("span");
+    if (notifyPublicLabel) notifyPublicLabel.textContent = publicChatLabel;
+    if (dmDialog?.open) {
+      syncDmDialogChrome();
+      renderDmRoomsList({ skipRefresh: true });
+    }
+    syncDmBtn();
+  }
+
+  function ensurePublicRoomListed() {
+    if (accessRoomsOnly) return;
+    rememberDmRoom(PUBLIC_ROOM_CODE, {
+      peer: "",
+      names: [],
+      keyed: false,
+    });
+  }
+
+  function saveLastDest(dest) {
+    try {
+      if (!dest) {
+        localStorage.removeItem(LAST_DEST_KEY);
+        saveDmCode("");
+        return;
+      }
+      if (dest === LAST_DEST_PUBLIC || dest === "public" || dest?.kind === "public") {
+        if (accessRoomsOnly) return;
+        localStorage.setItem(LAST_DEST_KEY, PUBLIC_ROOM_CODE);
+        saveDmCode(PUBLIC_ROOM_CODE);
+        return;
+      }
+      const code = normalizeDmCodeLocal(typeof dest === "string" ? dest : dest?.code);
+      if (code.length === 6) {
+        if (accessRoomsOnly && code === PUBLIC_ROOM_CODE) return;
+        localStorage.setItem(LAST_DEST_KEY, code);
+        saveDmCode(code);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function loadDmRooms() {
+    /** @type {{ code: string, lastAt: number, peer: string, messageCount: number, lastReadId: string, names: string[], unread: number }[]} */
+    let rooms = [];
+    try {
+      const raw = localStorage.getItem(DM_ROOMS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          rooms = parsed
+            .map((item) => ({
+              code: normalizeDmCodeLocal(item?.code),
+              lastAt: Number(item?.lastAt) || 0,
+              peer: typeof item?.peer === "string" ? item.peer.trim().slice(0, 48) : "",
+              messageCount: Math.max(0, Number(item?.messageCount) || 0),
+              lastReadId: typeof item?.lastReadId === "string" ? item.lastReadId.trim().slice(0, 80) : "",
+              names: Array.isArray(item?.names)
+                ? item.names
+                    .filter((n) => typeof n === "string" && n.trim())
+                    .map((n) => n.trim().slice(0, 24))
+                    .slice(0, 100)
+                : [],
+              unread: Math.max(0, Number(item?.unread) || 0),
+              keyed: Boolean(item?.keyed),
+              closed: Boolean(item?.closed),
+              title: typeof item?.title === "string" ? item.title.trim().slice(0, MAX_ROOM_TITLE_LEN) : "",
+            }))
+            .filter((item) => item.code.length === 6);
+        }
+      }
+    } catch {
+      rooms = [];
+    }
+    const legacy = loadDmCode();
+    if (legacy.length === 6 && !rooms.some((r) => r.code === legacy)) {
+      rooms.unshift({
+        code: legacy,
+        lastAt: Date.now(),
+        peer: "",
+        messageCount: 0,
+        lastReadId: "",
+        names: [],
+        unread: 0,
+        title: "",
+      });
+    }
+    rooms.sort((a, b) => b.lastAt - a.lastAt);
+    const seen = new Set();
+    const uniq = [];
+    for (const r of rooms) {
+      if (seen.has(r.code)) continue;
+      seen.add(r.code);
+      uniq.push(r);
+    }
+    return uniq.slice(0, MAX_DM_ROOMS);
+  }
+
+  function saveDmRooms(rooms) {
+    try {
+      localStorage.setItem(
+        DM_ROOMS_KEY,
+        JSON.stringify(
+          (rooms || [])
+            .filter((r) => r?.code && String(r.code).length === 6)
+            .map((r) => ({
+              code: r.code,
+              lastAt: Number(r.lastAt) || 0,
+              peer: typeof r.peer === "string" ? r.peer.trim().slice(0, 48) : "",
+              messageCount: Math.max(0, Number(r.messageCount) || 0),
+              lastReadId: typeof r.lastReadId === "string" ? r.lastReadId.trim().slice(0, 80) : "",
+              names: Array.isArray(r.names)
+                ? r.names
+                    .filter((n) => typeof n === "string" && n.trim())
+                    .map((n) => n.trim().slice(0, 24))
+                    .slice(0, 100)
+                : [],
+              unread: Math.max(0, Number(r.unread) || 0),
+              keyed: Boolean(r.keyed),
+              closed: Boolean(r.closed),
+              title: typeof r.title === "string" ? r.title.trim().slice(0, MAX_ROOM_TITLE_LEN) : "",
+            }))
+            .slice(0, MAX_DM_ROOMS)
+        )
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function messagesLabel(count) {
+    const n = Math.max(0, Number(count) || 0);
+    const abs = n % 100;
+    const d = abs % 10;
+    if (abs > 10 && abs < 20) return `${n} сообщений`;
+    if (d === 1) return `${n} сообщение`;
+    if (d >= 2 && d <= 4) return `${n} сообщения`;
+    return `${n} сообщений`;
+  }
+
+  function newMessagesLabel(count) {
+    const n = Math.max(0, Number(count) || 0);
+    if (n <= 0) return "нет новых";
+    const abs = n % 100;
+    const d = abs % 10;
+    if (abs > 10 && abs < 20) return `${n} новых`;
+    if (d === 1) return `${n} новое`;
+    if (d >= 2 && d <= 4) return `${n} новых`;
+    return `${n} новых`;
+  }
+
+  /** Right-side counts in hub list: always total + unread (or «вы здесь»). */
+  function roomCountsLabel(messageCount, unread, { here = false } = {}) {
+    const total = messagesLabel(messageCount);
+    if (here) return `${total} · вы здесь`;
+    return `${total} · ${newMessagesLabel(unread)}`;
+  }
+
+  function lastMessageIdFromList(messages) {
+    const list = Array.isArray(messages) ? messages : [];
+    if (!list.length) return "";
+    return String(list[list.length - 1]?.id || "");
+  }
+
+  function namesLabel(names, { collapsed = true } = {}) {
+    const list = Array.isArray(names)
+      ? names.filter((n) => typeof n === "string" && n.trim()).map((n) => n.trim())
+      : [];
+    if (!list.length) return dmCode ? "Никого онлайн" : "Пока никого";
+    if (!collapsed || list.length <= 3) return list.join(", ");
+    return `${list.slice(0, 3).join(", ")} +${list.length - 3}`;
+  }
+
+  function peerFromDmPayload(res = {}) {
+    if (Array.isArray(res.names) && res.names.length) {
+      return namesLabel(
+        res.names.filter((n) => n && n !== myName),
+        { collapsed: true }
+      );
+    }
+    const names = Array.isArray(res.names) ? res.names.filter((n) => n && n !== myName) : [];
+    if (names.length === 1) return names[0];
+    if (names.length > 1) return `${names[0]} +${names.length - 1}`;
+    if (res.invited && res.invited !== myName) return res.invited;
+    const seen = [];
+    const msgs = Array.isArray(res.messages) ? res.messages : [];
+    for (let i = msgs.length - 1; i >= 0; i -= 1) {
+      const name = msgs[i]?.name;
+      if (!name || name === myName) continue;
+      if (!seen.includes(name)) seen.push(name);
+      if (seen.length >= 3) break;
+    }
+    if (seen.length === 1) return seen[0];
+    if (seen.length > 1) return `${seen[0]} +${seen.length - 1}`;
+    return "";
+  }
+
+  /** @type {Set<string>} */
+  const expandedDmRoomCodes = new Set();
+
+  function rememberDmRoom(
+    code,
+    { active = true, peer, messageCount, lastReadId, names, unread, keyed, closed, title } = {}
+  ) {
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) return;
+    const prev = loadDmRooms().find((r) => r.code === c);
+    const rooms = loadDmRooms().filter((r) => r.code !== c);
+    const nextPeer =
+      typeof peer === "string" && peer.trim()
+        ? peer.trim().slice(0, 48)
+        : prev?.peer || "";
+    const nextCount =
+      typeof messageCount === "number" && Number.isFinite(messageCount)
+        ? Math.max(0, messageCount)
+        : prev?.messageCount || 0;
+    const nextReadId =
+      typeof lastReadId === "string"
+        ? lastReadId.trim().slice(0, 80)
+        : prev?.lastReadId || "";
+    const nextNames = Array.isArray(names)
+      ? names
+          .filter((n) => typeof n === "string" && n.trim())
+          .map((n) => n.trim().slice(0, 24))
+          .slice(0, 100)
+      : prev?.names || [];
+    const nextUnread =
+      typeof unread === "number" && Number.isFinite(unread)
+        ? Math.max(0, unread)
+        : active
+          ? 0
+          : prev?.unread || 0;
+    const nextKeyed = typeof keyed === "boolean" ? keyed : Boolean(prev?.keyed);
+    const nextClosed = typeof closed === "boolean" ? closed : Boolean(prev?.closed);
+    const nextTitle =
+      typeof title === "string" ? title.trim().slice(0, MAX_ROOM_TITLE_LEN) : prev?.title || "";
+    rooms.unshift({
+      code: c,
+      lastAt: Date.now(),
+      peer: nextPeer,
+      messageCount: nextCount,
+      lastReadId: nextReadId,
+      names: nextNames,
+      unread: nextUnread,
+      keyed: nextKeyed,
+      closed: nextClosed,
+      title: nextTitle,
+    });
+    saveDmRooms(rooms);
+    if (active) saveDmCode(c);
+  }
+
+  function markDmRoomRead(code, messages, extra = {}) {
+    const list = Array.isArray(messages) ? messages : [];
+    rememberDmRoom(code, {
+      ...extra,
+      messageCount: list.length,
+      lastReadId: lastMessageIdFromList(list),
+      unread: 0,
+      active: Boolean(dmCode && dmCode === normalizeDmCodeLocal(code)),
+    });
+  }
+
+  function loadAdminRoomReads() {
+    try {
+      const raw = localStorage.getItem(ADMIN_ROOM_READS_KEY);
+      if (!raw) return {};
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== "object") return {};
+      /** @type {Record<string, string>} */
+      const out = {};
+      for (const [code, id] of Object.entries(data)) {
+        const c = normalizeDmCodeLocal(code);
+        if (!c || typeof id !== "string") continue;
+        out[c] = id.trim().slice(0, 80);
+      }
+      return out;
+    } catch {
+      return {};
+    }
+  }
+
+  function saveAdminRoomReads(map) {
+    try {
+      const entries = Object.entries(map || {})
+        .filter(([code, id]) => normalizeDmCodeLocal(code) && typeof id === "string" && id)
+        .slice(0, MAX_ADMIN_ROOM_READS);
+      localStorage.setItem(ADMIN_ROOM_READS_KEY, JSON.stringify(Object.fromEntries(entries)));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function markAdminRoomRead(code, messages) {
+    const c = normalizeDmCodeLocal(code);
+    if (!c) return;
+    const lastId = lastMessageIdFromList(messages);
+    if (!lastId) return;
+    const map = loadAdminRoomReads();
+    map[c] = lastId;
+    saveAdminRoomReads(map);
+  }
+
+  function roomsForDmList() {
+    const saved = loadDmRooms()
+      .filter((room) => !(accessRoomsOnly && isPublicRoomCode(room.code)))
+      .map((room) => ({ ...room, foreign: false }));
+    if (!isAdmin) return saved;
+    const savedCodes = new Set(saved.map((r) => r.code));
+    const extras = adminRoomCatalog
+      .filter(
+        (room) =>
+          room?.code &&
+          !(accessRoomsOnly && isPublicRoomCode(room.code)) &&
+          !savedCodes.has(room.code)
+      )
+      .map((room) => ({
+        code: room.code,
+        peer: room.peer || "",
+        names: Array.isArray(room.names) ? room.names : [],
+        messageCount: Math.max(0, Number(room.messageCount) || 0),
+        unread: Math.max(0, Number(room.unread) || 0),
+        lastReadId: room.lastReadId || "",
+        lastActiveAt: room.lastActiveAt || "",
+        foreign: true,
+      }));
+    return [...saved, ...extras];
+  }
+
+  function refreshAdminRoomCatalog({ render = true } = {}) {
+    if (!isAdmin || !socket.connected) {
+      adminRoomCatalog = [];
+      if (render && dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+      return;
+    }
+    const reads = loadAdminRoomReads();
+    const saved = loadDmRooms();
+    const sinceRooms = [
+      ...saved.map((r) => ({ code: r.code, sinceId: r.lastReadId || "" })),
+      ...Object.entries(reads).map(([code, sinceId]) => ({ code, sinceId })),
+    ];
+    socket.emit("dm:admin-rooms", { rooms: sinceRooms }, (res) => {
+      if (!res?.ok || !Array.isArray(res.rooms)) return;
+      adminRoomCatalog = res.rooms
+        .filter((r) => r && r.exists !== false && r.code)
+        .map((r) => ({
+          code: normalizeDmCodeLocal(r.code),
+          peer: typeof r.peer === "string" ? r.peer : "",
+          names: Array.isArray(r.names) ? r.names : [],
+          messageCount: Math.max(0, Number(r.messageCount) || 0),
+          unread: Math.max(0, Number(r.unread) || 0),
+          lastReadId: reads[normalizeDmCodeLocal(r.code)] || "",
+          lastActiveAt: typeof r.lastActiveAt === "string" ? r.lastActiveAt : "",
+          keyed: Boolean(r.keyed),
+          closed: Boolean(r.closed),
+          foreign: true,
+        }))
+        .filter((r) => r.code.length === 6);
+      // Keep saved-room meta fresh from the same payload.
+      const byCode = new Map(res.rooms.map((r) => [normalizeDmCodeLocal(r.code), r]));
+      const nextSaved = loadDmRooms()
+        .map((room) => {
+          const meta = byCode.get(room.code);
+          if (!meta) return room;
+          if (meta.exists === false) return null;
+          const isCurrent = dmCode === room.code;
+          const names = Array.isArray(meta.names) ? meta.names : room.names || [];
+          return {
+            ...room,
+            peer: meta.peer || room.peer || "",
+            messageCount: Math.max(0, Number(meta.messageCount) || 0),
+            names,
+            unread: isCurrent ? 0 : Math.max(0, Number(meta.unread) || 0),
+            lastReadId: isCurrent
+              ? meta.lastMessageId || room.lastReadId || ""
+              : room.lastReadId || "",
+            keyed: typeof meta.keyed === "boolean" ? Boolean(meta.keyed) : meta?.access === "keyed" ? true : Boolean(room.keyed),
+            closed: typeof meta.closed === "boolean" ? Boolean(meta.closed) : Boolean(room.closed),
+          };
+        })
+        .filter(Boolean);
+      saveDmRooms(nextSaved);
+      if (render && dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+    });
+  }
+
+  function refreshDmRoomsMeta() {
+    if (isAdmin) {
+      refreshAdminRoomCatalog({ render: true });
+      return;
+    }
+    const rooms = loadDmRooms();
+    const codes = new Map(rooms.map((r) => [r.code, r]));
+    if (!accessRoomsOnly && !codes.has(PUBLIC_ROOM_CODE)) {
+      codes.set(PUBLIC_ROOM_CODE, {
+        code: PUBLIC_ROOM_CODE,
+        lastReadId: "",
+        messageCount: 0,
+        unread: 0,
+      });
+    }
+    const list = [...codes.values()];
+    if (!list.length || !socket.connected) return;
+    socket.emit(
+      "dm:rooms-meta",
+      {
+        rooms: list.map((r) => ({
+          code: r.code,
+          sinceId: r.lastReadId || "",
+        })),
+      },
+      (res) => {
+        if (!res?.ok || !Array.isArray(res.rooms)) return;
+        const byCode = new Map(res.rooms.map((r) => [normalizeDmCodeLocal(r.code), r]));
+        const next = loadDmRooms()
+          .map((room) => {
+            const meta = byCode.get(room.code);
+            if (!meta) return room;
+            if (!meta.exists) return null;
+            const isCurrent = dmCode === room.code;
+            const names = Array.isArray(meta.names) ? meta.names : room.names || [];
+            const metaJoinKey = normalizeRoomKeyLocal(meta.joinKey || "");
+            if (metaJoinKey && isOwnedRoom(room.code)) saveRoomKey(room.code, metaJoinKey);
+            return {
+              ...room,
+              peer: meta.peer || room.peer || "",
+              messageCount: Math.max(0, Number(meta.messageCount) || 0),
+              names,
+              unread: isCurrent ? 0 : Math.max(0, Number(meta.unread) || 0),
+              lastReadId: isCurrent
+                ? meta.lastMessageId || room.lastReadId || ""
+                : room.lastReadId || "",
+              keyed: typeof meta.keyed === "boolean" ? Boolean(meta.keyed) : meta?.access === "keyed" ? true : Boolean(room.keyed),
+              closed: typeof meta.closed === "boolean" ? Boolean(meta.closed) : Boolean(room.closed),
+            };
+          })
+          .filter(Boolean);
+        // Keep public room counts even if it wasn't in the saved list yet.
+        const publicMeta = byCode.get(PUBLIC_ROOM_CODE);
+        if (publicMeta?.exists !== false && !accessRoomsOnly) {
+          const existing = next.find((r) => r.code === PUBLIC_ROOM_CODE);
+          if (existing) {
+            existing.messageCount = Math.max(0, Number(publicMeta.messageCount) || 0);
+            existing.unread =
+              dmCode === PUBLIC_ROOM_CODE ? 0 : Math.max(0, Number(publicMeta.unread) || 0);
+          } else {
+            next.push({
+              code: PUBLIC_ROOM_CODE,
+              lastAt: Date.now(),
+              peer: "",
+              messageCount: Math.max(0, Number(publicMeta.messageCount) || 0),
+              lastReadId: "",
+              names: Array.isArray(publicMeta.names) ? publicMeta.names : [],
+              unread:
+                dmCode === PUBLIC_ROOM_CODE ? 0 : Math.max(0, Number(publicMeta.unread) || 0),
+              keyed: false,
+              closed: false,
+            });
+          }
+        }
+        saveDmRooms(next);
+        if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+      }
+    );
+  }
+
+  function forgetDmRoom(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (!c) return;
+    const wasHere = dmCode === c;
+    saveDmRooms(loadDmRooms().filter((r) => r.code !== c));
+    unmarkOwnedRoom(c);
+    if (loadDmCode() === c) saveDmCode("");
+    clearRoomKey(c);
+    if (wasHere) leaveDmMode({ quiet: true, openHub: true });
+    if (socket.connected && !isAdmin && c !== PUBLIC_ROOM_CODE) {
+      socket.emit("rooms:forget", { code: c }, (res) => {
+        if (!res?.ok || !Array.isArray(res.knownRooms)) return;
+        applyKnownRoomsFromServer(res.knownRooms, loadPin(), { replace: true });
+        if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+      });
+    }
+  }
+
+  function destroyOwnedRoomFromHub(code) {
+    const c = normalizeDmCodeLocal(code);
+    if (!c) return;
+    const pin = normalizeRoomKeyLocal(loadPin() || "");
+    if (pin.length !== 4) {
+      notify("Нужен пин аккаунта, чтобы удалить свою комнату");
+      return;
+    }
+    socket.emit("room:delete", { code: c, key: pin }, (res) => {
+      if (!res?.ok) {
+        notify(res?.error || "Не удалилось");
+        return;
+      }
+      forgetDmRoom(c);
+      expandedDmRoomCodes.delete(c);
+      if (dmCode === c) leaveDmMode({ quiet: true, openHub: true });
+      renderDmRoomsList({ skipRefresh: true });
+      notify(`Комната ${formatRoomCodeDisplay(c)} удалена навсегда`);
+    });
+  }
+
+  function joinDmByCode(code, { fromList = false, watchOnly = false, key = "" } = {}) {
+    showDmDialogError("");
+    clearJoinHint();
+    const c = normalizeDmCodeLocal(code);
+    if (c.length !== 6) {
+      setJoinFieldAlerts({ code: true });
+      showJoinHint("Введите номер комнаты цифрами");
+      dmCodeInput?.focus();
+      return;
+    }
+    if (accessRoomsOnly && isPublicRoomCode(c)) {
+      showDmDialogError(`«${publicChatLabel}» недоступен на этом устройстве`);
+      notify(`«${publicChatLabel}» недоступен на этом устройстве`);
+      return;
+    }
+    if (joinInFlight) return;
+    if (fromList && dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
+
+    const runJoin = () => {
+      if (isPublicRoomCode(c) && dmJoinKey) dmJoinKey.value = "";
+      const joinKey = resolveJoinKey(c, key);
+      const roomMeta = loadDmRooms().find((r) => r.code === c);
+      const roomKeyed = !isPublicRoomCode(c) && Boolean(
+        roomMeta?.keyed || roomMeta?.access === "keyed" || isOwnedRoom(c)
+      );
+      if (roomKeyed && !joinKey && !isAdmin) {
+        if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
+        setJoinFieldAlerts({ key: true });
+        showJoinHint("Нужен ключ из 4 цифр");
+        dmJoinKey?.focus();
+        return;
+      }
+      clearJoinFieldAlerts();
+      const ghost = Boolean(isAdmin && (watchOnly || roomsForDmList().some((r) => r.code === c && r.foreign)));
+      const joinBtnEl = document.getElementById("dm-join-btn");
+      joinInFlight = true;
+      if (joinBtnEl) joinBtnEl.disabled = true;
+      const finishJoin = () => {
+        joinInFlight = false;
+        if (joinBtnEl) joinBtnEl.disabled = false;
+      };
+      const joinTimer = setTimeout(() => {
+        finishJoin();
+        showDmDialogError("Долго нет ответа · попробуйте ещё раз");
+      }, 12000);
+      socket.timeout(10000).emit("dm:join", { code: c, key: joinKey || undefined }, (err, res) => {
+        clearTimeout(joinTimer);
+        finishJoin();
+        if (err) {
+          showDmDialogError("Нет связи · проверьте интернет");
+          return;
+        }
+        if (!res?.ok) {
+          const joinErr = joinFailureMessage(res, res?.error || "Не удалось войти");
+          if (res?.wrongCode) {
+            clearJoinFieldAlerts();
+            setJoinFieldAlerts({ code: true });
+            showJoinHint(joinErr);
+            dmCodeInput?.focus();
+            dmCodeInput?.select?.();
+            forgetDmRoom(c);
+            renderDmRoomsList();
+            return;
+          }
+          if (res?.wrongKey) {
+            rememberDmRoom(c, {
+              keyed: res?.access === "keyed" || Boolean(res?.keyed) || true,
+              active: false,
+            });
+            if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
+            if (dmJoinKey) dmJoinKey.value = "";
+            setJoinFieldAlerts({ key: true });
+            showJoinHint("Ключ неверный");
+            clearRoomKey(c);
+            // Keep bright red until the user taps the key field to type again.
+            if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+            return;
+          }
+          if (res?.needsKey) {
+            rememberDmRoom(c, {
+              keyed: res?.access === "keyed" || Boolean(res?.keyed) || true,
+              active: false,
+            });
+            if (dmCodeInput) dmCodeInput.value = formatRoomCodeDisplay(c);
+            setJoinFieldAlerts({ key: true });
+            showJoinHint(joinErr);
+            dmJoinKey?.focus();
+            if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+            return;
+          }
+          clearJoinFieldAlerts();
+          clearJoinHint();
+          showDmDialogError(joinErr);
+          return;
+        }
+        clearJoinFieldAlerts();
+        clearJoinHint();
+        if (joinKey) saveRoomKey(c, joinKey);
+        else if (res.joinKey) saveRoomKey(c, normalizeRoomKeyLocal(res.joinKey));
+        enterDmMode(res, { watchOnly: ghost || Boolean(res.ghost) });
+        markSessionLive();
+        if (!ghost && !res.ghost) saveLastDest(c);
+        hubRequirePick = false;
+        clearHubJoinFields();
+        void closeDmDialogSoft();
+      });
+    };
+
+    const tryJoin = () => {
+      runJoin();
+    };
+
+    if (fromList && socket.connected && !isAdmin) {
+      refreshHubFromServer({ render: false }).finally(tryJoin);
+      return;
+    }
+    tryJoin();
+  }
+
+  function renderDmRoomsList({ skipRefresh = false } = {}) {
+    if (!dmRoomsList || !dmRoomsWrap) return;
+    const rooms = roomsForDmList();
+    dmRoomsWrap.hidden = false;
+    dmRoomsList.replaceChildren();
+
+    const frag = document.createDocumentFragment();
+
+    if (rooms.length) {
+      const heading = document.createElement("span");
+      heading.className = "dm-rooms-heading";
+      heading.textContent = isAdmin ? "Комнаты" : "Ваши комнаты";
+      frag.append(heading);
+    }
+
+    for (const room of rooms) {
+      const row = document.createElement("div");
+      const keyed = Boolean(room.keyed);
+      const owned = isOwnedRoom(room.code);
+      const unread = dmCode === room.code ? 0 : Math.max(0, Number(room.unread) || 0);
+      row.className =
+        "dm-room-row" +
+        (room.foreign ? " is-foreign" : "") +
+        (owned ? " is-owned" : keyed ? " is-keyed" : " is-open") +
+        (keyed ? " has-key" : "") +
+        (room.closed ? " is-closed" : "") +
+        (dmCode === room.code ? " is-current" : "") +
+        (hubBulkSelectOn && hubBulkSelectedCodes.has(room.code) ? " is-bulk-selected" : "") +
+        (unread > 0 ? " has-unread" : "");
+      row.setAttribute("role", "listitem");
+      row.dataset.code = room.code;
+
+      const main = document.createElement("div");
+      main.className = "dm-room-main";
+
+      const enterBtn = document.createElement("button");
+      enterBtn.type = "button";
+      enterBtn.className = "dm-room-enter";
+      const storedKey = loadRoomKey(room.code);
+      const keyShown = roomKeyDisplay(room.code, { keyed });
+      const shown = formatRoomCodeDisplay(room.code);
+      const roomTitle = typeof room.title === "string" ? room.title.trim() : "";
+      enterBtn.title = roomTitle
+        ? owned
+          ? `Админ · ${roomTitle} · ${shown} · ключ ${keyShown}`
+          : keyed
+            ? storedKey
+              ? `${roomTitle} · ${shown} · ключ ${storedKey}`
+              : `${roomTitle} · ${shown} · ключ -`
+            : unread
+              ? `${roomTitle} · ${shown} · ${newMessagesLabel(unread)}`
+              : `${roomTitle} · ${shown} · ключ ${keyShown}`
+        : owned
+          ? `Админ · комната ${shown} · ключ ${keyShown}`
+          : keyed
+            ? storedKey
+              ? `Комната ${shown} · ключ ${storedKey}`
+              : `Комната ${shown} · ключ -`
+            : unread
+              ? `Комната ${shown} · ${newMessagesLabel(unread)}`
+              : `Комната ${shown} · ключ ${keyShown}`;
+
+      const codeEl = document.createElement("strong");
+      codeEl.className = "dm-room-code";
+      codeEl.textContent = roomTitle
+        ? `🚪 ${shown} · 🔑 ${keyShown} · ${roomTitle}`
+        : `🚪 ${shown} · 🔑 ${keyShown}`;
+
+      const enterText = document.createElement("span");
+      enterText.className = "dm-room-enter-text";
+      enterText.append(codeEl);
+
+      const meta = document.createElement("span");
+      meta.className = "dm-room-meta";
+      if (owned) {
+        const adminBadge = document.createElement("span");
+        adminBadge.className = "dm-room-badge dm-room-badge--admin";
+        adminBadge.setAttribute("aria-label", "Вы админ");
+        adminBadge.title = "Вы админ";
+        adminBadge.textContent = "👑";
+        meta.append(adminBadge);
+      }
+      if (unread > 0) {
+        const mailBadge = document.createElement("span");
+        mailBadge.className = "dm-room-badge dm-room-badge--mail";
+        mailBadge.setAttribute("aria-label", newMessagesLabel(unread));
+        mailBadge.title = newMessagesLabel(unread);
+        mailBadge.textContent = "✉️";
+        meta.append(mailBadge);
+      }
+
+      enterBtn.append(enterText);
+      if (meta.childElementCount) enterBtn.append(meta);
+      enterBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handleHubRoomEnterTap(room);
+      });
+
+      main.append(enterBtn);
+      row.append(main);
+
+      {
+        const forgetBtn = document.createElement("button");
+        forgetBtn.type = "button";
+        forgetBtn.className = "dm-room-forget ghost compact";
+        forgetBtn.dataset.code = room.code;
+        const destroyForeign = Boolean(room.foreign && isAdmin);
+        forgetBtn.hidden = hubBulkSelectOn;
+        forgetBtn.setAttribute(
+          "aria-label",
+          destroyForeign ? `Удалить комнату ${formatRoomCodeDisplay(room.code)}` : `Убрать ${formatRoomCodeDisplay(room.code)} из списка`
+        );
+        forgetBtn.title = destroyForeign
+          ? "Нажмите дважды — удалить навсегда"
+          : "Нажмите дважды — убрать из списка";
+        forgetBtn.textContent = "×";
+        if (forgetArmedCode === room.code) {
+          forgetBtn.classList.add("armed");
+          forgetBtn.title = destroyForeign
+            ? "Ещё раз — подтвердить удаление"
+            : "Ещё раз — убрать";
+        }
+        forgetBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (hubBulkSelectOn) {
+            toggleHubBulkRoom(room.code, row);
+            return;
+          }
+          if (forgetArmedCode === room.code) {
+            clearForgetArm();
+            void (async () => {
+              if (destroyForeign) {
+                const ok = await askConfirm({
+                  title: "Удалить комнату?",
+                  text: `Комната ${formatRoomCodeDisplay(room.code)} пропадёт навсегда.\nСообщения и участники тоже.`,
+                  okLabel: "Удалить навсегда",
+                });
+                if (!ok) return;
+                socket.emit("room:delete", { code: room.code }, (res) => {
+                  if (!res?.ok) {
+                    notify(res?.error || "Не удалилось");
+                    return;
+                  }
+                  adminRoomCatalog = adminRoomCatalog.filter((r) => r.code !== room.code);
+                  forgetDmRoom(room.code);
+                  expandedDmRoomCodes.delete(room.code);
+                  renderDmRoomsList({ skipRefresh: true });
+                  notify(`Комната ${formatRoomCodeDisplay(room.code)} удалена`);
+                });
+                return;
+              }
+              const ok = await askConfirm({
+                title: "Убрать из списка?",
+                text: `Убрать комнату ${formatRoomCodeDisplay(room.code)} из списка?`,
+                okLabel: "Убрать",
+              });
+              if (!ok) return;
+              forgetDmRoom(room.code);
+              expandedDmRoomCodes.delete(room.code);
+              renderDmRoomsList({ skipRefresh: true });
+              notify(`Комната ${formatRoomCodeDisplay(room.code)} убрана`);
+            })();
+            return;
+          }
+          clearForgetArm();
+          forgetArmedCode = room.code;
+          forgetBtn.classList.add("armed");
+          forgetBtn.title = destroyForeign
+            ? "Ещё раз — подтвердить удаление"
+            : "Ещё раз — убрать";
+          forgetArmedTimer = setTimeout(() => {
+            if (forgetArmedCode !== room.code) return;
+            clearForgetArm();
+          }, FORGET_ARM_MS);
+        });
+        row.append(forgetBtn);
+      }
+
+      frag.append(row);
+    }
+
+    dmRoomsList.append(frag);
+    if (hubBulkSelectOn) syncHubBulkBar();
+    if (!skipRefresh) refreshDmRoomsMeta();
+  }
+
+  function loadAdminToken() {
+    try {
+      return (localStorage.getItem(ADMIN_TOKEN_KEY) || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function saveAdminToken(token) {
+    try {
+      if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+      else localStorage.removeItem(ADMIN_TOKEN_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function clearAdminToken() {
+    saveAdminToken("");
+  }
+
+  function loadPrevName() {
+    try {
+      return (localStorage.getItem(PREV_NAME_KEY) || "").trim().slice(0, 24);
+    } catch {
+      return "";
+    }
+  }
+
+  function savePrevName(name) {
+    const n = (name || "").trim().slice(0, 24);
+    if (!n || n === "АДМИН") return;
+    try {
+      localStorage.setItem(PREV_NAME_KEY, n);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function clearPrevName() {
+    try {
+      localStorage.removeItem(PREV_NAME_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function showJoinHint(text) {
+    if (dmDialogError) {
+      if (text) {
+        dmDialogError.hidden = false;
+        dmDialogError.textContent = text;
+        try {
+          dmDialogError.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        } catch {
+          /* ignore */
+        }
+      } else {
+        dmDialogError.hidden = true;
+        dmDialogError.textContent = "";
+      }
+    }
+  }
+
+  function clearJoinHint() {
+    showJoinHint("");
+  }
+
+  function joinFailureMessage(res, fallback = "") {
+    if (!res) return fallback || "Не удалось войти";
+    if (res.wrongCode) return "Номер комнаты неверный · такой комнаты нет";
+    if (res.wrongKey) return "Ключ неверный";
+    if (res.needsKey) {
+      const err = String(res.error || "").trim();
+      if (/ключ неверный/i.test(err)) return "Ключ неверный";
+      if (/нужен ключ|4 цифр/i.test(err)) return "Нужен ключ из 4 цифр";
+      return err || "Нужен ключ из 4 цифр";
+    }
+    return String(res.error || fallback || "Не удалось войти").trim();
+  }
+
+  function showDmDialogError(text) {
+    if (dmDialogError) {
+      dmDialogError.hidden = !text;
+      dmDialogError.textContent = text || "";
+      if (text) {
+        try {
+          dmDialogError.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    if (text) notify(text);
+  }
+
+  function updateDmPresence({ count, names, people, participants, moderators, maxMembers } = {}) {
+    if (!dmBarPresence && !presence) return;
+    const roster = Array.isArray(names)
+      ? names.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim())
+      : [];
+    const memberPeople = Array.isArray(people)
+      ? people
+          .filter((p) => p && typeof p.name === "string" && p.name.trim())
+          .map((p) => ({
+            id: typeof p.id === "string" && p.id ? p.id : `room-${p.name}`,
+            name: p.name.trim(),
+          }))
+      : roster.map((name, i) => ({ id: `room-${i}-${name}`, name }));
+    // Count must match the visible roster (unique seats from server).
+    const n =
+      typeof count === "number" && Number.isFinite(count)
+        ? Math.max(0, count)
+        : memberPeople.length;
+    const max = Number(maxMembers) > 0 ? Number(maxMembers) : 5000;
+    lastRoomOnlineNames = roster;
+    lastRoomOnlinePeople = memberPeople;
+    lastRoomOnlineCount = n;
+    if (dmBarPresence) dmBarPresence.textContent = `${n}/${max}`;
+    if (!dmCode) {
+      updatePresenceChrome();
+      return;
+    }
+    const modMap = new Map();
+    if (Array.isArray(moderators)) {
+      for (const m of moderators) {
+        if (!m?.name) continue;
+        modMap.set(String(m.name), m.role === "super" ? "super" : "admin");
+      }
+    }
+    roomModerators = modMap;
+    const peer = peerFromDmPayload({ names: roster, messages: lastState.messages || [] });
+    rememberDmRoom(dmCode, {
+      peer: peerFromDmPayload({ names: roster, messages: lastState.messages || [] }),
+      names: roster,
+      messageCount: Array.isArray(lastState.messages) ? lastState.messages.length : undefined,
+      lastReadId: lastMessageIdFromList(lastState.messages),
+      unread: 0,
+    });
+    updatePresenceChrome();
+    if (onlineDialog?.open) renderOnlineList();
+  }
+
+  function enterDmMode(res, { watchOnly = false } = {}) {
+    if (!res?.ok || !res.code) return;
+    if (dmCode) commitTopbarRoomTitle();
+    if (accessRoomsOnly && isPublicRoomCode(res.code)) {
+      notify(`«${publicChatLabel}» недоступен на этом устройстве`);
+      openDmDialog({ requirePick: true });
+      return;
+    }
+    publicStateBackup = null;
+    dmCode = res.code;
+    applyRoomFlags(res);
+    if (res.isOwner || res.roomAdmin) markOwnedRoom(res.code);
+    removePendingInvite(res.code);
+    const ghost = Boolean(watchOnly || res.ghost);
+    dmSessionGhost = ghost;
+    if (ghost) {
+      markAdminRoomRead(res.code, res.messages || []);
+      if (loadDmRooms().some((r) => r.code === res.code)) {
+        markDmRoomRead(res.code, res.messages || [], {
+          peer: peerFromDmPayload(res),
+          names: Array.isArray(res.names)
+            ? res.names
+            : Array.isArray(res.participants)
+              ? res.participants
+              : undefined,
+        });
+      }
+    } else {
+      rememberDmRoom(res.code, {
+        peer: peerFromDmPayload(res),
+        names: Array.isArray(res.names)
+          ? res.names
+          : Array.isArray(res.participants)
+            ? res.participants
+            : undefined,
+        messageCount: Array.isArray(res.messages) ? res.messages.length : 0,
+        lastReadId: lastMessageIdFromList(res.messages),
+        unread: 0,
+        keyed: Boolean(res.keyed),
+      });
+      const joinKey = normalizeRoomKeyLocal(res.joinKey || "");
+      if (joinKey.length === 4) saveRoomKey(res.code, joinKey);
+      saveLastDest(res.code);
+    }
+    markSessionLive();
+    hubRequirePick = false;
+    document.body.classList.add("dm-on");
+    document.body.classList.toggle("dm-ghost", Boolean(isAdmin));
+    if (dmBar) dmBar.hidden = false;
+    if (!dmDialog?.open) setUiView("room");
+    syncDmBarMeta();
+    syncTopbarRoomTitle();
+    syncRoomAdminUi();
+    clearReply();
+    renderAll(
+      { messages: res.messages || [], pinned: Array.isArray(res.pinned) ? res.pinned : [] },
+      { briefPin: true }
+    );
+    updateDmPresence(res);
+    if (messageInput) {
+      messageInput.placeholder = isAdmin ? "Написать как админ…" : "Написать в комнату…";
+    }
+    const maxMembers = Number(res.maxMembers) > 0 ? Number(res.maxMembers) : 5000;
+    const keyShown = roomKeyDisplay(res.code);
+    const shown = formatRoomCodeDisplay(res.code);
+    notify(
+      res.invited
+        ? `Пригласили ${res.invited} · комната ${shown}`
+        : isAdmin
+          ? `Комната ${shown} · вы невидимы в счётчике`
+          : `Комната ${shown} · ключ ${keyShown} · до ${maxMembers}`
+    );
+    syncDmBtn();
+  }
+
+  function leaveDmMode({ quiet = false, openHub = false } = {}) {
+    commitTopbarRoomTitle();
+    const prev = dmCode;
+    const peer = peerFromDmPayload({
+      names: [],
+      messages: lastState.messages || [],
+    });
+    const snapshotMessages = lastState.messages || [];
+    const wasSaved = prev ? loadDmRooms().some((r) => r.code === prev) : false;
+    const wasGhost = dmSessionGhost;
+    dmCode = null;
+    dmSessionGhost = false;
+    lastRoomOnlineNames = [];
+    lastRoomOnlinePeople = [];
+    lastRoomOnlineCount = 0;
+    roomModerators = new Map();
+    clearRoomAdminState();
+    // Keep room in the saved list; only clear "active session" code.
+    saveDmCode("");
+    setUiView("hub");
+    document.body.classList.remove("dm-on", "dm-ghost");
+    if (dmBar) dmBar.hidden = true;
+    syncTopbarRoomTitle();
+    if (messageInput) messageInput.placeholder = "Написать сообщение…";
+    clearReply();
+    publicStateBackup = null;
+    lastState = { messages: [], pinned: [] };
+    renderAll(lastState, { briefPin: true });
+    socket.emit("dm:leave", {}, () => {
+      /* empty state follows */
+    });
+    syncDmBtn();
+    updatePresenceChrome();
+    clearHubJoinFields();
+    if (prev) {
+      if (!wasGhost) {
+        markDmRoomRead(prev, snapshotMessages, {
+          active: false,
+          peer,
+          names: [],
+        });
+      } else if (wasSaved) {
+        markDmRoomRead(prev, snapshotMessages, {
+          active: false,
+          peer,
+          names: [],
+        });
+      } else if (isAdmin) {
+        markAdminRoomRead(prev, snapshotMessages);
+      }
+      saveDmCode("");
+      if (!quiet) {
+        notify(
+          `Комната ${formatRoomCodeDisplay(prev)} · снова в меню «Чаты»`
+        );
+      }
+    }
+    if (openHub) openDmDialog({ requirePick: !loadDmRooms().length && accessRoomsOnly });
+  }
+
+  function enterPublicChat({ fromHub = false } = {}) {
+    if (accessRoomsOnly) {
+      notify(`«${publicChatLabel}» недоступен на этом устройстве`);
+      openDmDialog({ requirePick: true });
+      return;
+    }
+    joinDmByCode(PUBLIC_ROOM_CODE, { fromList: fromHub || true });
+  }
+
+  function resumeLastDestination() {
+    // Stay on the screen the user was looking at (chat list vs room).
+    if (loadUiView() === "hub") {
+      const activeCode = loadDmCode();
+      if (
+        activeCode.length === 6 &&
+        !(accessRoomsOnly && isPublicRoomCode(activeCode))
+      ) {
+        socket.emit(
+          "dm:join",
+          { code: activeCode, key: loadRoomKey(activeCode) || undefined },
+          (res) => {
+            if (res?.ok) {
+              enterDmMode(res);
+              setUiView("hub");
+              openDmDialog({ requirePick: false });
+              return;
+            }
+            saveDmCode("");
+            openDmDialog({
+              requirePick: Boolean(accessRoomsOnly || !loadDmRooms().length),
+            });
+          }
+        );
+        return;
+      }
+      openDmDialog({
+        requirePick: Boolean(accessRoomsOnly || !loadDmRooms().length),
+      });
+      return;
+    }
+    const dest = loadLastDest();
+    if (accessRoomsOnly && (!dest || isPublicRoomCode(dest.code))) {
+      openDmDialog({ requirePick: true });
+      return;
+    }
+    if (dest?.kind === "room" && dest.code) {
+      socket.emit("dm:join", { code: dest.code, key: loadRoomKey(dest.code) || undefined }, (res) => {
+        if (res?.ok) {
+          enterDmMode(res);
+          return;
+        }
+        if (res?.needsKey) clearRoomKey(dest.code);
+        saveLastDest("");
+        if (/не найден|проверьте код/i.test(res?.error || "")) forgetDmRoom(dest.code);
+        openDmDialog({ requirePick: true });
+      });
+      return;
+    }
+    openDmDialog({ requirePick: true });
+  }
+
+  function syncDmDialogChrome() {
+    if (dmDialogTitle) dmDialogTitle.textContent = "Чаты";
+    syncMeBtn();
+    const createBox = document.querySelector(".dm-create-box");
+    if (createBox) {
+      createBox.hidden = false;
+      createBox.style.display = "";
+    }
+    if (dmPeopleWrap) dmPeopleWrap.hidden = Boolean(isAdmin);
+    syncHubPeopleChrome();
+  }
+
+  function openDmDialog({ requirePick = false } = {}) {
+    if (!dmDialog) return;
+    hubRequirePick = Boolean(requirePick);
+    markSessionLive();
+    setUiView("hub");
+    showDmDialogError("");
+    // Keep rooms list roomy — people snapshot stays collapsed until opened.
+    if (!hubPeopleOpen) setHubPeopleOpen(false);
+    syncDmDialogChrome();
+    syncHubBulkBar();
+    refreshDirectory();
+    renderHubPeopleList();
+    if (isAdmin) {
+      renderDmRoomsList({ skipRefresh: true });
+      refreshAdminRoomCatalog({ render: true });
+    } else {
+      refreshHubFromServer({ render: false }).finally(() => renderDmRoomsList());
+    }
+    clearHubJoinFields();
+    dmDialog.showModal();
+    layoutDmDialog();
+    keepDialogAboveKeyboard(dmDialog, dmCodeInput);
+    if (!roomsForDmList().length && !hubRequirePick && !lastDirectory.length) dmCodeInput?.focus();
+  }
+
+  function updatePresenceChrome() {
+    if (!presence) return;
+    if (dmCode) {
+      const n = lastRoomOnlineCount || lastRoomOnlinePeople.length || lastRoomOnlineNames.length;
+      presence.textContent = n ? `онлайн ${n}` : "онлайн —";
+      presence.title = "Кто сейчас в этой комнате";
+      return;
+    }
+    const n = lastPresenceCount;
+    presence.textContent = n ? `онлайн ${n}` : "онлайн —";
+    presence.title = n ? "Нажмите — кто онлайн" : "Пока никого";
+  }
+
+  function layoutBottomSheet(dialog) {
+    if (!dialog?.open) return;
+    syncViewportHeight();
+    const vv = window.visualViewport;
+    const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
+    const vvBottom = vv ? Math.round((vv.offsetTop || 0) + vv.height) : vvH;
+    const sidePad = 10;
+    const bottomPad = 10;
+    const maxSheet = Math.round(vvH * 0.5);
+    const bottomInset = Math.max(0, Math.round(window.innerHeight - vvBottom));
+    dialog.style.top = "auto";
+    dialog.style.left = "50%";
+    dialog.style.right = "auto";
+    dialog.style.bottom = `${bottomInset + bottomPad}px`;
+    dialog.style.transform = "translateX(-50%)";
+    dialog.style.width = `min(420px, calc(100vw - ${sidePad * 2}px))`;
+    dialog.style.maxWidth = `calc(100vw - ${sidePad * 2}px)`;
+    dialog.style.maxHeight = `${maxSheet}px`;
+    dialog.style.height = "auto";
+  }
+
+  function closeOnlineList() {
+    if (onlineDialog?.open) onlineDialog.close();
+  }
+
+  function invitePerson(person) {
+    if (!person || isAdmin) return;
+    if (person.id && person.id === socket.id) return;
+    if (nameEquals(person.name, myName)) return;
+    const payload = {};
+    if (person.id) payload.toId = person.id;
+    if (person.accountId) payload.toAccountId = person.accountId;
+    if (person.name) payload.toName = person.name;
+    if (!payload.toId && !payload.toAccountId && !payload.toName) return;
+    socket.emit("dm:invite", payload, (res) => {
+      if (!res?.ok) {
+        notify(res?.error || "Не удалось написать");
+        return;
+      }
+      if (person.name) res.invited = person.name;
+      enterDmMode(res);
+      hubRequirePick = false;
+      if (dmDialog?.open) void closeDmDialogSoft();
+      notify(
+        `Чат с ${person.name || "участником"} · ${formatRoomCodeDisplay(res.code)}`
+      );
+    });
+  }
+
+  function applyDirectory(people) {
+    lastDirectory = Array.isArray(people)
+      ? people
+          .map((p) => ({
+            accountId: typeof p?.accountId === "string" ? p.accountId : "",
+            name: String(p?.name || "").trim(),
+            online: Boolean(p?.online),
+            id: typeof p?.id === "string" ? p.id : "",
+          }))
+          .filter((p) => p.name)
+      : [];
+    syncHubPeopleChrome();
+    if (dmDialog?.open) renderHubPeopleList();
+  }
+
+  function refreshDirectory() {
+    if (!myName || isAdmin) return;
+    socket.emit("chat:directory", {}, (res) => {
+      if (res?.ok) applyDirectory(res.people);
+    });
+  }
+
+  function syncHubPeopleChrome() {
+    if (!dmPeopleWrap) return;
+    if (isAdmin) {
+      dmPeopleWrap.hidden = true;
+      hubPeopleOpen = false;
+      dmPeopleWrap.classList.remove("is-open");
+      if (dmPeoplePanel) dmPeoplePanel.hidden = true;
+      if (dmPeopleToggle) dmPeopleToggle.setAttribute("aria-expanded", "false");
+      return;
+    }
+    dmPeopleWrap.hidden = false;
+    dmPeopleWrap.classList.toggle("is-open", hubPeopleOpen);
+    if (dmPeoplePanel) dmPeoplePanel.hidden = !hubPeopleOpen;
+    if (dmPeopleToggle) dmPeopleToggle.setAttribute("aria-expanded", hubPeopleOpen ? "true" : "false");
+    const onlineN = lastDirectory.filter((p) => p.online).length;
+    if (dmPeopleToggleMeta) {
+      dmPeopleToggleMeta.textContent = `${onlineN} онлайн`;
+    }
+  }
+
+  function setHubPeopleOpen(open) {
+    hubPeopleOpen = Boolean(open);
+    syncHubPeopleChrome();
+    if (hubPeopleOpen) {
+      refreshDirectory();
+      renderHubPeopleList();
+      requestAnimationFrame(() => {
+        try {
+          dmPeopleSearch?.focus({ preventScroll: true });
+        } catch {
+          dmPeopleSearch?.focus();
+        }
+      });
+    } else if (dmPeopleSearch) {
+      hubPeopleQuery = "";
+      dmPeopleSearch.value = "";
+    }
+  }
+
+  function filteredDirectory() {
+    const q = hubPeopleQuery.trim().toLocaleLowerCase("ru-RU");
+    const people = lastDirectory.filter((p) => p.name);
+    if (!q) return people;
+    return people.filter((p) => p.name.toLocaleLowerCase("ru-RU").includes(q));
+  }
+
+  function renderHubPeopleList() {
+    if (!dmPeopleList) return;
+    syncHubPeopleChrome();
+    if (isAdmin || !hubPeopleOpen) {
+      dmPeopleList.replaceChildren();
+      return;
+    }
+    const people = filteredDirectory();
+    dmPeopleList.replaceChildren();
+    if (!people.length) {
+      const empty = document.createElement("p");
+      empty.className = "dm-people-empty";
+      empty.textContent = lastDirectory.length
+        ? "Никого не найдено"
+        : "Пока никого в системе";
+      dmPeopleList.append(empty);
+      return;
+    }
+    for (const person of people) {
+      const isSelf = Boolean(
+        (person.id && person.id === socket.id) || nameEquals(person.name, myName)
+      );
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className =
+        "dm-people-row" +
+        (person.online ? " is-online" : "") +
+        (isSelf ? " is-self" : "");
+      row.setAttribute("role", "listitem");
+      row.disabled = isSelf;
+      const name = document.createElement("span");
+      name.className = "dm-people-name";
+      name.textContent = person.name;
+      const status = document.createElement("span");
+      status.className = "dm-people-status";
+      status.textContent = isSelf ? "это вы" : person.online ? "онлайн · написать" : "офлайн · написать";
+      row.append(name, status);
+      if (!isSelf) {
+        row.title = person.online
+          ? `Написать ${person.name}`
+          : `Открыть чат с ${person.name} — появится у него в списке`;
+        row.addEventListener("click", (e) => {
+          e.preventDefault();
+          invitePerson(person);
+        });
+      }
+      dmPeopleList.append(row);
+    }
+  }
+
+  function renderOnlineList() {
+    if (!onlineList) return;
+    let people;
+    if (dmCode) {
+      // Room mode: only current room members (same source as the counter).
+      people = (lastRoomOnlinePeople.length ? lastRoomOnlinePeople : lastRoomOnlineNames.map((name, i) => ({
+        id: `room-${i}-${name}`,
+        name,
+      }))).filter((p) => p.name);
+    } else {
+      people = lastPeople.filter((p) => p.name);
+    }
+    const prevFocus = onlineList.querySelector(":focus")?.dataset?.id || "";
+    onlineList.replaceChildren();
+    if (!people.length) {
+      const empty = document.createElement("p");
+      empty.className = "user-list-empty";
+      empty.textContent = dmCode ? "В комнате никого онлайн" : "Пока никого онлайн";
+      onlineList.append(empty);
+      return;
+    }
+    people
+      .slice()
+      .sort((a, b) => {
+        const aSelf = a.id === socket.id ? 0 : 1;
+        const bSelf = b.id === socket.id ? 0 : 1;
+        if (aSelf !== bSelf) return aSelf - bSelf;
+        return a.name.localeCompare(b.name, "ru");
+      })
+      .forEach((person) => {
+        const isSelf = person.id === socket.id;
+        const row = document.createElement("div");
+        row.className = "online-row" + (isSelf ? " is-self" : "") + (person.roomsOnly ? " is-rooms-only" : "");
+        row.setAttribute("role", "option");
+        row.dataset.id = person.id;
+
+        const main = document.createElement("div");
+        main.className = "online-row-main";
+        const name = document.createElement("span");
+        name.className = "online-row-name";
+        const modRole = roomModerators.get(person.name) || (person.name === "АДМИН" || isAdmin && isSelf ? "super" : "");
+        const selfRoomAdmin = isSelf && isRoomAdmin && !isAdmin;
+        const role = isSelf && isAdmin ? "super" : selfRoomAdmin ? "admin" : modRole;
+        if (role === "super") {
+          name.textContent = `${person.name} · супер`;
+          name.classList.add("is-super");
+        } else if (role === "admin") {
+          name.textContent = `${person.name} · админ`;
+          name.classList.add("is-room-admin");
+        } else {
+          name.textContent = person.name;
+        }
+        const action = document.createElement("span");
+        action.className = "online-row-action";
+        action.textContent = isSelf
+          ? "это вы"
+          : person.roomsOnly
+            ? "без общего"
+            : "в сети";
+        main.append(name, action);
+        row.append(main);
+
+        if (isAdmin && !isSelf) {
+          const tools = document.createElement("div");
+          tools.className = "online-row-tools";
+
+          const roomsOnlyBtn = document.createElement("button");
+          roomsOnlyBtn.type = "button";
+          roomsOnlyBtn.className = "online-tool" + (person.roomsOnly ? " is-on" : "");
+          roomsOnlyBtn.textContent = person.roomsOnly ? "общий+" : "без общего";
+          roomsOnlyBtn.title = person.roomsOnly
+            ? `Снова показать «${publicChatLabel}»`
+            : `Скрыть «${publicChatLabel}» на этом устройстве (для ребёнка)`;
+          roomsOnlyBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            socket.emit(
+              "admin:rooms-only",
+              { socketId: person.id, clientId: person.clientId, on: !person.roomsOnly },
+              (res) => {
+                if (!res?.ok) {
+                  notify(res?.error || "Не вышло");
+                  return;
+                }
+                person.roomsOnly = Boolean(res.roomsOnly);
+                notify(
+                  person.roomsOnly
+                    ? `${person.name}: «${publicChatLabel}» скрыт`
+                    : `${person.name}: «${publicChatLabel}» снова доступен`
+                );
+                renderOnlineList();
+              }
+            );
+          });
+
+          const banBtn = document.createElement("button");
+          banBtn.type = "button";
+          banBtn.className = "online-tool danger";
+          banBtn.textContent = "блок";
+          banBtn.title = "Выгнать и заблокировать устройство (имя можно сменить — вход не пустит)";
+          banBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void (async () => {
+              const ok = await askConfirm({
+                title: "Заблокировать?",
+                text: `Заблокировать «${person.name}» на этом устройстве?`,
+                okLabel: "Заблокировать",
+              });
+              if (!ok) return;
+              socket.emit(
+                "admin:ban",
+                { socketId: person.id, clientId: person.clientId, reason: "Бан админом" },
+                (res) => {
+                  if (!res?.ok) {
+                    notify(res?.error || "Не заблокировалось");
+                    return;
+                  }
+                  notify(`${person.name} заблокирован`);
+                  lastPeople = lastPeople.filter((p) => p.id !== person.id);
+                  renderOnlineList();
+                }
+              );
+            })();
+          });
+
+          tools.append(roomsOnlyBtn, banBtn);
+          row.append(tools);
+        }
+
+        onlineList.append(row);
+        if (person.id === prevFocus && !isSelf) {
+          try {
+            main.focus({ preventScroll: true });
+          } catch {
+            /* ignore */
+          }
+        }
+      });
+  }
+
+  function openOnlineList() {
+    if (!onlineDialog || !myName) return;
+    syncViewportHeight();
+    renderOnlineList();
+    if (!onlineDialog.open) onlineDialog.showModal();
+    layoutBottomSheet(onlineDialog);
+  }
+
+  function syncInvitesBtn() {
+    /* invite inbox removed — rooms appear in hub list */
+  }
+
+  function removePendingInvite() {
+    pendingInvites = [];
+  }
+
+  function queueInvite() {
+    /* invite inbox removed */
+  }
+
+  function renderInvitesList() {
+    /* invite inbox removed */
+  }
+
+  function openInvitesDialog() {
+    /* invite inbox removed */
+  }
+
+  function closeInvitesDialog() {
+    /* invite inbox removed */
+  }
+
+  function acceptInvite() {
+    /* invite inbox removed */
+  }
+
+  function declineInvite() {
+    /* invite inbox removed */
+  }
+
+  function onRoomAddedFromInvite(payload = {}) {
+    const code = normalizeDmCodeLocal(payload.code);
+    if (!code || !myName) return;
+    if (dmCode && dmCode === code) return;
+    const joinKey = normalizeRoomKeyLocal(payload.joinKey || "");
+    if (joinKey.length === 4) saveRoomKey(code, joinKey);
+    rememberDmRoom(code, {
+      peer: payload.from || payload.peer || "",
+      names: Array.isArray(payload.participants) ? payload.participants : [payload.from, myName].filter(Boolean),
+      keyed: Boolean(payload.keyed) || joinKey.length === 4,
+      closed: Boolean(payload.closed),
+      messageCount: Number(payload.messageCount) || 0,
+      unread: dmCode === code ? 0 : 1,
+    });
+    if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+    else syncDmBtn();
+    notify(
+      `${payload.from || "Кто-то"} открыл чат · комната ${formatRoomCodeDisplay(code)}`
+    );
+  }
+
+  function nameEquals(a, b) {
+    return (
+      String(a || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLocaleLowerCase("ru-RU") ===
+      String(b || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLocaleLowerCase("ru-RU")
+    );
+  }
+
+  function showGateError(text) {
+    gateError.hidden = !text;
+    gateError.textContent = text || "";
+  }
+
+  function formatTime(iso) {
+    try {
+      return new Intl.DateTimeFormat("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(iso));
+    } catch {
+      return "";
+    }
+  }
+
+  function appendLinkedText(container, raw) {
+    const text = String(raw || "");
+    if (!text) return;
+
+    // http(s)/www and bare domains like apps.apple.com/path or github.com/...
+    const re =
+      /(?:https?:\/\/|www\.)[^\s<>"'`]+|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s<>"'`]*)?/gi;
+    const TRAIL = ".,;:!?)]}\"'>»";
+    let last = 0;
+    let match;
+    while ((match = re.exec(text)) !== null) {
+      const start = match.index;
+      // Don't treat the domain part of an email as a link.
+      if (start > 0 && text.charAt(start - 1) === "@") {
+        continue;
+      }
+      if (start > last) {
+        container.append(document.createTextNode(text.slice(last, start)));
+      }
+
+      let url = match[0];
+      let trailing = "";
+      while (url.length > 1 && TRAIL.includes(url.slice(-1))) {
+        trailing = url.slice(-1) + trailing;
+        url = url.slice(0, -1);
+      }
+
+      const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+      let linked = false;
+      try {
+        const parsed = new URL(href);
+        if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+          const a = document.createElement("a");
+          a.className = "msg-link";
+          a.href = parsed.href;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.textContent = url;
+          container.append(a);
+          linked = true;
+        }
+      } catch {
+        /* fall through */
+      }
+
+      if (!linked) {
+        container.append(document.createTextNode(match[0]));
+        last = start + match[0].length;
+      } else {
+        if (trailing) container.append(document.createTextNode(trailing));
+        last = start + url.length + trailing.length;
+      }
+    }
+
+    if (last < text.length) {
+      container.append(document.createTextNode(text.slice(last)));
+    }
+  }
+
+  function isNearBottom(threshold = 120) {
+    return feed.scrollHeight - feed.scrollTop - feed.clientHeight < threshold;
+  }
+
+  let jumpBottomRaf = 0;
+  function updateJumpBottom() {
+    if (jumpBottomRaf) return;
+    jumpBottomRaf = requestAnimationFrame(() => {
+      jumpBottomRaf = 0;
+      jumpBottomBtn.hidden = isNearBottom(180);
+    });
+  }
+
+  /** Softens discrete mouse-wheel jumps in Chrome (trackpad stays pixel-smooth). */
+  function createSmoothScroller(el) {
+    let target = el.scrollTop;
+    let current = el.scrollTop;
+    let raf = 0;
+    let animating = false;
+    const ease = 0.2;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const clamp = (y) => {
+      const max = Math.max(0, el.scrollHeight - el.clientHeight);
+      return Math.max(0, Math.min(max, y));
+    };
+
+    const stop = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      animating = false;
+    };
+
+    const tick = () => {
+      raf = 0;
+      const diff = target - current;
+      if (Math.abs(diff) < 0.45) {
+        current = target;
+        el.scrollTop = current;
+        animating = false;
+        return;
+      }
+      current += diff * ease;
+      el.scrollTop = current;
+      raf = requestAnimationFrame(tick);
+    };
+
+    const setTarget = (y, { animate = true } = {}) => {
+      target = clamp(y);
+      if (!animate || reduceMotion.matches) {
+        stop();
+        current = target;
+        el.scrollTop = target;
+        return;
+      }
+      current = el.scrollTop;
+      animating = true;
+      if (!raf) raf = requestAnimationFrame(tick);
+    };
+
+    el.addEventListener(
+      "wheel",
+      (e) => {
+        if (reduceMotion.matches || e.ctrlKey) return;
+        if (el.scrollHeight <= el.clientHeight + 1) return;
+
+        let dy = e.deltaY;
+        if (e.deltaMode === 1) dy *= 16;
+        else if (e.deltaMode === 2) dy *= el.clientHeight;
+
+        // Discrete notches feel harsh — blend them into a glide.
+        if (e.deltaMode === 1 || Math.abs(e.deltaY) >= 40) dy *= 0.65;
+
+        const max = Math.max(0, el.scrollHeight - el.clientHeight);
+        const from = animating ? target : el.scrollTop;
+        const next = clamp(from + dy);
+        if (
+          next === from &&
+          ((dy < 0 && el.scrollTop <= 0) || (dy > 0 && el.scrollTop >= max - 0.5))
+        ) {
+          return;
+        }
+
+        e.preventDefault();
+        setTarget(next, { animate: true });
+      },
+      { passive: false }
+    );
+
+    el.addEventListener(
+      "scroll",
+      () => {
+        if (!animating) {
+          target = el.scrollTop;
+          current = el.scrollTop;
+        }
+      },
+      { passive: true }
+    );
+
+    return {
+      scrollTo(y, smooth = true) {
+        setTarget(y, { animate: smooth });
+      },
+      refresh() {
+        if (!animating) {
+          target = el.scrollTop;
+          current = el.scrollTop;
+        }
+      },
+    };
+  }
+
+  const feedScroller = createSmoothScroller(feed);
+  let pinToLatestOnce = false;
+
+  function scrollFeedToBottom(smooth = true) {
+    const max = Math.max(0, feed.scrollHeight - feed.clientHeight);
+    if (!smooth) {
+      // Instant jump — bypass clamp race while the feed is still laying out.
+      feed.scrollTop = max;
+      feedScroller.refresh();
+    } else {
+      feedScroller.scrollTo(max, true);
+    }
+    jumpBottomBtn.hidden = true;
+  }
+
+  function schedulePinToLatest({ brief = false } = {}) {
+    pinToLatestOnce = true;
+    const run = () => {
+      if (app.hidden) return;
+      scrollFeedToBottom(false);
+    };
+    run();
+    requestAnimationFrame(() => {
+      run();
+      requestAnimationFrame(run);
+    });
+    if (brief) {
+      setTimeout(run, 80);
+      return;
+    }
+    setTimeout(run, 60);
+    setTimeout(run, 220);
+    setTimeout(run, 480);
+    // Photos / viewport chrome often grow the feed after the first jump.
+    feed.querySelectorAll("img.msg-photo").forEach((img) => {
+      if (img.complete) return;
+      img.addEventListener("load", run, { once: true });
+    });
+  }
+
+  function feedShowsMessages(messages) {
+    const list = Array.isArray(messages) ? messages : [];
+    const nodes = feed.querySelectorAll(".msg[data-id]");
+    if (nodes.length !== list.length) return false;
+    for (let i = 0; i < list.length; i += 1) {
+      const msg = list[i];
+      const node = nodes[i];
+      if (!msg || node.dataset.id !== msg.id) return false;
+      // Pin / unpin keeps the same ids — must still redraw badges and red frame.
+      if (Boolean(msg.pinned) !== node.classList.contains("pinned-item")) return false;
+    }
+    return true;
+  }
+
+  async function closeDmDialogSoft() {
+    if (!dmDialog?.open) return;
+    if (hubPeopleOpen) setHubPeopleOpen(false);
+    clearHubFooterLift();
+    dmDialog.classList.add("is-leaving");
+    await new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        resolve();
+      };
+      dmDialog.addEventListener("transitionend", finish, { once: true });
+      setTimeout(finish, 180);
+    });
+    if (dmDialog.open) dmDialog.close();
+    dmDialog.classList.remove("is-leaving");
+    setUiView(dmCode ? "room" : "hub");
+  }
+
+  function lockPageScroll() {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
+
+  let viewportSyncRaf = 0;
+  let lastViewportKey = "";
+
+  function syncViewportHeight() {
+    // Avoid layout thrash / backdrop flicker while viewing a zoomed photo.
+    if (lightbox?.open) return;
+
+    const vv = window.visualViewport;
+    const active = document.activeElement;
+    const focused =
+      active === messageInput ||
+      active === nameInput ||
+      active === renameInput ||
+      active === renamePinInput ||
+      active === adminPassword ||
+      active === dmCodeInput ||
+      active?.tagName === "TEXTAREA" ||
+      active?.tagName === "INPUT";
+
+    let height = window.innerHeight;
+    let inset = 0;
+    let vvTop = 0;
+    if (vv) {
+      height = Math.round(vv.height);
+      vvTop = Math.round(vv.offsetTop || 0);
+      const rawInset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      inset = focused && rawInset > 60 ? rawInset : 0;
+    }
+
+    const key = `${height}|${inset}|${vvTop}|${focused ? 1 : 0}`;
+    if (key === lastViewportKey) return;
+    lastViewportKey = key;
+
+    document.documentElement.style.setProperty("--vv-top", `${vvTop}px`);
+    document.documentElement.style.setProperty("--app-height", `${height}px`);
+    document.documentElement.style.setProperty("--kb-inset", `${inset}px`);
+    document.body.classList.toggle("keyboard-open", inset > 80);
+    // Only nudge page scroll when keyboard state changes meaningfully.
+    if (inset > 80 || focused) lockPageScroll();
+  }
+
+  function scheduleSyncViewportHeight() {
+    if (viewportSyncRaf) return;
+    viewportSyncRaf = requestAnimationFrame(() => {
+      viewportSyncRaf = 0;
+      syncViewportHeight();
+    });
+  }
+
+  let adminSheetFrozen = false;
+
+  function layoutFormDialog(dialog) {
+    if (!dialog?.open) return;
+    if (dialog.classList.contains("pins-dialog") || dialog.classList.contains("lightbox") || dialog.classList.contains("dm-dialog")) return;
+    // Keep the admin sheet still until the user focuses the password field.
+    if (
+      dialog === adminDialog &&
+      adminSheetFrozen &&
+      document.activeElement !== adminPassword
+    ) {
+      return;
+    }
+    const vv = window.visualViewport;
+    const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
+    const active = document.activeElement;
+    const inputFocused =
+      active === adminPassword ||
+      active === renameInput ||
+      active === dmCodeInput ||
+      (dialog.contains(active) && (active?.tagName === "INPUT" || active?.tagName === "TEXTAREA"));
+    // Without a focused field, keep a stable full-sheet size (no keyboard shrink/jump).
+    const vvH = inputFocused && vv
+      ? Math.round(vv.height)
+      : Math.round((vv?.height || window.innerHeight));
+    const safeTop =
+      Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--safe-top")
+      ) || 0;
+    // Clear of the status bar; avoid hugging the clock on iPhone.
+    const pad = Math.max(12, Math.round(safeTop) + 8);
+    dialog.style.top = `${vvTop + pad}px`;
+    dialog.style.left = "50%";
+    dialog.style.right = "auto";
+    dialog.style.bottom = "auto";
+    dialog.style.transform = "translateX(-50%)";
+    dialog.style.maxHeight = `${Math.max(inputFocused ? 160 : 240, vvH - pad - 8)}px`;
+    dialog.style.margin = "0";
+  }
+
+  function keepDialogAboveKeyboard(dialog, focusEl) {
+    if (!dialog) return;
+    // Only chase the keyboard when the field is actually focused.
+    if (focusEl && document.activeElement !== focusEl) {
+      layoutFormDialog(dialog);
+      return;
+    }
+    const sheetTop =
+      dialog.classList.contains("sheet-top") ||
+      dialog === adminDialog ||
+      dialog === renameDialog;
+    const bump = () => {
+      if (!dialog.open) return;
+      syncViewportHeight();
+      layoutFormDialog(dialog);
+      if (dialog.classList.contains("dm-dialog")) layoutDmDialog();
+      // scrollIntoView on iPhone shifts visualViewport and makes sheet-top dialogs jump.
+      if (
+        !sheetTop &&
+        focusEl &&
+        document.activeElement === focusEl &&
+        typeof focusEl.scrollIntoView === "function"
+      ) {
+        try {
+          focusEl.scrollIntoView({ block: "nearest", inline: "nearest" });
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+    bump();
+    requestAnimationFrame(bump);
+    setTimeout(bump, 120);
+    setTimeout(bump, 320);
+  }
+
+  function layoutDmDialog() {
+    if (!dmDialog?.open) return;
+    syncViewportHeight();
+    const vv = window.visualViewport;
+    const layoutH = Math.max(320, Math.round(window.innerHeight || 0));
+    const vvTop = vv ? Math.round(vv.offsetTop || 0) : 0;
+    const vvH = vv ? Math.round(vv.height) : layoutH;
+    // How much of the layout viewport is covered by the keyboard / browser chrome.
+    const kbLift = Math.max(0, layoutH - (vvTop + vvH));
+    const narrow = window.matchMedia("(max-width: 640px)").matches;
+    // Keep hub at full layout height so rooms stay put and the keyboard overlays them.
+    dmDialog.style.setProperty("position", "fixed", "important");
+    dmDialog.style.setProperty("inset", "auto", "important");
+    dmDialog.style.setProperty("top", "0px", "important");
+    dmDialog.style.setProperty("bottom", "auto", "important");
+    dmDialog.style.setProperty("min-width", "0", "important");
+    dmDialog.style.setProperty("height", `${layoutH}px`, "important");
+    dmDialog.style.setProperty("max-height", `${layoutH}px`, "important");
+    dmDialog.style.setProperty("margin", "0", "important");
+    dmDialog.style.setProperty("translate", "none", "important");
+    dmDialog.style.setProperty("animation", "none", "important");
+    dmDialog.style.setProperty("border-radius", "0", "important");
+    if (narrow) {
+      dmDialog.style.setProperty("left", "0px", "important");
+      dmDialog.style.setProperty("right", "0px", "important");
+      dmDialog.style.setProperty("width", "100%", "important");
+      dmDialog.style.setProperty("max-width", "none", "important");
+      dmDialog.style.setProperty("transform", "none", "important");
+    } else {
+      const appMax = 760;
+      const width = Math.min(window.innerWidth || appMax, appMax);
+      dmDialog.style.setProperty("left", "50%", "important");
+      dmDialog.style.setProperty("right", "auto", "important");
+      dmDialog.style.setProperty("width", `${width}px`, "important");
+      dmDialog.style.setProperty("max-width", `${appMax}px`, "important");
+      dmDialog.style.setProperty("transform", "translateX(-50%)", "important");
+    }
+
+    const active = document.activeElement;
+    const actionFields = [dmCodeInput, dmJoinKey].filter(Boolean);
+    const actionFocused = actionFields.includes(active);
+    if (actionFocused && hubPeopleOpen) setHubPeopleOpen(false);
+
+    const footer = dmDialog.querySelector(".dm-dialog-footer");
+    if (footer) {
+      // Lift only Create/Join above the keyboard; rooms stay and get covered.
+      if (actionFocused && kbLift > 60) {
+        footer.style.transform = `translateY(-${kbLift}px)`;
+        footer.style.zIndex = "8";
+        footer.classList.add("is-kb-lifted");
+      } else {
+        footer.style.transform = "";
+        footer.style.zIndex = "";
+        footer.classList.remove("is-kb-lifted");
+      }
+    }
+  }
+
+  function scrollHubActionIntoView(_which) {
+    layoutDmDialog();
+  }
+
+  function clearHubFooterLift() {
+    const footer = dmDialog?.querySelector(".dm-dialog-footer");
+    if (!footer) return;
+    footer.style.transform = "";
+    footer.style.zIndex = "";
+    footer.classList.remove("is-kb-lifted");
+  }
+
+  function autoSize() {
+    messageInput.style.height = "auto";
+    const visible = window.visualViewport?.height || window.innerHeight;
+    const narrow = window.matchMedia("(max-width: 640px)").matches;
+    const minH = narrow ? 32 : 33;
+    const cap = Math.min(narrow ? 68 : 84, Math.round(visible * (narrow ? 0.13 : 0.16)));
+    messageInput.style.height = `${Math.min(Math.max(messageInput.scrollHeight, minH), Math.max(minH, cap))}px`;
+  }
+
+  syncViewportHeight();
+  window.addEventListener("resize", scheduleSyncViewportHeight);
+  window.addEventListener("orientationchange", () => {
+    setTimeout(scheduleSyncViewportHeight, 150);
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", scheduleSyncViewportHeight);
+    window.visualViewport.addEventListener("scroll", scheduleSyncViewportHeight);
+  }
+
+  function syncMeBtn() {
+    const label = myName || "…";
+    const title = isAdmin
+      ? `Вы: ${myName} · профиль / выйти`
+      : myName
+        ? `Вы: ${myName} · профиль / выйти`
+        : "Ваше имя";
+    for (const btn of [meBtn, hubMeBtn]) {
+      if (!btn) continue;
+      btn.textContent = label;
+      btn.title = title;
+      btn.classList.toggle("is-admin", isAdmin);
+    }
+  }
+
+  function setAdminUi(on, name) {
+    isAdmin = on;
+    document.body.classList.toggle("admin-on", on);
+    if (!on) {
+      adminRoomCatalog = [];
+      document.body.classList.remove("dm-ghost");
+    }
+    if (name) {
+      myName = name;
+      saveName(name);
+    }
+    if (!on && bulkSelectOn) exitBulkSelectMode();
+    syncMeBtn();
+    renderAll(lastState);
+    if (on && dmDialog?.open) refreshAdminRoomCatalog({ render: true });
+  }
+
+  function applyAdminSession(res) {
+    if (!res?.ok) return false;
+    if (res.previousName) savePrevName(res.previousName);
+    if (res.token) saveAdminToken(res.token);
+    setAdminUi(true, res.name || "АДМИН");
+    return true;
+  }
+
+  function logoutAdmin() {
+    const token = loadAdminToken();
+    const prev = loadPrevName();
+    socket.emit("admin:logout", { token, name: prev }, (res) => {
+      clearAdminToken();
+      if (!res?.ok) {
+        notify(res?.error || "Не удалось выйти из админки")
+        return;
+      }
+      clearPrevName();
+      setAdminUi(false, res.name);
+      notify(`Снова обычный участник · ${res.name}`)
+    });
+  }
+
+  function pinPreviewText(msg) {
+    if (msg.text && msg.text.trim()) {
+      return msg.text.replace(/\s+/g, " ").trim();
+    }
+    if (msg.imageUrl) return "📷 Фото";
+    return "Сообщение";
+  }
+
+  function visiblePins() {
+    return lastState.pinned || [];
+  }
+
+  function updatePinBar() {
+    const list = visiblePins();
+    if (!list.length) {
+      pins.hidden = true;
+      pinCycleIndex = 0;
+      closePinsList();
+      return;
+    }
+    if (pinCycleIndex >= list.length) pinCycleIndex = 0;
+    const current = list[pinCycleIndex];
+    pins.hidden = false;
+    pinBarLabel.textContent =
+      list.length === 1 ? "Закреплённое сообщение" : `Закреплённые · ${pinCycleIndex + 1}/${list.length}`;
+    pinBarPreview.textContent = `${current.name}: ${pinPreviewText(current)}`;
+    if (list.length > 1) {
+      pinBarMeta.hidden = false;
+      pinBarMeta.textContent = "удерж.";
+    } else {
+      pinBarMeta.hidden = true;
+    }
+  }
+
+  function clearPinFocus() {
+    document.body.classList.remove("pins-list-open", "pins-focus-mode");
+    document.documentElement.style.removeProperty("--pins-sheet-space");
+    feed.querySelectorAll(".msg.pin-focus, .msg.pin-flash").forEach((el) => {
+      el.classList.remove("pin-focus", "pin-flash");
+    });
+  }
+
+  function highlightPinPickerItem(index) {
+    pinsList.querySelectorAll(".pins-picker-item").forEach((row, i) => {
+      const on = i === index;
+      row.classList.toggle("current", on);
+      row.setAttribute("aria-selected", on ? "true" : "false");
+      if (on) {
+        try {
+          row.scrollIntoView({ block: "nearest", inline: "nearest" });
+        } catch {
+          /* ignore */
+        }
+      }
+    });
+  }
+
+  function syncPinsSheetSpace() {
+    if (!pinsDialog?.open) {
+      document.documentElement.style.removeProperty("--pins-sheet-space");
+      return 0;
+    }
+    const feedBox = feed.getBoundingClientRect();
+    const dialogBox = pinsDialog.getBoundingClientRect();
+    // How much of the feed is covered by the sheet (+ gap so the pin isn't flush).
+    const covered = Math.max(0, Math.round(feedBox.bottom - dialogBox.top + 28));
+    const space = Math.max(200, covered);
+    document.documentElement.style.setProperty("--pins-sheet-space", `${space}px`);
+    feedScroller.refresh?.();
+    return space;
+  }
+
+  function scrollMsgAbovePinsPanel(el, { smooth = true } = {}) {
+    if (!el) return;
+    syncPinsSheetSpace();
+    const feedBox = feed.getBoundingClientRect();
+    const dialogBox = pinsDialog.open
+      ? pinsDialog.getBoundingClientRect()
+      : { top: feedBox.bottom };
+    const margin = 14;
+    const viewTop = feedBox.top + margin;
+    const viewBottom = Math.min(feedBox.bottom, dialogBox.top || feedBox.bottom) - margin;
+    if (viewBottom <= viewTop + 48) return;
+
+    const elBox = el.getBoundingClientRect();
+    // Prefer the message sitting just under the pin bar / top of the free band.
+    const targetTop = viewTop + 4;
+    let delta = elBox.top - targetTop;
+
+    // If the bubble is taller than the free band, keep its top visible.
+    if (elBox.height > viewBottom - viewTop && elBox.bottom > viewBottom) {
+      delta = elBox.top - targetTop;
+    } else if (elBox.bottom > viewBottom) {
+      // Bottom clipped by the sheet — lift until fully above (or as much as padding allows).
+      delta = Math.max(delta, elBox.bottom - viewBottom);
+    }
+
+    if (Math.abs(delta) < 2) return;
+    const next = feed.scrollTop + delta;
+    if (smooth) feedScroller.scrollTo(next, true);
+    else {
+      feed.scrollTop = next;
+      feedScroller.refresh?.();
+    }
+  }
+
+  function scrollToPinnedMessage(msg, { fromMenu = false } = {}) {
+    const el = feed.querySelector(`[data-id="${msg.id}"]`);
+    if (!el) {
+      notify("Сообщение не в текущей ленте")
+      return;
+    }
+
+    feed.querySelectorAll(".msg.pin-focus, .msg.pin-flash").forEach((node) => {
+      node.classList.remove("pin-focus", "pin-flash");
+    });
+    el.classList.add("pin-focus");
+    if (fromMenu || pinsDialog.open) {
+      document.body.classList.add("pins-focus-mode");
+      layoutPinsDialog();
+      syncPinsSheetSpace();
+      // Instant first jump after padding expands scroll range, then a settle pass.
+      scrollMsgAbovePinsPanel(el, { smooth: false });
+      requestAnimationFrame(() => {
+        layoutPinsDialog();
+        syncPinsSheetSpace();
+        scrollMsgAbovePinsPanel(el, { smooth: true });
+      });
+      setTimeout(() => {
+        layoutPinsDialog();
+        syncPinsSheetSpace();
+        scrollMsgAbovePinsPanel(el, { smooth: true });
+      }, 280);
+    } else {
+      el.classList.add("pin-flash");
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => el.classList.remove("pin-flash"), 1200);
+    }
+  }
+
+  function layoutPinsDialog() {
+    if (!pinsDialog?.open) return;
+    syncViewportHeight();
+    const vv = window.visualViewport;
+    const vvH = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
+    const vvBottom = vv ? Math.round((vv.offsetTop || 0) + vv.height) : vvH;
+    const sidePad = 10;
+    const bottomPad = 10;
+    // Bottom sheet: leave most of the viewport free for the focused message above.
+    const maxSheet = Math.round(vvH * 0.42);
+    const bottomInset = Math.max(0, Math.round(window.innerHeight - vvBottom));
+
+    pinsDialog.style.top = "auto";
+    pinsDialog.style.left = "50%";
+    pinsDialog.style.right = "auto";
+    pinsDialog.style.bottom = `${bottomInset + bottomPad}px`;
+    pinsDialog.style.transform = "translateX(-50%)";
+    pinsDialog.style.width = `min(420px, calc(100vw - ${sidePad * 2}px))`;
+    pinsDialog.style.maxWidth = `calc(100vw - ${sidePad * 2}px)`;
+    pinsDialog.style.maxHeight = `${maxSheet}px`;
+    pinsDialog.style.height = "auto";
+    syncPinsSheetSpace();
+  }
+
+  function closePinsList() {
+    clearUnpinArm();
+    clearPinFocus();
+    if (pinsDialog.open) pinsDialog.close();
+  }
+
+  function openPinsList() {
+    const list = visiblePins();
+    if (!list.length) return;
+    clearUnpinArm();
+    syncViewportHeight();
+    pinsList.replaceChildren();
+    list.forEach((msg, index) => {
+      const row = document.createElement("div");
+      row.className =
+        "pins-picker-item" +
+        (index === pinCycleIndex ? " current" : "") +
+        (isAdmin ? " has-unpin" : "");
+      row.setAttribute("role", "option");
+      row.setAttribute("aria-selected", index === pinCycleIndex ? "true" : "false");
+
+      const main = document.createElement("button");
+      main.type = "button";
+      main.className = "pins-picker-main";
+
+      const name = document.createElement("span");
+      name.className = "pins-picker-name";
+      name.textContent = msg.name;
+
+      const preview = document.createElement("span");
+      preview.className = "pins-picker-preview";
+      preview.textContent = pinPreviewText(msg);
+
+      const meta = document.createElement("span");
+      meta.className = "pins-picker-meta";
+      meta.textContent = formatTime(msg.createdAt);
+
+      main.append(name, preview, meta);
+      main.addEventListener("click", () => {
+        pinCycleIndex = index;
+        updatePinBar();
+        highlightPinPickerItem(index);
+        scrollToPinnedMessage(msg, { fromMenu: true });
+      });
+      row.append(main);
+
+      if (isAdmin) {
+        const unpinBtn = document.createElement("button");
+        unpinBtn.type = "button";
+        unpinBtn.className = "pins-unpin";
+        unpinBtn.textContent = "Открепить";
+        unpinBtn.title = "Нажмите дважды, чтобы открепить";
+        unpinBtn.setAttribute("aria-label", "Открепить");
+        if (unpinArmedId === msg.id) unpinBtn.classList.add("armed");
+        unpinBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (unpinArmedId === msg.id) {
+            clearUnpinArm();
+            socket.emit("admin:unpin", { id: msg.id }, (res) => {
+              if (!res?.ok) {
+                notify(res?.error || "Не открепилось")
+                return;
+              }
+              lastState.pinned = (lastState.pinned || []).filter((m) => m.id !== msg.id);
+              const inMessages = (lastState.messages || []).find((m) => m.id === msg.id);
+              if (inMessages) inMessages.pinned = false;
+              updatePinBar();
+              if (visiblePins().length) openPinsList();
+              else closePinsList();
+              renderAll(lastState);
+            });
+            return;
+          }
+          clearUnpinArm();
+          clearDeleteArm();
+          unpinArmedId = msg.id;
+          unpinBtn.classList.add("armed");
+          unpinBtn.title = "Ещё раз — открепить";
+          unpinArmedTimer = setTimeout(() => {
+            if (unpinArmedId !== msg.id) return;
+            clearUnpinArm();
+          }, UNPIN_ARM_MS);
+        });
+        row.append(unpinBtn);
+      }
+
+      pinsList.append(row);
+    });
+    document.body.classList.add("pins-list-open");
+    if (!pinsDialog.open) pinsDialog.showModal();
+    const focusIdx = Math.min(Math.max(pinCycleIndex, 0), list.length - 1);
+    pinCycleIndex = focusIdx;
+    highlightPinPickerItem(focusIdx);
+    requestAnimationFrame(() => {
+      layoutPinsDialog();
+      syncViewportHeight();
+      layoutPinsDialog();
+      scrollToPinnedMessage(list[focusIdx], { fromMenu: true });
+    });
+  }
+
+  function clearPinHold() {
+    if (pinHoldTimer) {
+      clearTimeout(pinHoldTimer);
+      pinHoldTimer = null;
+    }
+    pinHoldStart = null;
+  }
+
+  function onPinBarClick(e) {
+    if (pinHoldOpened) {
+      e.preventDefault();
+      pinHoldOpened = false;
+      return;
+    }
+    const list = visiblePins();
+    if (!list.length) return;
+    const current = list[pinCycleIndex];
+    scrollToPinnedMessage(current);
+    if (list.length > 1) {
+      pinCycleIndex = (pinCycleIndex + 1) % list.length;
+      updatePinBar();
+    }
+  }
+
+  function closeMsgActionMenu() {
+    document.querySelectorAll("body > .msg-action-menu").forEach((m) => m.remove());
+    document.querySelectorAll(".msg.msg-menu-open").forEach((el) => {
+      el.classList.remove("msg-menu-open");
+    });
+  }
+
+  function closeAllReactMenus() {
+    closeMsgActionMenu();
+    document.querySelectorAll(".msg-react-menu").forEach((m) => {
+      m.hidden = true;
+      m.classList.remove("fixed-open");
+      m.style.left = "";
+      m.style.top = "";
+      const owner = m._ownerWrap;
+      if (owner && owner.isConnected && m.parentElement !== owner) {
+        owner.appendChild(m);
+      } else if (!owner || !owner.isConnected) {
+        m.remove();
+      }
+    });
+    document.querySelectorAll(".msg-react-wrap.open").forEach((w) => {
+      w.classList.remove("open");
+    });
+  }
+
+  function positionFixedMenu(menu, anchorEl, clientX, clientY) {
+    const mw = menu.offsetWidth || 200;
+    const mh = menu.offsetHeight || 120;
+    const vv = window.visualViewport;
+    const vvTop = vv ? vv.offsetTop || 0 : 0;
+    const vvLeft = vv ? vv.offsetLeft || 0 : 0;
+    const vvW = vv ? vv.width : window.innerWidth;
+    const vvH = vv ? vv.height : window.innerHeight;
+    const pad = 10;
+    let left = typeof clientX === "number" ? clientX - mw / 2 : 0;
+    let top = typeof clientY === "number" ? clientY - mh - 12 : 0;
+    if (anchorEl) {
+      const rect = anchorEl.getBoundingClientRect();
+      if (typeof clientX !== "number") left = rect.left + rect.width / 2 - mw / 2;
+      if (typeof clientY !== "number") top = rect.top - mh - 10;
+      // Prefer above message; if clipped, place below.
+      if (top < vvTop + pad) top = rect.bottom + 10;
+    }
+    left = Math.max(vvLeft + pad, Math.min(left, vvLeft + vvW - mw - pad));
+    top = Math.max(vvTop + pad, Math.min(top, vvTop + vvH - mh - pad));
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+  }
+
+  function openMsgActionMenu(msg, msgEl, clientX, clientY) {
+    closeAllReactMenus();
+    if (!msg || !msgEl) return;
+    msgEl.classList.add("msg-menu-open");
+
+    const menu = document.createElement("div");
+    menu.className = "msg-action-menu";
+    menu.setAttribute("role", "menu");
+
+    const replyBtn = document.createElement("button");
+    replyBtn.type = "button";
+    replyBtn.className = "msg-action-reply";
+    replyBtn.setAttribute("role", "menuitem");
+    replyBtn.textContent = "Ответить";
+    replyBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMsgActionMenu();
+      setReplyTarget(msg);
+    });
+
+    menu.append(replyBtn);
+
+    if (msg.imageUrl) {
+      const photoBtn = document.createElement("button");
+      photoBtn.type = "button";
+      photoBtn.className = "msg-action-reply";
+      photoBtn.setAttribute("role", "menuitem");
+      photoBtn.textContent = "Открыть фото";
+      photoBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMsgActionMenu();
+        openLightbox(msg.imageUrl);
+      });
+      menu.append(photoBtn);
+    }
+
+    if (msg.text) {
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "msg-action-reply";
+      copyBtn.setAttribute("role", "menuitem");
+      copyBtn.textContent = "Копировать";
+      copyBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMsgActionMenu();
+        copyBubbleText(msg);
+      });
+      menu.append(copyBtn);
+    }
+
+    if (canModerate() && dmCode) {
+      const pinBtn = document.createElement("button");
+      pinBtn.type = "button";
+      pinBtn.className = "msg-action-reply";
+      pinBtn.setAttribute("role", "menuitem");
+      pinBtn.textContent = msg.pinned ? "Открепить" : "Закрепить";
+      pinBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMsgActionMenu();
+        const event = msg.pinned ? "admin:unpin" : "admin:pin";
+        socket.emit(event, { id: msg.id }, (res) => {
+          if (!res?.ok) {
+            notify(res?.error || "Ошибка");
+            return;
+          }
+          // Prefer dm:state when it arrives; apply locally for instant badge.
+          const nextPinned = event === "admin:pin";
+          const inMessages = (lastState.messages || []).find((m) => m.id === msg.id);
+          if (inMessages) inMessages.pinned = nextPinned;
+          if (nextPinned) {
+            const pub = inMessages || msg;
+            pub.pinned = true;
+            lastState.pinned = [
+              pub,
+              ...(lastState.pinned || []).filter((m) => m.id !== msg.id),
+            ].slice(0, 20);
+          } else {
+            lastState.pinned = (lastState.pinned || []).filter((m) => m.id !== msg.id);
+          }
+          renderAll(lastState, { force: true, briefPin: true });
+        });
+      });
+      menu.append(pinBtn);
+    }
+
+    // Own messages: reply/copy only — no self-reactions.
+    if (!isOwnMessage(msg)) {
+      const reacts = document.createElement("div");
+      reacts.className = "msg-action-reacts";
+      reacts.setAttribute("role", "group");
+      reacts.setAttribute("aria-label", "Реакции");
+      for (const { emoji, title } of REACTIONS) {
+        const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
+        const mine = reactors.includes(myName);
+        const opt = document.createElement("button");
+        opt.type = "button";
+        opt.className = "msg-action-react" + (mine ? " mine" : "");
+        opt.title = title;
+        opt.setAttribute("aria-label", title);
+        opt.textContent = emoji;
+        opt.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          applyReaction(msg.id, emoji);
+        });
+        reacts.append(opt);
+      }
+      menu.append(reacts);
+    }
+
+    document.body.appendChild(menu);
+    requestAnimationFrame(() => positionFixedMenu(menu, msgEl, clientX, clientY));
+  }
+
+  let appToastTimer = null;
+  let lastNotice = "";
+
+  function hideAppToast() {
+    if (appToastTimer) {
+      clearTimeout(appToastTimer);
+      appToastTimer = null;
+    }
+    lastNotice = "";
+    if (!appToast) return;
+    appToast.classList.remove("show", "dim");
+    const finish = () => {
+      if (!appToast.classList.contains("show")) appToast.hidden = true;
+    };
+    appToast.addEventListener("transitionend", finish, { once: true });
+    setTimeout(finish, 280);
+  }
+
+  function notify(text, { dim = true, clearMs = 1800 } = {}) {
+    const msg = String(text || "").trim();
+    if (!msg || !appToast || !appToastText) return;
+    lastNotice = msg;
+    appToastText.textContent = msg;
+    appToast.hidden = false;
+    appToast.classList.toggle("dim", Boolean(dim));
+    // Force reflow so the show transition always plays.
+    void appToast.offsetWidth;
+    appToast.classList.add("show");
+    if (appToastTimer) clearTimeout(appToastTimer);
+    appToastTimer = setTimeout(() => {
+      if (lastNotice === msg) hideAppToast();
+    }, clearMs);
+  }
+
+  async function copyBubbleText(msg) {
+    const text = (msg?.text || "").trim();
+    if (!text) {
+      notify("В сообщении нет текста", { dim: true });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      notify("Текст сообщения скопирован", { dim: true, clearMs: 1600 });
+      try {
+        navigator.vibrate?.(10);
+      } catch {
+        /* ignore */
+      }
+      return;
+    } catch {
+      /* fallback below */
+    }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+      notify("Текст сообщения скопирован", { dim: true, clearMs: 1600 });
+    } catch {
+      notify("Не удалось скопировать", { dim: true });
+    }
+  }
+
+  function bindMessageHold(el, msg) {
+    // 1 tap → menu, 2 taps → copy, 3 taps (admin) → bulk select.
+    const TAP_WAIT_MS = 320;
+    const LONG_MS = 480;
+    const MOVE_PX = 12;
+
+    let longTimer = null;
+    let singleTimer = null;
+    let start = null;
+    let longPressed = false;
+    let tapCount = 0;
+    let menuOpened = false;
+
+    const interactive = (target) =>
+      Boolean(
+        target.closest(
+          "a, button, input, textarea, label, .msg-react-chip, .msg-admin-icon, .msg-quote, .msg-name"
+        )
+      );
+
+    const clearLong = () => {
+      if (longTimer) {
+        clearTimeout(longTimer);
+        longTimer = null;
+      }
+    };
+
+    const clearSingle = () => {
+      if (singleTimer) {
+        clearTimeout(singleTimer);
+        singleTimer = null;
+      }
+    };
+
+    const openAt = (x, y) => {
+      if (bulkSelectOn) return;
+      menuOpened = true;
+      tapCount = 0;
+      clearSingle();
+      clearLong();
+      try {
+        navigator.vibrate?.(12);
+      } catch {
+        /* ignore */
+      }
+      openMsgActionMenu(msg, el, x, y);
+    };
+
+    const copyFromDouble = () => {
+      if (bulkSelectOn) return;
+      clearSingle();
+      clearLong();
+      tapCount = 0;
+      closeMsgActionMenu();
+      void copyBubbleText(msg);
+    };
+
+    const startBulk = () => {
+      clearSingle();
+      clearLong();
+      tapCount = 0;
+      closeMsgActionMenu();
+      if (!isAdmin) {
+        void copyBubbleText(msg);
+        return;
+      }
+      enterBulkSelectMode(msg);
+    };
+
+    el.addEventListener("msg-swipe-cancel", () => {
+      clearLong();
+      clearSingle();
+      start = null;
+      tapCount = 0;
+      menuOpened = false;
+      longPressed = false;
+    });
+
+    el.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (interactive(e.target)) return;
+      if (el.dataset.swipeIgnore) delete el.dataset.swipeIgnore;
+      longPressed = false;
+      menuOpened = false;
+      start = { x: e.clientX, y: e.clientY };
+      clearLong();
+      if (bulkSelectOn) return;
+      longTimer = setTimeout(() => {
+        longTimer = null;
+        longPressed = true;
+        tapCount = 0;
+        clearSingle();
+        el.classList.add("msg-selecting");
+        try {
+          navigator.vibrate?.(8);
+        } catch {
+          /* ignore */
+        }
+      }, LONG_MS);
+    });
+
+    el.addEventListener("pointermove", (e) => {
+      if (!start) return;
+      const dx = Math.abs(e.clientX - start.x);
+      const dy = Math.abs(e.clientY - start.y);
+      if (dx > MOVE_PX || dy > MOVE_PX) {
+        clearLong();
+        start = null;
+      }
+    });
+
+    el.addEventListener("pointerup", (e) => {
+      if (el.dataset.swipeIgnore) {
+        delete el.dataset.swipeIgnore;
+        clearLong();
+        start = null;
+        return;
+      }
+      const wasLong = longPressed;
+      const hadStart = Boolean(start);
+      const x = e.clientX;
+      const y = e.clientY;
+      clearLong();
+      start = null;
+      if (interactive(e.target)) return;
+      if (wasLong) return;
+      if (!hadStart) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+
+      if (bulkSelectOn) {
+        toggleBulkSelectMessage(msg, el);
+        return;
+      }
+
+      tapCount += 1;
+      if (tapCount === 1) {
+        singleTimer = setTimeout(() => {
+          singleTimer = null;
+          tapCount = 0;
+          openAt(x, y);
+        }, TAP_WAIT_MS);
+      } else if (tapCount === 2) {
+        clearSingle();
+        singleTimer = setTimeout(() => {
+          singleTimer = null;
+          tapCount = 0;
+          copyFromDouble();
+        }, TAP_WAIT_MS);
+      } else {
+        startBulk();
+      }
+    });
+
+    el.addEventListener("pointercancel", () => {
+      clearLong();
+      start = null;
+    });
+
+    el.addEventListener("dblclick", (e) => {
+      if (bulkSelectOn) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleBulkSelectMessage(msg, el);
+        return;
+      }
+      if (interactive(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // Wait for a possible third click via pointerup path; if none, copy timer fires.
+    });
+
+    el.addEventListener("contextmenu", (e) => {
+      if (bulkSelectOn) {
+        e.preventDefault();
+        return;
+      }
+      // Long-press selection: keep the native callout / selection handles.
+      if (longPressed || el.classList.contains("msg-selecting")) return;
+      // Quote / chips / links handle themselves — don't open the bubble menu.
+      if (interactive(e.target)) {
+        e.preventDefault();
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      clearSingle();
+      tapCount = 0;
+      openAt(e.clientX, e.clientY);
+    });
+
+    el.addEventListener(
+      "click",
+      (e) => {
+        if (interactive(e.target)) return;
+        if (bulkSelectOn) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        // Swallow the delayed click after we already handled taps / opened menu.
+        if (menuOpened || singleTimer || tapCount > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        if (menuOpened) menuOpened = false;
+      },
+      true
+    );
+  }
+
+  function removeMessageById(id, opts = {}) {
+    if (!id) return;
+    const animate = opts.animate !== false;
+    const adjustScroll = opts.adjustScroll !== false;
+
+    closeAllReactMenus();
+    knownIds.delete(id);
+    lastState.messages = (lastState.messages || []).filter((m) => m.id !== id);
+    lastState.pinned = (lastState.pinned || []).filter((m) => m.id !== id);
+    if (bulkSelectedIds.has(id)) {
+      bulkSelectedIds.delete(id);
+      syncBulkBar();
+      if (bulkSelectOn && bulkSelectedIds.size === 0 && !bulkDeleting) exitBulkSelectMode();
+    }
+    document.querySelectorAll("body > .msg-react-menu, body > .msg-action-menu").forEach((m) => m.remove());
+    if (deleteArmedId === id) clearDeleteArm();
+
+    const el = feed.querySelector(`.msg[data-id="${CSS.escape(id)}"]`);
+    const finishChrome = () => {
+      updatePinBar();
+      updateJumpBottom();
+    };
+
+    if (!el) {
+      finishChrome();
+      return;
+    }
+
+    if (el.classList.contains("msg-leaving")) return;
+
+    const reduceMotion =
+      typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const gap = parseFloat(getComputedStyle(feed).rowGap || getComputedStyle(feed).gap) || 0;
+    const height = el.getBoundingClientRect().height;
+    const offsetTop = el.offsetTop;
+    const startScroll = feed.scrollTop;
+    // If the bubble sits above the viewport, shrink scroll with it so the
+    // visible messages stay put while neighbors close the gap.
+    const anchorAbove = adjustScroll && offsetTop + 1 < startScroll;
+    const scrollDelta = height + gap;
+
+    const row = el.closest(".msg-swipe");
+    const finish = () => {
+      const node = row && row.isConnected ? row : el;
+      if (node.isConnected) node.remove();
+      finishChrome();
+    };
+
+    if (!animate || reduceMotion || height < 1) {
+      if (anchorAbove) {
+        feed.scrollTop = Math.max(0, startScroll - scrollDelta);
+      }
+      finish();
+      return;
+    }
+
+    el.style.transform = "";
+    el.style.transition = "none";
+    if (row) {
+      row.classList.remove("is-swiping", "is-open");
+      row.style.overflow = "hidden";
+      row.style.height = `${height}px`;
+      row.style.flexShrink = "0";
+    }
+    el.classList.add("msg-leaving");
+    el.style.height = `${height}px`;
+    el.style.overflow = "hidden";
+    el.style.flexShrink = "0";
+    el.setAttribute("aria-hidden", "true");
+
+    // Short, soft collapse — no scale/slide; scroll tracks height so neighbors don't jerk.
+    const DURATION = 160;
+    const ease = (t) => t * t * (3 - 2 * t); // smoothstep
+    const t0 = performance.now();
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      if (anchorAbove) {
+        feed.scrollTop = Math.max(0, startScroll - scrollDelta);
+      }
+      finish();
+    };
+
+    const frame = (now) => {
+      if (settled || !el.isConnected) {
+        settle();
+        return;
+      }
+      const t = Math.min(1, (now - t0) / DURATION);
+      const e = ease(t);
+      const h = height * (1 - e);
+      el.style.height = `${h}px`;
+      el.style.marginBottom = `${-gap * e}px`;
+      el.style.opacity = String(1 - e);
+      if (row) {
+        row.style.height = `${h}px`;
+        row.style.marginBottom = `${-gap * e}px`;
+      }
+      if (anchorAbove) {
+        feed.scrollTop = Math.max(0, startScroll - scrollDelta * e);
+      }
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        settle();
+      }
+    };
+    requestAnimationFrame(frame);
+    setTimeout(settle, DURATION + 80);
+  }
+
+  function applyReaction(msgId, emoji) {
+    closeAllReactMenus();
+    const prev =
+      (lastState.messages || []).find((m) => m.id === msgId) ||
+      (lastState.pinned || []).find((m) => m.id === msgId);
+    if (prev && isOwnMessage(prev)) {
+      notify("На своё сообщение реакцию не ставят");
+      return;
+    }
+    const hadMine = Boolean(
+      myName && Array.isArray(prev?.reactions?.[emoji]) && prev.reactions[emoji].includes(myName)
+    );
+    socket.emit("chat:react", { id: msgId, emoji }, (res) => {
+      if (!res?.ok) {
+        notify(res?.error || "Ошибка реакции");
+        return;
+      }
+      const added = typeof res.added === "boolean" ? res.added : !hadMine;
+      // Celebrate only adding; removing should just vanish with no ghost bubble.
+      if (!added) return;
+      requestAnimationFrame(() => {
+        setTimeout(() => popReactionBubble(msgId, emoji), 40);
+        setTimeout(() => popReactionBubble(msgId, emoji), 160);
+      });
+    });
+  }
+
+  function popReactionBubble(msgId, emoji) {
+    const msgEl = feed.querySelector(`[data-id="${CSS.escape(msgId)}"]`);
+    if (!msgEl) return;
+    const chip =
+      [...msgEl.querySelectorAll(".msg-react-chip")].find((c) => (c.textContent || "").includes(emoji)) ||
+      null;
+    if (!chip) return;
+    chip.classList.remove("react-pop");
+    void chip.offsetWidth;
+    chip.classList.add("react-pop");
+    setTimeout(() => chip.classList.remove("react-pop"), 420);
+  }
+
+  function isOwnMessage(msg) {
+    const name = typeof msg?.name === "string" ? msg.name.trim() : "";
+    const me = typeof myName === "string" ? myName.trim() : "";
+    return Boolean(name && me && name === me);
+  }
+
+  function renderMessage(msg) {
+    const el = document.createElement("article");
+    el.className = "msg";
+    el.dataset.id = msg.id;
+    el.dataset.name = msg.name;
+    if (isOwnMessage(msg)) el.classList.add("mine");
+    if (msg.pinned) el.classList.add("pinned-item");
+    if (msg.admin || msg.name === "АДМИН") el.classList.add("admin");
+    if (msg.roomAdmin) el.classList.add("room-admin-msg");
+    if (bulkSelectOn && bulkSelectedIds.has(msg.id)) el.classList.add("msg-bulk-selected");
+
+    const meta = document.createElement("div");
+    meta.className = "msg-meta";
+    const nameBtn = document.createElement("button");
+    nameBtn.type = "button";
+    nameBtn.className = "msg-name";
+    nameBtn.textContent = displayAuthorLabel(msg);
+    if (msg.admin || msg.name === "АДМИН") nameBtn.classList.add("is-super");
+    if (msg.roomAdmin) nameBtn.classList.add("is-room-admin");
+    nameBtn.title = msg.admin || msg.name === "АДМИН" ? "Супер-админ" : msg.roomAdmin ? "Админ комнаты" : msg.name;
+    nameBtn.addEventListener("click", () => {
+      if (msg.name === myName) {
+        notify("Это вы");
+        return;
+      }
+      openOnlineList();
+    });
+    const time = document.createElement("span");
+    time.className = "msg-time";
+    time.textContent = formatTime(msg.createdAt);
+    meta.append(nameBtn);
+    if (msg.pinned) {
+      const badge = document.createElement("span");
+      badge.className = "msg-pin-badge";
+      badge.textContent = "закреплено";
+      meta.append(badge);
+    }
+    meta.append(time);
+
+    el.append(meta);
+
+    if (msg.reply) {
+      const quote = document.createElement("button");
+      quote.type = "button";
+      quote.className = "msg-quote";
+      quote.title = "Перейти к сообщению";
+      const qLabel = document.createElement("span");
+      qLabel.className = "msg-quote-label";
+      qLabel.textContent = "ответ";
+      const qName = document.createElement("span");
+      qName.className = "msg-quote-name";
+      qName.textContent = msg.reply.name;
+      const qText = document.createElement("span");
+      qText.className = "msg-quote-text";
+      qText.textContent = msg.reply.text || "Сообщение";
+      quote.append(qLabel, qName, qText);
+
+      const goToReply = (e) => {
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        const target = feed.querySelector(`[data-id="${CSS.escape(msg.reply.id)}"]`);
+        if (!target) {
+          notify("Оригинал не в ленте")
+          return;
+        }
+        target.classList.add("pin-flash");
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => target.classList.remove("pin-flash"), 1200);
+      };
+
+      // Isolate from outer bubble tap/menu logic.
+      quote.addEventListener("pointerdown", (e) => e.stopPropagation());
+      quote.addEventListener("pointerup", (e) => e.stopPropagation());
+      quote.addEventListener("click", goToReply);
+      quote.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        goToReply(e);
+      });
+      el.append(quote);
+    }
+
+    if (msg.text) {
+      const text = document.createElement("p");
+      text.className = "msg-text";
+      appendLinkedText(text, msg.text);
+      el.append(text);
+    }
+
+    if (msg.imageUrl) {
+      const img = document.createElement("img");
+      img.className = "msg-photo";
+      img.src = msg.imageUrl;
+      img.alt = `Фото от ${msg.name}`;
+      img.loading = "lazy";
+      img.draggable = false;
+      el.append(img);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "msg-actions";
+
+    const activeWrap = document.createElement("div");
+    activeWrap.className = "msg-reacts-active";
+    const isOwn = isOwnMessage(msg);
+    for (const { emoji, title } of REACTIONS) {
+      const reactors = Array.isArray(msg.reactions?.[emoji]) ? msg.reactions[emoji] : [];
+      if (!reactors.length) continue;
+      const mine = reactors.includes(myName);
+      const chip = document.createElement(isOwn ? "span" : "button");
+      if (!isOwn) chip.type = "button";
+      chip.className = "msg-react-chip" + (mine ? " mine" : "") + (isOwn ? " is-static" : "");
+      chip.title = title;
+      chip.textContent = reactors.length > 1 ? `${emoji}${reactors.length}` : emoji;
+      if (!isOwn) {
+        chip.addEventListener("click", (e) => {
+          e.stopPropagation();
+          applyReaction(msg.id, emoji);
+        });
+      }
+      activeWrap.append(chip);
+    }
+    if (activeWrap.childElementCount) actions.append(activeWrap);
+
+    // Desktop: double-tap ✕. On iPhone / touch: swipe left instead (avoids copy conflict).
+    if (canModerate() && !prefersTouchAdminDelete()) {
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "msg-admin-icon danger msg-delete";
+      delBtn.textContent = "✕";
+      delBtn.title = "Нажмите дважды, чтобы удалить";
+      delBtn.setAttribute("aria-label", "Удалить сообщение");
+      if (deleteArmedId === msg.id) delBtn.classList.add("armed");
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (deleteArmedId === msg.id) {
+          clearDeleteArm();
+          requestAdminDelete(msg.id);
+          return;
+        }
+        // Only one ✕ can be armed; clear others first.
+        clearDeleteArm();
+        deleteArmedId = msg.id;
+        delBtn.classList.add("armed");
+        delBtn.title = "Ещё раз — удалить";
+        deleteArmedTimer = setTimeout(() => {
+          if (deleteArmedId !== msg.id) return;
+          clearDeleteArm();
+        }, DELETE_ARM_MS);
+      });
+      actions.append(delBtn);
+    }
+
+    if (actions.childElementCount) el.append(actions);
+    bindMessageHold(el, msg);
+
+    if (canModerate() && prefersTouchAdminDelete()) {
+      const wrap = document.createElement("div");
+      wrap.className = "msg-swipe";
+      const rail = document.createElement("div");
+      rail.className = "msg-swipe-rail";
+      rail.setAttribute("aria-hidden", "true");
+      rail.textContent = "Удалить";
+      wrap.append(rail, el);
+      bindAdminSwipeDelete(wrap, el, msg);
+      return wrap;
+    }
+
+    return el;
+  }
+
+  function rewriteAuthorInMessages(list, fromName, toName) {
+    if (!Array.isArray(list) || !fromName || !toName) return false;
+    let touched = false;
+    for (const msg of list) {
+      if (!msg) continue;
+      if (nameEquals(msg.name, fromName)) {
+        msg.name = toName;
+        touched = true;
+      }
+      if (msg.reply && nameEquals(msg.reply.name, fromName)) {
+        msg.reply.name = toName;
+        touched = true;
+      }
+      if (msg.reactions && typeof msg.reactions === "object") {
+        for (const emoji of Object.keys(msg.reactions)) {
+          const names = msg.reactions[emoji];
+          if (!Array.isArray(names)) continue;
+          let localTouch = false;
+          const mapped = names.map((n) => {
+            if (nameEquals(n, fromName)) {
+              localTouch = true;
+              return toName;
+            }
+            return n;
+          });
+          if (localTouch) {
+            msg.reactions[emoji] = [...new Set(mapped)];
+            if (!msg.reactions[emoji].length) delete msg.reactions[emoji];
+            touched = true;
+          }
+        }
+      }
+    }
+    return touched;
+  }
+
+  function applyAuthorRename(fromName, toName) {
+    if (!fromName || !toName || nameEquals(fromName, toName)) return;
+
+    // Broadcast can arrive before the rename ack — keep myName in sync so .mine stays.
+    const renamingSelf = Boolean(myName && nameEquals(myName, fromName));
+    if (renamingSelf) {
+      myName = toName;
+      saveName(myName);
+      syncMeBtn();
+    }
+
+    const stick = isNearBottom(80);
+    const scrollTop = feed.scrollTop;
+    const touchedMessages = rewriteAuthorInMessages(lastState.messages, fromName, toName);
+    const touchedPins = rewriteAuthorInMessages(lastState.pinned, fromName, toName);
+
+    // Remembered DM peers + pending invites that still show the old nick.
+    try {
+      const rooms = loadDmRooms();
+      let roomsChanged = false;
+      for (const room of rooms) {
+        if (room.peer && nameEquals(room.peer, fromName)) {
+          room.peer = toName;
+          roomsChanged = true;
+        }
+        if (Array.isArray(room.names)) {
+          let touched = false;
+          room.names = room.names.map((n) => {
+            if (!nameEquals(n, fromName)) return n;
+            touched = true;
+            return toName;
+          });
+          if (touched) roomsChanged = true;
+        }
+      }
+      if (roomsChanged) saveDmRooms(rooms);
+    } catch {
+      /* ignore */
+    }
+    let invitesChanged = false;
+    for (const inv of pendingInvites) {
+      if (inv?.from && nameEquals(inv.from, fromName)) {
+        inv.from = toName;
+        invitesChanged = true;
+      }
+    }
+
+    const refreshMine = renamingSelf || Boolean(myName && nameEquals(myName, toName));
+    if (touchedMessages || touchedPins || refreshMine) {
+      renderAll(lastState, { force: true, briefPin: true });
+      if (!stick) {
+        feed.scrollTop = scrollTop;
+        updateJumpBottom();
+      }
+    } else {
+      updatePinBar();
+    }
+    if (invitesChanged) renderInvitesList();
+    if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+  }
+
+  function renderAll(state, { briefPin = false, force = false } = {}) {
+    closeAllReactMenus();
+    document.querySelectorAll("body > .msg-react-menu, body > .msg-action-menu").forEach((m) => m.remove());
+    lastState = state || lastState;
+    const { messages = [] } = lastState;
+
+    updatePinBar();
+
+    // Same transcript already on screen (e.g. leave room → chat:state echo).
+    // Skip only when ids match — not after author renames (names changed, ids did not).
+    if (!force && feedShowsMessages(messages)) {
+      if (pinToLatestOnce) schedulePinToLatest({ brief: true });
+      return;
+    }
+
+    const stick = pinToLatestOnce || isNearBottom(80);
+    const scrollTop = feed.scrollTop;
+    pinToLatestOnce = false;
+
+    feed.replaceChildren();
+    knownIds.clear();
+    const fragment = document.createDocumentFragment();
+    for (const msg of messages) {
+      knownIds.add(msg.id);
+      fragment.append(renderMessage(msg));
+    }
+    feed.append(fragment);
+
+    if (stick) {
+      schedulePinToLatest({ brief: briefPin });
+    } else {
+      feed.scrollTop = scrollTop;
+      updateJumpBottom();
+    }
+  }
+
+  function patchMessage(updated) {
+    if (!updated?.id) return;
+    const idx = (lastState.messages || []).findIndex((m) => m.id === updated.id);
+    if (idx >= 0) lastState.messages[idx] = updated;
+    const pinIdx = (lastState.pinned || []).findIndex((m) => m.id === updated.id);
+    if (pinIdx >= 0) lastState.pinned[pinIdx] = updated;
+    const el = feed.querySelector(`.msg[data-id="${CSS.escape(updated.id)}"]`);
+    if (!el) return;
+    const node = el.closest(".msg-swipe") || el;
+    const next = renderMessage(updated);
+    node.replaceWith(next);
+  }
+
+  function appendMessage(msg) {
+    if (knownIds.has(msg.id)) return;
+    knownIds.add(msg.id);
+    lastState.messages = [...(lastState.messages || []), msg];
+    const nearBottom = isNearBottom(120);
+    const node = renderMessage(msg);
+    const bubble = node.classList.contains("msg") ? node : node.querySelector(".msg");
+    if (bubble) bubble.classList.add("msg-enter");
+    feed.append(node);
+    bubble?.addEventListener(
+      "animationend",
+      () => {
+        bubble.classList.remove("msg-enter");
+      },
+      { once: true }
+    );
+    const stick = nearBottom || isOwnMessage(msg);
+    if (stick) {
+      scrollFeedToBottom(true);
+      if (!document.hidden) clearUnreadBadge();
+      const img = node.querySelector(".msg-photo");
+      if (img && !img.complete) {
+        img.addEventListener("load", () => scrollFeedToBottom(true), { once: true });
+      }
+    } else {
+      updateJumpBottom();
+    }
+    noteIncomingMessage(msg);
+  }
+
+  function enterChat(name, { admin = false } = {}) {
+    myName = name;
+    saveName(name);
+    gate.hidden = true;
+    app.hidden = false;
+    if (admin) setAdminUi(true, name);
+    else if (isAdmin) setAdminUi(false);
+    else syncMeBtn();
+    ensurePublicRoomListed();
+    // Outside a room the feed stays empty until a pin is chosen.
+    if (!dmCode) {
+      lastState = { messages: [], pinned: [] };
+      renderAll(lastState);
+    } else if (lastState?.messages?.length) {
+      renderAll(lastState);
+    }
+    pinToLatestOnce = true;
+    syncViewportHeight();
+    if (notifyEnabled) void syncPushSubscription();
+
+    // Same tab refresh: resume last chat. Fresh entry (gate): open hub to pick.
+    if (isSessionLive()) {
+      resumeLastDestination();
+      return;
+    }
+    openDmDialog({ requirePick: true });
+  }
+
+  function join(nameOverride) {
+    showGateError("");
+    const name = (nameOverride ?? nameInput.value).trim();
+    const pin = normalizeRoomKeyLocal(pinInput?.value || loadPin() || "");
+    const adminToken = loadAdminToken();
+    const previousName = loadPrevName();
+    if (!adminToken) {
+      if (!name) {
+        showGateError("Введите имя");
+        nameInput?.focus();
+        return;
+      }
+      if (pin.length !== 4) {
+        showGateError("Нужен пин из 4 цифр");
+        pinInput?.focus();
+        return;
+      }
+    }
+    socket.emit(
+      "chat:join",
+      {
+        name,
+        // Always send pin when known — admin token resume must keep accountId
+        // so super-admin can still create rooms after iPhone reconnect.
+        pin: pin.length === 4 ? pin : undefined,
+        clientId: loadClientId(),
+        adminToken: adminToken || undefined,
+        previousName: previousName || undefined,
+      },
+      (res) => {
+        if (!res?.ok) {
+          const suggestion = String(res?.suggestion || "").trim();
+          showGateError(res?.error || "Не удалось войти");
+          if (suggestion && nameInput) {
+            // Soft offer: put free nick so they can enter a pin and retry.
+            nameInput.value = suggestion;
+            nameInput.focus();
+            try {
+              const len = nameInput.value.length;
+              nameInput.setSelectionRange(len, len);
+            } catch {
+              /* ignore */
+            }
+          }
+          return;
+        }
+        applyAccessFlags({
+          roomsOnly: Boolean(res.roomsOnly),
+          publicLabel: res.publicLabel,
+        });
+        if (res.admin) {
+          if (res.previousName) savePrevName(res.previousName);
+          enterChat(res.name, { admin: true });
+        } else {
+          if (adminToken) clearAdminToken();
+          if (pin.length === 4) savePin(pin);
+          saveName(res.name);
+          pullHubFromServer(res, pin);
+          enterChat(res.name, { admin: false });
+        }
+      }
+    );
+  }
+
+  function setReplyTarget(msg) {
+    pendingReply = {
+      id: msg.id,
+      name: msg.name,
+      text: (msg.text || (msg.imageUrl ? "📷 Фото" : "Сообщение")).replace(/\s+/g, " ").trim().slice(0, 120),
+    };
+    replyBar.hidden = false;
+    replyBarLabel.textContent = `Ответ · ${pendingReply.name}`;
+    replyBarPreview.textContent = pendingReply.text;
+    messageInput.focus();
+  }
+
+  function clearReply() {
+    pendingReply = null;
+    replyBar.hidden = true;
+  }
+
+  async function uploadPhoto(file) {
+    uploading = true;
+    notify("Загрузка фото…")
+    sendBtn.disabled = true;
+    try {
+      const body = new FormData();
+      body.append("photo", file);
+      const res = await fetch("/api/upload", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Ошибка загрузки");
+      pendingImageUrl = data.imageUrl;
+      previewImg.src = data.imageUrl;
+      preview.hidden = false;
+      notify("Фото готово к отправке")
+    } catch (err) {
+      notify(err.message || "Не удалось загрузить фото")
+      pendingImageUrl = null;
+      preview.hidden = true;
+    } finally {
+      uploading = false;
+      sendBtn.disabled = false;
+    }
+  }
+
+  function clearPreview() {
+    pendingImageUrl = null;
+    preview.hidden = true;
+    previewImg.removeAttribute("src");
+    photoInput.value = "";
+    if (lastNotice.includes("Фото")) hideAppToast();
+  }
+
+  function send() {
+    if (uploading) return;
+    if (!dmCode) {
+      openDmDialog({ requirePick: true });
+      notify("Сначала войдите в комнату по номеру");
+      return;
+    }
+    const text = messageInput.value.trim();
+    if (!text && !pendingImageUrl) return;
+
+    const payload = {
+      text,
+      imageUrl: pendingImageUrl,
+      replyToId: pendingReply?.id || null,
+    };
+    socket.emit("chat:message", payload, (res) => {
+      if (!res?.ok) {
+        notify(res?.error || "Не отправилось")
+        return;
+      }
+      messageInput.value = "";
+      autoSize();
+      clearPreview();
+      clearReply();
+      hideAppToast()
+    });
+  }
+
+  let renameSuggestion = "";
+
+  function clearRenameError() {
+    renameSuggestion = "";
+    if (renameError) {
+      renameError.hidden = true;
+      renameError.textContent = "";
+    }
+    if (renameSuggestBtn) {
+      renameSuggestBtn.hidden = true;
+      renameSuggestBtn.textContent = "Взять свободный";
+    }
+  }
+
+  function showRenameError(text, suggestion = "") {
+    renameSuggestion = String(suggestion || "").trim();
+    if (renameError) {
+      renameError.hidden = !text;
+      renameError.textContent = text || "";
+    }
+    if (renameSuggestBtn) {
+      if (renameSuggestion) {
+        renameSuggestBtn.hidden = false;
+        renameSuggestBtn.textContent = `Взять «${renameSuggestion}»`;
+      } else {
+        renameSuggestBtn.hidden = true;
+      }
+    }
+  }
+
+  function openRenameDialog() {
+    if (!renameDialog || !renameInput) return;
+    clearRenameError();
+    if (isAdmin) {
+      // Super-admin: profile sheet is logout-only (name is always АДМИН).
+      if (renameLead) renameLead.textContent = "Выйти из режима админа на этом устройстве.";
+      renameInput.value = "АДМИН";
+      renameInput.disabled = true;
+      if (renameNameField) renameNameField.hidden = false;
+      if (renamePinField) renamePinField.hidden = true;
+      if (renamePinInput) renamePinInput.value = "";
+      if (renameApplyBtn) renameApplyBtn.hidden = true;
+    } else {
+      if (renameLead) {
+        renameLead.textContent = "Ник и пин — чтобы вспомнить перед выходом. Можно сменить оба.";
+      }
+      renameInput.disabled = false;
+      renameInput.value = myName || "";
+      if (renameNameField) renameNameField.hidden = false;
+      if (renamePinField) renamePinField.hidden = false;
+      if (renamePinInput) renamePinInput.value = loadPin() || "";
+      if (renameApplyBtn) renameApplyBtn.hidden = false;
+    }
+    renameDialog.showModal();
+    layoutFormDialog(renameDialog);
+    // Focus after layout; do not select-all (iOS showed blue handles as if user selected).
+    requestAnimationFrame(() => {
+      layoutFormDialog(renameDialog);
+      if (isAdmin) return;
+      try {
+        renameInput.focus({ preventScroll: true });
+      } catch {
+        renameInput.focus();
+      }
+      try {
+        const len = renameInput.value.length;
+        renameInput.setSelectionRange(len, len);
+      } catch {
+        /* ignore */
+      }
+      keepDialogAboveKeyboard(renameDialog, renameInput);
+    });
+  }
+
+  function logoutToGate({ keepName = false } = {}) {
+    const token = loadAdminToken();
+    const finish = () => {
+      clearAdminToken();
+      if (!keepName) {
+        savePin("");
+        try {
+          localStorage.removeItem(NAME_KEY);
+        } catch {
+          /* ignore */
+        }
+        if (nameInput) nameInput.value = "";
+        if (pinInput) pinInput.value = "";
+      } else {
+        savePin("");
+        if (pinInput) pinInput.value = "";
+      }
+      clearSessionLive();
+      renameDialog?.close();
+      adminDialog?.close();
+      leaveToGate("");
+      showGateError("");
+      notify("Вы вышли · войдите снова");
+    };
+    if (isAdmin && token) {
+      socket.emit("admin:logout", { token, name: loadPrevName() }, () => finish());
+      return;
+    }
+    if (dmCode) {
+      socket.emit("dm:leave", {}, () => finish());
+      return;
+    }
+    finish();
+  }
+
+  function applyRename() {
+    const next = (renameInput?.value || "").trim();
+    const nextPin = normalizeRoomKeyLocal(renamePinInput?.value || "");
+    clearRenameError();
+    if (!next) {
+      showRenameError("Введите ник");
+      renameInput?.focus();
+      return;
+    }
+    if (nextPin.length !== 4) {
+      showRenameError("Пин — ровно 4 цифры");
+      renamePinInput?.focus();
+      return;
+    }
+    const previousName = myName;
+    const previousPin = loadPin();
+    const pinChangedLocally = nextPin !== previousPin;
+    socket.emit("chat:rename", { name: next, pin: nextPin }, (res) => {
+      if (!res?.ok) {
+        const suggestion = String(res?.suggestion || "").trim();
+        showRenameError(res?.error || "Не сменилось", suggestion);
+        if (suggestion) renameInput?.focus();
+        else notify(res?.error || "Не сменилось");
+        return;
+      }
+      const from = res.from || previousName;
+      const to = res.name;
+      if (res.pinChanged || pinChangedLocally) savePin(nextPin);
+      renameDialog?.close();
+      if (!nameEquals(from, to)) {
+        applyAuthorRename(from, to);
+        myName = to;
+        saveName(myName);
+        syncMeBtn();
+        if (notifyEnabled) void syncPushSubscription();
+        notify(res.pinChanged ? "Ник и пин сохранены" : "Ник сохранён");
+      } else if (res.pinChanged || pinChangedLocally) {
+        notify("Пин сохранён");
+      } else {
+        notify("Без изменений");
+      }
+    });
+  }
+
+  joinBtn.addEventListener("click", () => join());
+  nameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      join();
+    }
+  });
+  pinInput?.addEventListener("input", () => {
+    const digits = normalizeRoomKeyLocal(pinInput.value);
+    if (pinInput.value !== digits) pinInput.value = digits;
+  });
+  pinInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      join();
+    }
+  });
+
+  sendBtn.addEventListener("click", send);
+  replyCancelBtn.addEventListener("click", clearReply);
+
+  messageInput.addEventListener("input", autoSize);
+  messageInput.addEventListener("focus", () => {
+    setTimeout(() => {
+      lockPageScroll();
+      syncViewportHeight();
+      if (isNearBottom(160)) scrollFeedToBottom(false);
+      else updateJumpBottom();
+    }, 50);
+    setTimeout(() => {
+      lockPageScroll();
+      syncViewportHeight();
+    }, 300);
+  });
+  messageInput.addEventListener("blur", () => {
+    setTimeout(() => {
+      lockPageScroll();
+      syncViewportHeight();
+    }, 100);
+  });
+  messageInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  photoInput.addEventListener("change", () => {
+    const file = photoInput.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      notify("Можно только изображения")
+      return;
+    }
+    uploadPhoto(file);
+  });
+
+  jumpBottomBtn.addEventListener("click", () => {
+    scrollFeedToBottom(true);
+  });
+  feed.addEventListener(
+    "scroll",
+    () => {
+      updateJumpBottom();
+    },
+    { passive: true }
+  );
+
+  previewClear.addEventListener("click", clearPreview);
+  bulkCancelBtn?.addEventListener("click", () => exitBulkSelectMode());
+  bulkDeleteBtn?.addEventListener("click", () => deleteBulkSelected());
+  hubBulkCancelBtn?.addEventListener("click", () => exitHubBulkSelectMode());
+  hubBulkDeleteBtn?.addEventListener("click", () => {
+    void deleteHubBulkSelected();
+  });
+
+  appToast?.addEventListener("click", (e) => {
+    if (e.target === appToast || e.target.classList?.contains("app-toast-scrim") || e.target === appToastText) {
+      hideAppToast();
+    }
+  });
+
+  presence?.addEventListener("click", () => {
+    if (!myName) return;
+    openOnlineList();
+  });
+  topbarRoomTitle?.addEventListener("blur", () => {
+    commitTopbarRoomTitle();
+  });
+  topbarRoomTitle?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      topbarRoomTitle.blur();
+    }
+  });
+  topbarRoomTitle?.addEventListener("input", () => {
+    if (topbarRoomTitle.value.length > MAX_ROOM_TITLE_LEN) {
+      topbarRoomTitle.value = topbarRoomTitle.value.slice(0, MAX_ROOM_TITLE_LEN);
+    }
+  });
+  onlineCloseBtn?.addEventListener("click", closeOnlineList);
+  onlineDialog?.addEventListener("click", (e) => {
+    if (e.target === onlineDialog) closeOnlineList();
+  });
+  onlineDialog?.addEventListener("close", () => {
+    onlineDialog.style.top = "";
+    onlineDialog.style.bottom = "";
+    onlineDialog.style.height = "";
+    onlineDialog.style.maxHeight = "";
+    onlineDialog.style.width = "";
+    onlineDialog.style.maxWidth = "";
+    onlineDialog.style.transform = "";
+  });
+
+  pinsCloseBtn.addEventListener("click", closePinsList);
+  pinsDialog.addEventListener("click", (e) => {
+    if (e.target === pinsDialog) closePinsList();
+  });
+  pinsDialog.addEventListener("close", () => {
+    clearUnpinArm();
+    clearPinFocus();
+    pinsDialog.style.top = "";
+    pinsDialog.style.bottom = "";
+    pinsDialog.style.height = "";
+    pinsDialog.style.maxHeight = "";
+    pinsDialog.style.width = "";
+    pinsDialog.style.maxWidth = "";
+    pinsDialog.style.transform = "";
+  });
+
+  const onPinsViewport = () => {
+    if (pinsDialog.open) layoutPinsDialog();
+    if (onlineDialog?.open) layoutBottomSheet(onlineDialog);
+    if (dmDialog?.open) layoutDmDialog();
+    if (renameDialog?.open) layoutFormDialog(renameDialog);
+    if (adminDialog?.open) layoutFormDialog(adminDialog);
+  };
+  window.addEventListener("resize", onPinsViewport);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", onPinsViewport);
+    window.visualViewport.addEventListener("scroll", onPinsViewport);
+  }
+
+  function clearPinTextSelection() {
+    try {
+      const sel = window.getSelection?.();
+      if (sel && sel.rangeCount) sel.removeAllRanges();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  pins.addEventListener("selectstart", (e) => {
+    e.preventDefault();
+  });
+  pins.addEventListener(
+    "touchstart",
+    () => {
+      clearPinTextSelection();
+    },
+    { passive: true }
+  );
+  pins.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    clearPinTextSelection();
+    clearPinHold();
+    pinHoldOpened = false;
+    pinHoldStart = { x: e.clientX, y: e.clientY };
+    try {
+      pins.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    pinHoldTimer = setTimeout(() => {
+      pinHoldTimer = null;
+      pinHoldOpened = true;
+      clearPinTextSelection();
+      openPinsList();
+      // iOS sometimes selects after the hold opens — clear again on next frames.
+      requestAnimationFrame(clearPinTextSelection);
+      setTimeout(clearPinTextSelection, 50);
+      setTimeout(clearPinTextSelection, 180);
+    }, PIN_HOLD_MS);
+  });
+  pins.addEventListener("pointermove", (e) => {
+    if (!pinHoldStart || !pinHoldTimer) return;
+    const dx = Math.abs(e.clientX - pinHoldStart.x);
+    const dy = Math.abs(e.clientY - pinHoldStart.y);
+    if (dx > PIN_HOLD_MOVE_PX || dy > PIN_HOLD_MOVE_PX) clearPinHold();
+  });
+  pins.addEventListener("pointerup", clearPinHold);
+  pins.addEventListener("pointercancel", clearPinHold);
+  pins.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    clearPinTextSelection();
+    clearPinHold();
+    pinHoldOpened = true;
+    openPinsList();
+  });
+  pins.addEventListener("click", onPinBarClick);
+
+  renameCancelBtn?.addEventListener("click", () => renameDialog?.close());
+  renameApplyBtn?.addEventListener("click", applyRename);
+  renameSuggestBtn?.addEventListener("click", () => {
+    if (!renameSuggestion || !renameInput) return;
+    renameInput.value = renameSuggestion;
+    clearRenameError();
+    renameInput.focus();
+  });
+  renameInput?.addEventListener("focus", () => keepDialogAboveKeyboard(renameDialog, renameInput));
+  renamePinInput?.addEventListener("focus", () => keepDialogAboveKeyboard(renameDialog, renamePinInput));
+  renameInput?.addEventListener("input", () => clearRenameError());
+  renamePinInput?.addEventListener("input", () => {
+    const digits = normalizeRoomKeyLocal(renamePinInput.value);
+    if (renamePinInput.value !== digits) renamePinInput.value = digits;
+    clearRenameError();
+  });
+  renameDialog?.addEventListener("close", () => {
+    renameDialog.style.top = "";
+    renameDialog.style.bottom = "";
+    renameDialog.style.maxHeight = "";
+    renameDialog.style.transform = "";
+    renameDialog.style.margin = "";
+    clearRenameError();
+  });
+  adminDialog?.addEventListener("close", () => {
+    adminSheetFrozen = false;
+    adminDialog.style.top = "";
+    adminDialog.style.bottom = "";
+    adminDialog.style.maxHeight = "";
+    adminDialog.style.transform = "";
+    adminDialog.style.margin = "";
+  });
+  lightboxClose?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    lightbox?.close();
+  });
+
+  let resetLightboxZoom = () => {};
+
+  function openLightbox(url) {
+    if (!lightbox || !lightboxImg || !url) return;
+    resetLightboxZoom();
+    lightboxImg.src = url;
+    if (!lightbox.open) lightbox.showModal();
+  }
+
+  (function bindLightboxGallery() {
+    if (!lightbox || !lightboxImg) return;
+
+    const MIN = 1;
+    const MAX = 4;
+    let scale = 1;
+    let tx = 0;
+    let ty = 0;
+    /** @type {Map<number, { x: number, y: number }>} */
+    const pointers = new Map();
+    let pinchStart = null;
+    let panStart = null;
+    let lastTapAt = 0;
+    let lastTapX = 0;
+    let lastTapY = 0;
+    let moved = false;
+
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+    const applyTransform = (withTransition) => {
+      lightboxImg.style.transition = withTransition
+        ? "transform 200ms cubic-bezier(0.33, 1, 0.68, 1)"
+        : "none";
+      lightboxImg.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
+    };
+
+    const resetZoom = (animate = true) => {
+      scale = 1;
+      tx = 0;
+      ty = 0;
+      applyTransform(animate);
+      lightbox.classList.remove("is-zoomed");
+    };
+    resetLightboxZoom = () => resetZoom(false);
+
+    const constrainPan = () => {
+      if (scale <= 1.01) {
+        tx = 0;
+        ty = 0;
+        return;
+      }
+      const vw = lightbox.clientWidth || window.innerWidth;
+      const vh = lightbox.clientHeight || window.innerHeight;
+      const baseW = lightboxImg.offsetWidth || 1;
+      const baseH = lightboxImg.offsetHeight || 1;
+      const boundX = Math.max(0, (baseW * scale - vw) / 2);
+      const boundY = Math.max(0, (baseH * scale - vh) / 2);
+      tx = clamp(tx, -boundX, boundX);
+      ty = clamp(ty, -boundY, boundY);
+    };
+
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+    lightbox.addEventListener("close", () => {
+      pointers.clear();
+      pinchStart = null;
+      panStart = null;
+      resetZoom(false);
+      lightboxImg.removeAttribute("src");
+      syncViewportHeight();
+    });
+
+    lightboxImg.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        moved = false;
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        try {
+          lightboxImg.setPointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+        if (pointers.size === 2) {
+          const [a, b] = [...pointers.values()];
+          pinchStart = {
+            dist: dist(a, b) || 1,
+            scale,
+            mid: mid(a, b),
+            tx,
+            ty,
+          };
+          panStart = null;
+        } else if (pointers.size === 1 && scale > 1.01) {
+          panStart = { x: e.clientX, y: e.clientY, tx, ty };
+        }
+      },
+      { passive: true }
+    );
+
+    lightboxImg.addEventListener(
+      "pointermove",
+      (e) => {
+        if (!pointers.has(e.pointerId)) return;
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (pointers.size === 2 && pinchStart) {
+          const [a, b] = [...pointers.values()];
+          const d = dist(a, b) || 1;
+          scale = clamp(pinchStart.scale * (d / pinchStart.dist), MIN, MAX);
+          const m = mid(a, b);
+          tx = pinchStart.tx + (m.x - pinchStart.mid.x);
+          ty = pinchStart.ty + (m.y - pinchStart.mid.y);
+          constrainPan();
+          applyTransform(false);
+          lightbox.classList.toggle("is-zoomed", scale > 1.01);
+          moved = true;
+          return;
+        }
+
+        if (pointers.size === 1 && panStart && scale > 1.01) {
+          const dx = e.clientX - panStart.x;
+          const dy = e.clientY - panStart.y;
+          if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
+          tx = panStart.tx + dx;
+          ty = panStart.ty + dy;
+          constrainPan();
+          applyTransform(false);
+        }
+      },
+      { passive: true }
+    );
+
+    const endPointer = (e) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinchStart = null;
+      if (pointers.size === 0) {
+        panStart = null;
+        if (scale <= 1.01) resetZoom(true);
+        else {
+          constrainPan();
+          applyTransform(true);
+        }
+      } else if (pointers.size === 1 && scale > 1.01) {
+        const only = [...pointers.values()][0];
+        panStart = { x: only.x, y: only.y, tx, ty };
+      }
+    };
+
+    lightboxImg.addEventListener("pointerup", (e) => {
+      const wasMoved = moved;
+      endPointer(e);
+      if (wasMoved || pointers.size > 0) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+
+      const now = Date.now();
+      const dt = now - lastTapAt;
+      const dx = Math.abs(e.clientX - lastTapX);
+      const dy = Math.abs(e.clientY - lastTapY);
+      if (dt < 320 && dx < 28 && dy < 28) {
+        lastTapAt = 0;
+        resetZoom(true);
+        return;
+      }
+      lastTapAt = now;
+      lastTapX = e.clientX;
+      lastTapY = e.clientY;
+    });
+
+    lightboxImg.addEventListener("pointercancel", endPointer);
+
+    lightboxImg.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.12 : 0.12;
+        const next = clamp(scale + delta, MIN, MAX);
+        if (next === scale) return;
+        scale = next;
+        if (scale <= 1.01) resetZoom(false);
+        else {
+          constrainPan();
+          applyTransform(false);
+          lightbox.classList.add("is-zoomed");
+        }
+      },
+      { passive: false }
+    );
+
+    lightbox.addEventListener(
+      "gesturestart",
+      (e) => {
+        e.preventDefault();
+      },
+      { passive: false }
+    );
+    lightbox.addEventListener(
+      "touchmove",
+      (e) => {
+        if (e.touches.length > 1) e.preventDefault();
+      },
+      { passive: false }
+    );
+  })();
+
+  renameInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      applyRename();
+    }
+  });
+  renamePinInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      applyRename();
+    }
+  });
+
+  function openAdminDialog() {
+    meTapCount = 0;
+    if (meTapTimer) {
+      clearTimeout(meTapTimer);
+      meTapTimer = null;
+    }
+    if (meRenameTimer) {
+      clearTimeout(meRenameTimer);
+      meRenameTimer = null;
+    }
+    if (adminError) adminError.hidden = true;
+    if (adminPassword) {
+      adminPassword.value = "";
+      try {
+        adminPassword.blur();
+      } catch {
+        /* ignore */
+      }
+    }
+    // Blur whatever stole focus (e.g. the nick button) so the keyboard stays down.
+    try {
+      if (document.activeElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
+    } catch {
+      /* ignore */
+    }
+    adminDialog.showModal();
+    adminSheetFrozen = false;
+    layoutFormDialog(adminDialog);
+    requestAnimationFrame(() => {
+      layoutFormDialog(adminDialog);
+      adminSheetFrozen = true;
+    });
+  }
+
+  function submitAdminLogin() {
+    if (adminError) adminError.hidden = true;
+    const password = (adminPassword?.value || "").trim();
+    if (!password) {
+      if (adminError) {
+        adminError.hidden = false;
+        adminError.textContent = "Введите пароль";
+      }
+      return;
+    }
+    if (myName && myName !== "АДМИН") savePrevName(myName);
+    socket.emit("admin:login", { password }, (res) => {
+      if (!res?.ok) {
+        if (adminError) {
+          adminError.hidden = false;
+          adminError.textContent = res?.error || "Ошибка";
+        }
+        return;
+      }
+      applyAdminSession(res);
+      adminDialog.close();
+      notify("Режим админа · ник АДМИН")
+    });
+  }
+
+  let meTapCount = 0;
+  let meTapTimer = null;
+  let meRenameTimer = null;
+  const ME_TAP_NEED = 10;
+  const ME_TAP_WINDOW_MS = 2000;
+  const ME_RENAME_DELAY_MS = 320;
+
+  meBtn?.addEventListener("click", () => {
+    // Ignore stray taps while the admin sheet is already open.
+    if (adminDialog?.open) return;
+
+    meTapCount += 1;
+    if (meTapTimer) clearTimeout(meTapTimer);
+    if (meRenameTimer) clearTimeout(meRenameTimer);
+
+    if (meTapCount >= ME_TAP_NEED) {
+      meTapCount = 0;
+      if (isAdmin) logoutAdmin();
+      else openAdminDialog();
+      return;
+    }
+
+    meTapTimer = setTimeout(() => {
+      meTapCount = 0;
+    }, ME_TAP_WINDOW_MS);
+
+    // Single tap → profile (rename + logout). Works for super-admin too.
+    meRenameTimer = setTimeout(() => {
+      if (meTapCount === 1) {
+        meTapCount = 0;
+        openRenameDialog();
+      }
+    }, ME_RENAME_DELAY_MS);
+  });
+
+  logoutBtn?.addEventListener("click", () => {
+    logoutToGate({ keepName: false });
+  });
+
+  adminPassword?.addEventListener("focus", () => {
+    adminSheetFrozen = false;
+    // Keyboard only after the user taps the password field.
+    keepDialogAboveKeyboard(adminDialog, adminPassword);
+  });
+  adminPassword?.addEventListener("blur", () => {
+    if (adminDialog?.open) {
+      requestAnimationFrame(() => {
+        layoutFormDialog(adminDialog);
+        adminSheetFrozen = true;
+      });
+    }
+  });
+  adminCancelBtn?.addEventListener("click", () => adminDialog?.close());
+  adminSubmit?.addEventListener("click", (e) => {
+    e.preventDefault();
+    submitAdminLogin();
+  });
+  adminPassword?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submitAdminLogin();
+    }
+  });
+
+  function joinDmFromInput() {
+    const code = normalizeDmCodeLocal(dmCodeInput?.value || "");
+    const key = normalizeRoomKeyLocal(dmJoinKey?.value || "");
+    clearJoinHint();
+    if (!code) {
+      setJoinFieldAlerts({ code: true });
+      showJoinHint("Введите номер комнаты");
+      dmCodeInput?.focus();
+      return;
+    }
+    joinDmByCode(code, { key });
+  }
+
+  function selectedCreateAccess() {
+    return "open";
+  }
+
+  function syncDmBtn() {
+    if (!dmBtn) return;
+    if (dmCode) {
+      dmBtn.textContent = "Чаты";
+      dmBtn.title = "Чаты · вы в комнате";
+      dmBtn.classList.add("active");
+    } else {
+      dmBtn.textContent = "Чаты";
+      dmBtn.title = accessRoomsOnly ? "Только комнаты" : "Комнаты по номеру";
+      dmBtn.classList.remove("active");
+    }
+    if (dmDialog?.open) syncDmDialogChrome();
+  }
+
+  dmBtn?.addEventListener("click", () => {
+    openDmDialog();
+  });
+  hubMeBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openRenameDialog();
+  });
+  dmPeopleToggle?.addEventListener("click", (e) => {
+    e.preventDefault();
+    setHubPeopleOpen(!hubPeopleOpen);
+  });
+  dmPeopleSearch?.addEventListener("input", () => {
+    hubPeopleQuery = String(dmPeopleSearch.value || "");
+    renderHubPeopleList();
+  });
+  dmPeopleSearch?.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (hubPeopleQuery) {
+        hubPeopleQuery = "";
+        dmPeopleSearch.value = "";
+        renderHubPeopleList();
+        return;
+      }
+      setHubPeopleOpen(false);
+    }
+  });
+  dmDialog?.addEventListener("cancel", (e) => {
+    if (!hubRequirePick) return;
+    e.preventDefault();
+    if (accessRoomsOnly) {
+      notify("Выберите комнату или человека");
+      return;
+    }
+    // Stay in hub — no «Готово» / public escape; pick a room or write someone.
+    notify("Выберите комнату или человека");
+  });
+  function createDmRoomFromForm() {
+    showDmDialogError("");
+    if (createInFlight) return;
+    if (!socket.connected) {
+      showDmDialogError("Нет связи · подождите секунду");
+      return;
+    }
+    const accountPin = normalizeRoomKeyLocal(loadPin() || "");
+    // Super-admin may create without a stored pin (token-only resume on iPhone).
+    if (accountPin.length !== 4 && !isAdmin) {
+      showDmDialogError("Сначала войдите с пином аккаунта");
+      return;
+    }
+    const createBtnEl = document.getElementById("dm-create-btn");
+    createInFlight = true;
+    if (createBtnEl) createBtnEl.disabled = true;
+    notify("Создаём комнату…");
+    const finishCreate = () => {
+      createInFlight = false;
+      if (createBtnEl) createBtnEl.disabled = false;
+    };
+    const createTimer = setTimeout(() => {
+      finishCreate();
+      showDmDialogError("Долго нет ответа · попробуйте ещё раз");
+    }, 12000);
+    socket.timeout(10000).emit("dm:create", {}, (err, res) => {
+      clearTimeout(createTimer);
+      finishCreate();
+      if (err) {
+        showDmDialogError("Нет связи · проверьте интернет");
+        return;
+      }
+      if (!res?.ok) {
+        showDmDialogError(res?.error || "Не создалось");
+        return;
+      }
+      if (accountPin.length === 4) saveAdminPin(res.code, accountPin);
+      const joinKey = normalizeRoomKeyLocal(res.joinKey || "");
+      if (joinKey.length === 4) saveRoomKey(res.code, joinKey);
+      markOwnedRoom(res.code);
+      enterDmMode(res);
+      saveLastDest(res.code);
+      markSessionLive();
+      hubRequirePick = false;
+      void closeDmDialogSoft();
+      notify(
+        joinKey
+          ? `Номер ${formatRoomCodeDisplay(res.code)} · закрытая · ключ ${joinKey}`
+          : `Номер ${formatRoomCodeDisplay(res.code)} · закрытая`
+      );
+    });
+  }
+
+  function bindReliableTap(el, handler) {
+    if (!el || el.dataset.reliableTapBound === "1") return;
+    el.dataset.reliableTapBound = "1";
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+    let lastTouchAt = 0;
+    el.addEventListener(
+      "touchstart",
+      (e) => {
+        const t = e.changedTouches?.[0];
+        if (!t) return;
+        startX = t.clientX;
+        startY = t.clientY;
+        moved = false;
+      },
+      { passive: true }
+    );
+    el.addEventListener(
+      "touchmove",
+      (e) => {
+        const t = e.changedTouches?.[0];
+        if (!t) return;
+        if (Math.abs(t.clientX - startX) > 12 || Math.abs(t.clientY - startY) > 12) {
+          moved = true;
+        }
+      },
+      { passive: true }
+    );
+    el.addEventListener(
+      "touchend",
+      (e) => {
+        if (moved) return;
+        lastTouchAt = Date.now();
+        if (e.cancelable) e.preventDefault();
+        handler(e);
+      },
+      { passive: false }
+    );
+    el.addEventListener("click", (e) => {
+      // Skip the synthetic click that follows touchend.
+      if (Date.now() - lastTouchAt < 700) return;
+      handler(e);
+    });
+  }
+
+  function bindCreateJoinButtons() {
+    const createBtn = document.getElementById("dm-create-btn");
+    const joinBtn = document.getElementById("dm-join-btn");
+    bindReliableTap(createBtn, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      createDmRoomFromForm();
+    });
+    bindReliableTap(joinBtn, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      joinDmFromInput();
+    });
+  }
+  bindCreateJoinButtons();
+  function formatRoomCodeField(el) {
+    if (!el) return;
+    const digits = String(el.value || "").replace(/\D/g, "").slice(0, 6);
+    if (!digits) {
+      if (el.value) el.value = "";
+      return;
+    }
+    const padded = normalizeDmCodeLocal(digits);
+    if (padded.length === 6) el.value = formatRoomCodeDisplay(padded);
+    else if (el.value !== digits) el.value = digits;
+  }
+
+  dmCodeInput?.addEventListener("input", () => {
+    const digits = (dmCodeInput.value || "").replace(/\D/g, "").slice(0, 6);
+    if (dmCodeInput.value !== digits) dmCodeInput.value = digits;
+    if (digits.length > 0) {
+      setJoinCodeFieldAlert(false);
+      clearJoinHint();
+    }
+  });
+  dmCodeInput?.addEventListener("blur", () => formatRoomCodeField(dmCodeInput));
+  dmJoinKey?.addEventListener("input", () => {
+    const digits = normalizeRoomKeyLocal(dmJoinKey.value);
+    if (dmJoinKey.value !== digits) dmJoinKey.value = digits;
+    clearJoinKeyFieldAlert();
+    clearJoinHint();
+  });
+  dmJoinKey?.addEventListener("focus", () => {
+    clearJoinKeyFieldAlert();
+    clearJoinHint();
+  });
+  const roomDeleteCodeEl = document.getElementById("room-delete-code");
+  roomDeleteCodeEl?.addEventListener("blur", () => formatRoomCodeField(roomDeleteCodeEl));
+  dmCodeInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      joinDmFromInput();
+    }
+  });
+  dmJoinKey?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      joinDmFromInput();
+    }
+  });
+
+  function exitRoomAdminMode() {
+    if (!dmCode || isAdmin || !isRoomAdmin) return;
+    socket.emit("room:admin-logout", {}, () => {
+      isRoomAdmin = false;
+      syncRoomAdminUi();
+      roomAdminPanel?.close();
+      notify("Снова обычный участник");
+      renderAll(lastState, { force: true });
+    });
+  }
+
+  roomKeyBtn?.addEventListener("click", () => {
+    if (!dmCode || isAdmin) return;
+    if (isRoomAdmin) {
+      exitRoomAdminMode();
+      return;
+    }
+    if (roomKeyError) {
+      roomKeyError.hidden = true;
+      roomKeyError.textContent = "";
+    }
+    if (roomKeyInput) roomKeyInput.value = accountPinForRoom(dmCode);
+    roomKeyDialog?.showModal();
+    roomKeyInput?.focus();
+  });
+  roomKeyCancel?.addEventListener("click", () => roomKeyDialog?.close());
+  roomKeySubmit?.addEventListener("click", () => {
+    const key = normalizeRoomKeyLocal(roomKeyInput?.value || "");
+    if (key.length !== 4) {
+      if (roomKeyError) {
+        roomKeyError.hidden = false;
+        roomKeyError.textContent = "Нужны 4 цифры";
+      }
+      return;
+    }
+    socket.emit("room:admin-login", { key }, (res) => {
+      if (!res?.ok) {
+        if (roomKeyError) {
+          roomKeyError.hidden = false;
+          roomKeyError.textContent = res?.error || "Не вышло";
+        }
+        return;
+      }
+      savePin(key);
+      saveAdminPin(dmCode, key);
+      isRoomAdmin = true;
+      if (typeof res.isOwner === "boolean") roomIsOwner = res.isOwner;
+      else roomIsOwner = true;
+      if (roomIsOwner) markOwnedRoom(dmCode);
+      applyRoomFlags(res);
+      roomKeyDialog?.close();
+      notify("Режим админа · вы по-прежнему под своим именем");
+      renderAll(lastState, { force: true });
+    });
+  });
+  roomKeyInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      roomKeySubmit?.click();
+    }
+  });
+
+  function showRoomAdminPanelError(text) {
+    if (!roomAdminPanelError) return;
+    roomAdminPanelError.hidden = !text;
+    roomAdminPanelError.textContent = text || "";
+  }
+
+  function openRoomAdminPanel() {
+    if ((!isRoomAdmin && !isAdmin) || !dmCode) return;
+    showRoomAdminPanelError("");
+    if (roomNewAdminKey) roomNewAdminKey.value = "";
+    if (roomConfirmAdminKey) roomConfirmAdminKey.value = accountPinForRoom(dmCode);
+    if (roomNewJoinKey) roomNewJoinKey.value = roomKeyed ? loadRoomKey(dmCode) || "" : "";
+    if (roomDeleteCode) {
+      roomDeleteCode.value = formatRoomCodeDisplay(dmCode);
+      roomDeleteCode.readOnly = true;
+    }
+    if (roomDeleteKey) roomDeleteKey.value = accountPinForRoom(dmCode);
+    syncRoomAdminUi();
+    roomAdminPanel?.showModal();
+  }
+
+  roomAdminPanelBtn?.addEventListener("click", openRoomAdminPanel);
+  roomAdminPanelClose?.addEventListener("click", () => roomAdminPanel?.close());
+  roomAdminLogoutBtn?.addEventListener("click", exitRoomAdminMode);
+
+  roomChangeAdminKeyBtn?.addEventListener("click", () => {
+    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || accountPinForRoom(dmCode) || "");
+    const newKey = normalizeRoomKeyLocal(roomNewAdminKey?.value || "");
+    if (currentKey.length !== 4 || newKey.length !== 4) {
+      showRoomAdminPanelError("Пины — по 4 цифры");
+      return;
+    }
+    socket.emit("room:change-admin-key", { currentKey, newKey }, (res) => {
+      if (!res?.ok) {
+        showRoomAdminPanelError(res?.error || "Не сменилось");
+        return;
+      }
+      // Account pin stays the ownership proof; room adminKeyHash may diverge (legacy field).
+      if (roomConfirmAdminKey) roomConfirmAdminKey.value = loadPin() || currentKey;
+      if (roomNewAdminKey) roomNewAdminKey.value = "";
+      showRoomAdminPanelError("");
+      notify("Пин админа комнаты обновлён");
+    });
+  });
+
+  roomChangeJoinKeyBtn?.addEventListener("click", () => {
+    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || accountPinForRoom(dmCode) || "");
+    const newKey = normalizeRoomKeyLocal(roomNewJoinKey?.value || "");
+    if (currentKey.length !== 4) {
+      showRoomAdminPanelError("Подтвердите пином аккаунта (4 цифры)");
+      return;
+    }
+    if (newKey.length !== 4) {
+      showRoomAdminPanelError("Новый ключ входа — ровно 4 цифры");
+      roomNewJoinKey?.focus();
+      return;
+    }
+    socket.emit(
+      "room:change-join-key",
+      { currentKey, newKey, access: "keyed" },
+      (res) => {
+        if (!res?.ok) {
+          showRoomAdminPanelError(res?.error || "Не сменилось");
+          return;
+        }
+        saveRoomKey(dmCode, newKey);
+        applyRoomFlags(res);
+        if (roomNewJoinKey) roomNewJoinKey.value = "";
+        showRoomAdminPanelError("");
+        notify(`Ключ комнаты обновлён · кто внутри остаётся · с другого устройства нужен новый ключ`);
+        if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+      }
+    );
+  });
+
+  roomMakeOpenBtn?.addEventListener("click", () => {
+    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || accountPinForRoom(dmCode) || "");
+    if (currentKey.length !== 4) {
+      showRoomAdminPanelError("Подтвердите пином аккаунта (4 цифры) сверху");
+      roomConfirmAdminKey?.focus();
+      return;
+    }
+    socket.emit("room:change-join-key", { currentKey, access: "open" }, (res) => {
+      if (!res?.ok) {
+        showRoomAdminPanelError(res?.error || "Не открылось");
+        return;
+      }
+      clearRoomKey(dmCode);
+      applyRoomFlags(res);
+      showRoomAdminPanelError("");
+      notify("Комната открыта · для других свободный вход");
+      if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+    });
+  });
+
+  roomMakeKeyedBtn?.addEventListener("click", () => {
+    const currentKey = normalizeRoomKeyLocal(roomConfirmAdminKey?.value || accountPinForRoom(dmCode) || "");
+    const newKey = normalizeRoomKeyLocal(roomNewJoinKey?.value || "");
+    if (currentKey.length !== 4) {
+      showRoomAdminPanelError("Подтвердите пином аккаунта (4 цифры) сверху");
+      roomConfirmAdminKey?.focus();
+      return;
+    }
+    if (newKey.length !== 4) {
+      showRoomAdminPanelError("Укажите ключ от комнаты из 4 цифр");
+      roomNewJoinKey?.focus();
+      return;
+    }
+    socket.emit(
+      "room:change-join-key",
+      { currentKey, newKey, access: "keyed" },
+      (res) => {
+        if (!res?.ok) {
+          showRoomAdminPanelError(res?.error || "Не закрылось");
+          return;
+        }
+        saveRoomKey(dmCode, newKey);
+        applyRoomFlags(res);
+        if (roomNewJoinKey) roomNewJoinKey.value = "";
+        showRoomAdminPanelError("");
+        notify(`Комната закрыта · для других ключ ${newKey}`);
+        if (dmDialog?.open) renderDmRoomsList({ skipRefresh: true });
+      }
+    );
+  });
+
+  roomCloseBtn?.addEventListener("click", () => {
+    if (!canModerate() || !dmCode) return;
+    if (roomClosed) {
+      socket.emit("room:reopen", {}, (res) => {
+        if (!res?.ok) {
+          showRoomAdminPanelError(res?.error || "Не открылось");
+          return;
+        }
+        roomClosed = false;
+        syncRoomAdminUi();
+        notify("Комната снова открыта для входа");
+      });
+      return;
+    }
+    socket.emit("room:close", {}, (res) => {
+      if (!res?.ok) {
+        showRoomAdminPanelError(res?.error || "Не закрылось");
+        return;
+      }
+      roomClosed = true;
+      syncRoomAdminUi();
+      notify("Вход в комнату закрыт");
+    });
+  });
+
+  roomDeleteBtn?.addEventListener("click", () => {
+    const code = normalizeDmCodeLocal(roomDeleteCode?.value || "");
+    const key = normalizeRoomKeyLocal(roomDeleteKey?.value || "");
+    if (code.length !== 6) {
+      showRoomAdminPanelError("Нужен номер комнаты");
+      return;
+    }
+    if (!isAdmin && key.length !== 4) {
+      showRoomAdminPanelError("Для удаления нужны номер и пин аккаунта (4)");
+      return;
+    }
+    if (code !== dmCode) {
+      showRoomAdminPanelError("Номер не совпадает с этой комнатой");
+      return;
+    }
+    void (async () => {
+      const ok = await askConfirm({
+        title: "Удалить комнату?",
+        text: `Комната ${formatRoomCodeDisplay(code)} пропадёт навсегда.\nСообщения и участники тоже.`,
+        okLabel: "Удалить навсегда",
+      });
+      if (!ok) return;
+      socket.emit("room:delete", { code, key: isAdmin ? key || undefined : key }, (res) => {
+        if (!res?.ok) {
+          showRoomAdminPanelError(res?.error || "Не удалилось");
+          return;
+        }
+        forgetDmRoom(code);
+        roomAdminPanel?.close();
+        leaveDmMode({ quiet: true, openHub: true });
+        notify(`Комната ${formatRoomCodeDisplay(code)} удалена навсегда`);
+      });
+    })();
+  });
+  dmDialog?.addEventListener("close", () => {
+    clearForgetArm();
+    exitHubBulkSelectMode();
+    clearHubFooterLift();
+    dmDialog.classList.remove("is-leaving");
+    dmDialog.removeAttribute("style");
+  });
+  function bindHubFieldKeyboard(el, which) {
+    if (!el) return;
+    el.addEventListener("focus", () => {
+      if (which !== "people" && hubPeopleOpen) setHubPeopleOpen(false);
+      keepDialogAboveKeyboard(dmDialog, el);
+      if (which !== "people") scrollHubActionIntoView(which);
+    });
+    el.addEventListener("input", () => {
+      keepDialogAboveKeyboard(dmDialog, el);
+    });
+  }
+  bindHubFieldKeyboard(dmCodeInput, "join");
+  bindHubFieldKeyboard(dmJoinKey, "join");
+  bindHubFieldKeyboard(dmPeopleSearch, "people");
+  dmLeaveBtn?.addEventListener("click", () => {
+    if (!dmCode) return;
+    leaveDmMode({ quiet: false, openHub: true });
+  });
+
+  socket.on("chat:author-renamed", ({ from, to } = {}) => {
+    if (!from || !to) return;
+    applyAuthorRename(from, to);
+  });
+
+  socket.on("chat:state", (state) => {
+    if (dmCode) return;
+    // Outside a room there is no feed — keep empty until a pin is chosen.
+    lastState = state?.messages?.length ? state : { messages: [], pinned: [] };
+    if (!myName) return;
+    renderAll(lastState);
+  });
+
+  socket.on("dm:state", (state) => {
+    if (!dmCode || !state) return;
+    if (state.code && state.code !== dmCode) return;
+    lastState = {
+      messages: Array.isArray(state.messages) ? state.messages : [],
+      pinned: Array.isArray(state.pinned) ? state.pinned : [],
+    };
+    renderAll(lastState, { force: true, briefPin: true });
+    if (pinsDialog?.open) {
+      if (visiblePins().length) openPinsList();
+      else closePinsList();
+    }
+  });
+
+  socket.on("dm:pins", ({ code, pinned } = {}) => {
+    if (!dmCode || (code && code !== dmCode)) return;
+    const nextPinned = Array.isArray(pinned) ? pinned : [];
+    lastState.pinned = nextPinned;
+    const pinSet = new Set(nextPinned.map((p) => p?.id).filter(Boolean));
+    for (const msg of lastState.messages || []) {
+      const should = pinSet.has(msg.id);
+      if (Boolean(msg.pinned) === should) continue;
+      msg.pinned = should;
+      patchMessage(msg);
+    }
+    updatePinBar();
+    if (pinsDialog?.open) {
+      if (visiblePins().length) openPinsList();
+      else closePinsList();
+    }
+  });
+
+  socket.on("chat:message-removed", ({ id } = {}) => {
+    removeMessageById(id);
+  });
+
+  socket.on("chat:message", (msg) => {
+    // Legacy public broadcast — ignore; all chats are rooms now.
+    if (dmCode) return;
+  });
+
+  socket.on("dm:message", (msg) => {
+    if (!dmCode) return;
+    appendMessage(msg);
+    markDmRoomRead(dmCode, lastState.messages || [], {
+      peer: msg?.name && msg.name !== myName ? msg.name : undefined,
+    });
+  });
+
+  socket.on("dm:message-update", (msg) => {
+    if (!dmCode) return;
+    patchMessage(msg);
+  });
+
+  socket.on("dm:presence", (payload = {}) => {
+    if (!dmCode || payload.code !== dmCode) return;
+    updateDmPresence(payload);
+  });
+
+  socket.on("room:flags", (payload = {}) => {
+    if (!dmCode || payload.code !== dmCode) return;
+    applyRoomFlags(payload);
+    // Only the admin who set a new key has it in cache; others keep their session
+    // until they leave. Stale keys are cleared on the next failed join (needsKey).
+  });
+
+  socket.on("chat:message-update", (msg) => {
+    if (dmCode) return;
+  });
+
+  function leaveToGate(reason) {
+    myName = "";
+    isAdmin = false;
+    dmCode = null;
+    dmSessionGhost = false;
+    hubRequirePick = false;
+    accessRoomsOnly = false;
+    publicChatLabel = PUBLIC_CHAT_LABEL_DEFAULT;
+    clearSessionLive();
+    pendingInvites = [];
+    exitBulkSelectMode();
+    syncInvitesBtn();
+    closeInvitesDialog();
+    document.body.classList.remove("dm-on", "admin-on", "dm-ghost", "room-admin-on");
+    clearRoomAdminState();
+    if (dmBar) dmBar.hidden = true;
+    syncTopbarRoomTitle();
+    if (dmDialog?.open) dmDialog.close();
+    closeOnlineList();
+    closeAllReactMenus();
+    app.hidden = true;
+    gate.hidden = false;
+    syncMeBtn();
+    syncDmBtn();
+    if (reason) showGateError(reason);
+  }
+
+  socket.on("chat:kicked", ({ reason } = {}) => {
+    leaveToGate(reason || "Сессия закрыта — это имя открыто в другой вкладке");
+  });
+
+  socket.on("chat:presence", ({ count, people, names } = {}) => {
+    lastPresenceCount = Number(count) || 0;
+    if (Array.isArray(people) && people.length) {
+      lastPeople = people
+        .filter((p) => p && typeof p.id === "string" && typeof p.name === "string")
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          clientId: typeof p.clientId === "string" ? p.clientId : "",
+          roomsOnly: Boolean(p.roomsOnly),
+        }));
+    } else if (Array.isArray(names)) {
+      // Fallback if an older server build is still running.
+      lastPeople = names.filter(Boolean).map((name, i) => ({ id: `n-${i}-${name}`, name }));
+    } else {
+      lastPeople = [];
+    }
+    updatePresenceChrome();
+    if (onlineDialog?.open) renderOnlineList();
+    // Hub list does not show live presence counts — skip re-render on every tick.
+  });
+
+  socket.on("access:update", (payload = {}) => {
+    applyAccessFlags(payload);
+    if (accessRoomsOnly) {
+      openDmDialog({ requirePick: true });
+      notify(`«${publicChatLabel}» скрыт на этом устройстве`);
+    }
+  });
+
+  socket.on("access:forced-hub", () => {
+    dmCode = null;
+    dmSessionGhost = false;
+    document.body.classList.remove("dm-on", "dm-ghost");
+    if (dmBar) dmBar.hidden = true;
+    lastState = { messages: [], pinned: [] };
+    renderAll(lastState);
+    syncDmBtn();
+    openDmDialog({ requirePick: true });
+  });
+
+  socket.on("dm:invite", (payload = {}) => {
+    onRoomAddedFromInvite(payload);
+  });
+
+  socket.on("dm:room-added", (payload = {}) => {
+    onRoomAddedFromInvite(payload);
+  });
+
+  socket.on("dm:invite-declined", () => {
+    /* no accept/decline flow */
+  });
+
+  socket.on("chat:directory", (payload = {}) => {
+    applyDirectory(payload.people);
+  });
+
+  socket.on("dm:room-gone", (payload = {}) => {
+    const code = String(payload.code || "");
+    if (code && !isPublicRoomCode(code)) forgetDmRoom(code);
+    if (dmCode && code && dmCode === code) {
+      leaveDmMode({ quiet: true, openHub: true });
+      notify(
+        isPublicRoomCode(code)
+          ? `«${publicChatLabel}» недоступен`
+          : /deleted/i.test(String(payload.reason || ""))
+            ? "Комната удалена навсегда"
+            : /closed/i.test(String(payload.reason || ""))
+            ? "Комната закрыта создателем"
+            : "Комната удалена · 30 дней без активности"
+      );
+    }
+  });
+
+  socket.on("connect", () => {
+    createInFlight = false;
+    joinInFlight = false;
+    const createBtnEl = document.getElementById("dm-create-btn");
+    const joinBtnEl = document.getElementById("dm-join-btn");
+    if (createBtnEl) createBtnEl.disabled = false;
+    if (joinBtnEl) joinBtnEl.disabled = false;
+    if (myName) {
+      const adminToken = loadAdminToken();
+      const previousName = loadPrevName();
+      const pin = normalizeRoomKeyLocal(loadPin() || "");
+      socket.emit(
+        "chat:join",
+        {
+          name: myName === "АДМИН" ? previousName || myName : myName,
+          // Keep account bound for super-admin after Safari/iOS socket drops.
+          pin: pin.length === 4 ? pin : undefined,
+          clientId: loadClientId(),
+          adminToken: adminToken || undefined,
+          previousName: previousName || undefined,
+        },
+        (res) => {
+          if (!res?.ok) {
+            leaveToGate(res?.error || "Не удалось восстановить сессию");
+            return;
+          }
+          myName = res.name;
+          saveName(myName);
+          applyAccessFlags({
+            roomsOnly: Boolean(res.roomsOnly),
+            publicLabel: res.publicLabel,
+          });
+          if (res.admin) {
+            if (res.previousName) savePrevName(res.previousName);
+            setAdminUi(true, res.name);
+          } else {
+            if (adminToken) clearAdminToken();
+            if (isAdmin) setAdminUi(false, res.name);
+            else syncMeBtn();
+            pullHubFromServer(res, pin);
+          }
+          if (dmCode) {
+            socket.emit("dm:join", { code: dmCode, key: loadRoomKey(dmCode) || undefined }, (dmRes) => {
+              if (dmRes?.ok) {
+                enterDmMode(dmRes);
+              } else {
+                dmCode = null;
+                document.body.classList.remove("dm-on");
+                if (dmBar) dmBar.hidden = true;
+                syncDmBtn();
+                if (accessRoomsOnly) openDmDialog({ requirePick: true });
+              }
+            });
+          } else {
+            syncDmBtn();
+            if (accessRoomsOnly) openDmDialog({ requirePick: true });
+          }
+        }
+      );
+    }
+  });
+
+  document.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".msg-action-menu") || e.target.closest(".msg-react-menu")) return;
+    closeAllReactMenus();
+    if (!e.target.closest(".msg.msg-selecting")) {
+      document.querySelectorAll(".msg.msg-selecting").forEach((node) => {
+        node.classList.remove("msg-selecting");
+      });
+    }
+  });
+  window.addEventListener("resize", closeAllReactMenus);
+  feed.addEventListener("scroll", closeAllReactMenus, { passive: true });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeAllReactMenus();
+  });
+
+  // ——— Notifications: Home Screen badge + Web Push (iOS 16.4+ / Android / desktop) ———
+  const isIos =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    // @ts-ignore
+    window.navigator.standalone === true;
+
+  let swReg = null;
+  let notifyEnabled = false;
+  let notifyPublic = true;
+  let notifyDm = true;
+  let unreadBadge = 0;
+
+  function loadBoolPref(key, fallback = true) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) return fallback;
+      return raw !== "0";
+    } catch {
+      return fallback;
+    }
+  }
+
+  function saveBoolPref(key, on) {
+    try {
+      localStorage.setItem(key, on ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function loadNotifyPref() {
+    return loadBoolPref(NOTIFY_KEY, true);
+  }
+
+  function saveNotifyPref(on) {
+    saveBoolPref(NOTIFY_KEY, on);
+  }
+
+  function loadNotifyChannels() {
+    notifyPublic = loadBoolPref(NOTIFY_PUBLIC_KEY, true);
+    notifyDm = loadBoolPref(NOTIFY_DM_KEY, true);
+  }
+
+  function saveNotifyChannels() {
+    saveBoolPref(NOTIFY_PUBLIC_KEY, notifyPublic);
+    saveBoolPref(NOTIFY_DM_KEY, notifyDm);
+  }
+
+  function syncNotifyMenuInputs() {
+    if (notifyPublicInput) notifyPublicInput.checked = notifyPublic;
+    if (notifyDmInput) notifyDmInput.checked = notifyDm;
+  }
+
+  function setNotifyMenuOpen(open) {
+    if (!notifyMenu || !notifyBtn) return;
+    notifyMenu.hidden = !open;
+    notifyBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function closeNotifyMenu() {
+    setNotifyMenuOpen(false);
+  }
+
+  function syncNotifyBtn() {
+    if (!notifyBtn) return;
+    const anyChannel = notifyPublic || notifyDm;
+    const on = notifyEnabled && anyChannel;
+    notifyBtn.classList.toggle("is-on", on);
+    notifyBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    if (!notifyEnabled) {
+      notifyBtn.title = "Включить уведомления";
+    } else if (!anyChannel) {
+      notifyBtn.title = "Уведомления выключены";
+    } else if (notifyPublic && notifyDm) {
+      notifyBtn.title = "Уведомления: общий и комнаты";
+    } else if (notifyPublic) {
+      notifyBtn.title = "Уведомления: только общий чат";
+    } else {
+      notifyBtn.title = "Уведомления: только комнаты";
+    }
+    syncNotifyMenuInputs();
+  }
+
+  async function setUnreadBadge(n) {
+    unreadBadge = Math.max(0, Math.floor(n) || 0);
+    try {
+      if (unreadBadge > 0) {
+        if (navigator.setAppBadge) await navigator.setAppBadge(unreadBadge);
+        else if (swReg?.setAppBadge) await swReg.setAppBadge(unreadBadge);
+      } else if (navigator.clearAppBadge) {
+        await navigator.clearAppBadge();
+      } else if (swReg?.clearAppBadge) {
+        await swReg.clearAppBadge();
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function clearUnreadBadge() {
+    void setUnreadBadge(0);
+  }
+
+  function bumpUnreadBadge() {
+    void setUnreadBadge(unreadBadge + 1);
+  }
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(base64);
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  async function ensureServiceWorker() {
+    if (!("serviceWorker" in navigator)) return null;
+    if (swReg) return swReg;
+    swReg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    await navigator.serviceWorker.ready;
+    return swReg;
+  }
+
+  async function syncPushSubscription() {
+    try {
+      const reg = await ensureServiceWorker();
+      if (!reg?.pushManager) return false;
+      if (typeof Notification === "undefined" || Notification.permission !== "granted") return false;
+      const keyRes = await fetch("/api/vapid-public-key");
+      const { publicKey } = await keyRes.json();
+      if (!publicKey) return false;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+      }
+      await fetch("/api/push-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscription: sub.toJSON(),
+          name: myName || "",
+          notifyPublic,
+          notifyDm,
+        }),
+      });
+      return true;
+    } catch (err) {
+      console.warn("push subscribe failed", err);
+      return false;
+    }
+  }
+
+  async function enableNotifications({ openMenu = true } = {}) {
+    if (isIos && !isStandalone) {
+      notify(
+        "iPhone: Safari → Поделиться → На экран «Домой» → открыть с иконки → снова 🔔. В Настройках → Сарафан включите Уведомления."
+      );
+      return false;
+    }
+    if (typeof Notification === "undefined") {
+      notify(isIos ? "Нужен iOS 16.4+ и ярлык с Safari" : "Уведомления недоступны");
+      return false;
+    }
+    if (Notification.permission === "denied") {
+      notify(
+        isIos
+          ? "Настройки → Сарафан → Уведомления → разрешить"
+          : "Уведомления запрещены в настройках браузера"
+      );
+      return false;
+    }
+    if (Notification.permission === "default") {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        notify(
+          isIos
+            ? "Разрешите уведомления в окне или в Настройки → Сарафан"
+            : "Без разрешения пуши не придут"
+        );
+        return false;
+      }
+    }
+    if (!notifyPublic && !notifyDm) {
+      notifyPublic = true;
+      notifyDm = true;
+      saveNotifyChannels();
+    }
+    await ensureServiceWorker();
+    const pushed = await syncPushSubscription();
+    notifyEnabled = true;
+    saveNotifyPref(true);
+    syncNotifyBtn();
+    notify(pushed ? "Уведомления включены" : "Разрешено, но push пока недоступен");
+    if (openMenu) setNotifyMenuOpen(true);
+    return true;
+  }
+
+  async function disableNotifications() {
+    notifyEnabled = false;
+    saveNotifyPref(false);
+    closeNotifyMenu();
+    syncNotifyBtn();
+    clearUnreadBadge();
+    try {
+      const reg = await ensureServiceWorker();
+      const sub = await reg?.pushManager?.getSubscription();
+      if (sub) {
+        const endpoint = sub.endpoint;
+        await sub.unsubscribe().catch(() => {});
+        await fetch("/api/push-unsubscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint }),
+        }).catch(() => {});
+      }
+    } catch {
+      /* ignore */
+    }
+    notify("Уведомления выключены");
+  }
+
+  async function applyNotifyChannels() {
+    saveNotifyChannels();
+    syncNotifyBtn();
+    if (!notifyPublic && !notifyDm) {
+      await disableNotifications();
+      return;
+    }
+    if (!notifyEnabled) {
+      await enableNotifications({ openMenu: false });
+      return;
+    }
+    await syncPushSubscription();
+  }
+
+  async function onNotifyBtnClick() {
+    if (notifyEnabled && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      const open = Boolean(notifyMenu?.hidden);
+      setNotifyMenuOpen(open);
+      return;
+    }
+    await enableNotifications({ openMenu: true });
+  }
+
+  function noteIncomingMessage(msg) {
+    if (!msg || isOwnMessage(msg)) return;
+    const hidden = document.hidden || (typeof document.hasFocus === "function" && !document.hasFocus());
+    const away = hidden || !isNearBottom(120);
+    if (!away) {
+      clearUnreadBadge();
+      return;
+    }
+    bumpUnreadBadge();
+  }
+
+  notifyBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void onNotifyBtnClick();
+  });
+
+  notifyPublicInput?.addEventListener("change", () => {
+    notifyPublic = Boolean(notifyPublicInput.checked);
+    void applyNotifyChannels();
+  });
+
+  notifyDmInput?.addEventListener("change", () => {
+    notifyDm = Boolean(notifyDmInput.checked);
+    void applyNotifyChannels();
+  });
+
+  notifyOffBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void disableNotifications();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!notifyMenu || notifyMenu.hidden) return;
+    const wrap = notifyBtn?.closest(".notify-wrap");
+    if (wrap && wrap.contains(event.target)) return;
+    closeNotifyMenu();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeNotifyMenu();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      if (isNearBottom(160)) clearUnreadBadge();
+      if (notifyEnabled && myName) void syncPushSubscription();
+    }
+  });
+
+  feed.addEventListener(
+    "scroll",
+    () => {
+      if (!document.hidden && isNearBottom(80)) clearUnreadBadge();
+    },
+    { passive: true }
+  );
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      const data = event.data || {};
+      if (data.type === "open-from-notify" && data.id) {
+        clearUnreadBadge();
+        const el = feed.querySelector(`.msg[data-id="${CSS.escape(data.id)}"]`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+  }
+
+  loadNotifyChannels();
+  notifyEnabled =
+    loadNotifyPref() &&
+    typeof Notification !== "undefined" &&
+    Notification.permission === "granted";
+  syncNotifyBtn();
+  if (notifyEnabled) {
+    void ensureServiceWorker().then(() => {
+      if (myName) void syncPushSubscription();
+    });
+  }
+
+  const savedName = loadSavedName();
+  const savedPin = loadPin();
+  if (savedName) nameInput.value = savedName;
+  if (savedPin && pinInput) pinInput.value = savedPin;
+  if (savedName && (savedPin || loadAdminToken())) {
+    // Auto-enter with cached nick+pin after socket is up.
+    const tryAutoJoin = () => {
+      if (myName) return;
+      join(savedName);
+    };
+    if (socket.connected) tryAutoJoin();
+    else socket.once("connect", tryAutoJoin);
+  }
+})();
