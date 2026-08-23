@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.3+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.4+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -21,7 +21,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.7.3"
+VERSION="1.7.4"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -1246,10 +1246,11 @@ install_systemd() {
   cat > /etc/systemd/system/hiddify-notorrent.service <<EOF
 [Unit]
 Description=Re-apply Hiddify BitTorrent block
-After=network-online.target hiddify-xray.service hiddify-singbox.service
+After=network-online.target hiddify-xray.service
 
 [Service]
 Type=oneshot
+Environment=SKIP_INBOUND_SELFTEST=1
 ExecStart=${SELF_PATH} apply
 Nice=10
 
@@ -1257,14 +1258,26 @@ Nice=10
 WantedBy=multi-user.target
 EOF
 
-  # Hiddify restarts rewrite iptables/nft. Put the allowlist back after the core is up.
+  cat > /etc/systemd/system/hiddify-notorrent-fw.service <<EOF
+[Unit]
+Description=Re-apply Hiddify torrent OUTPUT firewall
+After=hiddify-xray.service
+
+[Service]
+Type=oneshot
+ExecStart=${SELF_PATH} apply-fw
+Nice=10
+EOF
+
+  # Do not run apply-fw inside ExecStartPost: that can fail hiddify-singbox
+  # ("control process exited") and then a follow-up apply rolls the table back.
   local svc d
   for svc in hiddify-xray hiddify-singbox; do
     d="/etc/systemd/system/${svc}.service.d"
     mkdir -p "${d}"
-    cat > "${d}/hiddify-notorrent.conf" <<EOF
+    cat > "${d}/hiddify-notorrent.conf" <<'EOF'
 [Service]
-ExecStartPost=-${SELF_PATH} apply-fw
+ExecStartPost=-/bin/systemctl --no-block start hiddify-notorrent-fw.service
 EOF
   done
 
@@ -1304,8 +1317,9 @@ EOF
 }
 
 uninstall_systemd() {
-  systemctl disable --now hiddify-notorrent.timer hiddify-notorrent.path hiddify-notorrent.service >/dev/null 2>&1 || true
+  systemctl disable --now hiddify-notorrent.timer hiddify-notorrent.path hiddify-notorrent.service hiddify-notorrent-fw.service >/dev/null 2>&1 || true
   rm -f /etc/systemd/system/hiddify-notorrent.service \
+        /etc/systemd/system/hiddify-notorrent-fw.service \
         /etc/systemd/system/hiddify-notorrent.timer \
         /etc/systemd/system/hiddify-notorrent.path
   rm -f /etc/systemd/system/hiddify-xray.service.d/hiddify-notorrent.conf \
@@ -1376,7 +1390,11 @@ cmd_install() {
   restart_proxy_cores
   # Hiddify restart flushes nft/iptables — firewall must be last.
   apply_firewall
-  systemctl start hiddify-notorrent.service >/dev/null 2>&1 || true
+  if nft_inspect_loaded; then
+    log "kernel: inspect_web loaded"
+  else
+    warn "kernel still empty. Run: hiddify-block-torrents apply-fw && hiddify-block-torrents doctor"
+  fi
   log "Done. Users change nothing. Kernel drops NEW outbound that is not a web port."
   log "Version:   ${VERSION}  (if doctor is unknown, this file never reached PATH)"
   log "Check:     hiddify-block-torrents status"
