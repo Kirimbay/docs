@@ -1,0 +1,452 @@
+<!-- ============================================================
+     ИНТЕРАКТИВНАЯ КАРТА РОССИИ — вставьте этот блок целиком
+     в HTML-редактор вашего сайта.
+
+     Чтобы добавить город или поменять видео — измените блок
+     RUSSIA_MAP_CONFIG внизу (секция <script>).
+     ============================================================ -->
+<div id="russia-map-widget" class="rmw-root" aria-label="Интерактивная карта России">
+  <style>
+    #russia-map-widget,
+    #russia-map-widget * {
+      box-sizing: border-box;
+    }
+
+    #russia-map-widget.rmw-root {
+      --rmw-bg: #080808;
+      --rmw-gold: #d4af37;
+      --rmw-gold-soft: #f0d878;
+      --rmw-gold-dim: #8a7028;
+      --rmw-text: #f5ecd4;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 50% 40%, #14110a 0%, var(--rmw-bg) 68%);
+      color: var(--rmw-text);
+      border: 1px solid rgba(212, 175, 55, 0.35);
+      border-radius: 16px;
+      padding: 20px 16px 24px;
+      max-width: 960px;
+      margin: 0 auto;
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    #russia-map-widget .rmw-title {
+      text-align: center;
+      font-size: clamp(18px, 2.4vw, 26px);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--rmw-gold-soft);
+      margin: 0 0 8px;
+      font-weight: 600;
+    }
+
+    #russia-map-widget .rmw-hint {
+      text-align: center;
+      font-size: 13px;
+      opacity: 0.75;
+      margin: 0 0 14px;
+    }
+
+    #russia-map-widget .rmw-stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1000 / 430;
+      min-height: 260px;
+    }
+
+    #russia-map-widget .rmw-map-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    #russia-map-widget .rmw-land {
+      fill: rgba(212, 175, 55, 0.09);
+      stroke: var(--rmw-gold);
+      stroke-width: 1.1;
+      vector-effect: non-scaling-stroke;
+      filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.28));
+      transition: fill 0.25s ease, stroke 0.25s ease;
+    }
+
+    #russia-map-widget .rmw-land:hover {
+      fill: rgba(212, 175, 55, 0.17);
+      stroke: var(--rmw-gold-soft);
+    }
+
+    #russia-map-widget .rmw-city {
+      cursor: pointer;
+      outline: none;
+    }
+
+    #russia-map-widget .rmw-city-dot {
+      fill: var(--rmw-gold);
+      stroke: #fff3bf;
+      stroke-width: 1.2;
+      transition: transform 0.2s ease, fill 0.2s ease;
+      transform-origin: center;
+      transform-box: fill-box;
+    }
+
+    #russia-map-widget .rmw-city:hover .rmw-city-dot,
+    #russia-map-widget .rmw-city:focus-visible .rmw-city-dot,
+    #russia-map-widget .rmw-city.is-active .rmw-city-dot {
+      fill: var(--rmw-gold-soft);
+      transform: scale(1.45);
+    }
+
+    #russia-map-widget .rmw-city-pulse {
+      fill: none;
+      stroke: var(--rmw-gold-soft);
+      stroke-width: 1;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #russia-map-widget .rmw-city:hover .rmw-city-pulse,
+    #russia-map-widget .rmw-city:focus-visible .rmw-city-pulse,
+    #russia-map-widget .rmw-city.is-active .rmw-city-pulse {
+      opacity: 0.75;
+      animation: rmw-pulse 1.6s ease-out infinite;
+    }
+
+    @keyframes rmw-pulse {
+      0% { r: 4; opacity: 0.8; }
+      100% { r: 16; opacity: 0; }
+    }
+
+    #russia-map-widget .rmw-label {
+      position: absolute;
+      pointer-events: none;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(8, 8, 8, 0.92);
+      border: 1px solid rgba(212, 175, 55, 0.55);
+      color: var(--rmw-gold-soft);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translate(-50%, calc(-100% - 14px)) scale(0.96);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      z-index: 5;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    #russia-map-widget .rmw-label.is-visible {
+      opacity: 1;
+      transform: translate(-50%, calc(-100% - 14px)) scale(1);
+    }
+
+    #russia-map-widget .rmw-tooltip {
+      position: absolute;
+      left: 50%;
+      bottom: 8px;
+      transform: translateX(-50%);
+      font-size: 12px;
+      opacity: 0.7;
+      text-align: center;
+      padding: 0 12px;
+      pointer-events: none;
+    }
+
+    #russia-map-widget .rmw-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 999999;
+    }
+
+    #russia-map-widget .rmw-modal.is-open {
+      display: flex;
+    }
+
+    #russia-map-widget .rmw-modal-panel {
+      width: min(920px, 100%);
+      background: #101010;
+      border: 1px solid rgba(212, 175, 55, 0.45);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
+      position: relative;
+    }
+
+    #russia-map-widget .rmw-modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+      color: var(--rmw-gold-soft);
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    #russia-map-widget .rmw-close {
+      border: 1px solid rgba(212, 175, 55, 0.45);
+      background: transparent;
+      color: var(--rmw-gold-soft);
+      border-radius: 8px;
+      width: 34px;
+      height: 34px;
+      cursor: pointer;
+      font-size: 20px;
+      line-height: 1;
+      padding: 0;
+    }
+
+    #russia-map-widget .rmw-close:hover {
+      background: rgba(212, 175, 55, 0.12);
+    }
+
+    #russia-map-widget .rmw-video-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+    }
+
+    #russia-map-widget .rmw-video-wrap iframe,
+    #russia-map-widget .rmw-video-wrap video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      background: #000;
+    }
+
+    @media (max-width: 640px) {
+      #russia-map-widget.rmw-root {
+        padding: 14px 10px 18px;
+        border-radius: 12px;
+      }
+
+      #russia-map-widget .rmw-stage {
+        min-height: 210px;
+      }
+    }
+  </style>
+
+  <h3 class="rmw-title">Карта России</h3>
+  <p class="rmw-hint">Наведите на город и нажмите, чтобы открыть видео</p>
+
+  <div class="rmw-stage">
+    <svg class="rmw-map-svg" viewBox="0 0 1000 430" role="img" aria-label="Карта России">
+      <path class="rmw-land" d="M883.68,318.79 L886.36,336.38 L882.41,333.10 L880.77,347.45 L883.37,357.62 L883.29,364.56 L881.27,358.58 L879.52,366.26 L879.02,357.93 L879.32,348.26 L879.02,337.54 L879.64,330.04 L879.75,316.76 L878.19,307.00 L878.43,293.43 L880.89,288.86 L879.83,284.26 L881.02,282.87 L881.72,289.43 L882.64,299.00 L882.57,308.77 L883.68,318.79 Z"/>
+      <path class="rmw-land" d="M560.71,283.25 L555.80,283.40 L552.51,282.27 L553.12,277.90 L556.81,274.68 L559.60,276.42 L560.78,277.99 L560.50,280.71 L560.71,283.25 Z"/>
+      <path class="rmw-land" d="M32.55,161.55 L34.35,164.02 L33.73,156.80 L40.98,158.28 L46.21,167.58 L43.56,171.90 L39.18,172.93 L39.12,182.63 L38.05,184.70 L35.55,184.40 L33.51,180.94 L29.96,178.04 L29.36,173.74 L26.65,172.11 L23.61,173.40 L22.16,169.93 L22.74,166.24 L19.54,168.59 L20.75,173.27 L19.23,177.48 L19.23,137.92 L25.77,145.51 L32.78,155.38 L32.55,161.55 Z"/>
+      <path class="rmw-land" d="M980.77,119.37 L977.84,119.88 L977.36,116.72 L980.77,112.58 L980.77,119.37 Z"/>
+      <path class="rmw-land" d="M22.72,118.77 L19.23,119.37 L19.23,112.58 L19.57,112.17 L21.84,112.19 L25.70,115.03 L25.47,116.39 L22.72,118.77 Z"/>
+      <path class="rmw-land" d="M883.56,95.74 L879.51,95.81 L874.03,94.70 L873.57,94.17 L876.10,90.25 L879.44,89.33 L883.23,93.13 L883.56,95.74 Z"/>
+      <path class="rmw-land" d="M902.60,77.15 L899.51,81.08 L895.24,80.19 L890.28,76.27 L890.91,73.05 L895.89,74.55 L902.60,77.15 Z"/>
+      <path class="rmw-land" d="M887.52,72.40 L885.42,79.77 L875.57,79.50 L871.14,81.84 L865.85,75.39 L867.29,68.56 L870.81,66.70 L877.86,67.14 L887.52,72.40 Z"/>
+      <path class="rmw-land" d="M653.67,120.48 L652.10,121.35 L643.37,120.06 L642.66,115.65 L637.83,112.99 L637.44,107.63 L640.17,105.50 L640.08,100.08 L645.37,91.61 L642.92,90.40 L649.31,81.69 L648.59,77.18 L654.56,71.94 L663.38,65.56 L672.27,63.70 L676.85,60.02 L682.04,58.73 L683.90,62.65 L682.11,65.74 L672.64,70.66 L664.49,75.40 L656.19,84.85 L652.21,94.54 L648.02,104.09 L648.57,112.34 L653.67,120.48 Z"/>
+      <path class="rmw-land" d="M785.71,58.38 L786.43,63.29 L788.87,60.88 L796.68,61.01 L802.70,65.85 L804.85,69.57 L804.18,74.73 L801.23,77.67 L794.21,83.18 L792.20,86.13 L795.51,87.52 L799.46,90.02 L801.87,88.15 L803.23,94.52 L804.40,91.94 L808.67,90.37 L817.24,92.01 L817.90,96.65 L829.06,98.13 L829.21,90.55 L834.88,92.28 L839.15,92.23 L843.46,97.46 L844.69,103.82 L843.11,107.97 L846.46,115.79 L850.66,119.82 L853.24,109.40 L857.53,113.87 L862.08,111.20 L867.25,114.25 L869.21,111.47 L873.58,112.86 L871.66,103.64 L875.18,99.34 L899.31,105.79 L901.58,111.68 L908.57,119.27 L919.36,117.39 L924.67,119.03 L926.90,123.13 L926.57,130.39 L929.86,133.22 L933.44,131.19 L938.17,130.93 L943.22,132.88 L948.28,131.78 L952.93,140.60 L956.24,137.43 L954.08,131.08 L955.27,126.67 L963.79,129.45 L969.35,128.85 L977.03,133.59 L980.77,137.92 L980.77,177.48 L980.75,177.53 L977.32,181.90 L973.85,181.17 L976.26,186.45 L977.85,194.63 L979.09,197.31 L979.40,201.42 L978.71,204.05 L973.73,201.88 L966.26,209.36 L963.89,210.51 L959.80,217.49 L955.93,223.59 L954.94,228.10 L951.12,221.23 L944.16,229.02 L942.95,225.34 L940.38,229.59 L936.80,228.23 L935.94,234.76 L932.74,244.37 L932.83,248.38 L935.88,250.60 L935.52,265.06 L933.04,265.43 L931.89,273.73 L933.01,278.01 L928.34,283.08 L927.41,294.42 L923.43,296.84 L922.63,306.93 L918.78,316.18 L917.79,309.34 L916.64,294.85 L915.15,272.79 L916.44,259.02 L918.69,253.09 L918.83,248.45 L922.98,246.23 L927.75,233.73 L932.35,223.52 L937.15,215.60 L939.30,201.60 L936.05,202.44 L934.45,210.62 L927.67,221.52 L925.49,209.31 L918.59,212.68 L911.91,229.33 L914.11,235.41 L908.15,238.01 L904.02,239.03 L904.22,231.85 L900.06,230.34 L896.75,235.22 L888.59,233.51 L879.80,236.46 L871.15,255.84 L860.91,279.25 L865.12,280.51 L866.44,286.72 L869.03,288.93 L870.74,283.97 L873.67,284.62 L877.52,295.54 L877.62,303.99 L875.53,313.91 L875.30,325.76 L874.10,341.64 L870.07,356.01 L869.18,362.87 L865.55,374.44 L861.95,385.90 L860.23,391.77 L856.67,397.59 L854.98,397.72 L853.31,392.89 L849.72,400.16 L849.31,403.46 L848.93,401.73 L848.92,396.68 L850.28,396.41 L850.66,384.68 L849.96,376.18 L852.25,372.67 L855.49,374.43 L857.29,364.77 L858.21,353.89 L859.24,350.26 L860.65,341.33 L856.23,344.25 L853.92,348.17 L849.86,348.16 L848.78,338.83 L845.61,331.77 L840.97,328.60 L839.98,318.87 L839.05,312.77 L838.05,308.50 L836.40,298.49 L834.05,294.83 L830.05,291.87 L826.51,292.14 L823.19,293.93 L820.99,298.87 L822.45,301.23 L822.48,306.71 L821.00,309.90 L818.59,320.43 L818.61,324.80 L814.85,331.07 L811.64,327.32 L808.46,328.15 L807.06,324.82 L805.46,323.75 L801.54,330.75 L798.03,332.39 L795.57,334.85 L792.21,333.24 L789.73,333.34 L788.11,328.26 L785.49,323.49 L782.82,322.18 L779.44,323.48 L776.91,325.32 L773.12,321.15 L772.61,313.71 L769.47,311.15 L767.05,309.99 L764.05,305.89 L761.29,316.18 L762.37,322.02 L759.77,328.94 L755.91,326.44 L753.25,326.08 L751.46,321.44 L748.68,321.30 L746.35,318.25 L742.29,322.92 L737.19,331.47 L734.38,333.19 L733.33,334.01 L731.92,327.94 L728.48,329.26 L727.34,325.05 L725.47,323.12 L724.19,317.39 L722.71,315.60 L718.87,318.15 L715.19,312.43 L713.77,317.63 L707.80,292.41 L704.39,284.74 L705.37,281.63 L698.68,291.00 L696.12,291.56 L696.34,286.15 L692.91,282.76 L690.12,285.18 L689.28,274.88 L684.48,272.74 L682.08,276.86 L675.39,280.53 L674.09,282.98 L664.09,286.44 L662.87,289.83 L664.80,296.63 L662.23,299.21 L662.73,301.91 L660.17,306.75 L664.50,313.58 L663.83,318.28 L660.08,317.85 L659.30,320.80 L655.88,315.65 L651.65,315.85 L648.82,320.04 L645.65,316.03 L639.77,309.15 L635.59,309.41 L630.08,320.21 L629.75,327.46 L627.00,321.70 L624.87,332.61 L625.65,334.63 L624.11,342.16 L626.38,348.89 L628.36,348.62 L630.06,355.25 L629.79,360.36 L631.15,361.97 L629.93,367.86 L627.34,369.49 L624.68,379.74 L627.11,389.16 L626.85,395.85 L629.77,407.55 L628.17,411.55 L627.71,414.07 L626.53,413.40 L624.70,407.36 L623.94,407.03 L622.27,404.73 L621.45,400.66 L618.96,398.58 L617.34,400.14 L616.87,398.29 L613.23,393.53 L609.30,391.92 L607.04,390.23 L606.72,391.40 L603.31,383.01 L600.26,379.26 L597.96,373.43 L599.90,371.84 L602.12,363.54 L600.62,359.61 L604.56,355.56 L604.49,353.39 L602.09,354.99 L602.18,350.58 L603.55,347.81 L606.14,347.08 L606.56,343.77 L605.97,338.29 L607.05,333.09 L607.02,330.18 L603.08,326.95 L601.52,327.05 L599.88,322.40 L597.83,323.98 L594.43,320.48 L594.49,318.53 L593.54,314.23 L591.41,313.74 L591.19,310.66 L591.86,308.65 L590.15,303.03 L587.38,303.99 L586.57,303.49 L585.90,305.75 L584.90,305.35 L584.24,298.99 L583.61,295.69 L584.13,294.77 L586.28,295.11 L587.32,292.94 L586.55,290.29 L584.75,288.54 L584.91,286.75 L583.83,284.94 L582.15,278.44 L582.72,275.76 L582.46,271.10 L579.85,268.73 L578.45,269.92 L578.07,267.45 L575.26,264.96 L574.40,259.10 L574.17,254.29 L572.89,252.00 L574.03,248.85 L573.24,239.59 L575.14,233.87 L574.74,232.13 L577.77,226.65 L574.97,221.92 L580.69,209.25 L583.17,203.51 L584.18,198.45 L580.22,191.65 L581.32,185.18 L578.91,177.79 L580.71,169.28 L577.60,157.97 L580.07,150.49 L575.98,143.87 L576.37,136.92 L578.52,136.00 L583.07,132.02 L585.82,128.57 L590.21,134.57 L597.53,136.93 L607.62,148.16 L609.67,152.88 L609.84,159.49 L606.88,164.71 L602.52,167.35 L590.59,159.81 L588.63,161.07 L592.99,168.34 L593.16,172.95 L593.33,183.09 L596.77,186.12 L598.86,188.70 L599.20,183.88 L597.60,179.62 L599.29,175.86 L605.75,182.04 L608.00,179.62 L606.20,172.35 L612.43,162.62 L614.89,163.19 L617.39,166.66 L618.94,159.84 L616.72,153.92 L618.02,147.98 L616.06,141.82 L623.53,145.01 L625.06,150.57 L621.68,151.79 L621.69,157.32 L623.80,160.72 L627.92,158.57 L628.58,152.23 L634.16,147.50 L643.48,138.98 L645.49,139.47 L642.86,145.49 L646.17,146.53 L648.08,143.14 L653.09,142.86 L657.06,138.75 L660.10,144.73 L663.14,138.15 L660.34,132.40 L661.73,129.12 L669.62,132.13 L673.31,135.23 L682.99,146.57 L684.78,141.38 L682.06,136.13 L681.99,134.02 L678.77,133.05 L679.65,128.34 L678.22,120.59 L678.14,117.42 L683.07,108.42 L684.82,99.40 L686.81,97.45 L693.88,100.07 L694.43,105.59 L691.90,113.64 L693.56,116.81 L694.42,123.75 L693.82,137.35 L696.76,143.44 L695.62,150.07 L690.38,164.17 L693.44,165.63 L694.50,162.06 L697.44,159.51 L698.15,154.60 L700.46,149.87 L698.90,144.22 L700.15,137.67 L697.23,136.85 L696.59,131.33 L698.72,121.36 L695.25,113.26 L700.03,106.57 L699.41,99.51 L700.74,99.29 L702.15,104.79 L701.09,114.37 L703.95,116.19 L702.73,109.03 L707.20,105.12 L712.75,104.60 L717.68,110.26 L715.31,101.99 L715.04,91.41 L719.68,89.41 L726.11,89.84 L731.90,88.54 L729.73,83.35 L732.82,76.83 L735.89,76.56 L741.08,71.63 L748.13,70.31 L749.02,67.59 L756.04,66.67 L758.22,68.90 L764.22,63.62 L769.12,63.79 L769.86,59.50 L772.41,55.27 L778.72,51.20 L783.30,54.42 L779.66,56.86 L785.71,58.38 Z"/>
+      <path class="rmw-land" d="M780.65,45.15 L765.59,48.98 L770.47,35.95 L772.67,34.83 L774.67,35.48 L781.44,41.12 L780.65,45.15 Z"/>
+      <path class="rmw-land" d="M636.58,22.91 L633.00,24.22 L630.59,24.97 L630.22,26.60 L627.10,28.24 L624.21,25.89 L625.73,22.79 L619.78,22.49 L625.00,20.68 L629.06,20.56 L629.60,23.23 L631.14,20.85 L633.65,19.22 L637.61,21.39 L636.58,22.91 Z"/>
+      <path class="rmw-land" d="M766.93,39.45 L761.11,40.69 L753.67,37.83 L749.23,34.04 L747.18,26.91 L743.54,24.95 L750.47,18.17 L756.25,15.93 L761.44,20.92 L767.59,30.52 L766.93,39.45 Z"/>
+
+      <g class="rmw-city" data-city-id="moscow" tabindex="0" role="button" aria-label="Москва">
+        <circle class="rmw-city-pulse" cx="600.47" cy="269.07" r="4"/>
+        <circle class="rmw-city-dot" cx="600.47" cy="269.07" r="5.5"/>
+      </g>
+
+      <g class="rmw-city" data-city-id="spb" tabindex="0" role="button" aria-label="Санкт-Петербург">
+        <circle class="rmw-city-pulse" cx="581.02" cy="227.58" r="4"/>
+        <circle class="rmw-city-dot" cx="581.02" cy="227.58" r="5.5"/>
+      </g>
+    </svg>
+
+    <div class="rmw-label" id="rmw-city-label" aria-hidden="true"></div>
+    <div class="rmw-tooltip">Москва · Санкт-Петербург</div>
+  </div>
+
+  <div class="rmw-modal" id="rmw-video-modal" aria-hidden="true">
+    <div class="rmw-modal-panel" role="dialog" aria-modal="true" aria-labelledby="rmw-modal-title">
+      <div class="rmw-modal-head">
+        <span id="rmw-modal-title">Видео</span>
+        <button type="button" class="rmw-close" id="rmw-close-btn" aria-label="Закрыть">&times;</button>
+      </div>
+      <div class="rmw-video-wrap" id="rmw-video-container"></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var RUSSIA_MAP_CONFIG = {
+        cities: {
+          moscow: {
+            name: "Москва",
+            // YouTube: вставьте embed-ссылку вида https://www.youtube.com/embed/ВАШ_ID?autoplay=1
+            // MP4: укажите прямую ссылку на файл и videoType: "video"
+            videoUrl: "https://www.youtube.com/embed/Scxs7L0vhZ4?autoplay=1&rel=0",
+            videoType: "iframe"
+          },
+          spb: {
+            name: "Санкт-Петербург",
+            videoUrl: "https://www.youtube.com/embed/1L30rDMeZDs?autoplay=1&rel=0",
+            videoType: "iframe"
+          }
+        }
+      };
+
+      var root = document.getElementById("russia-map-widget");
+      if (!root) return;
+
+      var stage = root.querySelector(".rmw-stage");
+      var label = root.querySelector("#rmw-city-label");
+      var modal = root.querySelector("#rmw-video-modal");
+      var videoContainer = root.querySelector("#rmw-video-container");
+      var modalTitle = root.querySelector("#rmw-modal-title");
+      var closeBtn = root.querySelector("#rmw-close-btn");
+      var svg = root.querySelector(".rmw-map-svg");
+      var activeCity = null;
+
+      function getCityConfig(id) {
+        return RUSSIA_MAP_CONFIG.cities[id] || null;
+      }
+
+      function clearVideo() {
+        videoContainer.innerHTML = "";
+      }
+
+      function toEmbedUrl(url) {
+        if (!url) return url;
+        var ytWatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{11})/i);
+        if (ytWatch) {
+          return "https://www.youtube.com/embed/" + ytWatch[1] + "?autoplay=1&rel=0";
+        }
+        return url;
+      }
+
+      function buildVideoElement(city) {
+        if (!city || !city.videoUrl) {
+          var empty = document.createElement("div");
+          empty.style.cssText = "display:flex;align-items:center;justify-content:center;height:100%;color:#f0d878;padding:20px;text-align:center;";
+          empty.textContent = "Ссылка на видео не задана";
+          return empty;
+        }
+
+        var url = toEmbedUrl(city.videoUrl);
+
+        if (city.videoType === "video" || /\.(mp4|webm|ogg)(\?|$)/i.test(url)) {
+          var video = document.createElement("video");
+          video.src = url;
+          video.controls = true;
+          video.autoplay = true;
+          video.playsInline = true;
+          return video;
+        }
+
+        var iframe = document.createElement("iframe");
+        iframe.src = url;
+        iframe.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+        iframe.allowFullscreen = true;
+        iframe.title = city.name + " — видео";
+        return iframe;
+      }
+
+      function setActiveCity(node) {
+        root.querySelectorAll(".rmw-city").forEach(function (item) {
+          item.classList.toggle("is-active", item === node);
+        });
+        activeCity = node;
+      }
+
+      function openVideo(cityId) {
+        var city = getCityConfig(cityId);
+        if (!city) return;
+
+        clearVideo();
+        modalTitle.textContent = city.name;
+        videoContainer.appendChild(buildVideoElement(city));
+        modal.classList.add("is-open");
+        modal.setAttribute("aria-hidden", "false");
+        closeBtn.focus();
+      }
+
+      function closeVideo() {
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+        clearVideo();
+      }
+
+      function showLabel(cityId, clientX, clientY) {
+        var city = getCityConfig(cityId);
+        if (!city || !stage) return;
+
+        var rect = stage.getBoundingClientRect();
+        var x = clientX - rect.left;
+        var y = clientY - rect.top;
+
+        label.textContent = city.name + " — нажмите для видео";
+        label.style.left = Math.max(40, Math.min(rect.width - 40, x)) + "px";
+        label.style.top = Math.max(20, y) + "px";
+        label.classList.add("is-visible");
+      }
+
+      function hideLabel() {
+        label.classList.remove("is-visible");
+      }
+
+      root.querySelectorAll(".rmw-city").forEach(function (node) {
+        var cityId = node.getAttribute("data-city-id");
+
+        node.addEventListener("mouseenter", function (e) {
+          setActiveCity(node);
+          showLabel(cityId, e.clientX, e.clientY);
+        });
+
+        node.addEventListener("mousemove", function (e) {
+          showLabel(cityId, e.clientX, e.clientY);
+        });
+
+        node.addEventListener("mouseleave", function () {
+          node.classList.remove("is-active");
+          if (activeCity === node) activeCity = null;
+          hideLabel();
+        });
+
+        node.addEventListener("click", function (e) {
+          e.preventDefault();
+          openVideo(cityId);
+        });
+
+        node.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openVideo(cityId);
+          }
+        });
+      });
+
+      closeBtn.addEventListener("click", closeVideo);
+
+      modal.addEventListener("click", function (e) {
+        if (e.target === modal) closeVideo();
+      });
+
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && modal.classList.contains("is-open")) {
+          closeVideo();
+        }
+      });
+
+      if (svg) {
+        svg.addEventListener("mouseleave", hideLabel);
+      }
+    })();
+  </script>
+</div>
