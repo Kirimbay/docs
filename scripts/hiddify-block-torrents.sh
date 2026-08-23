@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.4+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.5+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -21,7 +21,7 @@
 #   * Hysteria2/TUIC/SSH go through sing-box, where the BT rule is commented out
 set -euo pipefail
 
-VERSION="1.7.4"
+VERSION="1.7.5"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -72,6 +72,14 @@ save_self() {
     mv -f "${SELF_PATH}.tmp" "${SELF_PATH}"
     chmod 755 "${SELF_PATH}"
     ln -sfn "${SELF_PATH}" /usr/local/sbin/hiddify-block-torrents
+    # Old installs left a real file (not a symlink) earlier in PATH.
+    local extra
+    for extra in /usr/local/bin/hiddify-block-torrents /usr/sbin/hiddify-block-torrents /usr/bin/hiddify-block-torrents; do
+      if [[ -e "${extra}" || -L "${extra}" ]]; then
+        ln -sfn "${SELF_PATH}" "${extra}"
+      fi
+    done
+    hash -r 2>/dev/null || true
     [[ -s "${SELF_PATH}" ]] || die "Failed to install ${SELF_PATH}"
     return 0
   fi
@@ -678,14 +686,20 @@ configs_need_restart() {
 restart_proxy_cores() {
   [[ "${SKIP_SYSTEMD:-0}" == "1" ]] && return 0
   local svc
-  for svc in hiddify-xray hiddify-singbox; do
-    if systemctl list-unit-files "${svc}.service" >/dev/null 2>&1; then
-      if systemctl is-enabled "${svc}.service" >/dev/null 2>&1 || systemctl is-active "${svc}.service" >/dev/null 2>&1; then
-        log "Restarting ${svc}..."
-        systemctl restart "${svc}.service" || warn "Failed to restart ${svc}"
-      fi
+  # Xray is the VLESS path. Do not restart a already-failed sing-box: the
+  # 1.7.3 ExecStartPost hook made it fail and install looked like a crash.
+  if systemctl list-unit-files hiddify-xray.service >/dev/null 2>&1; then
+    if systemctl is-enabled hiddify-xray.service >/dev/null 2>&1 || systemctl is-active hiddify-xray.service >/dev/null 2>&1; then
+      log "Restarting hiddify-xray..."
+      systemctl restart hiddify-xray.service || warn "Failed to restart hiddify-xray"
     fi
-  done
+  fi
+  if systemctl is-active hiddify-singbox.service >/dev/null 2>&1; then
+    log "Reloading hiddify-singbox..."
+    systemctl reload-or-restart hiddify-singbox.service || warn "Failed to reload hiddify-singbox"
+  elif systemctl is-failed hiddify-singbox.service >/dev/null 2>&1; then
+    warn "hiddify-singbox already failed — not restarting it. VLESS/xray is enough for the torrent block."
+  fi
 }
 
 # --- firewall -----------------------------------------------------------------
@@ -1313,7 +1327,14 @@ EOF
 
   systemctl daemon-reload
   systemctl enable hiddify-notorrent.timer hiddify-notorrent.path hiddify-notorrent.service
-  systemctl start hiddify-notorrent.timer hiddify-notorrent.path
+  # Do not start path/timer here: watching json while Hiddify restarts races
+  # apply+rollback and leaves doctor at kernel: НЕТ.
+}
+
+start_systemd_watchers() {
+  [[ "${SKIP_SYSTEMD:-0}" == "1" ]] && return 0
+  systemctl start hiddify-notorrent.timer >/dev/null 2>&1 || true
+  systemctl start hiddify-notorrent.path >/dev/null 2>&1 || true
 }
 
 uninstall_systemd() {
@@ -1390,10 +1411,11 @@ cmd_install() {
   restart_proxy_cores
   # Hiddify restart flushes nft/iptables — firewall must be last.
   apply_firewall
+  start_systemd_watchers
   if nft_inspect_loaded; then
     log "kernel: inspect_web loaded"
   else
-    warn "kernel still empty. Run: hiddify-block-torrents apply-fw && hiddify-block-torrents doctor"
+    warn "kernel still empty. Run: bash /tmp/hiddify-block-torrents.sh apply-fw"
   fi
   log "Done. Users change nothing. Kernel drops NEW outbound that is not a web port."
   log "Version:   ${VERSION}  (if doctor is unknown, this file never reached PATH)"
@@ -1804,6 +1826,7 @@ cmd_doctor() {
   local installed
   installed="$(installed_script_version)"
   echo "version:     ${VERSION}  (этот процесс)"
+  echo "running:     ${BASH_SOURCE[0]:-$0}"
   echo "installed:   ${installed}  ${SELF_PATH}"
   echo "hiddify:     ${HIDDIFY_DIR}"
   if [[ "${installed}" == "MISSING" ]]; then

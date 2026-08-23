@@ -12,12 +12,12 @@ rm -f /tmp/hiddify-block-torrents.sh
 curl -fsSL -H 'Cache-Control: no-cache' \
   "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
   -o /tmp/hiddify-block-torrents.sh
-grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.4
+grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.5
 sudo bash /tmp/hiddify-block-torrents.sh
 hiddify-block-torrents doctor
 ```
 
-`VERSION` должна быть **1.7.4** или новее. В `doctor` нужны **`kernel: OUTPUT allowlist ON`**, **`vpn-safe: OK`**, **`l7: nft inspect_web ON`** и **`selftest: OK`**. Если `kernel: НЕТ` — Xray пропатчен, но Hiddify после restart снёс nft/iptables; сразу `sudo hiddify-block-torrents apply-fw`. Если `selftest: FAIL` и `:51413=rst` — пакеты с VPS всё ещё уходят. Если `l7: OFF` — пиры на 443 не режутся.
+`VERSION` должна быть **1.7.5** или новее. В `doctor` нужны **`kernel: OUTPUT allowlist ON`**, **`vpn-safe: OK`**, **`l7: nft inspect_web ON`** и **`selftest: OK`**. Если `kernel: НЕТ` — Xray пропатчен, но Hiddify после restart снёс nft/iptables; сразу `sudo hiddify-block-torrents apply-fw`. Если `selftest: FAIL` и `:51413=rst` — пакеты с VPS всё ещё уходят. Если `l7: OFF` — пиры на 443 не режутся.
 
 **1.6.4** ложно откатывала фаервол: Hiddify INPUT режет SYN на тестовый veth, даже когда наших правил нет (`doctor` после отката всё равно `inbound SYN-ACK=timeout`). 1.6.5 открывает INPUT только для теста, сначала снимает baseline, и откатывает OUTPUT только если SYN-ACK умер *после* наших правил.
 
@@ -31,7 +31,7 @@ iptables -D OUTPUT -j HIDDIFY_NOTORRENT
 ip6tables -D OUTPUT -j HIDDIFY_NOTORRENT
 ```
 
-Потом ставьте **1.7.4** (curl с `?$(date +%s)`, `grep VERSION` должен показать 1.7.4).
+Потом ставьте **1.7.5** (curl с `?$(date +%s)`, `grep VERSION` должен показать 1.7.5).
 
 Снять блок:
 
@@ -51,13 +51,13 @@ sudo hiddify-block-torrents uninstall
 
 Сниффер и порты 6881–6889 (то, что предложил хостер) для современного клиента недостаточны.
 
-## Что делает 1.7.4 на сервере
+## Что делает 1.7.5 на сервере
 
 1. **Ядро (главное).** nftables/iptables на **OUTPUT**. Случайные порты DHT/пира — drop. **80/443 не дыра:** SYN пускаем, первый payload обязан быть TLS (`16 03`) или HTTP (`GET `/`POST `/…). Пир qBittorrent на 443 (не TLS) отрезается. Цепочка nft называется `fw`, не `fwd` (`fwd` — зарезервированное слово, из‑за него таблица не грузилась и 443 протекал). iptables ставит по одному порту, без `xt_multiport`: иначе на голом ядре NEW DROP режет DNS. UDP/443 не в allowlist — через него часто идёт BT ([Xray #4554](https://github.com/XTLS/Xray-core/pull/4554)). Пользователь ничего не включает.
 2. **Нельзя повторить 1.6.2.** Drop только `NEW`, не UNTRACKED. SYN-ACK проверяется через veth **после** дырки в INPUT и baseline; откат только если ответ умер из‑за наших OUTPUT.
 3. **Xray / sing-box** — allowlist портов и `bittorrent → blackhole`, как раньше. `hiddify-core` на сервере — это и есть sing-box (`hiddify-singbox.service`).
 4. Подписи handshake/DHT и ipset трекеров — дополнительно, на них одних рассчитывать нельзя.
-5. **1.7.4:** фаервол ставится *после* restart Xray и ещё раз из отдельного oneshot (`--no-block`). Нельзя вызывать `apply` сразу после install и нельзя ставить `apply-fw` в `ExecStartPost` ядра — из‑за этого 1.7.3 оставлял `kernel: НЕТ` и ронял `hiddify-singbox`.
+5. **1.7.5:** path/timer включаются только после фаервола. Иначе watcher видит перезапись json при restart Xray, запускает `apply`, inbound-тест откатывает таблицу, и `doctor` сразу `kernel: НЕТ`. `hiddify-block-torrents` в PATH принудительно указывает на `/opt/hiddify-notorrent/`.
 
 SSH **на** сервер не трогается (это INPUT). Исходящий SSH с машины на порт 22 тоже разрешён. Instagram / YouTube / Telegram / сайты остаются. Могут отвалиться игры и голосовой Discord через VPN.
 

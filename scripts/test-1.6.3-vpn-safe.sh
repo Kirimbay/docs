@@ -42,10 +42,10 @@ fi
 if awk '/^emit_nft_table/,/^}$/' "$SCRIPT" | grep -q 'tcp flags ack accept'; then
   fail "inspect_web tcp flags ack accept lets torrent PSH+ACK through"
 fi
+grep -q 'start_systemd_watchers' "$SCRIPT" || fail "must start path/timer only after firewall"
+install_sys="$(awk '/^install_systemd\(\)/{p=1} /^start_systemd_watchers\(\)/{p=0} p' "$SCRIPT")"
+echo "${install_sys}" | grep -q 'systemctl start hiddify-notorrent.path' && fail "install_systemd must not start the path watcher (races apply+rollback)"
 grep -q 'systemctl --no-block start hiddify-notorrent-fw' "$SCRIPT" || fail "must re-apply firewall after hiddify-xray start without blocking the core"
-if awk '/^cmd_install\(\)/,/^cmd_status\(\)/' "$SCRIPT" | grep -q 'systemctl start hiddify-notorrent.service'; then
-  fail "install must not start apply.service after firewall (it rolls the table back)"
-fi
 # firewall must come after restart_proxy_cores in cmd_install
 install_order="$(awk '/^cmd_install\(\)/,/^cmd_status\(\)/' "$SCRIPT" | grep -nE 'restart_proxy_cores|apply_firewall')"
 echo "${install_order}" | tr '\n' ' ' | grep -q 'restart_proxy_cores.*apply_firewall' || fail "install must apply firewall AFTER hiddify restart"
