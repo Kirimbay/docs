@@ -17,11 +17,12 @@
       position: relative;
       display: flex;
       flex-direction: column;
-      width: 100vw !important;
-      max-width: none !important;
-      left: 50%;
-      margin-left: -50vw !important;
-      margin-right: -50vw !important;
+      width: 100vw;
+      max-width: 100vw;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+      position: relative;
+      left: auto;
       min-height: 100vh;
       min-height: 100dvh;
       overflow: hidden;
@@ -484,13 +485,7 @@
       if (!root) return;
 
       function stretchToViewport() {
-        var rect = root.getBoundingClientRect();
-        var vw = window.innerWidth || document.documentElement.clientWidth;
         var vh = window.innerHeight || document.documentElement.clientHeight;
-        root.style.width = vw + "px";
-        root.style.maxWidth = "none";
-        root.style.marginLeft = -rect.left + "px";
-        root.style.left = "0";
         if (vh > 0) root.style.minHeight = vh + "px";
         var header = root.querySelector(".rmw-header");
         var tip = root.querySelector(".rmw-tooltip");
