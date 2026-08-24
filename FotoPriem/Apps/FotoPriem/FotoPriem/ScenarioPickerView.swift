@@ -54,9 +54,9 @@ struct ScenarioPickerView: View {
     private func instructions(for scenario: ConnectionScenario) -> String {
         switch scenario {
         case .cameraAccessPoint:
-            return "1) Камере задай IP 192.168.1.1. 2) На iPhone зайди в Wi‑Fi камеры. 3) В FTP камеры пиши IP телефона из карточки ниже — не 192.168.1.1."
+            return "Камера сразу спросит FTP — пиши 192.168.1.20 и порт 2121. Потом на iPhone один раз поставь этот же IP вручную в настройках Wi‑Fi камеры."
         case .phoneHotspot:
-            return "1) Режим модема на iPhone. 2) Камера в эту сеть. 3) В FTP камеры пиши IP телефона, обычно 172.20.10.1."
+            return "1) Режим модема на iPhone. 2) Камера в эту сеть. 3) В FTP камеры пиши 172.20.10.1 и порт 2121."
         }
     }
 }

@@ -9,12 +9,19 @@ struct ServerPanelView: View {
                 .font(.headline)
                 .foregroundStyle(.white.opacity(0.9))
 
-            infoRow("IP телефона", model.advertisedIP)
+            infoRow("В FTP камеры пиши", model.ftpTargetForCamera)
+            infoRow("Сейчас у телефона", model.advertisedIP)
             infoRow("IP камеры", model.cameraOwnIPHint)
             infoRow("Порт", String(model.credentials.port))
             infoRow("Логин", model.credentials.username)
             infoRow("Пароль", model.credentials.password)
             infoRow("Статус", model.statusMessage)
+
+            if model.scenario == .cameraAccessPoint {
+                Text(model.phoneHasPlannedIP ? "Постоянный IP стоит, можно снимать." : "Сначала задай на iPhone постоянный IP — см. текст ниже.")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(model.phoneHasPlannedIP ? Color.green : Color.accentColor)
+            }
 
             Text(model.sameNetworkHint)
                 .font(.caption)

@@ -58,9 +58,20 @@ final class AppModel: ObservableObject {
         AddressPicker.advertisedIP(interfaces: interfaces, scenario: scenario) != nil
     }
 
+    var ftpTargetForCamera: String {
+        PlannedPhoneAddress.ftpTarget(for: scenario)
+    }
+
+    var phoneHasPlannedIP: Bool {
+        PlannedPhoneAddress.currentMatchesPlan(
+            AddressPicker.advertisedIP(interfaces: interfaces, scenario: scenario),
+            scenario: scenario
+        )
+    }
+
     var cameraOwnIPHint: String {
         switch scenario {
-        case .cameraAccessPoint: return "192.168.1.1"
+        case .cameraAccessPoint: return PlannedPhoneAddress.cameraGatewayIP
         case .phoneHotspot: return "выдаст iPhone сам"
         }
     }
@@ -68,15 +79,17 @@ final class AppModel: ObservableObject {
     var sameNetworkHint: String {
         switch scenario {
         case .cameraAccessPoint:
-            if ftpAddressReady {
-                return "IP не должны совпадать. Камера: 192.168.1.1. Телефон: \(advertisedIP). В меню FTP камеры пиши \(advertisedIP) — это телефон."
+            if phoneHasPlannedIP {
+                return "Телефон уже на \(ftpTargetForCamera). В FTP камеры так и оставь: адрес \(ftpTargetForCamera), порт \(credentials.port)."
             }
-            return "Сначала на iPhone зайди в Wi‑Fi камеры. Потом здесь появится IP телефона вида 192.168.1.x. Его и пиши в FTP камеры. На экране «Адрес IP» у камеры оставь 192.168.1.1."
+            return """
+            Камера спрашивает IP до подключения телефона — это нормально. В FTP сразу пиши \(ftpTargetForCamera), порт \(credentials.port).
+            Потом на iPhone: Настройки → Wi‑Fi → сеть камеры → кнопка i → Настроить IP → Вручную:
+            IP \(ftpTargetForCamera), маска \(PlannedPhoneAddress.subnetMask), маршрутизатор \(PlannedPhoneAddress.cameraGatewayIP). Частный адрес Wi‑Fi выключи.
+            Приложение само IP телефона сменить не может.
+            """
         case .phoneHotspot:
-            if ftpAddressReady {
-                return "IP не должны совпадать. Телефон (точка доступа): \(advertisedIP). Этот адрес пиши в FTP камеры."
-            }
-            return "Включи режим модема на iPhone. В FTP камеры потом будет 172.20.10.1 — это телефон, не камера."
+            return "У точки доступа iPhone адрес почти всегда \(PlannedPhoneAddress.phoneHotspotIP). Его и пиши в FTP камеры."
         }
     }
 

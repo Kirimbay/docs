@@ -48,6 +48,12 @@ final class AddressPickerTests: XCTestCase {
         XCTAssertFalse(ConnectionScenario.cameraAccessPoint.yandexUploadAvailable)
         XCTAssertTrue(ConnectionScenario.phoneHotspot.yandexUploadAvailable)
     }
+
+    func testPlannedCameraFTPTarget() {
+        XCTAssertEqual(PlannedPhoneAddress.ftpTarget(for: .cameraAccessPoint), "192.168.1.20")
+        XCTAssertTrue(PlannedPhoneAddress.currentMatchesPlan("192.168.1.20", scenario: .cameraAccessPoint))
+        XCTAssertFalse(PlannedPhoneAddress.currentMatchesPlan("192.168.1.7", scenario: .cameraAccessPoint))
+    }
 }
 
 final class IncomingStoreTests: XCTestCase {
