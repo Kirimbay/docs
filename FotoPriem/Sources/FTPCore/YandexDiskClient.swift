@@ -13,7 +13,7 @@ public struct YandexDiskClient: Sendable {
     public init(
         token: String,
         apiRoot: URL = URL(string: "https://cloud-api.yandex.net/v1/disk/")!,
-        folderPath: String = "disk:/Фотоприём",
+        folderPath: String = "app:/",
         urlSession: URLSession = .shared
     ) {
         self.token = token
@@ -39,6 +39,9 @@ public struct YandexDiskClient: Sendable {
     }
 
     public func ensureFolder() async throws {
+        if folderPath == "app:/" || folderPath == "app:" {
+            return
+        }
         var components = URLComponents(url: apiRoot.appendingPathComponent("resources"), resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "path", value: folderPath)]
         var request = URLRequest(url: components.url!)

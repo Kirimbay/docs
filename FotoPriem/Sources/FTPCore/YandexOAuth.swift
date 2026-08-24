@@ -3,7 +3,7 @@ import Foundation
 public enum YandexOAuth {
     /// Public OAuth client of FotoPriem itself. End users never type this.
     /// Fill once from https://oauth.yandex.ru after enabling Disk + default callback URL.
-    public static let clientID = ""
+    public static let clientID = "fa63bddd95a0489099b0f5720f5e613a"
 
     /// Yandex's built-in callback page («Подставить URL для разработки»).
     public static let redirectURI = "https://oauth.yandex.ru/verification_code"
