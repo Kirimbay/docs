@@ -13,32 +13,28 @@ struct YandexPanelView: View {
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.65))
 
-            TextField("Почта или логин Яндекса", text: $model.yandexLogin)
-                .textInputAutocapitalization(.never)
-                .keyboardType(.emailAddress)
-                .autocorrectionDisabled()
-                .textFieldStylePlain()
-                .onChange(of: model.yandexLogin) { _ in
-                    model.saveYandexCredentials()
-                }
-
-            SecureField("Пароль", text: $model.yandexPassword)
-                .textContentType(.password)
-                .textFieldStylePlain()
-                .onChange(of: model.yandexPassword) { _ in
-                    model.saveYandexCredentials()
-                }
-
-            Text("Обычный пароль от Яндекса. Если включена двухфакторная защита — пароль приложения: id.yandex.ru → Безопасность.")
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.45))
+            if !model.hasYandexClientID {
+                Text("Один раз для автора приложения, пользователи это не делают: oauth.yandex.ru → твоё приложение → «Подставить URL для разработки» и права на Яндекс Диск. Сюда вставь ClientID.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.55))
+                TextField("ClientID приложения на oauth.yandex.ru", text: $model.yandexClientID)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(10)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .foregroundStyle(.white)
+                    .onChange(of: model.yandexClientID) { _ in
+                        model.saveYandexClientID()
+                    }
+            }
 
             Text(model.yandexStatus)
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.6))
 
             Button(action: model.uploadToYandex) {
-                Text(model.yandexBusy ? "Выгрузка…" : "Выгрузить в Яндекс Диск")
+                Text(model.yandexBusy ? "Выгрузка…" : (model.isYandexLoggedIn ? "Выгрузить в Яндекс Диск" : "Войти в Яндекс и выгрузить"))
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -47,19 +43,28 @@ struct YandexPanelView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14))
             }
             .disabled(!model.yandexButtonEnabled)
+
+            if model.isYandexLoggedIn {
+                Button("Выйти из Яндекса", action: model.logoutYandex)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.55))
+            }
         }
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(0.05)))
         .opacity(model.scenario.yandexUploadAvailable ? 1 : 0.55)
-    }
-}
-
-private extension View {
-    func textFieldStylePlain() -> some View {
-        self
-            .padding(10)
-            .background(Color.white.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .foregroundStyle(.white)
+        .sheet(isPresented: $model.showYandexLogin) {
+            YandexLoginView(
+                clientID: model.resolvedYandexClientID,
+                onToken: { token in
+                    model.finishYandexLogin(token: token)
+                },
+                onCancel: {
+                    model.showYandexLogin = false
+                    model.yandexBusy = false
+                    model.yandexStatus = "Вход отменён"
+                }
+            )
+        }
     }
 }

@@ -126,19 +126,24 @@ final class StorageLocatorTests: XCTestCase {
     }
 }
 
-final class YandexDiskClientTests: XCTestCase {
-    func testBasicAuthorizationHeader() {
-        let header = YandexDiskClient.basicAuthorization(login: "user@yandex.ru", password: "secret")
-        XCTAssertTrue(header.hasPrefix("Basic "))
-        let encoded = String(header.dropFirst("Basic ".count))
-        let decoded = String(data: Data(base64Encoded: encoded) ?? Data(), encoding: .utf8)
-        XCTAssertEqual(decoded, "user@yandex.ru:secret")
+final class YandexOAuthTests: XCTestCase {
+    func testParsesTokenFromFragment() {
+        let url = URL(string: "https://oauth.yandex.ru/verification_code#access_token=abc123&token_type=bearer")!
+        XCTAssertEqual(YandexOAuth.accessToken(from: url), "abc123")
     }
 
-    func testUnauthorizedMessageDoesNotMentionOAuth() {
+    func testAuthorizeURLContainsClientAndDiskScope() {
+        let url = YandexOAuth.authorizeURL(clientID: "my-client")
+        XCTAssertTrue(url.absoluteString.contains("client_id=my-client"))
+        XCTAssertTrue(url.absoluteString.contains("cloud_api"))
+        XCTAssertTrue(url.absoluteString.contains("verification_code"))
+    }
+}
+
+final class YandexDiskClientTests: XCTestCase {
+    func testUnauthorizedMessageAsksToLoginAgain() {
         let message = YandexDiskClient.userFacingMessage(for: YandexDiskError.http(401))
-        XCTAssertFalse(message.lowercased().contains("oauth"))
-        XCTAssertFalse(message.lowercased().contains("client id"))
-        XCTAssertTrue(message.contains("пароль"))
+        XCTAssertFalse(message.lowercased().contains("пароль приложения"))
+        XCTAssertTrue(message.contains("Яндекс"))
     }
 }

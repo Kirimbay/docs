@@ -14,10 +14,11 @@ final class AppModel: ObservableObject {
     @Published var files: [IncomingFile] = []
     @Published var advertisedIP: String = "—"
     @Published var interfaces: [InterfaceIPv4] = []
-    @Published var yandexLogin: String = UserDefaults.standard.string(forKey: "yandexLogin") ?? ""
-    @Published var yandexPassword: String = UserDefaults.standard.string(forKey: "yandexPassword") ?? ""
+    @Published var yandexClientID: String = UserDefaults.standard.string(forKey: "yandexClientID") ?? ""
+    @Published var yandexToken: String = UserDefaults.standard.string(forKey: "yandexToken") ?? ""
     @Published var yandexBusy = false
     @Published var yandexStatus = "Не подключено"
+    @Published var showYandexLogin = false
     @Published var lastError: String?
 
     let credentials = FTPCredentials(username: "foto", password: "priem", port: 2121)
@@ -26,10 +27,22 @@ final class AppModel: ObservableObject {
     private var store: IncomingStore?
     private var refreshTimer: Timer?
 
+    var resolvedYandexClientID: String {
+        let trimmed = yandexClientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed
+    }
+
+    var hasYandexClientID: Bool {
+        !resolvedYandexClientID.isEmpty
+    }
+
+    var isYandexLoggedIn: Bool {
+        !yandexToken.isEmpty
+    }
+
     var yandexButtonEnabled: Bool {
         scenario.yandexUploadAvailable
-            && !yandexLogin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !yandexPassword.isEmpty
+            && hasYandexClientID
             && !files.isEmpty
             && !yandexBusy
     }
@@ -39,18 +52,24 @@ final class AppModel: ObservableObject {
         case .cameraAccessPoint:
             return "В режиме «Нет связи» интернета нет — файлы остаются в Фото"
         case .phoneHotspot:
-            if yandexLogin.isEmpty || yandexPassword.isEmpty {
-                return "Введи почту и пароль Яндекса — без регистрации приложений"
+            if !hasYandexClientID {
+                return "Автору приложения нужно один раз вставить ClientID с oauth.yandex.ru. Пользователи только жмут кнопку и входят в Яндекс."
             }
             if files.isEmpty {
-                return "Пока нечего выгружать"
+                return "Сначала прими фото, потом выгрузка откроет вход Яндекса"
             }
-            return "Отправить принятые файлы в Яндекс Диск"
+            if isYandexLoggedIn {
+                return "Вход есть. Файлы уйдут в папку «Фотоприём» на Диске."
+            }
+            return "По кнопке откроется страница входа Яндекса. Пароль приложения не нужен."
         }
     }
 
     init() {
         refreshNetwork()
+        if !yandexToken.isEmpty {
+            yandexStatus = "Яндекс подключён"
+        }
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refreshNetwork()
@@ -159,24 +178,43 @@ final class AppModel: ObservableObject {
         #endif
     }
 
-    func saveYandexCredentials() {
-        UserDefaults.standard.set(yandexLogin, forKey: "yandexLogin")
-        UserDefaults.standard.set(yandexPassword, forKey: "yandexPassword")
-        if !yandexLogin.isEmpty && !yandexPassword.isEmpty {
-            yandexStatus = "Данные Яндекса сохранены"
-        }
+    func saveYandexClientID() {
+        UserDefaults.standard.set(yandexClientID, forKey: "yandexClientID")
+    }
+
+    func logoutYandex() {
+        yandexToken = ""
+        UserDefaults.standard.removeObject(forKey: "yandexToken")
+        yandexStatus = "Вышел из Яндекса"
+    }
+
+    func finishYandexLogin(token: String) {
+        yandexToken = token
+        UserDefaults.standard.set(token, forKey: "yandexToken")
+        showYandexLogin = false
+        yandexStatus = "Яндекс подключён"
+        performYandexUpload()
     }
 
     func uploadToYandex() {
-        saveYandexCredentials()
         guard yandexButtonEnabled else { return }
+        saveYandexClientID()
+        if yandexToken.isEmpty {
+            yandexBusy = true
+            yandexStatus = "Открываю вход Яндекса…"
+            showYandexLogin = true
+            return
+        }
+        performYandexUpload()
+    }
+
+    private func performYandexUpload() {
         yandexBusy = true
         yandexStatus = "Выгрузка…"
-        let login = yandexLogin.trimmingCharacters(in: .whitespacesAndNewlines)
-        let password = yandexPassword
+        let token = yandexToken
         let snapshot = files
         Task.detached {
-            let client = YandexDiskClient(login: login, password: password)
+            let client = YandexDiskClient(token: token)
             var uploaded = 0
             var lastError: Error?
             for file in snapshot {
@@ -192,7 +230,12 @@ final class AppModel: ObservableObject {
                 if uploaded == snapshot.count {
                     self.yandexStatus = "Выгружено: \(uploaded)"
                 } else if let lastError {
-                    self.yandexStatus = YandexDiskClient.userFacingMessage(for: lastError)
+                    let message = YandexDiskClient.userFacingMessage(for: lastError)
+                    self.yandexStatus = message
+                    if let disk = lastError as? YandexDiskError, disk == .http(401) || disk == .http(403) {
+                        self.logoutYandex()
+                        self.yandexStatus = message
+                    }
                 } else {
                     self.yandexStatus = "Выгружено \(uploaded) из \(snapshot.count)"
                 }

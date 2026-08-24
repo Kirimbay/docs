@@ -13,6 +13,7 @@
 		A10000000000000000000004 /* ScenarioPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* ScenarioPickerView.swift */; };
 		A10000000000000000000005 /* ServerPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* ServerPanelView.swift */; };
 		A10000000000000000000006 /* YandexPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* YandexPanelView.swift */; };
+		A1000000000000000000000C /* YandexLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* YandexLoginView.swift */; };
 		A10000000000000000000007 /* InboxListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* InboxListView.swift */; };
 		A10000000000000000000008 /* PhotoLibraryImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* PhotoLibraryImporter.swift */; };
 		A10000000000000000000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* Assets.xcassets */; };
@@ -27,6 +28,7 @@
 		A20000000000000000000004 /* ScenarioPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioPickerView.swift; sourceTree = "<group>"; };
 		A20000000000000000000005 /* ServerPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerPanelView.swift; sourceTree = "<group>"; };
 		A20000000000000000000006 /* YandexPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YandexPanelView.swift; sourceTree = "<group>"; };
+		A2000000000000000000000D /* YandexLoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YandexLoginView.swift; sourceTree = "<group>"; };
 		A20000000000000000000007 /* InboxListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxListView.swift; sourceTree = "<group>"; };
 		A20000000000000000000008 /* PhotoLibraryImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryImporter.swift; sourceTree = "<group>"; };
 		A20000000000000000000009 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -64,6 +66,7 @@
 				A20000000000000000000004 /* ScenarioPickerView.swift */,
 				A20000000000000000000005 /* ServerPanelView.swift */,
 				A20000000000000000000006 /* YandexPanelView.swift */,
+				A2000000000000000000000D /* YandexLoginView.swift */,
 				A20000000000000000000007 /* InboxListView.swift */,
 				A20000000000000000000008 /* PhotoLibraryImporter.swift */,
 				A20000000000000000000009 /* Assets.xcassets */,
@@ -164,6 +167,7 @@
 				A10000000000000000000004 /* ScenarioPickerView.swift in Sources */,
 				A10000000000000000000005 /* ServerPanelView.swift in Sources */,
 				A10000000000000000000006 /* YandexPanelView.swift in Sources */,
+				A1000000000000000000000C /* YandexLoginView.swift in Sources */,
 				A10000000000000000000007 /* InboxListView.swift in Sources */,
 				A10000000000000000000008 /* PhotoLibraryImporter.swift in Sources */,
 			);
