@@ -24,6 +24,18 @@ public struct InterfaceIPv4: Equatable, Sendable, Identifiable {
     public var isHotspot: Bool {
         name.hasPrefix("bridge") || name.hasPrefix("ap") || ip.hasPrefix("172.20.10.")
     }
+
+    public var isCellular: Bool {
+        name.hasPrefix("pdp_ip")
+    }
+
+    public var isVirtual: Bool {
+        name.hasPrefix("utun") || name.hasPrefix("ipsec") || name.hasPrefix("awdl") || name.hasPrefix("llw")
+    }
+
+    public var isWiFi: Bool {
+        name == "en0" || name.hasPrefix("wlan")
+    }
 }
 
 public enum InterfaceScanner {
@@ -58,23 +70,26 @@ public enum InterfaceScanner {
 }
 
 public enum AddressPicker {
-    /// IP the camera must type into its FTP settings.
+    /// IP the camera must type into its FTP settings — never the camera's own AP address.
     public static func advertisedIP(
         interfaces: [InterfaceIPv4],
         scenario: ConnectionScenario
     ) -> String? {
-        let usable = interfaces.filter { !$0.isLoopback }
+        let usable = interfaces.filter { !$0.isLoopback && !$0.isVirtual && !$0.isCellular }
         switch scenario {
         case .phoneHotspot:
             if let hotspot = usable.first(where: { $0.isHotspot }) {
                 return hotspot.ip
             }
-            return usable.first?.ip
+            return nil
         case .cameraAccessPoint:
-            if let wifi = usable.first(where: { !$0.isHotspot }) {
+            if let wifi = usable.first(where: { $0.isWiFi && !$0.isHotspot }) {
                 return wifi.ip
             }
-            return usable.first?.ip
+            if let lan = usable.first(where: { !$0.isHotspot }) {
+                return lan.ip
+            }
+            return nil
         }
     }
 }

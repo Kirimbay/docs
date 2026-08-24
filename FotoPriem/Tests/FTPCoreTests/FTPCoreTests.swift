@@ -24,6 +24,26 @@ final class AddressPickerTests: XCTestCase {
         )
     }
 
+    func testCameraModeIgnoresCellular() {
+        let interfaces = [
+            InterfaceIPv4(name: "pdp_ip0", ip: "10.59.61.123"),
+            InterfaceIPv4(name: "en0", ip: "192.168.1.10")
+        ]
+        XCTAssertEqual(
+            AddressPicker.advertisedIP(interfaces: interfaces, scenario: .cameraAccessPoint),
+            "192.168.1.10"
+        )
+    }
+
+    func testCameraModeWithoutWiFiShowsNothing() {
+        let interfaces = [
+            InterfaceIPv4(name: "pdp_ip0", ip: "10.59.61.123")
+        ]
+        XCTAssertNil(
+            AddressPicker.advertisedIP(interfaces: interfaces, scenario: .cameraAccessPoint)
+        )
+    }
+
     func testYandexOnlyOnPhoneHotspot() {
         XCTAssertFalse(ConnectionScenario.cameraAccessPoint.yandexUploadAvailable)
         XCTAssertTrue(ConnectionScenario.phoneHotspot.yandexUploadAvailable)

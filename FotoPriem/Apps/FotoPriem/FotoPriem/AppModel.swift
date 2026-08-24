@@ -59,7 +59,10 @@ final class AppModel: ObservableObject {
 
     func refreshNetwork() {
         interfaces = InterfaceScanner.ipv4Interfaces()
-        advertisedIP = AddressPicker.advertisedIP(interfaces: interfaces, scenario: scenario) ?? "нет Wi‑Fi"
+        advertisedIP = AddressPicker.advertisedIP(interfaces: interfaces, scenario: scenario)
+            ?? (scenario == .cameraAccessPoint
+                ? "сначала Wi‑Fi камеры"
+                : "включите режим модема")
     }
 
     func select(_ scenario: ConnectionScenario) {

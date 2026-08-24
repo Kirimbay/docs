@@ -15,6 +15,12 @@ struct ServerPanelView: View {
             infoRow("Пароль", model.credentials.password)
             infoRow("Статус", model.statusMessage)
 
+            Text(model.scenario == .cameraAccessPoint
+                 ? "На экране камеры «Адрес IP» — это адрес самой камеры (ставь 192.168.1.1 и маску 255.255.255.0). IP из приложения сюда не пишется. Он нужен позже, в меню FTP."
+                 : "В FTP камеры укажи IP из этой карточки — обычно 172.20.10.1.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.65))
+
             if let error = model.lastError {
                 Text(error)
                     .font(.caption)
