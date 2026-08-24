@@ -54,6 +54,32 @@ final class AppModel: ObservableObject {
         }
     }
 
+    var ftpAddressReady: Bool {
+        AddressPicker.advertisedIP(interfaces: interfaces, scenario: scenario) != nil
+    }
+
+    var cameraOwnIPHint: String {
+        switch scenario {
+        case .cameraAccessPoint: return "192.168.1.1"
+        case .phoneHotspot: return "выдаст iPhone сам"
+        }
+    }
+
+    var sameNetworkHint: String {
+        switch scenario {
+        case .cameraAccessPoint:
+            if ftpAddressReady {
+                return "IP не должны совпадать. Камера: 192.168.1.1. Телефон: \(advertisedIP). В меню FTP камеры пиши \(advertisedIP) — это телефон."
+            }
+            return "Сначала на iPhone зайди в Wi‑Fi камеры. Потом здесь появится IP телефона вида 192.168.1.x. Его и пиши в FTP камеры. На экране «Адрес IP» у камеры оставь 192.168.1.1."
+        case .phoneHotspot:
+            if ftpAddressReady {
+                return "IP не должны совпадать. Телефон (точка доступа): \(advertisedIP). Этот адрес пиши в FTP камеры."
+            }
+            return "Включи режим модема на iPhone. В FTP камеры потом будет 172.20.10.1 — это телефон, не камера."
+        }
+    }
+
     func refreshNetwork() {
         interfaces = InterfaceScanner.ipv4Interfaces()
         advertisedIP = AddressPicker.advertisedIP(interfaces: interfaces, scenario: scenario)

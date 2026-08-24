@@ -9,17 +9,16 @@ struct ServerPanelView: View {
                 .font(.headline)
                 .foregroundStyle(.white.opacity(0.9))
 
-            infoRow("IP", model.advertisedIP)
+            infoRow("IP телефона", model.advertisedIP)
+            infoRow("IP камеры", model.cameraOwnIPHint)
             infoRow("Порт", String(model.credentials.port))
             infoRow("Логин", model.credentials.username)
             infoRow("Пароль", model.credentials.password)
             infoRow("Статус", model.statusMessage)
 
-            Text(model.scenario == .cameraAccessPoint
-                 ? "На экране камеры «Адрес IP» — это адрес самой камеры (ставь 192.168.1.1 и маску 255.255.255.0). IP из приложения сюда не пишется. Он нужен позже, в меню FTP."
-                 : "В FTP камеры укажи IP из этой карточки — обычно 172.20.10.1.")
+            Text(model.sameNetworkHint)
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(.white.opacity(0.75))
 
             if let error = model.lastError {
                 Text(error)
