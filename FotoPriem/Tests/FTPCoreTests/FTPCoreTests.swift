@@ -102,3 +102,20 @@ final class FTPReceiveTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: files[0].storedURL), payload)
     }
 }
+
+final class StorageLocatorTests: XCTestCase {
+    func testWritableRootIsNotInboxAndAcceptsFiles() throws {
+        let url = try StorageLocator.writableRoot(named: "FotoPriemTestReceived")
+        XCTAssertNotEqual(url.lastPathComponent, "Inbox")
+        let store = try IncomingStore(rootDirectory: url)
+        let file = try store.save(originalPath: "shot.JPG", data: Data("ok".utf8))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.storedURL.path))
+    }
+
+    func testPermissionErrorIsRussian() {
+        let error = NSError(domain: NSCocoaErrorDomain, code: 513)
+        let message = StorageLocator.userFacingMessage(for: error)
+        XCTAssertFalse(message.contains("Inbox"))
+        XCTAssertTrue(message.contains("папку"))
+    }
+}

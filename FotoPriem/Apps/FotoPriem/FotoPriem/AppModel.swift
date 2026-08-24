@@ -26,26 +26,23 @@ final class AppModel: ObservableObject {
     private var store: IncomingStore?
     private var refreshTimer: Timer?
 
-    var inboxDirectory: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Inbox", isDirectory: true)
-    }
-
     var yandexButtonEnabled: Bool {
         scenario.yandexUploadAvailable && !yandexToken.isEmpty && !files.isEmpty && !yandexBusy
     }
 
     var yandexButtonReason: String {
-        if !scenario.yandexUploadAvailable {
-            return "Нет интернета в этом сценарии — файлы остаются в Фото"
+        switch scenario {
+        case .cameraAccessPoint:
+            return "В режиме «Нет связи» интернета нет — файлы остаются в Фото"
+        case .phoneHotspot:
+            if yandexToken.isEmpty {
+                return "Сначала войдите в Яндекс Диск"
+            }
+            if files.isEmpty {
+                return "Пока нечего выгружать"
+            }
+            return "Отправить принятые файлы в Яндекс Диск"
         }
-        if yandexToken.isEmpty {
-            return "Сначала войдите в Яндекс Диск"
-        }
-        if files.isEmpty {
-            return "Пока нечего выгружать"
-        }
-        return "Отправить принятые файлы в Яндекс Диск"
     }
 
     init() {
@@ -82,7 +79,8 @@ final class AppModel: ObservableObject {
         lastError = nil
         refreshNetwork()
         do {
-            let store = try IncomingStore(rootDirectory: inboxDirectory)
+            let root = try StorageLocator.writableRoot()
+            let store = try IncomingStore(rootDirectory: root)
             store.onFile { [weak self] file in
                 Task { @MainActor in
                     self?.files.insert(file, at: 0)
@@ -99,7 +97,7 @@ final class AppModel: ObservableObject {
             statusMessage = "Слушаю FTP на порту \(credentials.port)"
             applyIdleTimer()
         } catch {
-            lastError = error.localizedDescription
+            lastError = StorageLocator.userFacingMessage(for: error)
             statusMessage = "Не удалось запустить сервер"
         }
     }
