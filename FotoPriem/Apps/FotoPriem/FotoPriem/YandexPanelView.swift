@@ -13,28 +13,25 @@ struct YandexPanelView: View {
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.65))
 
-            TextField("Client ID приложения Яндекса", text: $model.yandexClientID)
+            TextField("Почта или логин Яндекса", text: $model.yandexLogin)
                 .textInputAutocapitalization(.never)
+                .keyboardType(.emailAddress)
                 .autocorrectionDisabled()
-                .padding(10)
-                .background(Color.white.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(.white)
-                .onChange(of: model.yandexClientID) { _ in
-                    model.saveClientID()
+                .textFieldStylePlain()
+                .onChange(of: model.yandexLogin) { _ in
+                    model.saveYandexCredentials()
                 }
 
-            HStack {
-                if let url = model.yandexAuthURL() {
-                    Link("Войти в Яндекс", destination: url)
-                        .buttonStyle(.bordered)
-                } else {
-                    Text("Создай приложение на oauth.yandex.ru и вставь Client ID")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.5))
+            SecureField("Пароль", text: $model.yandexPassword)
+                .textContentType(.password)
+                .textFieldStylePlain()
+                .onChange(of: model.yandexPassword) { _ in
+                    model.saveYandexCredentials()
                 }
-                Spacer()
-            }
+
+            Text("Обычный пароль от Яндекса. Если включена двухфакторная защита — пароль приложения: id.yandex.ru → Безопасность.")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.45))
 
             Text(model.yandexStatus)
                 .font(.caption)
@@ -54,5 +51,15 @@ struct YandexPanelView: View {
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(0.05)))
         .opacity(model.scenario.yandexUploadAvailable ? 1 : 0.55)
+    }
+}
+
+private extension View {
+    func textFieldStylePlain() -> some View {
+        self
+            .padding(10)
+            .background(Color.white.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .foregroundStyle(.white)
     }
 }

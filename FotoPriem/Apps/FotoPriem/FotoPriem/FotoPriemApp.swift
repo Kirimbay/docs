@@ -10,9 +10,6 @@ struct FotoPriemApp: App {
             RootView()
                 .environmentObject(model)
                 .preferredColorScheme(.dark)
-                .onOpenURL { url in
-                    model.handleOAuthRedirect(url)
-                }
         }
     }
 }

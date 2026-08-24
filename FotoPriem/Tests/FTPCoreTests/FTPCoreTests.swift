@@ -125,3 +125,20 @@ final class StorageLocatorTests: XCTestCase {
         XCTAssertTrue(message.contains("папку"))
     }
 }
+
+final class YandexDiskClientTests: XCTestCase {
+    func testBasicAuthorizationHeader() {
+        let header = YandexDiskClient.basicAuthorization(login: "user@yandex.ru", password: "secret")
+        XCTAssertTrue(header.hasPrefix("Basic "))
+        let encoded = String(header.dropFirst("Basic ".count))
+        let decoded = String(data: Data(base64Encoded: encoded) ?? Data(), encoding: .utf8)
+        XCTAssertEqual(decoded, "user@yandex.ru:secret")
+    }
+
+    func testUnauthorizedMessageDoesNotMentionOAuth() {
+        let message = YandexDiskClient.userFacingMessage(for: YandexDiskError.http(401))
+        XCTAssertFalse(message.lowercased().contains("oauth"))
+        XCTAssertFalse(message.lowercased().contains("client id"))
+        XCTAssertTrue(message.contains("пароль"))
+    }
+}
