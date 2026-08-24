@@ -1,10 +1,18 @@
 import Foundation
 
 public enum YandexOAuth {
-    /// Yandex's own callback page. In the OAuth console press «Подставить URL для разработки».
+    /// Public OAuth client of FotoPriem itself. End users never type this.
+    /// Fill once from https://oauth.yandex.ru after enabling Disk + default callback URL.
+    public static let clientID = ""
+
+    /// Yandex's built-in callback page («Подставить URL для разработки»).
     public static let redirectURI = "https://oauth.yandex.ru/verification_code"
 
-    public static func authorizeURL(clientID: String) -> URL {
+    public static var isConfigured: Bool {
+        !clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    public static func authorizeURL(clientID: String = YandexOAuth.clientID) -> URL {
         var components = URLComponents(string: "https://oauth.yandex.ru/authorize")!
         components.queryItems = [
             URLQueryItem(name: "response_type", value: "token"),

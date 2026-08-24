@@ -13,22 +13,6 @@ struct YandexPanelView: View {
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.65))
 
-            if !model.hasYandexClientID {
-                Text("Один раз для автора приложения, пользователи это не делают: oauth.yandex.ru → твоё приложение → «Подставить URL для разработки» и права на Яндекс Диск. Сюда вставь ClientID.")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.55))
-                TextField("ClientID приложения на oauth.yandex.ru", text: $model.yandexClientID)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .padding(10)
-                    .background(Color.white.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .foregroundStyle(.white)
-                    .onChange(of: model.yandexClientID) { _ in
-                        model.saveYandexClientID()
-                    }
-            }
-
             Text(model.yandexStatus)
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.6))

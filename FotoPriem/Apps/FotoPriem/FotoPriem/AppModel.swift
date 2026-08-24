@@ -14,7 +14,6 @@ final class AppModel: ObservableObject {
     @Published var files: [IncomingFile] = []
     @Published var advertisedIP: String = "—"
     @Published var interfaces: [InterfaceIPv4] = []
-    @Published var yandexClientID: String = UserDefaults.standard.string(forKey: "yandexClientID") ?? ""
     @Published var yandexToken: String = UserDefaults.standard.string(forKey: "yandexToken") ?? ""
     @Published var yandexBusy = false
     @Published var yandexStatus = "Не подключено"
@@ -28,12 +27,11 @@ final class AppModel: ObservableObject {
     private var refreshTimer: Timer?
 
     var resolvedYandexClientID: String {
-        let trimmed = yandexClientID.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed
+        YandexOAuth.clientID
     }
 
     var hasYandexClientID: Bool {
-        !resolvedYandexClientID.isEmpty
+        YandexOAuth.isConfigured
     }
 
     var isYandexLoggedIn: Bool {
@@ -53,15 +51,15 @@ final class AppModel: ObservableObject {
             return "В режиме «Нет связи» интернета нет — файлы остаются в Фото"
         case .phoneHotspot:
             if !hasYandexClientID {
-                return "Автору приложения нужно один раз вставить ClientID с oauth.yandex.ru. Пользователи только жмут кнопку и входят в Яндекс."
+                return "Вход Яндекса ещё не подключён в этой сборке. Пользователям ничего вводить не нужно — только кнопка входа."
             }
             if files.isEmpty {
-                return "Сначала прими фото, потом выгрузка откроет вход Яндекса"
+                return "Сначала прими фото, потом кнопка откроет вход Яндекса"
             }
             if isYandexLoggedIn {
                 return "Вход есть. Файлы уйдут в папку «Фотоприём» на Диске."
             }
-            return "По кнопке откроется страница входа Яндекса. Пароль приложения не нужен."
+            return "Откроется страница Яндекса. Войди как обычно — пароль приложения не нужен."
         }
     }
 
@@ -178,10 +176,6 @@ final class AppModel: ObservableObject {
         #endif
     }
 
-    func saveYandexClientID() {
-        UserDefaults.standard.set(yandexClientID, forKey: "yandexClientID")
-    }
-
     func logoutYandex() {
         yandexToken = ""
         UserDefaults.standard.removeObject(forKey: "yandexToken")
@@ -198,7 +192,6 @@ final class AppModel: ObservableObject {
 
     func uploadToYandex() {
         guard yandexButtonEnabled else { return }
-        saveYandexClientID()
         if yandexToken.isEmpty {
             yandexBusy = true
             yandexStatus = "Открываю вход Яндекса…"
