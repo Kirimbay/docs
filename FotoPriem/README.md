@@ -10,15 +10,11 @@ iPhone принимает JPEG, RAW и видео с камеры по FTP и к
 
 ## Поставить на свой iPhone с Mac
 
-Нужны Mac, Xcode и iPhone. Платный Apple Developer ($99/год) — чтобы сборка жила около года; без него приложение протухнет через 7 дней.
+**Подробная инструкция для первого раза:** [INSTALL.md](INSTALL.md)
 
-1. Открой `FotoPriem/Apps/FotoPriem/FotoPriem.xcodeproj` в Xcode.
-2. Сверху выбери target **FotoPriem** → Signing & Capabilities → свой Team. Bundle ID сейчас `app.fotopriem.FotoPriem` — при коллизии поменяй.
-3. Подключи iPhone кабелем, на телефоне доверь компьютеру.
-4. В Xcode выбери свой iPhone, нажми Run (▶️).
-5. Первый запуск: Настройки → Основные → VPN и управление устройством → доверь разработчику.
+Коротко: скачай ZIP ветки `cursor/fotopriem-ios-158b` с GitHub, в Finder дважды щёлкни файл `FotoPriem/Apps/FotoPriem/FotoPriem.xcodeproj` (не папку), в Xcode укажи свой Team и нажми ▶️ на подключённый iPhone.
 
-Дальше кабель не нужен, пока не истечёт подпись.
+Платный Apple Developer ($99/год) нужен, чтобы сборка жила около года. Без него приложение с бесплатного Apple ID протухнет через 7 дней.
 
 ## Как снимать
 
