@@ -1,0 +1,51 @@
+# /etc/ipv6-rotate/ipv6-rotate.conf
+# Скопируйте в /etc/ipv6-rotate/ipv6-rotate.conf и заполните.
+
+# subnet — случайный адрес из префикса (обычный случай: хостер выдал /64)
+# pool   — по очереди из файла POOL_FILE (список конкретных адресов)
+MODE=subnet
+
+# Префикс пула. Для смены «спереди» (чтобы Google/Gemini не видели тот же /64)
+# указывайте весь /48, не один routed /64.
+# Пример: 2a13:7c82:104e::/48
+SUBNET=
+
+# Менять не только хвост адреса, а весь /64 внутри SUBNET.
+# 64 = каждая смена берёт другой /64 из /48. 0 = только хвост.
+ROTATE_PREFIXLEN=64
+
+# Файл со списком адресов (по одному на строку), если MODE=pool
+POOL_FILE=/etc/ipv6-rotate/pool.txt
+
+# Сетевой интерфейс. Пусто = взять из default IPv6 route (eth0, ens3, enp1s0 ...)
+INTERFACE=
+
+# IPv6-шлюз. Пусто = взять из default IPv6 route (часто fe80::1)
+GATEWAY=
+
+# Основные адреса, которые НИКОГДА нельзя снимать.
+# Пусто = взять из /etc/ipv6-rotate/protected (заполняется при установке).
+PROTECTED_IPV6=
+
+# Метрика нашего маршрута (меньше = приоритетнее RA/netplan, не удаляем их default)
+ROUTE_METRIC=50
+
+# Протокол маршрута, чтобы отличать «наш» default от системного
+ROUTE_PROTO=162
+
+# Routed /64 с другой сети, чем основной IPv6 VPS: вешаем /128 без DAD
+EXTRA_PREFIX_LEN=128
+ADDR_OPTIONS="nodad noprefixroute"
+
+# Проверка после ротации: ping6 с нового адреса
+PING_CHECK=1
+PING_TARGET=2001:4860:4860::8888
+PING_COUNT=3
+
+# Опционально: исполняемый хук после успешной ротации
+# Аргументы: NEW_IP OLD_IP
+# Пример: /etc/ipv6-rotate/hooks/cloudflare-aaaa.sh
+POST_ROTATE_HOOK=
+
+LOG_FILE=/var/log/ipv6-rotate.log
+STATE_DIR=/var/lib/ipv6-rotate
