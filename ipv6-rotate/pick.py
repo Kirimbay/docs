@@ -19,11 +19,46 @@ def _protected(raw: str):
     return out
 
 
-def pick_subnet(subnet: str, protected_raw: str) -> str:
+def _network_of_addr(addr, prefixlen):
+    return ipaddress.IPv6Network((addr, prefixlen), strict=False)
+
+
+def pick_subnet(subnet, protected_raw, current_raw="", rotate_prefixlen=0):
     net = ipaddress.IPv6Network(subnet, strict=False)
     protected = _protected(protected_raw)
+    current = None
+    if current_raw and current_raw.strip():
+        current = ipaddress.IPv6Address(current_raw.strip())
     if net.prefixlen > 120:
         raise SystemExit("subnet prefix is too small for rotation")
+
+    rotate_prefixlen = int(rotate_prefixlen or 0)
+    if rotate_prefixlen and net.prefixlen >= rotate_prefixlen:
+        rotate_prefixlen = 0
+
+    blocked = set()
+    if rotate_prefixlen:
+        if current is not None:
+            blocked.add(_network_of_addr(current, rotate_prefixlen))
+        for p in protected:
+            blocked.add(_network_of_addr(p, rotate_prefixlen))
+
+    if rotate_prefixlen and net.prefixlen < rotate_prefixlen:
+        n_subnets = 2 ** (rotate_prefixlen - net.prefixlen)
+        host_space = 2 ** (128 - rotate_prefixlen)
+        for _ in range(8000):
+            idx = random.randint(0, n_subnets - 1)
+            base = int(net.network_address) + idx * host_space
+            sub = ipaddress.IPv6Network((base, rotate_prefixlen))
+            if sub in blocked:
+                continue
+            host = random.randint(2, host_space - 2)
+            addr = ipaddress.IPv6Address(base + host)
+            if addr in protected:
+                continue
+            return str(addr)
+        raise SystemExit("failed to pick a new /%s from %s" % (rotate_prefixlen, net))
+
     start = int(net.network_address) + 2
     end = int(net.broadcast_address) - 1
     if end <= start:
@@ -31,6 +66,8 @@ def pick_subnet(subnet: str, protected_raw: str) -> str:
     for _ in range(4000):
         addr = ipaddress.IPv6Address(random.randint(start, end))
         if addr in protected or addr == net.network_address:
+            continue
+        if current is not None and addr == current:
             continue
         return str(addr)
     raise SystemExit("failed to pick a free IPv6 from subnet")
@@ -106,6 +143,8 @@ def main() -> None:
     s = sub.add_parser("subnet")
     s.add_argument("subnet")
     s.add_argument("protected")
+    s.add_argument("current", nargs="?", default="")
+    s.add_argument("--rotate-prefixlen", type=int, default=0)
 
     pool = sub.add_parser("pool")
     pool.add_argument("pool_file")
@@ -124,7 +163,14 @@ def main() -> None:
     elif args.cmd == "network":
         print(network_of(args.addr))
     elif args.cmd == "subnet":
-        print(pick_subnet(args.subnet, args.protected))
+        print(
+            pick_subnet(
+                args.subnet,
+                args.protected,
+                args.current,
+                args.rotate_prefixlen,
+            )
+        )
     elif args.cmd == "pool":
         print(pick_pool(args.pool_file, args.protected, args.current))
     elif args.cmd == "belongs":

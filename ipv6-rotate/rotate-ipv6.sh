@@ -99,6 +99,7 @@ load_conf() {
   GATEWAY="${GATEWAY:-}"
   PROTECTED_IPV6="${PROTECTED_IPV6:-}"
   SUBNET="${SUBNET:-}"
+  ROTATE_PREFIXLEN="${ROTATE_PREFIXLEN:-64}"
   ROUTE_METRIC="${ROUTE_METRIC:-50}"
   ROUTE_PROTO="${ROUTE_PROTO:-162}"
   EXTRA_PREFIX_LEN="${EXTRA_PREFIX_LEN:-128}"
@@ -252,8 +253,8 @@ detect_subnet() {
 }
 
 pick_from_subnet() {
-  local subnet="$1" protected="$2"
-  python3 "$PICK_PY" subnet "$subnet" "$protected"
+  local subnet="$1" protected="$2" current="${3:-}"
+  python3 "$PICK_PY" subnet "$subnet" "$protected" "$current" --rotate-prefixlen "${ROTATE_PREFIXLEN:-0}"
 }
 
 pick_from_pool() {
@@ -354,6 +355,7 @@ print_status() {
   echo "gateway:       $gw"
   echo "mode:          $MODE"
   echo "subnet:        ${SUBNET:-auto}"
+  echo "rotate_prefix: /${ROTATE_PREFIXLEN:-0}"
   echo "rotated_ip:    ${current:-none}"
   echo "previous_ip:   ${prev:-none}"
   echo "protected:"
@@ -610,7 +612,10 @@ main_rotate() {
   case "$MODE" in
     subnet)
       subnet="$(detect_subnet "$iface")"
-      new_ip="$(pick_from_subnet "$subnet" "$protected"$'\n'"${current}")"
+      if [[ "${ROTATE_PREFIXLEN:-0}" -ge 64 && "$subnet" == */64 ]]; then
+        log "WARNING: SUBNET=$subnet is /64; Gemini/Google block the whole /64. Set SUBNET to the /48 (2a13:7c82:104e::/48) so the prefix changes."
+      fi
+      new_ip="$(pick_from_subnet "$subnet" "$protected"$'\n'"${current}" "${current:-}")"
       ;;
     pool)
       [[ -f "$POOL_FILE" ]] || die "pool file not found: $POOL_FILE"

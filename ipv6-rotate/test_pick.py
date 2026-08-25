@@ -51,6 +51,16 @@ class PickTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 pick.belongs("2001:db8::99", "pool", "", str(path))
 
+    def test_rotates_different_slash64_inside_slash48(self):
+        current = "2001:db8:1:1::10"
+        protected = current
+        for _ in range(20):
+            chosen = pick.pick_subnet("2001:db8:1::/48", protected, current, 64)
+            cur_net = ipaddress.IPv6Network((current, 64), strict=False)
+            new_net = ipaddress.IPv6Network((chosen, 64), strict=False)
+            self.assertTrue(ipaddress.IPv6Address(chosen) in ipaddress.IPv6Network("2001:db8:1::/48"))
+            self.assertNotEqual(cur_net, new_net)
+
     def test_pool_empty_after_protect(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "pool.txt"
