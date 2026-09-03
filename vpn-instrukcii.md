@@ -3,9 +3,9 @@
 **750 ₽ — на 3 месяца.** Один ключ = одно устройство.  
 После оплаты пришлите, пожалуйста, **чек**.
 
-Оплатить можно здесь:  
-• https://yoomoney.ru/fundraise/1GLUUPR8NDH.260322  
-• https://yookassa.ru/my/i/aduEXyOH9N4t/l1
+**Оплата:**
+• **1 ключ** — ЮMoney: https://yoomoney.ru/fundraise/1GLUUPR8NDH.260322  
+• **2 и больше ключей** — ЮKassa: https://yookassa.ru/my/i/aduEXyOH9N4t/l1
 
 ---
 
@@ -39,15 +39,8 @@ https://apps.apple.com/tr/app/incy/id6756943388
 ## Android / Huawei / Windows — приложение Happ
 
 ### 1. Скачать
-
-**Android:**  
-https://play.google.com/store/apps/details?id=com.happproxy
-
-**Huawei / Honor:**  
-https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk
-
-**Windows:**  
-https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe
+Откройте официальный сайт и скачайте версию под своё устройство:  
+https://happ.info
 
 ### 2. Добавить ключ
 1. В переписке **долго нажмите** на ключ → **Скопировать**.
@@ -58,10 +51,6 @@ https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x
 1. Если видите **зверей** в списке — всё правильно.
 2. Нажмите на **последнее животное**.
 3. Нажмите большую **круглую кнопку** подключения.
-
-**Только для Windows:**  
-Под кнопкой «Тест пинга» есть мелкие кнопки **PROXY** и **TUN**.  
-Обязательно включите **PROXY**.
 
 ### 4. Правила (чтобы не переключать VPN вручную)
 1. Откройте ссылку: https://routing.help
