@@ -138,4 +138,62 @@ HIDDIFY_DIR="$HTTPS" NOTORRENT_INSTALL_DIR="$(mktemp -d)" \
   bash "$ROOT/scripts/hiddify-block-torrents.sh" apply >/dev/null
 grep -q HIDDIFY_NOTORRENT_BEGIN "$HTTPS/singbox/configs/03_routing.json"
 rm -rf "$BROKEN" "$HTTPS"
+
+# Production Hiddify (15-2): pretty-printed last reject + https:// rule-set URLs.
+# 1.7.7 failed validation here (missing comma / invalid JSONC) and rolled back.
+LIVE="$(mktemp -d)"
+mkdir -p "$LIVE/singbox/configs" "$LIVE/xray/configs"
+cp "$ROOT/scripts/fixtures/singbox_03_routing.live-15-2.json" "$LIVE/singbox/configs/03_routing.json"
+cp "$ROOT/scripts/fixtures/singbox_03_routing.live-15-2.json.j2" "$LIVE/singbox/configs/03_routing.json.j2"
+cp "$ROOT/scripts/fixtures/xray_03_routing.live-15-2.json" "$LIVE/xray/configs/03_routing.json"
+cp "$ROOT/scripts/fixtures/xray_03_routing.live-15-2.json.j2" "$LIVE/xray/configs/03_routing.json.j2"
+cp "$ROOT/scripts/fixtures/xray_06_outbounds.live-15-2.json" "$LIVE/xray/configs/06_outbounds.json"
+cp "$ROOT/scripts/fixtures/xray_06_outbounds.live-15-2.json.j2" "$LIVE/xray/configs/06_outbounds.json.j2"
+cp "$ROOT/scripts/fixtures/xray_00_log.live-15-2.json" "$LIVE/xray/configs/00_log.json"
+cp "$ROOT/scripts/fixtures/xray_00_log.live-15-2.json.j2" "$LIVE/xray/configs/00_log.json.j2"
+HIDDIFY_DIR="$LIVE" NOTORRENT_INSTALL_DIR="$(mktemp -d)" \
+  bash "$ROOT/scripts/hiddify-block-torrents.sh" apply >/tmp/hiddify-notorrent-live-15-2.log
+python3 - "$LIVE/singbox/configs/03_routing.json" "$LIVE/singbox/configs/03_routing.json.j2" \
+         "$LIVE/xray/configs/03_routing.json" <<'PY'
+import json, re, sys
+from pathlib import Path
+
+def strip_jsonc(text):
+    out = []
+    for line in text.splitlines():
+        in_str = False
+        esc = False
+        cut = len(line)
+        for i, ch in enumerate(line):
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+            else:
+                if ch == '"':
+                    in_str = True
+                elif ch == "/" and i + 1 < len(line) and line[i + 1] == "/":
+                    cut = i
+                    break
+        out.append(line[:cut])
+    stripped = "\n".join(out).replace("\t", " ")
+    return re.sub(r",\s*(?=[}\]])", "", stripped)
+
+sg = Path(sys.argv[1]).read_text()
+assert re.search(r',\s*//\s*HIDDIFY_NOTORRENT_BEGIN', sg), sg[sg.find("ip_is_private"):sg.find("ip_is_private")+240]
+assert '"protocol": "bittorrent"' in sg
+assert "https://raw.githubusercontent.com" in sg
+json.loads(strip_jsonc(sg))
+j2 = Path(sys.argv[2]).read_text()
+assert "HIDDIFY_NOTORRENT_BEGIN" in j2
+assert "Block BitTorrent protocol" not in j2
+xr = Path(sys.argv[3]).read_text()
+assert '"outboundTag": "blocked_torrent"' in xr
+assert re.search(r'"port":\s*"0-65535"[\s\S]{0,80}"outboundTag":\s*"blocked_torrent"', xr)
+print("15-2 live fixture ok")
+PY
+rm -rf "$LIVE"
 echo "patch tests ok"

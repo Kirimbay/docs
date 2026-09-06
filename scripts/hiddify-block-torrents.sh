@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.7+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.8+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -24,7 +24,7 @@ set -euo pipefail
 # sshd/sudo often have no /usr/sbin — doctor then lies that the kernel is empty.
 export PATH="/usr/sbin:/sbin:/usr/local/sbin:/usr/bin:/bin:${PATH:-}"
 
-VERSION="1.7.7"
+VERSION="1.7.8"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -390,12 +390,48 @@ def _ensure_comma_before_marker(text):
     m = re.search(rf'(\}})(\s*)(//\s*{re.escape(MARKER_BEGIN)})', text)
     if not m:
         return text, False
-    before = text[:m.start(1)+1]
     # already ",\n // BEGIN" or "}\n,"
     window = text[max(0, m.start()-3):m.start(3)]
     if re.search(r',\s*$', window):
         return text, False
     return text[:m.start(1)+1] + "," + text[m.start(2):], True
+
+
+def _insert_singbox_block(text, block):
+    """Insert our rules after the last existing rule, with a comma.
+
+    Live Hiddify JSON pretty-prints the last reject across several lines:
+      {\\n  "action": "reject",\\n  "ip_is_private": true\\n}
+    The old [ \\t]* patterns only matched compact one-liners, then the
+    fallback stuffed the block before ] without a comma — invalid JSONC
+    (15-2 / 1.7.7 validation failure).
+    """
+    patterns = (
+        r'\{\s*"action"\s*:\s*"reject"\s*,\s*"ip_is_private"\s*:\s*true\s*\}',
+        r'\{\s*"ip_is_private"\s*:\s*true\s*,\s*"action"\s*:\s*"reject"\s*\}',
+        r'\{[^{}]*"ip_is_private"[^{}]*\}',
+    )
+    anchor = None
+    for pat in patterns:
+        found = list(re.finditer(pat, text))
+        if found:
+            anchor = found[-1]
+            break
+    if anchor:
+        insert_at = anchor.end()
+        rest = text[insert_at:insert_at + 16].lstrip()
+        comma = "" if rest.startswith(",") else ","
+        return text[:insert_at] + comma + "\n" + block + text[insert_at:]
+    close = _end_of_rules_array(text)
+    if close is None:
+        raise SystemExit("sing-box routing: cannot find rules array or ip_is_private reject")
+    i = close - 1
+    while i >= 0 and text[i] in " \t\r\n":
+        i -= 1
+    if i >= 0 and text[i] == "}":
+        text = text[: i + 1] + "," + text[i + 1 :]
+        close += 1
+    return text[:close] + "\n" + block + text[close:]
 
 
 def insert_singbox(text, block=None):
@@ -411,24 +447,9 @@ def insert_singbox(text, block=None):
         text,
         count=1,
     )
-    patterns = (
-        r'\{[ \t\n]*"action":[ \t]*"reject",[ \t]*"ip_is_private":[ \t]*true[ \t\n]*\}',
-        r'\{[ \t\n]*"ip_is_private":[ \t]*true,[ \t]*"action":[ \t]*"reject"[ \t\n]*\}',
-        r'\{[^{}\n]*"ip_is_private"[^{}\n]*\}',
-    )
-    anchor = None
-    for pat in patterns:
-        anchor = re.search(pat, text)
-        if anchor:
-            break
-    if anchor:
-        insert_at = anchor.end()
-        comma = "" if text[insert_at:insert_at + 8].lstrip().startswith(",") else ","
-        return text[:insert_at] + comma + "\n" + block + text[insert_at:], True, "inserted"
-    close = _end_of_rules_array(text)
-    if close is None:
-        raise SystemExit("sing-box routing: cannot find rules array or ip_is_private reject")
-    return text[:close] + "\n" + block + text[close:], True, "inserted"
+    new = _insert_singbox_block(text, block)
+    new, _ = _ensure_comma_before_marker(new)
+    return new, True, "inserted"
 
 def patch_file(path, kind):
     p = Path(path)
