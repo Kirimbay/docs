@@ -109,8 +109,33 @@ import json, re, sys
 from pathlib import Path
 t = Path(sys.argv[1]).read_text()
 assert re.search(r',\s*//\s*HIDDIFY_NOTORRENT_BEGIN', t), t[t.find("ip_is_private")-20:t.find("ip_is_private")+200]
-json.loads(re.sub(r"//.*?$", "", t, flags=re.M))
 print("comma repair ok")
 PY
-rm -rf "$BROKEN"
+
+# Hiddify live JSON has https:// rule-set URLs. Naive // strip must not fail apply.
+HTTPS="$(mktemp -d)"
+mkdir -p "$HTTPS/singbox/configs" "$HTTPS/xray/configs"
+cat > "$HTTPS/singbox/configs/03_routing.json" <<'JSON'
+{
+  "route": {
+    "rule_set": [
+      {
+        "tag": "geoip-ru",
+        "url": "https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geoip-ru.srs"
+      }
+    ],
+    "final": "freedom",
+    "rules": [
+      {"ip_is_private": true, "action": "reject"}
+    ]
+  }
+}
+JSON
+cp "$TEST/xray/configs/03_routing.json.j2" "$HTTPS/xray/configs/03_routing.json.j2"
+cp "$TEST/xray/configs/06_outbounds.json.j2" "$HTTPS/xray/configs/06_outbounds.json.j2"
+cp "$TEST/xray/configs/00_log.json.j2" "$HTTPS/xray/configs/00_log.json.j2"
+HIDDIFY_DIR="$HTTPS" NOTORRENT_INSTALL_DIR="$(mktemp -d)" \
+  bash "$ROOT/scripts/hiddify-block-torrents.sh" apply >/dev/null
+grep -q HIDDIFY_NOTORRENT_BEGIN "$HTTPS/singbox/configs/03_routing.json"
+rm -rf "$BROKEN" "$HTTPS"
 echo "patch tests ok"

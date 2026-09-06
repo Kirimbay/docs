@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.6+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.7+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -24,7 +24,7 @@ set -euo pipefail
 # sshd/sudo often have no /usr/sbin — doctor then lies that the kernel is empty.
 export PATH="/usr/sbin:/sbin:/usr/local/sbin:/usr/bin:/bin:${PATH:-}"
 
-VERSION="1.7.6"
+VERSION="1.7.7"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -651,13 +651,36 @@ if sg_j2 is not None:
     if '"action": "reject"' not in sg_j2:
         errors.append("singbox routing: final reject missing")
 
+def strip_jsonc(text):
+    """Strip // comments without eating https:// inside strings."""
+    out = []
+    for line in text.splitlines():
+        in_str = False
+        esc = False
+        cut = len(line)
+        for i, ch in enumerate(line):
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+            else:
+                if ch == '"':
+                    in_str = True
+                elif ch == "/" and i + 1 < len(line) and line[i + 1] == "/":
+                    cut = i
+                    break
+        out.append(line[:cut])
+    stripped = "\n".join(out).replace("\t", " ")
+    return re.sub(r",\s*(?=[}\]])", "", stripped)
+
 if sg_js is not None and "HIDDIFY_NOTORRENT_BEGIN" in sg_js and "{%" not in sg_js:
     if re.search(r'\}\s*\n\s*//\s*HIDDIFY_NOTORRENT_BEGIN', sg_js) and not re.search(r',\s*\n\s*//\s*HIDDIFY_NOTORRENT_BEGIN', sg_js):
         errors.append("singbox routing.json: missing comma before torrent block (hiddify-core will not start)")
     try:
-        stripped = re.sub(r"//.*?$", "", sg_js, flags=re.M)
-        stripped = re.sub(r",\s*(?=[}\]])", "", stripped)
-        json.loads(stripped)
+        json.loads(strip_jsonc(sg_js))
     except Exception as e:
         errors.append(f"singbox routing.json: invalid JSONC ({e})")
 
