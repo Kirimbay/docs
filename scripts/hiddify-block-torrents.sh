@@ -6,7 +6,7 @@
 #   curl -fsSL -H 'Cache-Control: no-cache' \
 #     "https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-block-torrents-0aec/scripts/hiddify-block-torrents.sh?$(date +%s)" \
 #     -o /tmp/hiddify-block-torrents.sh
-#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.8+
+#   grep -m1 '^VERSION=' /tmp/hiddify-block-torrents.sh   # must be 1.7.9+
 #   sudo bash /tmp/hiddify-block-torrents.sh
 #
 # Later:
@@ -24,7 +24,7 @@ set -euo pipefail
 # sshd/sudo often have no /usr/sbin — doctor then lies that the kernel is empty.
 export PATH="/usr/sbin:/sbin:/usr/local/sbin:/usr/bin:/bin:${PATH:-}"
 
-VERSION="1.7.8"
+VERSION="1.7.9"
 # 80/443 are NOT in the blanket allowlist: peers often listen there.
 # Handshake SYN is allowed; first payload must be TLS (443) or HTTP (80).
 WEB_TCP_PORTS="853,2052,2053,2082,2083,2086,2087,2095,2096,8080,8443,8880,5222,5228,465,587,993,995,3478"
@@ -1972,11 +1972,15 @@ PY
   fi
   local vpn_safe=1
   if command -v nft >/dev/null 2>&1 && nft list table inet hiddify_notorrent >/dev/null 2>&1; then
-    if nft list table inet hiddify_notorrent | grep -qE '^\s+counter drop$'; then
+    # Capture first: `grep -q` closes the pipe early, nft gets SIGPIPE, and
+    # `set -o pipefail` then looks like a missing ipv6-icmp rule (15-2).
+    local nft_dump
+    nft_dump="$(nft list table inet hiddify_notorrent 2>/dev/null || true)"
+    if printf '%s\n' "${nft_dump}" | grep -qE '^\s+counter drop$'; then
       echo "vpn-safe:    НЕТ — leftover drop (1.6.2). Срочно uninstall, затем ${VERSION}"
       vpn_safe=0
     fi
-    if ! nft list table inet hiddify_notorrent | grep -q 'ipv6-icmp'; then
+    if ! printf '%s\n' "${nft_dump}" | grep -qE 'ipv6-icmp|icmpv6'; then
       echo "vpn-safe:    НЕТ ipv6-icmp (NDP). Клиент с AAAA не достучится."
       vpn_safe=0
     fi
