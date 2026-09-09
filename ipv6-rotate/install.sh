@@ -90,6 +90,7 @@ fi
 
 systemctl daemon-reload
 systemctl enable --now ipv6-rotate-restore.service
+systemctl enable --now ipv6-rotate-restore.timer
 systemctl enable --now ipv6-rotate.timer
 
 echo

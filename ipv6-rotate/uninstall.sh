@@ -7,10 +7,12 @@ if [[ -x /usr/local/sbin/rotate-ipv6.sh ]]; then
 fi
 
 systemctl disable --now ipv6-rotate.timer 2>/dev/null || true
+systemctl disable --now ipv6-rotate-restore.timer 2>/dev/null || true
 systemctl disable --now ipv6-rotate-restore.service 2>/dev/null || true
 rm -f /etc/systemd/system/ipv6-rotate.service \
       /etc/systemd/system/ipv6-rotate.timer \
       /etc/systemd/system/ipv6-rotate-restore.service \
+      /etc/systemd/system/ipv6-rotate-restore.timer \
       /etc/logrotate.d/ipv6-rotate
 systemctl daemon-reload
 rm -f /usr/local/sbin/rotate-ipv6.sh
