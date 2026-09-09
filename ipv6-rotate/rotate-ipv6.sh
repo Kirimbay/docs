@@ -519,6 +519,20 @@ apply_ip() {
   fi
 }
 
+wait_ipv6_ready() {
+  local i
+  for i in $(seq 1 24); do
+    if ip -6 route show default 2>/dev/null | grep -q . \
+      && ping -6 -c 1 -W 2 "${PING_TARGET:-2001:4860:4860::8888}" >/dev/null 2>&1; then
+      log "IPv6 is ready (wait ${i})"
+      return 0
+    fi
+    log "waiting for IPv6 default route (${i}/24)"
+    sleep 5
+  done
+  log "WARNING: IPv6 still not ready; trying restore anyway"
+}
+
 main_restore() {
   [[ "$DRY_RUN" -eq 1 ]] || require_root
   load_conf
@@ -527,6 +541,7 @@ main_restore() {
     log "extra IPv6 is OFF; skip restore"
     exit 0
   fi
+  wait_ipv6_ready
   local iface gw current protected plen
   iface="$(detect_iface)"
   gw="$(detect_gateway)"

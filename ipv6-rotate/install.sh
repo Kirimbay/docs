@@ -15,6 +15,7 @@ install -m 0755 "$ROOT/hooks/cloudflare-aaaa.sh" "$CONF_DIR/hooks/cloudflare-aaa
 install -m 0644 "$ROOT/ipv6-rotate.service" /etc/systemd/system/ipv6-rotate.service
 install -m 0644 "$ROOT/ipv6-rotate.timer" /etc/systemd/system/ipv6-rotate.timer
 install -m 0644 "$ROOT/ipv6-rotate-restore.service" /etc/systemd/system/ipv6-rotate-restore.service
+install -m 0644 "$ROOT/ipv6-rotate-restore.timer" /etc/systemd/system/ipv6-rotate-restore.timer
 install -m 0644 "$ROOT/ipv6-rotate.logrotate" /etc/logrotate.d/ipv6-rotate
 
 if [[ ! -f "$CONF_DIR/pool.txt" ]]; then
