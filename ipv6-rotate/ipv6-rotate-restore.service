@@ -2,11 +2,16 @@
 Description=Restore rotated IPv6 after boot (does not change Hiddify)
 Wants=network-online.target
 After=network-online.target
+StartLimitIntervalSec=180
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
+ExecStartPre=/bin/sleep 20
 ExecStart=/usr/local/sbin/rotate-ipv6.sh --restore
 RemainAfterExit=yes
+Restart=on-failure
+RestartSec=20
 
 [Install]
 WantedBy=multi-user.target

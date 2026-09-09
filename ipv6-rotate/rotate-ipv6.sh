@@ -469,7 +469,25 @@ apply_ip() {
   add_src_route "$iface" "$gw" "$new_ip"
 
   if [[ "$PING_CHECK" == "1" ]]; then
-    if ! ping_from "$new_ip"; then
+    local tries=1 i ping_ok=0
+    if [[ "$reason" == "restore" ]]; then
+      tries=8
+    fi
+    for i in $(seq 1 "$tries"); do
+      if ping_from "$new_ip"; then
+        ping_ok=1
+        break
+      fi
+      log "ping6 via $new_ip attempt $i/$tries failed"
+      [[ "$i" -lt "$tries" ]] && sleep 5
+    done
+    if [[ "$ping_ok" -ne 1 ]]; then
+      if [[ "$reason" == "restore" ]]; then
+        log "WARNING: restore ping failed; keeping $new_ip anyway so extra IPv6 survives reboot"
+        echo "$new_ip" >"${STATE_DIR}/current"
+        append_history "$reason" "${old_ip:-none}" "$new_ip" "kept-no-ping"
+        return 0
+      fi
       log "ping6 via $new_ip failed, rolling back"
       append_history "$reason" "${old_ip:-none}" "$new_ip" "fail-ping"
       if [[ -n "$old_ip" ]] && ! is_protected "$old_ip" "$protected"; then
