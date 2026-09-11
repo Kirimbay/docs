@@ -61,3 +61,24 @@ def test_parse_receipt_text_core_fields():
     assert "1800" in fields.sum_rub
     assert "Комитет" in fields.name
     assert "СПР" in fields.purpose
+
+
+def test_cbc_ocr_zero_as_eight():
+    """OCR часто путает 0 с 8 в КБК из одних нулей + 130."""
+    noisy = SAMPLE_TEXT.replace(
+        "КБК 00000000000000000130",
+        "КБК 00000008000000000130",
+    )
+    assert parse_receipt_text(noisy).cbc == "00000000000000000130"
+
+    truncated = SAMPLE_TEXT.replace(
+        "КБК 00000000000000000130",
+        "KBK-0000000000000000013).",
+    )
+    assert parse_receipt_text(truncated).cbc == "00000000000000000130"
+
+    last_zero_as_eight = SAMPLE_TEXT.replace(
+        "КБК 00000000000000000130",
+        "КБК 00000000000000000138",
+    )
+    assert parse_receipt_text(last_zero_as_eight).cbc == "00000000000000000130"

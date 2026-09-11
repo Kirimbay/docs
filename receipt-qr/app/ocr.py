@@ -45,6 +45,57 @@ def _digits(s: str) -> str:
     return re.sub(r"\D", "", s or "")
 
 
+# Типичный КБК «прочие доходы» на бланках школ/кружков
+CBC_INCOME_130 = "00000000000000000130"
+
+
+def _normalize_cbc_candidate(raw: str) -> str:
+    """Починить OCR: 0↔8 в «нулевом» КБК …00130."""
+    # Только латиница O/o — кириллическую «О» из «ОКТМО» не захватываем
+    cleaned = re.sub(r"[^\dOo]", "", raw or "")
+    cleaned = cleaned.replace("O", "0").replace("o", "0")
+    digits = _digits(cleaned)
+    if not digits:
+        return ""
+
+    # OCR иногда прихватывает лишний символ → >20 цифр; пробуем префиксы
+    candidates = [digits]
+    if len(digits) > 20:
+        candidates = [digits[:20], digits[:19], digits[:18], digits]
+
+    for cand in candidates:
+        if cand == CBC_INCOME_130 or re.fullmatch(r"0{15,17}130", cand):
+            return CBC_INCOME_130
+        if len(cand) >= 16 and cand.endswith(("130", "138", "13")):
+            head = cand[:-3] if cand.endswith(("130", "138")) else cand[:-2]
+            if head and set(head.replace("8", "0")) <= {"0"}:
+                return CBC_INCOME_130
+        if len(cand) == 20 and cand.endswith(("130", "138")):
+            if set(cand[:-3].replace("8", "0")) <= {"0"}:
+                return CBC_INCOME_130
+
+    if len(digits) >= 20:
+        return digits[:20]
+    return digits if len(digits) >= 16 else ""
+
+
+def _extract_cbc(text: str, fuzzy: str) -> str:
+    """Достать КБК; терпим OCR-мусор и путаницу 0/8."""
+    for src in (text, fuzzy):
+        # Без кириллицы — иначе «О» из ОКТМО станет лишним нулём
+        m = re.search(r"КБК[:\s\-]*([0-9Oo]{16,24})", src, re.I)
+        if m:
+            got = _normalize_cbc_candidate(m.group(1))
+            if got:
+                return got
+    m = re.search(r"КБК[^\d]{0,8}([0-9Oo8]{12,22})", fuzzy, re.I)
+    if m:
+        got = _normalize_cbc_candidate(m.group(1))
+        if got:
+            return got
+    return ""
+
+
 def parse_receipt_text(text: str) -> PaymentFields:
     compact = re.sub(r"[ \t]+", " ", text)
     one_line = compact.replace("\n", " ")
@@ -116,11 +167,7 @@ def parse_receipt_text(text: str) -> PaymentFields:
         if eks:
             corresp_acc = eks[0]
 
-    cbc = _find(r"КБК[:\s]*(\d{20})", text) or _find(r"КБК[:\s\-]*(\d{20})", fuzzy) or ""
-    if not cbc:
-        m = re.search(r"КБК[^\d]{0,8}0{10,}(\d{3})", fuzzy)
-        if m and m.group(1) == "130":
-            cbc = "00000000000000000130"
+    cbc = _extract_cbc(text, fuzzy)
     oktmo = (
         _find(r"ОКТМО[:\s]*(\d{8})", text)
         or _find(r"ОКТМО[:\s\-]*(\d{8})", fuzzy)
