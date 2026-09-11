@@ -99,8 +99,14 @@ TTL_OK = 600
 TTL_FAIL = 30
 
 URLS = {
-    "happ": "https://raw.githubusercontent.com/hydraponique/roscomvpn-routing/main/HAPP/DEFAULT.DEEPLINK",
-    "incy": "https://raw.githubusercontent.com/hydraponique/roscomvpn-routing/main/INCY/DEFAULT.DEEPLINK",
+    "happ": [
+        "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-routing@main/HAPP/DEFAULT.DEEPLINK",
+        "https://raw.githubusercontent.com/hydraponique/roscomvpn-routing/main/HAPP/DEFAULT.DEEPLINK",
+    ],
+    "incy": [
+        "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-routing@main/INCY/DEFAULT.DEEPLINK",
+        "https://raw.githubusercontent.com/hydraponique/roscomvpn-routing/main/INCY/DEFAULT.DEEPLINK",
+    ],
 }
 
 _lock = threading.Lock()
@@ -132,7 +138,6 @@ def _http_get(url: str) -> str:
 
 
 def get_deeplink(kind: str) -> str:
-    spec = URLS[kind]
     st = _state[kind]
     now = time.monotonic()
     if st["value"] and (now - st["fetched_at"]) < TTL_OK:
@@ -143,20 +148,24 @@ def get_deeplink(kind: str) -> str:
         now = time.monotonic()
         if st["value"] and (now - st["fetched_at"]) < TTL_OK:
             return _optional(st["value"])
-        try:
-            value = _http_get(spec).strip()
-            if not value or "://" not in value:
-                raise ValueError("empty or invalid deeplink")
-            st["value"] = value
-            st["fetched_at"] = now
-            st["last_fail"] = 0.0
-            _write_disk(kind, value)
-            return _optional(value)
-        except Exception:
-            st["last_fail"] = now
-            cached = st["value"] or _read_disk(kind)
-            st["value"] = cached
-            return _optional(cached)
+        last_err = None
+        for spec in URLS[kind]:
+            try:
+                value = _http_get(spec).strip()
+                if not value or "://" not in value:
+                    raise ValueError("empty or invalid deeplink")
+                st["value"] = value
+                st["fetched_at"] = now
+                st["last_fail"] = 0.0
+                _write_disk(kind, value)
+                return _optional(value)
+            except Exception as exc:
+                last_err = exc
+                continue
+        st["last_fail"] = now
+        cached = st["value"] or _read_disk(kind)
+        st["value"] = cached
+        return _optional(cached)
 
 
 def _optional(deeplink: str) -> str:
@@ -187,20 +196,32 @@ PY
 cat > /opt/hiddify-custom/apply-subscription-patches.py << 'PY'
 #!/usr/bin/env python3
 from pathlib import Path
+import os
 import shutil
 import sys
+
+STRICT = os.environ.get("ROSCOMVPN_STRICT", "0") == "1"
+
+
+def die(msg: str) -> None:
+    print("ERROR:", msg, file=sys.stderr)
+    sys.exit(1 if STRICT else 0)
+
 
 def find_site() -> Path:
     root = Path("/opt/hiddify-manager")
     cands = [p for p in root.glob(".venv*/lib/python*/site-packages")
              if (p / "hiddifypanel/panel/user/user.py").is_file()]
     if not cands:
-        print("ERROR: hiddifypanel not found", file=sys.stderr)
-        sys.exit(1)
+        die("hiddifypanel not found")
+        raise SystemExit(0)
     return sorted(cands, key=lambda p: p.stat().st_mtime)[-1]
 
 SITE = find_site()
 SRC = Path("/opt/hiddify-custom/hiddify_roscomvpn.py")
+if not SRC.is_file():
+    die("missing /opt/hiddify-custom/hiddify_roscomvpn.py")
+    raise SystemExit(0)
 shutil.copy2(SRC, SITE / "hiddify_roscomvpn.py")
 
 USER_PY = SITE / "hiddifypanel/panel/user/user.py"
@@ -234,8 +255,8 @@ if "hiddify_roscomvpn import attach_routing_headers" not in user:
         if cf in user and "hiddify_roscomvpn" not in user:
             user = user.replace(cf, new_test, 1)
         elif "hiddify_roscomvpn" not in user:
-            print("ERROR: test-url line not found in user.py", file=sys.stderr)
-            sys.exit(1)
+            die("test-url line not found in user.py; Hiddify panel code changed, skip patch")
+            raise SystemExit(0)
 
 USER_PY.write_text(user, encoding="utf-8")
 
@@ -253,7 +274,7 @@ chmod 755 /opt/hiddify-custom/apply-subscription-patches.py
 cp -f "$(readlink -f "$0" 2>/dev/null || echo "$0")" /opt/hiddify-custom/install-hiddify-roscomvpn.sh 2>/dev/null || true
 chmod 755 /opt/hiddify-custom/install-hiddify-roscomvpn.sh 2>/dev/null || true
 
-python3 /opt/hiddify-custom/apply-subscription-patches.py
+ROSCOMVPN_STRICT=1 python3 /opt/hiddify-custom/apply-subscription-patches.py
 
 # Prefetch deeplinks (optional; panel will fetch on first request anyway)
 python3 - << 'PY' || true
@@ -273,7 +294,8 @@ fi
 mkdir -p /etc/systemd/system/hiddify-panel.service.d
 cat > /etc/systemd/system/hiddify-panel.service.d/roscomvpn.conf << 'EOF'
 [Service]
-ExecStartPre=+/usr/bin/python3 /opt/hiddify-custom/apply-subscription-patches.py
+# Must not fail: a Hiddify update that changes user.py should still start the panel.
+ExecStartPre=+/bin/bash -c '/usr/bin/python3 /opt/hiddify-custom/apply-subscription-patches.py || true'
 EOF
 
 systemctl daemon-reload
