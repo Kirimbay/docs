@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import io
+import logging
 import re
 from typing import Optional
 
+import numpy as np
 import pytesseract
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageEnhance, ImageOps
 
 from .qr_builder import PaymentFields
+
+logger = logging.getLogger(__name__)
 
 KNOWN_BANKS = {
     "004525987": "ГУ Банка России по ЦФО//УФК по Московской области, г. Москва",
@@ -29,35 +33,51 @@ KNOWN_ORG = {
     },
 }
 
-# Быстрый режим: на 1 vCPU полный кадр 2400px + rus+eng ≈ 20–24с;
-# клиентский JPEG 1600px + crop верха + rus/OEM1 @950px ≈ 2.5–3с.
-OCR_MAX_SIDE = 950
-OCR_TOP_FRACTION = 0.88
-OCR_LANG = "rus"
-OCR_CONFIG = "--oem 1 --psm 6"
+# Качественный режим: RapidOCR (PP-OCRv5 eslav) ~1с на 1 vCPU,
+# Tesseract rus+eng — запасной движок.
+OCR_MAX_SIDE = 2000
+OCR_ENGINE = "rapid"  # rapid | tesseract
+_TESS_LANG = "rus+eng"
+_TESS_CONFIG = "--oem 1 --psm 6"
+
+_rapid_engine = None
+
+
+def _get_rapid():
+    """Ленивая загрузка RapidOCR с восточнославянской моделью."""
+    global _rapid_engine
+    if _rapid_engine is not None:
+        return _rapid_engine
+    from rapidocr import LangRec, ModelType, OCRVersion, RapidOCR
+
+    _rapid_engine = RapidOCR(
+        params={
+            "Rec.lang_type": LangRec.ESLAV,
+            "Rec.ocr_version": OCRVersion.PPOCRV5,
+            "Rec.model_type": ModelType.MOBILE,
+            "Global.max_side_len": OCR_MAX_SIDE,
+        }
+    )
+    return _rapid_engine
 
 
 def _prep_image(img: Image.Image) -> Image.Image:
+    """Подготовка без агрессивного даунскейла — качество важнее."""
     img = ImageOps.exif_transpose(img)
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
+    elif img.mode == "L":
+        img = img.convert("RGB")
 
     w, h = img.size
-    # Низ бланка — рукопись/пустые строки: режем, чтобы Tesseract не тратил время
-    top_h = max(1, int(h * OCR_TOP_FRACTION))
-    if top_h < h:
-        img = img.crop((0, 0, w, top_h))
-        w, h = img.size
-
     scale = min(1.0, OCR_MAX_SIDE / max(w, h))
     if scale < 1.0:
-        # BILINEAR заметно быстрее LANCZOS на больших фото с телефона
-        img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.BILINEAR)
+        img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
 
-    gray = ImageOps.grayscale(img)
-    gray = ImageOps.autocontrast(gray)
-    gray = ImageEnhance.Contrast(gray).enhance(1.4)
-    return gray.filter(ImageFilter.SHARPEN)
+    # Лёгкий контраст помогает и RapidOCR, и Tesseract
+    img = ImageOps.autocontrast(img)
+    img = ImageEnhance.Contrast(img).enhance(1.15)
+    return img
 
 
 def prepare_image(image_bytes: bytes) -> Image.Image:
@@ -65,11 +85,34 @@ def prepare_image(image_bytes: bytes) -> Image.Image:
     return _prep_image(img)
 
 
-def ocr_image(prepared: Image.Image) -> str:
+def _ocr_rapid(prepared: Image.Image) -> str:
+    engine = _get_rapid()
+    arr = np.asarray(prepared.convert("RGB"))
+    result = engine(arr)
+    lines = list(result.txts or []) if result is not None else []
+    return "\n".join(lines).replace("\u00a0", " ")
+
+
+def _ocr_tesseract(prepared: Image.Image) -> str:
+    gray = ImageOps.grayscale(prepared)
+    gray = ImageOps.autocontrast(gray)
+    gray = ImageEnhance.Contrast(gray).enhance(1.35)
     text = pytesseract.image_to_string(
-        prepared, lang=OCR_LANG, config=OCR_CONFIG
+        gray, lang=_TESS_LANG, config=_TESS_CONFIG
     )
     return text.replace("\u00a0", " ")
+
+
+def ocr_image(prepared: Image.Image) -> str:
+    if OCR_ENGINE == "rapid":
+        try:
+            text = _ocr_rapid(prepared)
+            if text and len(text.strip()) >= 20:
+                return text
+            logger.warning("RapidOCR вернул мало текста, fallback на Tesseract")
+        except Exception:
+            logger.exception("RapidOCR failed, fallback на Tesseract")
+    return _ocr_tesseract(prepared)
 
 
 def extract_text(image_bytes: bytes) -> str:
@@ -218,6 +261,8 @@ def parse_receipt_text(text: str) -> PaymentFields:
         .replace("EKC", "ЕКС")
         .replace("EKG", "ЕКС")
         .replace("BIK", "БИК")
+        .replace("BHK", "БИК")
+        .replace("BИК", "БИК")
         .replace("OKTMO", "ОКТМО")
         .replace("OKTIMO", "ОКТМО")
         .replace("ОКТИМО", "ОКТМО")
@@ -225,6 +270,12 @@ def parse_receipt_text(text: str) -> PaymentFields:
         .replace("KBE", "КБК")
         .replace("ЕБК", "КБК")
         .replace("КВК", "КБК")
+        .replace("KПП", "КПП")
+        .replace("Л/с", "л/с")
+        .replace("Л/С", "л/с")
+        .replace("Л/c", "л/с")
+        .replace("Л/C", "л/с")
+        .replace("л/c", "л/с")
     )
 
     payee_inn, kpp = _extract_inn_kpp(text, fuzzy)

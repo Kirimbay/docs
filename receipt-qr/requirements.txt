@@ -5,3 +5,7 @@ qrcode[pil]>=7.4.2
 Pillow>=10.0.0
 pytesseract>=0.3.10
 jinja2>=3.1.0
+numpy>=1.26.0
+rapidocr>=3.9.0
+onnxruntime>=1.17.0
+opencv-python-headless>=4.8.0
