@@ -379,15 +379,7 @@ def parse_receipt_text(text: str) -> PaymentFields:
         or ""
     )
 
-    sum_rub = ""
-    for pat in (
-        r"Сумма\s*платежа[^\d]{0,20}(\d[\d\s]*([.,]\d{1,2})?)\s*(?:р|руб)?",
-        r"(?<!\d)(\d{2,6})\s*(?:р\.|руб\.?|₽)",
-    ):
-        m = re.search(pat, text, re.I)
-        if m:
-            sum_rub = re.sub(r"\s+", "", m.group(1)).replace(",", ".")
-            break
+    sum_rub = _extract_sum_rub(text)
 
     bank_name = ""
     for pat in (
@@ -457,24 +449,37 @@ def _looks_like_handwriting_garbage(s: str) -> bool:
     return False
 
 
+_DOC_CHROME = re.compile(
+    r"идентификатор|извещение|квитанци|форма\s*№?\s*пд|пд[-\s]?4|"
+    r"кассир|плательщик|получател|наимен.?ван|банковск|реквизит|"
+    r"казначейск|комитет\s+по\s+финанс",
+    re.I,
+)
+
 _FORM_LABEL_ONLY = re.compile(
-    r"^(дата|сумма(?:\s*платежа)?|плательщик|кассир|ф\.?\s*и\.?\s*о\.?|"
-    r"наименование платежа|назначение платежа|адрес)[\s.:]*$",
+    r"^(дат[аые]?|сумм[аеяи]*(?:\s*платеж[аеяи]*)?|плательщик|кассир|"
+    r"ф\.?\s*и\.?\s*о\.?|наименование платежа|назначение платежа|адрес)"
+    r"[\s.:]*$",
     re.I,
 )
 
 
 def _is_form_label_junk(s: str) -> bool:
-    """Подписи бланка («Дата», «Сумма платежа»), не назначение."""
+    """Подписи бланка («Дата», «Суммя платежя»), не назначение."""
     t = re.sub(r"\s+", " ", (s or "")).strip(" .:;|")
     if not t:
         return True
     if _FORM_LABEL_ONLY.match(t):
         return True
-    # Слипшиеся подписи OCR: «ДатаСумма платежа», «Дата Суммаплатежа»
-    compact = re.sub(r"[\s.:]+", "", t.lower())
+    if _DOC_CHROME.search(t):
+        return True
+    # Слипшиеся/кривые подписи OCR: «ДатаСуммяплатежя»
+    compact = re.sub(r"[\s.:«»\"'()]+", "", t.lower().replace("ё", "е"))
+    compact = compact.replace("суммя", "сумма").replace("платежя", "платежа")
+    compact = compact.replace("плагежа", "платежа").replace("сумна", "сумма")
     if compact in {
         "дата",
+        "даты",
         "сумма",
         "суммаплатежа",
         "датасумма",
@@ -483,9 +488,113 @@ def _is_form_label_junk(s: str) -> bool:
         "кассир",
     }:
         return True
-    if re.fullmatch(r"(дата)?(сумма)?(платежа)?", compact) and len(compact) >= 4:
+    if re.search(r"дат[аые]", compact) and re.search(r"сумм", compact):
+        return True
+    if re.fullmatch(r"(дат[аые]?)?(сумм[аеия]*)?(платеж[аеия]*)?", compact) and len(
+        compact
+    ) >= 4:
         return True
     return False
+
+
+def _looks_like_purpose_value(s: str) -> bool:
+    """Назначение: ФИО/осмысленный текст, не заголовок бланка."""
+    if _is_form_label_junk(s) or _looks_like_handwriting_garbage(s):
+        return False
+    # Хотя бы два «словесных» куска кириллицы (ФИО или фраза)
+    words = re.findall(r"[А-ЯЁа-яё]{3,}", s)
+    if len(words) < 2:
+        return False
+    # Отсекаем строки, где почти нет строчных (часто заголовки CAPS)
+    lower = len(re.findall(r"[а-яё]", s))
+    upper = len(re.findall(r"[А-ЯЁ]", s))
+    if upper > 8 and lower < 3:
+        return False
+    return True
+
+
+def _normalize_amount_token(raw: str) -> str:
+    """Достать сумму в рублях; терпим OCR-хвост и путаницу букв с цифрами."""
+    # B/O/З и т.п. часто вместо 8/0/3 рядом с суммой
+    mapped = (raw or "").translate(
+        str.maketrans(
+            {
+                "B": "8",
+                "b": "8",
+                "O": "0",
+                "o": "0",
+                "О": "0",
+                "о": "0",
+                "I": "1",
+                "l": "1",
+                "|": "1",
+                "S": "5",
+                "s": "5",
+                "З": "3",
+                "з": "3",
+                "Z": "2",
+                "G": "6",
+            }
+        )
+    )
+    s = re.sub(r"[^\d.,]", "", mapped).replace(",", ".")
+    if not s:
+        return ""
+    if s.count(".") > 1:
+        s = s.replace(".", "", s.count(".") - 1)
+    if "." in s:
+        whole, frac = s.split(".", 1)
+        frac = re.sub(r"\D", "", frac)[:2]
+        whole = re.sub(r"\D", "", whole)
+        if not whole:
+            return ""
+        return f"{whole}.{frac}" if frac else whole
+    digits = re.sub(r"\D", "", s)
+    if not digits:
+        return ""
+    # 18007 / 18002 — лишняя цифра после круглой суммы
+    if len(digits) == 5 and digits[0] != "0":
+        head = digits[:4]
+        if 100 <= int(head) <= 50000 and int(head) % 50 == 0:
+            return head
+    if 2 <= len(digits) <= 7:
+        return digits
+    return ""
+
+
+def _extract_sum_rub(text: str) -> str:
+    """Сумма: явная подпись или число рядом с «Дата / Сумма платежа»."""
+    for pat in (
+        r"Сумм[аеяи]\s*платеж[аеяи][^\d]{0,24}(\d[\d\s]*([.,]\d{1,2})?)",
+        r"Сумм[аеяи][^\d]{0,16}(\d[\d\s]*([.,]\d{1,2})?)\s*(?:р|руб|₽)?",
+        r"(?<!\d)(\d{2,6})\s*(?:р\.|руб\.?|₽)",
+    ):
+        m = re.search(pat, text, re.I)
+        if m:
+            got = _normalize_amount_token(m.group(1))
+            if got:
+                return got
+
+    # Число (в т.ч. с буквами OCR) на строке перед блоком даты/суммы
+    m = re.search(
+        r"(?m)^[^\dA-Za-zА-Яа-я]*([0-9A-Za-zОоЗзIl|]{3,7})\s*$"
+        r"\s*(?:\n[^\n]*){0,2}\n\s*(?:Дата|Датa|Сумм)",
+        text,
+        re.I,
+    )
+    if m:
+        got = _normalize_amount_token(m.group(1))
+        if got:
+            return got
+    m = re.search(
+        r"(?mi)(?:Дата|Сумм[аеяи].{0,24}платеж)[^\n]*\n[^\d\n]*([0-9A-Za-zОоЗз]{3,7})\b",
+        text,
+    )
+    if m:
+        got = _normalize_amount_token(m.group(1))
+        if got:
+            return got
+    return ""
 
 
 def _extract_purpose(text: str) -> str:
@@ -497,27 +606,22 @@ def _extract_purpose(text: str) -> str:
         re.I,
     )
     if m:
-        cand = m.group(1).strip()
-        if not _is_form_label_junk(cand):
-            candidates.append(cand)
+        candidates.append(m.group(1).strip())
 
-    # Печатные/читаемые строки с ФИО рядом с назначением — без автодобавления «СПР»
+    # Печатные ФИО: минимум два слова с заглавной, без заголовков бланка
     for m in re.finditer(
-        r"(?m)^(?!.*(ИНН|КПП|БИК|КБК|ОКТМО|ЕКС|сч[её]т|банк|дата|сумма).*)"
+        r"(?m)^(?!.*(ИНН|КПП|БИК|КБК|ОКТМО|ЕКС|сч[её]т|банк|дата|сумм|"
+        r"идентификатор|извещение|форма|кассир|плательщик).*)"
         r"([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+){1,4}.*)$",
         text,
     ):
-        cand = m.group(2).strip()
-        if 6 <= len(cand) <= 100 and not _is_form_label_junk(cand):
-            candidates.append(cand)
+        candidates.append(m.group(2).strip())
 
     for cand in candidates:
         cleaned = re.sub(r"\s+", " ", cand).strip(" .;|")
         if re.fullmatch(r"СП[РГ]\s*", cleaned, re.I):
             continue
-        if _is_form_label_junk(cleaned):
-            continue
-        if _looks_like_handwriting_garbage(cleaned):
+        if not _looks_like_purpose_value(cleaned):
             continue
         return cleaned
     return ""

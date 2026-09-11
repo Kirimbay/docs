@@ -76,9 +76,22 @@ def test_purpose_does_not_auto_insert_spr():
 def test_purpose_rejects_form_labels():
     text = SAMPLE_TEXT.replace(
         "наименование платежа\nАндрианова Аделина, Егорова Ксения Викторовна",
-        "наименование платежа\nДатаСумма платежа\nдата",
+        "наименование платежа\nДата Суммя платежя\nдата",
     )
     assert parse_receipt_text(text).purpose == ""
+    text2 = SAMPLE_TEXT.replace(
+        "наименование платежа\nАндрианова Аделина, Егорова Ксения Викторовна",
+        "Идентификатор\nФорма № ПД-4\nДата\nСумма платежа",
+    )
+    assert parse_receipt_text(text2).purpose == ""
+
+
+def test_sum_near_date_block():
+    from app.ocr import _extract_sum_rub
+
+    assert _extract_sum_rub("18007\nДата\nСумма платежа") == "1800"
+    assert _extract_sum_rub("1B002\nДата\nСуммя платежя") == "1800"
+    assert _extract_sum_rub("Сумма платежа 1 800 р") == "1800"
 
 
 def test_bic_directory_resolves_sber():
