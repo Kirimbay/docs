@@ -20,10 +20,19 @@ KNOWN_EKS = {
     "004525987": "40102810845370000004",
 }
 
-# Быстрый режим: на 1 vCPU полный кадр 2400px + rus+eng ≈ 20с;
-# 1200px + crop верха + только rus ≈ 3с при сопоставимом качестве печатного блока.
-OCR_MAX_SIDE = 1200
-OCR_TOP_FRACTION = 0.82
+# Частые получатели: подстраховка ОКТМО/КПП, если OCR «проглотил» строку
+KNOWN_ORG = {
+    "5010029030": {
+        "kpp": "501001001",
+        "oktmo": "46718000",
+        "cbc": "00000000000000000130",
+    },
+}
+
+# Быстрый режим: на 1 vCPU полный кадр 2400px + rus+eng ≈ 20–24с;
+# клиентский JPEG 1600px + crop верха + rus/OEM1 @950px ≈ 2.5–3с.
+OCR_MAX_SIDE = 950
+OCR_TOP_FRACTION = 0.88
 OCR_LANG = "rus"
 OCR_CONFIG = "--oem 1 --psm 6"
 
@@ -214,6 +223,7 @@ def parse_receipt_text(text: str) -> PaymentFields:
         .replace("ОКТИМО", "ОКТМО")
         .replace("KBK", "КБК")
         .replace("KBE", "КБК")
+        .replace("ЕБК", "КБК")
         .replace("КВК", "КБК")
     )
 
@@ -273,6 +283,23 @@ def parse_receipt_text(text: str) -> PaymentFields:
         or _find(r"ОКТМО[:\s\-]*(\d{8})", fuzzy)
         or ""
     )
+    known_org = KNOWN_ORG.get(payee_inn) or {}
+    if known_org:
+        if not kpp:
+            kpp = known_org.get("kpp", "")
+        elif (
+            kpp != known_org.get("kpp")
+            and len(kpp) == 9
+            and sum(a != b for a, b in zip(kpp, known_org["kpp"])) <= 1
+        ):
+            kpp = known_org["kpp"]
+        if not oktmo:
+            oktmo = known_org.get("oktmo", "")
+        if not cbc and known_org.get("cbc"):
+            cbc = known_org["cbc"]
+    elif not oktmo and re.search(r"Дубн", text + fuzzy, re.I):
+        oktmo = "46718000"
+
     pers_acc = (
         _find(r"л/?с[:\s]*([0-9A-Za-z]{6,20})", text)
         or _find(r"л/?с[:\s]*([0-9A-Za-z]{6,20})", fuzzy)
