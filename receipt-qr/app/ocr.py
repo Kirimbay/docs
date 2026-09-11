@@ -11,15 +11,12 @@ import numpy as np
 import pytesseract
 from PIL import Image, ImageEnhance, ImageOps
 
+from .bic_directory import lookup_bank, resolve_bank_name
 from .qr_builder import PaymentFields
 
 logger = logging.getLogger(__name__)
 
-KNOWN_BANKS = {
-    "004525987": "ГУ Банка России по ЦФО//УФК по Московской области, г. Москва",
-}
-
-# Известный ЕКС для БИК УФК МО — OCR часто путает цифры в середине
+# Запасной ЕКС, если справочник ЦБ ещё не прогрет
 KNOWN_EKS = {
     "004525987": "40102810845370000004",
 }
@@ -340,15 +337,18 @@ def parse_receipt_text(text: str) -> PaymentFields:
         eks = re.findall(r"(?<!\d)(4010\d{16})(?!\d)", re.sub(r"\s+", "", one_line))
         if eks:
             corresp_acc = eks[0]
-    # На известных БИК подставляем эталонный ЕКС, если OCR дал «почти то» или пусто
-    if bic in KNOWN_EKS:
-        known = KNOWN_EKS[bic]
-        if not corresp_acc or (
+    # ЕКС: сначала справочник ЦБ по БИК, иначе локальный запасник
+    bank_info = lookup_bank(bic) if bic else None
+    known_eks = (bank_info.preferred_eks() if bank_info else "") or KNOWN_EKS.get(bic, "")
+    if known_eks and (
+        not corresp_acc
+        or (
             len(corresp_acc) == 20
             and corresp_acc.startswith("4010")
-            and sum(a != b for a, b in zip(corresp_acc, known)) <= 3
-        ):
-            corresp_acc = known
+            and sum(a != b for a, b in zip(corresp_acc, known_eks)) <= 3
+        )
+    ):
+        corresp_acc = known_eks
 
     cbc = _extract_cbc(text, fuzzy)
     oktmo = (
@@ -398,13 +398,10 @@ def parse_receipt_text(text: str) -> PaymentFields:
         if m:
             bank_name = _normalize_bank_name(m.group(1))
             break
-    # При известном БИК эталон надёжнее любого OCR (пробелы/окончания часто ломаются)
-    if bic in KNOWN_BANKS:
-        bank_name = KNOWN_BANKS[bic]
-    elif not bank_name:
-        # эвристика по тексту без БИК
-        if re.search(r"УФК.*Московск|Московск.*УФК|ЦФО.*УФК", text + fuzzy, re.I):
-            bank_name = KNOWN_BANKS["004525987"]
+    # Эталон по БИК: override/ЦБ надёжнее OCR
+    resolved = resolve_bank_name(bic, bank_name)
+    if resolved:
+        bank_name = resolved
 
     name = ""
     # Типичный казначейский бланк Дубны / ДДШИ
@@ -460,6 +457,37 @@ def _looks_like_handwriting_garbage(s: str) -> bool:
     return False
 
 
+_FORM_LABEL_ONLY = re.compile(
+    r"^(дата|сумма(?:\s*платежа)?|плательщик|кассир|ф\.?\s*и\.?\s*о\.?|"
+    r"наименование платежа|назначение платежа|адрес)[\s.:]*$",
+    re.I,
+)
+
+
+def _is_form_label_junk(s: str) -> bool:
+    """Подписи бланка («Дата», «Сумма платежа»), не назначение."""
+    t = re.sub(r"\s+", " ", (s or "")).strip(" .:;|")
+    if not t:
+        return True
+    if _FORM_LABEL_ONLY.match(t):
+        return True
+    # Слипшиеся подписи OCR: «ДатаСумма платежа», «Дата Суммаплатежа»
+    compact = re.sub(r"[\s.:]+", "", t.lower())
+    if compact in {
+        "дата",
+        "сумма",
+        "суммаплатежа",
+        "датасумма",
+        "датасуммаплатежа",
+        "плательщик",
+        "кассир",
+    }:
+        return True
+    if re.fullmatch(r"(дата)?(сумма)?(платежа)?", compact) and len(compact) >= 4:
+        return True
+    return False
+
+
 def _extract_purpose(text: str) -> str:
     """Читаем назначение, если оно распозналось; СПР сами не подставляем."""
     candidates: list[str] = []
@@ -470,23 +498,24 @@ def _extract_purpose(text: str) -> str:
     )
     if m:
         cand = m.group(1).strip()
-        if not re.search(r"^(дата|сумма|плательщик)\b", cand, re.I):
+        if not _is_form_label_junk(cand):
             candidates.append(cand)
 
     # Печатные/читаемые строки с ФИО рядом с назначением — без автодобавления «СПР»
     for m in re.finditer(
-        r"(?m)^(?!.*(ИНН|КПП|БИК|КБК|ОКТМО|ЕКС|сч[её]т|банк).*)"
+        r"(?m)^(?!.*(ИНН|КПП|БИК|КБК|ОКТМО|ЕКС|сч[её]т|банк|дата|сумма).*)"
         r"([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+){1,4}.*)$",
         text,
     ):
         cand = m.group(2).strip()
-        if 6 <= len(cand) <= 100:
+        if 6 <= len(cand) <= 100 and not _is_form_label_junk(cand):
             candidates.append(cand)
 
     for cand in candidates:
         cleaned = re.sub(r"\s+", " ", cand).strip(" .;|")
-        # Не оставляем одно только «СПР» / «СПГ» без остального текста
         if re.fullmatch(r"СП[РГ]\s*", cleaned, re.I):
+            continue
+        if _is_form_label_junk(cleaned):
             continue
         if _looks_like_handwriting_garbage(cleaned):
             continue

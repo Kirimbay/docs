@@ -73,12 +73,20 @@ def test_purpose_does_not_auto_insert_spr():
     assert fields.purpose == ""
 
 
-def test_purpose_rejects_handwriting_garbage():
+def test_purpose_rejects_form_labels():
     text = SAMPLE_TEXT.replace(
         "наименование платежа\nАндрианова Аделина, Егорова Ксения Викторовна",
-        "наименование платежа\n|~#@/\\\\ xx 3f ~~\nдата",
+        "наименование платежа\nДатаСумма платежа\nдата",
     )
     assert parse_receipt_text(text).purpose == ""
+
+
+def test_bic_directory_resolves_sber():
+    from app.bic_directory import refresh_directory, resolve_bank_name
+
+    refresh_directory(force=False)
+    name = resolve_bank_name("044525225")
+    assert "Сбербанк" in name
 
 
 def test_known_bank_overrides_garbled_ocr_name():

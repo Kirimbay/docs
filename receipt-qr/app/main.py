@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -12,12 +14,29 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from .bic_directory import start_hourly_refresh
 from .ocr import ocr_image, parse_receipt_image, parse_receipt_text, prepare_image
 from .qr_builder import PaymentFields, build_payload, fields_from_dict, make_qr_png
 
+logger = logging.getLogger(__name__)
 BASE = Path(__file__).resolve().parent
 
-app = FastAPI(title="КвитQR", description="Квитанция → банковский QR ST00012")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Прогрев справочника БИК ЦБ + фоновое обновление каждый час
+    try:
+        start_hourly_refresh()
+    except Exception:  # noqa: BLE001
+        logger.exception("Не удалось запустить обновление справочника БИК")
+    yield
+
+
+app = FastAPI(
+    title="КвитQR",
+    description="Квитанция → банковский QR ST00012",
+    lifespan=lifespan,
+)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 
 MAX_UPLOAD_MB = 12
@@ -183,8 +202,14 @@ async def api_qr_png(body: FieldsIn) -> Response:
 
 
 @app.get("/api/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+async def health() -> dict[str, object]:
+    from .bic_directory import get_directory
+
+    try:
+        bic_count = len(get_directory())
+    except Exception:  # noqa: BLE001
+        bic_count = 0
+    return {"status": "ok", "bic_directory_size": bic_count}
 
 
 def _hints(fields: PaymentFields) -> list[str]:
