@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>КвитQR — квитанция в банковский QR</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <header class="top">
+    <a class="brand" href="/">КвитQR</a>
+    <p class="tag">ПД-4 и казначейские квитанции → QR для приложения банка</p>
+  </header>
+
+  <main>
+    <section class="hero" id="step-upload">
+      <h1 class="brand-hero">КвитQR</h1>
+      <p class="lead">Загрузите фото квитанции — получите QR, который заполнит поля в банке.</p>
+
+      <div class="drop" id="dropzone" role="button" tabindex="0">
+        <input id="file-input" type="file" accept="image/*" capture="environment" hidden />
+        <span class="drop-title">Перетащите фото или нажмите</span>
+        <span class="drop-sub">JPG, PNG · до 12 МБ · можно с камеры</span>
+      </div>
+      <p class="status" id="status" role="status"></p>
+    </section>
+
+    <section class="workspace hidden" id="step-edit">
+      <div class="workspace-grid">
+        <div class="panel-form">
+          <h2>Проверьте поля</h2>
+          <p class="panel-note">Распознавание не идеально — особенно рукопись. Поправьте перед QR.</p>
+          <ul class="hints" id="hints"></ul>
+
+          <form id="fields-form" autocomplete="off">
+            <label>Получатель <input name="name" required /></label>
+            <label>Счёт получателя <input name="personal_acc" inputmode="numeric" required /></label>
+            <label>Банк <input name="bank_name" required /></label>
+            <div class="row2">
+              <label>БИК <input name="bic" inputmode="numeric" required /></label>
+              <label>ЕКС / корсчёт <input name="corresp_acc" inputmode="numeric" required /></label>
+            </div>
+            <div class="row2">
+              <label>ИНН <input name="payee_inn" inputmode="numeric" /></label>
+              <label>КПП <input name="kpp" inputmode="numeric" /></label>
+            </div>
+            <div class="row2">
+              <label>КБК <input name="cbc" inputmode="numeric" /></label>
+              <label>ОКТМО <input name="oktmo" inputmode="numeric" /></label>
+            </div>
+            <div class="row2">
+              <label>Сумма, ₽ <input name="sum_rub" inputmode="decimal" placeholder="1800" /></label>
+              <label>Лицевой счёт (л/с) <input name="pers_acc" placeholder="не в назначение" /></label>
+            </div>
+            <label>Назначение платежа
+              <textarea name="purpose" rows="2" placeholder="СПР, ФИО…"></textarea>
+            </label>
+            <div class="actions">
+              <button type="submit" class="btn primary" id="btn-qr">Сделать QR</button>
+              <button type="button" class="btn ghost" id="btn-again">Другое фото</button>
+            </div>
+          </form>
+        </div>
+
+        <aside class="panel-qr">
+          <h2>QR для банка</h2>
+          <p class="panel-note">Откройте на весь экран и отсканируйте камерой приложения.</p>
+          <div class="qr-frame" id="qr-frame">
+            <p class="qr-placeholder">Нажмите «Сделать QR»</p>
+          </div>
+          <a class="btn secondary hidden" id="btn-download" download="payment-qr.png">Скачать PNG</a>
+          <details class="payload">
+            <summary>Строка ST00012</summary>
+            <pre id="payload-text"></pre>
+          </details>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Формат QR: ГОСТ Р 56042-2014 · ST00012 (UTF-8). Фото обрабатывается на сервере и не сохраняется.</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
