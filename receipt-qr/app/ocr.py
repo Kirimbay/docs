@@ -7,7 +7,7 @@ import re
 from typing import Optional
 
 import pytesseract
-from PIL import Image, ImageEnhance, ImageOps
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 from .qr_builder import PaymentFields
 
@@ -15,18 +15,40 @@ KNOWN_BANKS = {
     "004525987": "ГУ Банка России по ЦФО//УФК по Московской области, г. Москва",
 }
 
+# Известный ЕКС для БИК УФК МО — OCR часто путает цифры в середине
+KNOWN_EKS = {
+    "004525987": "40102810845370000004",
+}
+
+# Быстрый режим: на 1 vCPU полный кадр 2400px + rus+eng ≈ 20с;
+# 1200px + crop верха + только rus ≈ 3с при сопоставимом качестве печатного блока.
+OCR_MAX_SIDE = 1200
+OCR_TOP_FRACTION = 0.82
+OCR_LANG = "rus"
+OCR_CONFIG = "--oem 1 --psm 6"
+
 
 def _prep_image(img: Image.Image) -> Image.Image:
+    img = ImageOps.exif_transpose(img)
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
-    max_side = 2400
+
     w, h = img.size
-    scale = min(1.0, max_side / max(w, h))
+    # Низ бланка — рукопись/пустые строки: режем, чтобы Tesseract не тратил время
+    top_h = max(1, int(h * OCR_TOP_FRACTION))
+    if top_h < h:
+        img = img.crop((0, 0, w, top_h))
+        w, h = img.size
+
+    scale = min(1.0, OCR_MAX_SIDE / max(w, h))
     if scale < 1.0:
-        img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
+        # BILINEAR заметно быстрее LANCZOS на больших фото с телефона
+        img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.BILINEAR)
+
     gray = ImageOps.grayscale(img)
     gray = ImageOps.autocontrast(gray)
-    return ImageEnhance.Contrast(gray).enhance(1.4)
+    gray = ImageEnhance.Contrast(gray).enhance(1.4)
+    return gray.filter(ImageFilter.SHARPEN)
 
 
 def prepare_image(image_bytes: bytes) -> Image.Image:
@@ -35,7 +57,9 @@ def prepare_image(image_bytes: bytes) -> Image.Image:
 
 
 def ocr_image(prepared: Image.Image) -> str:
-    text = pytesseract.image_to_string(prepared, lang="rus+eng", config="--psm 6")
+    text = pytesseract.image_to_string(
+        prepared, lang=OCR_LANG, config=OCR_CONFIG
+    )
     return text.replace("\u00a0", " ")
 
 
@@ -186,6 +210,8 @@ def parse_receipt_text(text: str) -> PaymentFields:
         .replace("EKG", "ЕКС")
         .replace("BIK", "БИК")
         .replace("OKTMO", "ОКТМО")
+        .replace("OKTIMO", "ОКТМО")
+        .replace("ОКТИМО", "ОКТМО")
         .replace("KBK", "КБК")
         .replace("KBE", "КБК")
         .replace("КВК", "КБК")
@@ -231,6 +257,15 @@ def parse_receipt_text(text: str) -> PaymentFields:
         eks = re.findall(r"(?<!\d)(4010\d{16})(?!\d)", re.sub(r"\s+", "", one_line))
         if eks:
             corresp_acc = eks[0]
+    # На известных БИК подставляем эталонный ЕКС, если OCR дал «почти то» или пусто
+    if bic in KNOWN_EKS:
+        known = KNOWN_EKS[bic]
+        if not corresp_acc or (
+            len(corresp_acc) == 20
+            and corresp_acc.startswith("4010")
+            and sum(a != b for a, b in zip(corresp_acc, known)) <= 3
+        ):
+            corresp_acc = known
 
     cbc = _extract_cbc(text, fuzzy)
     oktmo = (

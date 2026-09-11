@@ -203,11 +203,47 @@
     qrTimer = window.setTimeout(rebuildQr, 400);
   }
 
-  function processFile(file) {
+  /** Сжимаем фото на устройстве: меньше upload + быстрее OCR на слабом CPU. */
+  async function compressImage(file, maxSide = 1600, quality = 0.72) {
+    if (!file || !file.type || !file.type.startsWith("image/")) return file;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+      const w = Math.max(1, Math.round(bitmap.width * scale));
+      const h = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d", { alpha: false });
+      if (!ctx) {
+        bitmap.close();
+        return file;
+      }
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      bitmap.close();
+      const blob = await new Promise((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", quality)
+      );
+      if (!blob) return file;
+      // Если почти не выиграли — шлём оригинал
+      if (blob.size >= file.size * 0.92 && scale >= 0.98) return file;
+      const base = (file.name || "receipt").replace(/\.[^.]+$/, "");
+      return new File([blob], `${base}.jpg`, { type: "image/jpeg" });
+    } catch {
+      return file;
+    }
+  }
+
+  async function processFile(file) {
+    showOverlay();
+    progressLabel.textContent = "Сжатие фото…";
+    paintProgress();
+    const ready = await compressImage(file);
+    progressLabel.textContent = "Загрузка…";
+
     return new Promise((resolve, reject) => {
-      showOverlay();
       const body = new FormData();
-      body.append("file", file);
+      body.append("file", ready);
 
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/process");
@@ -316,6 +352,7 @@
       setStatus("");
       await processFile(file);
     } catch (err) {
+      hideOverlay();
       setStatus(err.message || String(err));
     }
   }
@@ -361,7 +398,9 @@
       const el = form.elements.namedItem(name);
       if (el) {
         el.value = "";
-        el.closest("label")?.classList.remove("needs-input");
+        const label = el.closest("label");
+        label?.classList.remove("needs-input");
+        label?.querySelector(".manual-note")?.remove();
       }
     }
     showHints([]);

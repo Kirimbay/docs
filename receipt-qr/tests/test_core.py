@@ -81,6 +81,15 @@ def test_purpose_rejects_handwriting_garbage():
     assert parse_receipt_text(text).purpose == ""
 
 
+def test_known_eks_corrects_ocr_typo():
+    text = SAMPLE_TEXT.replace(
+        "ЕКС 40102810845370000004",
+        "ЕКС 40102810845310000004",
+    )
+    fields = parse_receipt_text(text)
+    assert fields.corresp_acc == "40102810845370000004"
+
+
 def test_inn_ocr_mha_as_inn():
     """Tesseract часто читает «ИНН» как MHA, а «КПП» как KIH."""
     text = """
