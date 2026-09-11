@@ -1,22 +1,23 @@
 #!/bin/bash
 # Install RoscomVPN Happ/INCY routing + Cloudflare ping URL into Hiddify Manager.
 #
-# One-liner on a Hiddify server (as root):
-#   bash <(curl -fsSL https://raw.githubusercontent.com/Kirimbay/docs/main/hiddify/install-roscomvpn.sh)
+# Install (Hiddify server, root):
+#   bash <(curl -fsSL https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-roscomvpn-install-48ca/hiddify/install-roscomvpn.sh)
 #
-# From your laptop against many servers:
+# Uninstall (stock Hiddify subscription headers):
+#   bash <(curl -fsSL https://raw.githubusercontent.com/Kirimbay/docs/cursor/hiddify-roscomvpn-install-48ca/hiddify/install-roscomvpn.sh) --uninstall
+#
+# Many servers:
 #   bash install-roscomvpn.sh root@10.0.0.1 root@10.0.0.2
-#   bash install-roscomvpn.sh -f hosts.txt
-#
-# hosts.txt: one SSH target per line, comments (#) allowed.
+#   bash install-roscomvpn.sh --uninstall -f hosts.txt
 set -euo pipefail
 
-REMOTE_MODE=0
 HOSTS=()
 HOSTS_FILE=""
+UNINSTALL=0
 
 usage() {
-  sed -n '2,16p' "$0"
+  sed -n '2,14p' "$0"
   exit "${1:-0}"
 }
 
@@ -24,6 +25,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage 0 ;;
     -f|--file) HOSTS_FILE="${2:?}"; shift 2 ;;
+    --uninstall|-u) UNINSTALL=1; shift ;;
     --local) shift ;;
     -*) echo "Unknown option: $1" >&2; usage 1 ;;
     *) HOSTS+=("$1"); shift ;;
@@ -41,13 +43,15 @@ fi
 
 if [[ ${#HOSTS[@]} -gt 0 ]]; then
   SELF="$(readlink -f "$0" 2>/dev/null || python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$0")"
+  extra=()
+  [[ "$UNINSTALL" == 1 ]] && extra+=(--uninstall)
   fail=0
   i=0
   for host in "${HOSTS[@]}"; do
     i=$((i+1))
     echo "======== [$i/${#HOSTS[@]}] $host ========"
     if scp -o StrictHostKeyChecking=accept-new "$SELF" "$host:/tmp/install-hiddify-roscomvpn.sh" \
-      && ssh -o StrictHostKeyChecking=accept-new "$host" "bash /tmp/install-hiddify-roscomvpn.sh"; then
+      && ssh -o StrictHostKeyChecking=accept-new "$host" "bash /tmp/install-hiddify-roscomvpn.sh ${extra[*]}"; then
       echo "OK $host"
     else
       echo "FAILED $host" >&2
@@ -65,6 +69,80 @@ fi
 if [[ ! -d /opt/hiddify-manager ]]; then
   echo "Hiddify Manager not found at /opt/hiddify-manager" >&2
   exit 1
+fi
+
+uninstall_roscomvpn() {
+  echo "Reverting Hiddify subscription patches to stock..."
+  rm -f /etc/systemd/system/hiddify-panel.service.d/roscomvpn.conf
+  if [[ -d /etc/systemd/system/hiddify-panel.service.d ]] \
+     && [[ -z "$(ls -A /etc/systemd/system/hiddify-panel.service.d 2>/dev/null)" ]]; then
+    rmdir /etc/systemd/system/hiddify-panel.service.d || true
+  fi
+  systemctl daemon-reload || true
+
+  python3 - << 'PY'
+from pathlib import Path
+
+inject = '''    resp.headers['test-url'] = "https://cp.cloudflare.com/generate_204"
+    try:
+        from hiddify_roscomvpn import attach_routing_headers
+        attach_routing_headers(resp)
+    except Exception:
+        pass
+'''
+hook = '''    try:
+        from hiddify_roscomvpn import attach_routing_headers
+        attach_routing_headers(resp)
+    except Exception:
+        pass
+'''
+stock = '    resp.headers[\'test-url\'] = "https://www.gstatic.com/generate_204"\n'
+root = Path("/opt/hiddify-manager")
+cands = list(root.glob(".venv*/lib/python*/site-packages"))
+for site in cands:
+    user_py = site / "hiddifypanel/panel/user/user.py"
+    if user_py.is_file():
+        text = user_py.read_text(encoding="utf-8")
+        text = text.replace(inject, stock)
+        text = text.replace(hook, "")
+        text = text.replace(
+            '    resp.headers[\'test-url\'] = "https://cp.cloudflare.com/generate_204"\n',
+            stock,
+        )
+        user_py.write_text(text, encoding="utf-8")
+        print("reverted", user_py)
+    sb = site / "hiddifypanel/hutils/proxy/singbox.py"
+    if sb.is_file():
+        t = sb.read_text(encoding="utf-8")
+        t2 = t.replace("https://cp.cloudflare.com/generate_204", "https://www.gstatic.com/generate_204")
+        if t2 != t:
+            sb.write_text(t2, encoding="utf-8")
+            print("reverted", sb)
+    mod = site / "hiddify_roscomvpn.py"
+    if mod.exists():
+        mod.unlink()
+        print("removed", mod)
+    cache = site / "hiddify_roscomvpn.__pycache__"
+    # leftover bytecode
+    pyc = site / "__pycache__"
+    if pyc.is_dir():
+        for f in pyc.glob("hiddify_roscomvpn*"):
+            f.unlink()
+            print("removed", f)
+PY
+
+  rm -rf /opt/hiddify-custom
+  systemctl restart hiddify-panel
+  sleep 2
+  systemctl is-active hiddify-panel
+  echo
+  echo "Uninstalled. Subscription headers are stock Hiddify again."
+  echo "If Happ/INCY already imported RoscomVPN routing, delete that profile in the app (or toggle it off)."
+}
+
+if [[ "$UNINSTALL" == 1 ]]; then
+  uninstall_roscomvpn
+  exit 0
 fi
 
 SITE="$(python3 - << 'PY'
@@ -175,10 +253,14 @@ def _optional(deeplink: str) -> str:
     return deeplink.replace("://routing/onadd/", "://routing/add/", 1)
 
 
-def kind_for_ua(ua: str) -> str:
-    if re.search(r"incy", ua or "", re.IGNORECASE):
+def kind_for_ua(ua: str):
+    if not ua:
+        return None
+    if re.search(r"(?i)(^|[^a-z0-9])incy([^a-z0-9]|$)", ua):
         return "incy"
-    return "happ"
+    if re.search(r"(?i)(^|[^a-z0-9])happ([^a-z0-9]|$)", ua):
+        return "happ"
+    return None
 
 
 def attach_routing_headers(resp) -> None:
@@ -187,7 +269,10 @@ def attach_routing_headers(resp) -> None:
         ua = (request.headers.get("User-Agent") or "") if request else ""
     except Exception:
         ua = ""
-    deeplink = get_deeplink(kind_for_ua(ua))
+    kind = kind_for_ua(ua)
+    if not kind:
+        return
+    deeplink = get_deeplink(kind)
     if not deeplink:
         return
     resp.headers["routing"] = deeplink
