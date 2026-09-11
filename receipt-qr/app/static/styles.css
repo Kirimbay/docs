@@ -342,3 +342,99 @@ footer {
   .row2 { grid-template-columns: 1fr; }
   .hero { min-height: auto; padding-top: 2.5rem; }
 }
+
+/* —— Progress overlay —— */
+body.is-processing {
+  overflow: hidden;
+}
+
+.progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(600px 400px at 50% 40%, rgba(31, 111, 106, 0.22), transparent 70%),
+    rgba(21, 32, 43, 0.55);
+  backdrop-filter: blur(8px);
+  animation: fade-in 0.25s ease both;
+}
+
+.progress-overlay.hidden {
+  display: none !important;
+}
+
+.progress-card {
+  width: min(100%, 420px);
+  padding: 2rem 1.6rem 1.75rem;
+  background: rgba(244, 247, 249, 0.96);
+  box-shadow: 0 24px 60px rgba(21, 32, 43, 0.28);
+  text-align: center;
+  animation: rise 0.45s ease both;
+}
+
+.progress-brand {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-weight: 700;
+  font-size: 1.6rem;
+  letter-spacing: -0.04em;
+}
+
+.progress-label {
+  margin: 0.65rem 0 1.4rem;
+  color: var(--ink-soft);
+  font-size: 1.02rem;
+  min-height: 1.4em;
+}
+
+.progress-track {
+  height: 14px;
+  background: rgba(21, 32, 43, 0.1);
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 1%;
+  background: linear-gradient(90deg, var(--teal-deep), var(--teal));
+  transition: width 0.12s linear;
+  position: relative;
+}
+
+.progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 45%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: sheen 1.4s linear infinite;
+}
+
+.progress-pct {
+  margin: 1rem 0 0;
+  font-family: var(--font-brand);
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--ink);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sheen {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}

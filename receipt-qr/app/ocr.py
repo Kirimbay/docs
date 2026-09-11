@@ -29,11 +29,18 @@ def _prep_image(img: Image.Image) -> Image.Image:
     return ImageEnhance.Contrast(gray).enhance(1.4)
 
 
-def extract_text(image_bytes: bytes) -> str:
+def prepare_image(image_bytes: bytes) -> Image.Image:
     img = Image.open(io.BytesIO(image_bytes))
-    prepared = _prep_image(img)
+    return _prep_image(img)
+
+
+def ocr_image(prepared: Image.Image) -> str:
     text = pytesseract.image_to_string(prepared, lang="rus+eng", config="--psm 6")
     return text.replace("\u00a0", " ")
+
+
+def extract_text(image_bytes: bytes) -> str:
+    return ocr_image(prepare_image(image_bytes))
 
 
 def _find(pattern: str, text: str, flags: int = re.I | re.M) -> Optional[str]:

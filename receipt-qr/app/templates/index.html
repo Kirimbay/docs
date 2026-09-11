@@ -20,7 +20,7 @@
   <main>
     <section class="hero" id="step-upload">
       <h1 class="brand-hero">КвитQR</h1>
-      <p class="lead">Загрузите фото квитанции — получите QR, который заполнит поля в банке.</p>
+      <p class="lead">Загрузите фото квитанции — QR появится сразу после распознавания.</p>
 
       <div class="drop" id="dropzone" role="button" tabindex="0">
         <input id="file-input" type="file" accept="image/*" capture="environment" hidden />
@@ -34,7 +34,7 @@
       <div class="workspace-grid">
         <div class="panel-form">
           <h2>Проверьте поля</h2>
-          <p class="panel-note">Распознавание не идеально — особенно рукопись. Поправьте перед QR.</p>
+          <p class="panel-note">Распознавание не идеально — особенно рукопись. QR обновится после правок.</p>
           <ul class="hints" id="hints"></ul>
 
           <form id="fields-form" autocomplete="off">
@@ -61,7 +61,6 @@
               <textarea name="purpose" rows="2" placeholder="СПР, ФИО…"></textarea>
             </label>
             <div class="actions">
-              <button type="submit" class="btn primary" id="btn-qr">Сделать QR</button>
               <button type="button" class="btn ghost" id="btn-again">Другое фото</button>
             </div>
           </form>
@@ -71,7 +70,7 @@
           <h2>QR для банка</h2>
           <p class="panel-note">Откройте на весь экран и отсканируйте камерой приложения.</p>
           <div class="qr-frame" id="qr-frame">
-            <p class="qr-placeholder">Нажмите «Сделать QR»</p>
+            <p class="qr-placeholder">QR появится после обработки</p>
           </div>
           <a class="btn secondary hidden" id="btn-download" download="payment-qr.png">Скачать PNG</a>
           <details class="payload">
@@ -82,6 +81,17 @@
       </div>
     </section>
   </main>
+
+  <div class="progress-overlay hidden" id="progress-overlay" aria-live="polite">
+    <div class="progress-card">
+      <p class="progress-brand">КвитQR</p>
+      <p class="progress-label" id="progress-label">Обработка…</p>
+      <div class="progress-track" id="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <p class="progress-pct"><span id="progress-pct">0</span>%</p>
+    </div>
+  </div>
 
   <footer>
     <p>Формат QR: ГОСТ Р 56042-2014 · ST00012 (UTF-8). Фото обрабатывается на сервере и не сохраняется.</p>
