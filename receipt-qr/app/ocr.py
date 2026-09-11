@@ -103,37 +103,95 @@ def _extract_cbc(text: str, fuzzy: str) -> str:
     return ""
 
 
+def _normalize_inn_digits(raw: str) -> str:
+    """Оставить 10 цифр; лат. O/o → 0 (частая путаница OCR)."""
+    cleaned = (raw or "").replace("O", "0").replace("o", "0")
+    digits = _digits(cleaned)
+    return digits[:10] if len(digits) >= 10 else ""
+
+
+def _normalize_kpp_digits(raw: str) -> str:
+    cleaned = (raw or "").replace("O", "0").replace("o", "0")
+    digits = _digits(cleaned)
+    return digits[:9] if len(digits) >= 9 else ""
+
+
+# OCR часто ломает подписи: ИНН→MHA, КПП→KIH/KITE/КИЕН
+_INN_LABEL = r"(?:ИНН|INN|MHA|MHА|ИHН|ИHH|WHH|HHH|ИНА|MH\s*A)"
+_KPP_LABEL = r"(?:КПП|KPP|KIH|KITE|КИЕН|КИП|КИШ|КНП|КПИ|KПП|KIM)"
+
+
+def _extract_inn_kpp(text: str, fuzzy: str) -> tuple[str, str]:
+    """Достать ИНН (10) и КПП (9); терпим кривые подписи OCR."""
+    inn, kpp = "", ""
+    for src in (text, fuzzy):
+        # Пара ИНН+КПП — самый надёжный якорь на бланках УФК
+        m = re.search(
+            rf"{_INN_LABEL}[:\s]*(\d[\dOo\s]{{8,16}}\d)"
+            rf"[:\s\-;]*{_KPP_LABEL}[:\s]*(\d[\dOo\s]{{7,14}}\d)",
+            src,
+            re.I,
+        )
+        if m:
+            inn = _normalize_inn_digits(m.group(1)) or inn
+            kpp = _normalize_kpp_digits(m.group(2)) or kpp
+            if inn and kpp:
+                return inn, kpp
+
+        # Без подписи ИНН: 10 цифр сразу перед кривым «КПП»
+        m = re.search(
+            rf"(?<!\d)(\d{{10}})[:\s\-;]*{_KPP_LABEL}[:\s]*(\d{{9}})(?!\d)",
+            src,
+            re.I,
+        )
+        if m:
+            inn = inn or m.group(1)
+            kpp = kpp or m.group(2)
+            if inn and kpp:
+                return inn, kpp
+
+        if not inn:
+            m = re.search(rf"{_INN_LABEL}[:\s]*(\d[\dOo\s]{{8,16}}\d)", src, re.I)
+            if m:
+                inn = _normalize_inn_digits(m.group(1))
+        if not kpp:
+            m = re.search(rf"{_KPP_LABEL}[:\s]*(\d[\dOo\s]{{7,14}}\d)", src, re.I)
+            if m:
+                kpp = _normalize_kpp_digits(m.group(1))
+        if inn and kpp:
+            return inn, kpp
+    return inn, kpp
+
+
 def parse_receipt_text(text: str) -> PaymentFields:
     compact = re.sub(r"[ \t]+", " ", text)
     one_line = compact.replace("\n", " ")
     fuzzy = (
         one_line.replace("WHH", "ИНН")
         .replace("MH ", "ИНН ")
+        .replace("MHA", "ИНН")
+        .replace("MHА", "ИНН")
         .replace("HHH", "ИНН")
         .replace("ИHH", "ИНН")
+        .replace("ИHН", "ИНН")
+        .replace("KIH", "КПП")
+        .replace("KITE", "КПП")
         .replace("KIM", "КПП")
+        .replace("КИЕН", "КПП")
         .replace("КИП", "КПП")
         .replace("КИШ", "КПП")
         .replace("КНП", "КПП")
+        .replace("КПИ", "КПП")
         .replace("EKC", "ЕКС")
+        .replace("EKG", "ЕКС")
         .replace("BIK", "БИК")
         .replace("OKTMO", "ОКТМО")
         .replace("KBK", "КБК")
+        .replace("KBE", "КБК")
         .replace("КВК", "КБК")
     )
 
-    payee_inn = (
-        _find(r"ИНН[:\s]*(\d{10})", text)
-        or _find(r"ИНН[:\s]*(\d{10})", fuzzy)
-        or _find(r"ИНН(\d{10})", fuzzy)
-        or ""
-    )
-    kpp = (
-        _find(r"КПП[:\s]*(\d{9})", text)
-        or _find(r"КПП[:\s]*(\d{9})", fuzzy)
-        or _find(r"КПП(\d{9})", fuzzy)
-        or ""
-    )
+    payee_inn, kpp = _extract_inn_kpp(text, fuzzy)
     bic = (
         _find(r"БИК[:\s]*(\d{9})", text)
         or _find(r"БИК[:\s]*(\d{9})", fuzzy)
@@ -222,19 +280,7 @@ def parse_receipt_text(text: str) -> PaymentFields:
         if m:
             name = re.sub(r"\s+", " ", m.group(1)).strip(" ({")
 
-    purpose = ""
-    m = re.search(
-        r"(?:наименование платежа|назначение платежа)[^\n]*\n([^\n]{3,120})",
-        text,
-        re.I,
-    )
-    if m:
-        cand = m.group(1).strip()
-        if not re.search(r"дата|сумма|плательщик", cand, re.I):
-            purpose = cand
-    m = re.search(r"\b(СП[РГ][^\n]{5,80})", text)
-    if m and (not purpose or len(m.group(1)) > len(purpose)):
-        purpose = re.sub(r"\s+", " ", m.group(1)).strip()
+    purpose = _extract_purpose(text)
 
     return PaymentFields(
         name=name,
@@ -250,6 +296,62 @@ def parse_receipt_text(text: str) -> PaymentFields:
         oktmo=oktmo,
         pers_acc=pers_acc,
     )
+
+
+def _looks_like_handwriting_garbage(s: str) -> bool:
+    """OCR рукописи обычно даёт кашу из символов без нормальных слов."""
+    t = (s or "").strip()
+    if len(t) < 3:
+        return True
+    letters = re.findall(r"[A-Za-zА-Яа-яЁё]", t)
+    digits = re.findall(r"\d", t)
+    if len(letters) < 6 and len(digits) < 4:
+        return True
+    # Мало пробелов при длинной строке — типичный мусор OCR
+    if len(t) > 18 and t.count(" ") + t.count(",") < 1:
+        return True
+    # Слишком много «странных» символов
+    weird = len(re.findall(r"[^\w\s,.\-«»\"'()№/]", t, re.UNICODE))
+    if weird >= max(3, len(t) // 6):
+        return True
+    # Нет ни одного «словесного» куска из 3+ букв
+    if not re.search(r"[A-Za-zА-Яа-яЁё]{3,}", t):
+        return True
+    return False
+
+
+def _extract_purpose(text: str) -> str:
+    """Читаем назначение, если оно распозналось; СПР сами не подставляем."""
+    candidates: list[str] = []
+    m = re.search(
+        r"(?:наименование платежа|назначение платежа)[^\n]*\n([^\n]{3,120})",
+        text,
+        re.I,
+    )
+    if m:
+        cand = m.group(1).strip()
+        if not re.search(r"^(дата|сумма|плательщик)\b", cand, re.I):
+            candidates.append(cand)
+
+    # Печатные/читаемые строки с ФИО рядом с назначением — без автодобавления «СПР»
+    for m in re.finditer(
+        r"(?m)^(?!.*(ИНН|КПП|БИК|КБК|ОКТМО|ЕКС|сч[её]т|банк).*)"
+        r"([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+){1,4}.*)$",
+        text,
+    ):
+        cand = m.group(2).strip()
+        if 6 <= len(cand) <= 100:
+            candidates.append(cand)
+
+    for cand in candidates:
+        cleaned = re.sub(r"\s+", " ", cand).strip(" .;|")
+        # Не оставляем одно только «СПР» / «СПГ» без остального текста
+        if re.fullmatch(r"СП[РГ]\s*", cleaned, re.I):
+            continue
+        if _looks_like_handwriting_garbage(cleaned):
+            continue
+        return cleaned
+    return ""
 
 
 def parse_receipt_image(image_bytes: bytes) -> tuple[PaymentFields, str]:

@@ -7,8 +7,6 @@
   const form = document.getElementById("fields-form");
   const hintsEl = document.getElementById("hints");
   const qrFrame = document.getElementById("qr-frame");
-  const btnDownload = document.getElementById("btn-download");
-  const payloadText = document.getElementById("payload-text");
   const btnAgain = document.getElementById("btn-again");
 
   const overlay = document.getElementById("progress-overlay");
@@ -22,6 +20,13 @@
     "payee_inn", "kpp", "sum_rub", "purpose", "cbc", "oktmo", "pers_acc",
   ];
 
+  // Пустые поля после OCR — красным; для рукописи — отдельная пометка
+  const HAND_FIELDS = new Set(["purpose", "sum_rub"]);
+  const MARK_IF_EMPTY = [
+    "name", "personal_acc", "bank_name", "bic", "corresp_acc",
+    "payee_inn", "kpp", "sum_rub", "purpose",
+  ];
+
   let displayPct = 0;
   let floorPct = 0;
   let ceilingPct = 12;
@@ -32,10 +37,49 @@
     status.textContent = msg || "";
   }
 
+  function ensureManualNote(label, hand) {
+    let note = label.querySelector(".manual-note");
+    if (!note) {
+      note = document.createElement("span");
+      note.className = "manual-note";
+      label.appendChild(note);
+    }
+    note.textContent = hand
+      ? "введите вручную — рукопись не распознана"
+      : "введите вручную";
+  }
+
+  function clearManualNote(label) {
+    label.querySelector(".manual-note")?.remove();
+  }
+
   function fillForm(fields) {
     for (const name of FIELD_NAMES) {
       const el = form.elements.namedItem(name);
       if (el) el.value = fields[name] || "";
+    }
+    markMissingFields(fields || {});
+  }
+
+  function markMissingFields(fields) {
+    for (const name of FIELD_NAMES) {
+      const el = form.elements.namedItem(name);
+      if (!el) continue;
+      const label = el.closest("label");
+      if (!label) continue;
+      const empty = !(fields[name] || "").trim();
+      const shouldMark = empty && MARK_IF_EMPTY.includes(name);
+      label.classList.toggle("needs-input", shouldMark);
+      if (shouldMark) ensureManualNote(label, HAND_FIELDS.has(name));
+      else clearManualNote(label);
+    }
+  }
+
+  function clearMissingMark(el) {
+    const label = el.closest("label");
+    if (label && el.value.trim()) {
+      label.classList.remove("needs-input");
+      clearManualNote(label);
     }
   }
 
@@ -57,23 +101,18 @@
     });
   }
 
-  function showQr(dataUrl, payload, errorMsg) {
+  function showQr(dataUrl, errorMsg) {
     if (dataUrl) {
       qrFrame.innerHTML = "";
       const img = document.createElement("img");
       img.src = dataUrl;
       img.alt = "Банковский QR";
       qrFrame.appendChild(img);
-      btnDownload.href = dataUrl;
-      btnDownload.classList.remove("hidden");
-      payloadText.textContent = payload || "";
       return;
     }
     qrFrame.innerHTML = `<p class="qr-placeholder">${
-      errorMsg || "Заполните обязательные поля — QR обновится сам"
+      errorMsg || "Заполните отмеченные поля — QR обновится сам"
     }</p>`;
-    btnDownload.classList.add("hidden");
-    payloadText.textContent = "";
   }
 
   function paintProgress() {
@@ -84,7 +123,6 @@
   }
 
   function tickProgress() {
-    // Ползём к потолку этапа, но не достигаем его до сигнала сервера
     if (floorPct < 100 && displayPct < ceilingPct - 0.35) {
       displayPct += 0.28;
     }
@@ -106,7 +144,7 @@
     } else if (next >= 70) {
       ceilingPct = 81;
     } else if (next >= 28) {
-      ceilingPct = 68; // OCR ещё идёт
+      ceilingPct = 68;
     } else if (next >= 22) {
       ceilingPct = 27;
     } else if (next >= 12) {
@@ -122,7 +160,7 @@
     displayPct = 1;
     floorPct = 1;
     ceilingPct = 12;
-    progressLabel.textContent = "Загрузка файла…";
+    progressLabel.textContent = "Загрузка…";
     overlay.classList.remove("hidden");
     document.body.classList.add("is-processing");
     cancelAnimationFrame(rafId);
@@ -139,7 +177,7 @@
     window.setTimeout(() => {
       overlay.classList.add("hidden");
       document.body.classList.remove("is-processing");
-    }, 320);
+    }, 280);
   }
 
   async function rebuildQr() {
@@ -151,18 +189,18 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showQr("", "", data.detail || "Не удалось собрать QR");
+        showQr("", data.detail || "Заполните обязательные поля");
         return;
       }
-      showQr(data.data_url, data.payload);
+      showQr(data.data_url);
     } catch (err) {
-      showQr("", "", err.message || String(err));
+      showQr("", err.message || String(err));
     }
   }
 
   function scheduleQrRebuild() {
     window.clearTimeout(qrTimer);
-    qrTimer = window.setTimeout(rebuildQr, 450);
+    qrTimer = window.setTimeout(rebuildQr, 400);
   }
 
   function processFile(file) {
@@ -201,8 +239,12 @@
           settled = true;
           stepUpload.classList.add("hidden");
           stepEdit.classList.remove("hidden");
-          showQr(msg.data_url, msg.payload, msg.qr_error);
+          showQr(msg.data_url, msg.qr_error);
           hideOverlay();
+          const purposeEl = form.elements.namedItem("purpose");
+          if (purposeEl && !(msg.fields?.purpose || "").trim()) {
+            purposeEl.focus();
+          }
           resolve(msg);
         }
 
@@ -231,7 +273,7 @@
         floorPct = Math.max(floorPct, Math.min(11, up));
         displayPct = Math.max(displayPct, floorPct);
         ceilingPct = 12;
-        progressLabel.textContent = "Загрузка файла…";
+        progressLabel.textContent = "Загрузка…";
         paintProgress();
       };
 
@@ -255,7 +297,7 @@
           return;
         }
         hideOverlay();
-        reject(new Error("Поток оборвался до завершения"));
+        reject(new Error("Поток оборвался"));
       };
 
       xhr.onerror = () => {
@@ -303,7 +345,10 @@
     onFile(e.dataTransfer?.files?.[0]);
   });
 
-  form.addEventListener("input", scheduleQrRebuild);
+  form.addEventListener("input", (e) => {
+    if (e.target && e.target.name) clearMissingMark(e.target);
+    scheduleQrRebuild();
+  });
   form.addEventListener("change", scheduleQrRebuild);
 
   btnAgain.addEventListener("click", () => {
@@ -311,6 +356,14 @@
     stepUpload.classList.remove("hidden");
     input.value = "";
     setStatus("");
-    showQr("", "", "QR появится после обработки");
+    showQr("", "Загрузите фото");
+    for (const name of FIELD_NAMES) {
+      const el = form.elements.namedItem(name);
+      if (el) {
+        el.value = "";
+        el.closest("label")?.classList.remove("needs-input");
+      }
+    }
+    showHints([]);
   });
 })();

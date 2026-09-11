@@ -188,22 +188,5 @@ async def health() -> dict[str, str]:
 
 
 def _hints(fields: PaymentFields) -> list[str]:
-    hints: list[str] = []
-    if not fields.purpose:
-        hints.append("Назначение платежа часто рукописное — проверьте и допишите вручную.")
-    missing = [
-        label
-        for key, label in (
-            ("name", "получатель"),
-            ("personal_acc", "счёт"),
-            ("bank_name", "банк"),
-            ("bic", "БИК"),
-            ("corresp_acc", "ЕКС / корсчёт"),
-        )
-        if not getattr(fields, key)
-    ]
-    if missing:
-        hints.append("Не нашлись поля: " + ", ".join(missing) + ". Заполните вручную.")
-    if fields.sum_rub:
-        hints.append(f"Сумма распознана как {fields.sum_rub} ₽ — сверьте.")
-    return hints
+    # Подсказки не дублируем: пустые/нераспознанные поля подсвечиваются в форме
+    return []

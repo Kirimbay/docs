@@ -13,8 +13,8 @@ SAMPLE_TEXT = """
 БИК 004525987 ЕКС 40102810845370000004
 КБК 00000000000000000130 ОКТМО 46718000
 ОГРН 1095010001184 ОКПО 61565503
-СПР, Андрианова Аделина, Егорова Ксения Викторовна
-(наименование платежа)
+наименование платежа
+Андрианова Аделина, Егорова Ксения Викторовна
 Сумма платежа 1800 р
 """
 
@@ -60,7 +60,40 @@ def test_parse_receipt_text_core_fields():
     assert fields.pers_acc == "20018UL3Z20"
     assert "1800" in fields.sum_rub
     assert "Комитет" in fields.name
-    assert "СПР" in fields.purpose
+    assert "Андрианова Аделина" in fields.purpose
+    assert not fields.purpose.startswith("СПР")
+
+
+def test_purpose_does_not_auto_insert_spr():
+    text = SAMPLE_TEXT.replace(
+        "наименование платежа\nАндрианова Аделина, Егорова Ксения Викторовна",
+        "наименование платежа\nСПР\nдата",
+    )
+    fields = parse_receipt_text(text)
+    assert fields.purpose == ""
+
+
+def test_purpose_rejects_handwriting_garbage():
+    text = SAMPLE_TEXT.replace(
+        "наименование платежа\nАндрианова Аделина, Егорова Ксения Викторовна",
+        "наименование платежа\n|~#@/\\\\ xx 3f ~~\nдата",
+    )
+    assert parse_receipt_text(text).purpose == ""
+
+
+def test_inn_ocr_mha_as_inn():
+    """Tesseract часто читает «ИНН» как MHA, а «КПП» как KIH."""
+    text = """
+: MHA 5010029030:KIH 501001001 (Комитет по финансам и экономике г.о. Дубна
+ИЗВЕЩЕНИЕ 5040029030; KITE 501001001 МБУДО «ДДШИ», л/с 20018UL3Z20)
+казначейский счет № 03234643467180004800
+БИК 004525987 ЕКС 40102810845370000004
+КБК 00000000000000000130 ОКТМО 46718000
+Сумма платежа 1800 р
+"""
+    fields = parse_receipt_text(text)
+    assert fields.payee_inn == "5010029030"
+    assert fields.kpp == "501001001"
 
 
 def test_cbc_ocr_zero_as_eight():
