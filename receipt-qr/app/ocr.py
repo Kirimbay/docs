@@ -33,8 +33,10 @@ KNOWN_ORG = {
     },
 }
 
-# Качественный режим: RapidOCR (PP-OCRv5 eslav) ~1с на 1 vCPU,
-# Tesseract rus+eng — запасной движок.
+# Лучший баланс RU+цифры на CPU: RapidOCR PP-OCRv5 eslav (офиц. ~81.6% на
+# восточнославянском; cyrillic чуть слабее и медленнее; multi v6 плохо читает
+# кириллицу банка). Латиница/цифры на бланках УФК eslav читает уверенно.
+# Tesseract rus+eng — только fallback.
 OCR_MAX_SIDE = 2000
 OCR_ENGINE = "rapid"  # rapid | tesseract
 _TESS_LANG = "rus+eng"
@@ -239,6 +241,26 @@ def _extract_inn_kpp(text: str, fuzzy: str) -> tuple[str, str]:
     return inn, kpp
 
 
+def _normalize_bank_name(raw: str) -> str:
+    """Починить типичный OCR-мусор в названии банка/УФК."""
+    s = re.sub(r"\s+", " ", (raw or "")).strip(" .;")
+    if not s:
+        return ""
+    # Слипшиеся слова: поМосковской → по Московской
+    s = re.sub(r"(?<=[а-яё])(?=[А-ЯЁ])", " ", s)
+    s = re.sub(r"по(?=[Мм]осковск)", "по ", s, flags=re.I)
+    s = re.sub(r"([Мм]осковской)(?=[Оо]бласт)", r"\1 ", s)
+    s = re.sub(r"областв\b", "области", s, flags=re.I)
+    s = re.sub(r"областа\b", "области", s, flags=re.I)
+    s = re.sub(r"ЦфО", "ЦФО", s, flags=re.I)
+    s = re.sub(r"ЦФО/+", "ЦФО//", s)
+    s = re.sub(r"Россив\b", "России", s, flags=re.I)
+    s = re.sub(r"обл\.\s*", "области, ", s, flags=re.I)
+    s = re.sub(r"банковские\s+реквизитый.*$", "", s, flags=re.I)
+    s = re.sub(r"наименование\s+банка.*$", "", s, flags=re.I)
+    return re.sub(r"\s+", " ", s).strip(" .;/")
+
+
 def parse_receipt_text(text: str) -> PaymentFields:
     compact = re.sub(r"[ \t]+", " ", text)
     one_line = compact.replace("\n", " ")
@@ -374,10 +396,15 @@ def parse_receipt_text(text: str) -> PaymentFields:
     ):
         m = re.search(pat, text, re.I)
         if m:
-            bank_name = re.sub(r"\s+", " ", m.group(1)).strip(" .;")
+            bank_name = _normalize_bank_name(m.group(1))
             break
-    if not bank_name and bic in KNOWN_BANKS:
+    # При известном БИК эталон надёжнее любого OCR (пробелы/окончания часто ломаются)
+    if bic in KNOWN_BANKS:
         bank_name = KNOWN_BANKS[bic]
+    elif not bank_name:
+        # эвристика по тексту без БИК
+        if re.search(r"УФК.*Московск|Московск.*УФК|ЦФО.*УФК", text + fuzzy, re.I):
+            bank_name = KNOWN_BANKS["004525987"]
 
     name = ""
     # Типичный казначейский бланк Дубны / ДДШИ

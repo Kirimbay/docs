@@ -81,6 +81,26 @@ def test_purpose_rejects_handwriting_garbage():
     assert parse_receipt_text(text).purpose == ""
 
 
+def test_known_bank_overrides_garbled_ocr_name():
+    """Даже кривое «УФК поМосковскойобластв» при верном БИК → эталон."""
+    text = SAMPLE_TEXT.replace(
+        "ГУ Банка России по ЦФО//УФК по Московской области, г. Москва",
+        "ГУ Банка Россив по ЦфО/УФК поМосковскойобластв, г. Москва",
+    )
+    fields = parse_receipt_text(text)
+    assert fields.bank_name == (
+        "ГУ Банка России по ЦФО//УФК по Московской области, г. Москва"
+    )
+
+
+def test_normalize_bank_name_fixes_spacing():
+    from app.ocr import _normalize_bank_name
+
+    assert "Московской области" in _normalize_bank_name(
+        "УФК поМосковскойобластв, г. Москва"
+    )
+
+
 def test_known_eks_corrects_ocr_typo():
     text = SAMPLE_TEXT.replace(
         "ЕКС 40102810845370000004",
