@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Deploy КвитQR on Hiddify VPS (HAProxy owns :80/:443).
 # Usage:
-#   QR_DOMAIN=qr.one.vele.uk ./deploy/remote-install.sh root@138.124.242.142
+#   QR_DOMAIN=qr.vele.uk ./deploy/remote-install.sh root@138.124.242.142
 set -euo pipefail
 
 TARGET="${1:?usage: $0 user@host}"
-QR_DOMAIN="${QR_DOMAIN:?Set QR_DOMAIN, e.g. qr.one.vele.uk}"
+QR_DOMAIN="${QR_DOMAIN:?Set QR_DOMAIN, e.g. qr.vele.uk}"
 SSH_KEY="${SSH_KEY:-/tmp/qr-ssh/id_ed25519}"
 APP_DIR="${APP_DIR:-/opt/kvitqr}"
 APP_PORT="${APP_PORT:-8787}"
@@ -40,6 +40,9 @@ APP_PORT="$3"
 PROXY_PORT="$4"
 
 export DEBIAN_FRONTEND=noninteractive
+# Hiddify HAProxy PPA keys sometimes break apt update
+mkdir -p /etc/apt/sources.list.d/disabled
+mv /etc/apt/sources.list.d/*haproxy* /etc/apt/sources.list.d/disabled/ 2>/dev/null || true
 apt-get update -qq
 apt-get install -y -qq python3 python3-venv python3-pip \
   tesseract-ocr tesseract-ocr-rus nginx openssl

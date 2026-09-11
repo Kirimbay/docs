@@ -1,12 +1,12 @@
 # Деплой КвитQR на VPS с Hiddify
 
-Боевой адрес (после DNS + install): **https://qr.one.vele.uk**
+Боевой адрес (после DNS + install): **https://qr.vele.uk**
 
 ## 1. DNS
 
 A-запись:
 
-- `qr.one.vele.uk` → `138.124.242.142`
+- `qr.vele.uk` → `138.124.242.142`
 
 ## 2. SSH для агента
 
@@ -23,7 +23,7 @@ bash /path/to/authorize-agent.sh
 ## 3. Установка с машины агента
 
 ```bash
-QR_DOMAIN=qr.one.vele.uk SSH_KEY=/tmp/qr-ssh/id_ed25519 \
+QR_DOMAIN=qr.vele.uk SSH_KEY=/tmp/qr-ssh/id_ed25519 \
   ./deploy/remote-install.sh root@138.124.242.142
 ```
 
@@ -37,6 +37,6 @@ QR_DOMAIN=qr.one.vele.uk SSH_KEY=/tmp/qr-ssh/id_ed25519 \
 ## Проверка
 
 ```bash
-curl -sS https://qr.one.vele.uk/api/health
+curl -sS https://qr.vele.uk/api/health
 # → {"status":"ok"}
 ```

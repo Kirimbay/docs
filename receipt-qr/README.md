@@ -41,4 +41,4 @@ PYTHONPATH=. python3 -m pytest -q
 
 Скрипты деплоя на VPS с Hiddify: см. [`deploy/README.md`](deploy/README.md).
 
-После установки: **https://qr.one.vele.uk**
+После установки: **https://qr.vele.uk**
