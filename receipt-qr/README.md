@@ -36,3 +36,9 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8787
 cd receipt-qr
 PYTHONPATH=. python3 -m pytest -q
 ```
+
+## Сайт на сервере
+
+Скрипты деплоя на VPS с Hiddify: см. [`deploy/README.md`](deploy/README.md).
+
+После установки: **https://qr.one.vele.uk**

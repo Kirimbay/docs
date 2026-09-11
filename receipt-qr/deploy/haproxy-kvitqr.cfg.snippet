@@ -1,0 +1,12 @@
+# HAProxy Host ACL for КвитQR (Hiddify).
+# Prefer http_domain map entry if your panel uses maps:
+#   __QR_DOMAIN__   kvitqr
+#
+# Or paste ACL before decoy/default:
+#   acl is_kvitqr hdr(host) -i __QR_DOMAIN__
+#   use_backend kvitqr_back if is_kvitqr
+#
+# backend kvitqr_back
+#     mode http
+#     option forwardfor
+#     server kvitqr 127.0.0.1:__PROXY_PORT__ ssl verify none
