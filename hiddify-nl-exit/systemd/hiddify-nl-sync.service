@@ -1,0 +1,9 @@
+[Unit]
+Description=Hiddify Netherlands user sync
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/hiddify-nl-exit
+ExecStart=/opt/hiddify-nl-exit/.venv/bin/python -m hiddify_nl_exit --config /opt/hiddify-nl-exit/config.yaml sync
+User=root

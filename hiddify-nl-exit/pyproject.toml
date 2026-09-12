@@ -1,0 +1,17 @@
+[project]
+name = "hiddify-nl-exit"
+version = "1.0.0"
+description = "Sync Hiddify users to a Netherlands node and merge that exit into existing subscriptions."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "httpx>=0.27",
+  "PyYAML>=6.0",
+]
+
+[project.scripts]
+hiddify-nl-exit = "hiddify_nl_exit.__main__:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
