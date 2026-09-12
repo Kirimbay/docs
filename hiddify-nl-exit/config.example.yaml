@@ -1,0 +1,39 @@
+# Copy to config.yaml and fill in real panel URLs / API keys.
+# Never commit config.yaml.
+
+listen:
+  host: 127.0.0.1
+  port: 8471
+
+fetch_timeout_sec: 8
+
+netherlands:
+  # Public URL of the NL Hiddify panel (used to fetch NL configs).
+  base_url: "https://nl.example.com"
+  admin_proxy_path: "CHANGE_ME_NL_ADMIN_PATH"
+  # Super-admin UUID from the NL panel (Settings → API / admin user).
+  admin_api_key: "00000000-0000-0000-0000-000000000000"
+  # Client (user) proxy path, not the admin path.
+  user_proxy_path: "CHANGE_ME_NL_USER_PATH"
+  added_by_uuid: "00000000-0000-0000-0000-000000000000"
+  verify_tls: true
+  usage_limit_gb: 9000
+  package_days: 3650
+  mode: no_reset
+  # Optional. Run on the NL machine after user enable/disable changes.
+  apply_users_command:
+    - /opt/hiddify-manager/common/commander.py
+    - apply-users
+
+sweden:
+  - id: se01
+    base_url: "https://se1.example.com"
+    admin_proxy_path: "CHANGE_ME_SE1_ADMIN_PATH"
+    admin_api_key: "00000000-0000-0000-0000-000000000000"
+    user_proxy_path: "CHANGE_ME_SE1_USER_PATH"
+    # Direct origin that bypasses this merge proxy (local panel HTTP).
+    origin_url: "http://127.0.0.1:9000"
+    server_names:
+      - se1.example.com
+      - sub-se1.example.com
+    verify_tls: false
