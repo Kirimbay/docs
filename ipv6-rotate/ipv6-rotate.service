@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily IPv6 rotation for Hiddify (03:00)
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/rotate-ipv6.sh
+Nice=10
