@@ -1,0 +1,18 @@
+{
+ "route": {
+    "final": "freedom",
+      "rules": [
+        {"action":"sniff"},
+        {
+            "action": "hijack-dns",
+            "port": [53]
+        },
+        {
+          "action": "reject", "ip_is_private": true
+        }
+        // {// Block BitTorrent protocol
+        //   "type": "field",  "protocol": ["bittorrent"],"action":"reject","method": "default"
+        // },
+      ]
+    }
+}

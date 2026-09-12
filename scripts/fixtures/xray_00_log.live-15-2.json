@@ -1,0 +1,11 @@
+{
+  "log": {
+    "loglevel": "critical",
+    "output": "none",
+    "error": "none",
+    "access": "none",
+    "dnsLog": false,
+    "logid": true,
+    "header": true
+  }
+}
