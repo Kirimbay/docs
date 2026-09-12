@@ -1,0 +1,11 @@
+.build/
+.swiftpm/
+DerivedData/
+Inbox/
+inbox/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+Tools/teststand/fixtures/
+Tools/teststand/received/
+__pycache__/
+.DS_Store
