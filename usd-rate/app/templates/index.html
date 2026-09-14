@@ -31,10 +31,10 @@
         <p class="pair">{{ rate.pair }}</p>
         <h2 class="name">{{ rate.name }}</h2>
         <p class="rate" data-role="value">{{ rate.display }}</p>
-        <p class="unit">{{ rate.unit }}</p>
+        <p class="unit" data-role="unit">{{ rate.unit }}</p>
         <p class="delta {% if rate.delta > 0 %}up{% elif rate.delta < 0 %}down{% endif %}" data-role="delta">
           {% if rate.delta > 0 %}▲{% elif rate.delta < 0 %}▼{% else %}●{% endif %}
-          {{ rate.delta_display }} ₽
+          {{ rate.delta_display }}{% if rate.code == 'BTC' %} млн{% else %} ₽{% endif %}
           {% if rate.code == 'BTC' %}за 24ч{% else %}к предыдущему{% endif %}
         </p>
         <p class="meta" data-role="meta">

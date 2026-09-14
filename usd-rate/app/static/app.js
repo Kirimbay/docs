@@ -21,17 +21,31 @@
     const metaEl = section.querySelector('[data-role="meta"]');
     if (!valueEl || !rate) return;
 
-    const digits = rate.code === "BTC" ? 0 : 2;
-    valueEl.textContent = rate.display || fmt(rate.value, digits);
-
-    if (deltaEl) {
-      deltaEl.classList.remove("up", "down");
-      if (rate.delta > 0) deltaEl.classList.add("up");
-      if (rate.delta < 0) deltaEl.classList.add("down");
-      const arrow = rate.delta > 0 ? "▲" : rate.delta < 0 ? "▼" : "●";
-      const suffix = rate.code === "BTC" ? "за 24ч" : "к предыдущему";
-      deltaEl.textContent = `${arrow} ${rate.delta_display || fmtDelta(rate.delta, digits)} ₽ ${suffix}`;
+    const isBtc = rate.code === "BTC";
+    if (isBtc) {
+      const mln = (n) => (n / 1_000_000).toFixed(2).replace(".", ",");
+      const mlnDelta = (n) => `${n > 0 ? "+" : n < 0 ? "-" : ""}${mln(Math.abs(n))}`;
+      valueEl.textContent = rate.display || mln(rate.value);
+      if (deltaEl) {
+        deltaEl.classList.remove("up", "down");
+        if (rate.delta > 0) deltaEl.classList.add("up");
+        if (rate.delta < 0) deltaEl.classList.add("down");
+        const arrow = rate.delta > 0 ? "▲" : rate.delta < 0 ? "▼" : "●";
+        deltaEl.textContent = `${arrow} ${rate.delta_display || mlnDelta(rate.delta)} млн за 24ч`;
+      }
+    } else {
+      valueEl.textContent = rate.display || fmt(rate.value, 2);
+      if (deltaEl) {
+        deltaEl.classList.remove("up", "down");
+        if (rate.delta > 0) deltaEl.classList.add("up");
+        if (rate.delta < 0) deltaEl.classList.add("down");
+        const arrow = rate.delta > 0 ? "▲" : rate.delta < 0 ? "▼" : "●";
+        deltaEl.textContent = `${arrow} ${rate.delta_display || fmtDelta(rate.delta, 2)} ₽ к предыдущему`;
+      }
     }
+
+    const unitEl = section.querySelector('[data-role="unit"]');
+    if (unitEl && rate.unit) unitEl.textContent = rate.unit;
 
     if (metaEl) {
       metaEl.textContent =

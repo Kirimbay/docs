@@ -18,6 +18,14 @@ def test_format_delta() -> None:
     assert _format_delta(-1200, digits=0) == "-1 200"
 
 
+def test_format_mln() -> None:
+    from app.cbr import _format_mln, _format_mln_delta
+
+    assert _format_mln(6_681_809) == "6,68"
+    assert _format_mln_delta(169_087) == "+0,17"
+    assert _format_mln_delta(-50_000) == "-0,05"
+
+
 def test_rate_api_shape() -> None:
     rate = Rate(
         code="USD",

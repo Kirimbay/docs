@@ -53,15 +53,18 @@ class Rate:
         data = asdict(self)
         data["delta"] = self.delta
         data["delta_pct"] = self.delta_pct
-        # BTC — без копеек в основной цифре
+        # BTC в млн ₽ — иначе 7 цифр не влезают в крупный кегль
         if self.code == "BTC":
-            data["display"] = _format_rub(self.value, digits=0)
-            data["previous_display"] = _format_rub(self.previous, digits=0)
-            data["delta_display"] = _format_delta(self.delta, digits=0)
+            data["display"] = _format_mln(self.value)
+            data["previous_display"] = _format_mln(self.previous)
+            data["delta_display"] = _format_mln_delta(self.delta)
+            data["unit"] = "млн ₽ за 1 биткоин"
+            data["compact"] = "mln"
         else:
             data["display"] = _format_rub(self.value)
             data["previous_display"] = _format_rub(self.previous)
             data["delta_display"] = _format_delta(self.delta)
+            data["compact"] = None
         return data
 
 
@@ -105,6 +108,20 @@ def _format_delta(delta: float, *, digits: int = 2) -> str:
     if digits == 0:
         return f"{sign}{delta:,.0f}".replace(",", " ")
     body = f"{abs(delta):,.{digits}f}".replace(",", "X").replace(".", ",").replace("X", " ")
+    if delta < 0:
+        return f"-{body}"
+    return f"{sign}{body}"
+
+
+def _format_mln(value: float) -> str:
+    # 6_681_809 → «6,68»
+    return f"{value / 1_000_000:.2f}".replace(".", ",")
+
+
+def _format_mln_delta(delta: float) -> str:
+    # +169_087 → «+0,17»
+    sign = "+" if delta > 0 else ""
+    body = f"{abs(delta) / 1_000_000:.2f}".replace(".", ",")
     if delta < 0:
         return f"-{body}"
     return f"{sign}{body}"
@@ -222,7 +239,7 @@ def _fetch_btc() -> Rate:
         code="BTC",
         name="Биткоин",
         pair="BTC → RUB",
-        unit="₽ за 1 биткоин",
+        unit="млн ₽ за 1 биткоин",
         value=value,
         previous=previous,
         date=now.strftime("%d.%m.%Y"),
@@ -270,7 +287,7 @@ def get_rates(*, force: bool = False) -> RatesBundle:
             code="BTC",
             name="Биткоин",
             pair="BTC → RUB",
-            unit="₽ за 1 биткоин",
+            unit="млн ₽ за 1 биткоин",
             value=0.0,
             previous=0.0,
             date=cbr["USD"].date,
