@@ -1,0 +1,132 @@
+:root {
+  --bg0: #070b10;
+  --bg1: #101820;
+  --ink: #f2f5f7;
+  --mute: #8b98a5;
+  --mint: #3dceb0;
+  --up: #3dceb0;
+  --down: #ff6b6b;
+  --font-brand: "Unbounded", system-ui, sans-serif;
+  --font-body: "Manrope", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg0);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+body {
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+.atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% -10%, rgba(61, 206, 176, 0.18), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, rgba(40, 90, 120, 0.22), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 0% 80%, rgba(20, 40, 60, 0.35), transparent 45%),
+    linear-gradient(165deg, var(--bg0), var(--bg1) 55%, #0a1218);
+}
+
+.atmosphere::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+}
+
+.stage {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  animation: rise 0.7s ease both;
+}
+
+.brand {
+  margin: 0 0 clamp(0.4rem, 2vw, 1rem);
+  font-family: var(--font-brand);
+  font-weight: 700;
+  font-size: clamp(2.4rem, 9vw, 5.5rem);
+  letter-spacing: -0.06em;
+  line-height: 0.95;
+  color: var(--ink);
+}
+
+.pair {
+  margin: 0 0 0.35rem;
+  color: var(--mint);
+  font-size: clamp(0.85rem, 2.2vw, 1.1rem);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.rate {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-weight: 700;
+  font-size: clamp(4.6rem, 22vw, 14rem);
+  letter-spacing: -0.07em;
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+  animation: sheen 8s ease-in-out infinite;
+}
+
+.rate.muted { color: var(--mute); font-size: clamp(3rem, 14vw, 8rem); }
+
+.unit {
+  margin: clamp(0.6rem, 2vw, 1.1rem) 0 0;
+  color: var(--mute);
+  font-size: clamp(1rem, 2.8vw, 1.35rem);
+  font-weight: 500;
+}
+
+.delta {
+  margin: clamp(1rem, 3vw, 1.6rem) 0 0;
+  font-size: clamp(1rem, 2.6vw, 1.35rem);
+  font-weight: 600;
+  color: var(--mute);
+}
+
+.delta.up { color: var(--up); }
+.delta.down { color: var(--down); }
+
+.meta {
+  margin: clamp(0.85rem, 2.5vw, 1.4rem) 0 0;
+  color: var(--mute);
+  font-size: clamp(0.85rem, 2vw, 1.05rem);
+  letter-spacing: 0.02em;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sheen {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.06); }
+}
+
+@media (max-width: 480px) {
+  .brand { margin-bottom: 0.55rem; }
+  .rate { letter-spacing: -0.08em; }
+}

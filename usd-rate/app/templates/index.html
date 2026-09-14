@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#070b10" />
+  <title>курс — доллар ЦБ РФ</title>
+  <meta name="description" content="Актуальный курс доллара США по данным Центрального банка России." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <main class="stage">
+    <p class="brand">курс</p>
+
+    {% if rate %}
+    <p class="pair">USD → RUB</p>
+    <h1 class="rate" id="rate-value" data-value="{{ rate.value }}">{{ rate.display }}</h1>
+    <p class="unit">₽ за 1 доллар США</p>
+
+    <p class="delta {% if rate.delta > 0 %}up{% elif rate.delta < 0 %}down{% endif %}" id="rate-delta">
+      {% if rate.delta > 0 %}▲{% elif rate.delta < 0 %}▼{% else %}●{% endif %}
+      {{ rate.delta_display }} ₽ к предыдущему
+    </p>
+
+    <p class="meta" id="rate-meta">ЦБ РФ · курс на {{ rate.date }}</p>
+    {% else %}
+    <h1 class="rate muted">—.——</h1>
+    <p class="unit">не удалось получить курс ЦБ</p>
+    <p class="meta">{{ error }}</p>
+    {% endif %}
+  </main>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
