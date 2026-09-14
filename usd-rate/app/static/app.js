@@ -1,29 +1,57 @@
 (() => {
-  const rateEl = document.getElementById("rate-value");
-  const deltaEl = document.getElementById("rate-delta");
-  const metaEl = document.getElementById("rate-meta");
-  if (!rateEl) return;
+  const board = document.getElementById("rates-board");
+  if (!board) return;
 
-  const fmt = (n) => n.toFixed(2).replace(".", ",");
-  const fmtDelta = (n) => `${n > 0 ? "+" : ""}${n.toFixed(2)}`.replace(".", ",");
+  const withSpaces = (intPart) =>
+    String(intPart).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+  const fmt = (n, digits = 2) => {
+    if (digits === 0) return withSpaces(Math.round(n));
+    const [a, b] = n.toFixed(digits).split(".");
+    return `${withSpaces(a)},${b}`;
+  };
+  const fmtDelta = (n, digits = 2) => {
+    const sign = n > 0 ? "+" : n < 0 ? "-" : "";
+    return `${sign}${fmt(Math.abs(n), digits)}`;
+  };
+
+  function paintSection(section, rate) {
+    const valueEl = section.querySelector('[data-role="value"]');
+    const deltaEl = section.querySelector('[data-role="delta"]');
+    const metaEl = section.querySelector('[data-role="meta"]');
+    if (!valueEl || !rate) return;
+
+    const digits = rate.code === "BTC" ? 0 : 2;
+    valueEl.textContent = rate.display || fmt(rate.value, digits);
+
+    if (deltaEl) {
+      deltaEl.classList.remove("up", "down");
+      if (rate.delta > 0) deltaEl.classList.add("up");
+      if (rate.delta < 0) deltaEl.classList.add("down");
+      const arrow = rate.delta > 0 ? "▲" : rate.delta < 0 ? "▼" : "●";
+      const suffix = rate.code === "BTC" ? "за 24ч" : "к предыдущему";
+      deltaEl.textContent = `${arrow} ${rate.delta_display || fmtDelta(rate.delta, digits)} ₽ ${suffix}`;
+    }
+
+    if (metaEl) {
+      metaEl.textContent =
+        rate.code === "BTC"
+          ? `CoinGecko · ${rate.date}`
+          : `ЦБ РФ · курс на ${rate.date}`;
+    }
+  }
 
   async function refresh() {
     try {
-      const res = await fetch("/api/rate", { cache: "no-store" });
+      const res = await fetch("/api/rates", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
-      rateEl.textContent = data.display || fmt(data.value);
-      rateEl.dataset.value = String(data.value);
-      if (deltaEl) {
-        deltaEl.classList.remove("up", "down");
-        if (data.delta > 0) deltaEl.classList.add("up");
-        if (data.delta < 0) deltaEl.classList.add("down");
-        const arrow = data.delta > 0 ? "▲" : data.delta < 0 ? "▼" : "●";
-        deltaEl.textContent = `${arrow} ${data.delta_display || fmtDelta(data.delta)} ₽ к предыдущему`;
+      for (const rate of data.sections || []) {
+        const el = board.querySelector(`[data-code="${String(rate.code).toLowerCase()}"]`);
+        if (el) paintSection(el, rate);
       }
-      if (metaEl) metaEl.textContent = `ЦБ РФ · курс на ${data.date}`;
     } catch {
-      /* keep last good value */
+      /* keep last good values */
     }
   }
 

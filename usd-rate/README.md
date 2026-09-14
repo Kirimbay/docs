@@ -1,6 +1,6 @@
-# курс — доллар ЦБ РФ
+# курс — USD · EUR · CNY · BTC
 
-Чистый полноэкранный курс USD→RUB по данным Центрального банка России.
+Секции курсов: доллар, евро и юань по ЦБ РФ + биткоин (CoinGecko).
 
 **Сайт:** https://dollar.vele.uk
 
@@ -19,11 +19,11 @@ python3 -m venv .venv
 
 | Endpoint | Описание |
 |----------|----------|
-| `GET /` | Лендинг с крупным курсом |
-| `GET /api/rate` | JSON: value, previous, delta, date |
+| `GET /` | Лендинг с секциями |
+| `GET /api/rates` | JSON со всеми курсами |
 | `GET /api/health` | Healthcheck |
 
-Источник: зеркало `cbr-xml-daily.ru` с запасным каналом `cbr.ru/XML_daily.asp`. Кэш ~5 минут.
+Источники: `cbr-xml-daily.ru` (+ XML ЦБ) и CoinGecko. Кэш ~5 минут.
 
 ## Деплой
 

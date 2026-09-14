@@ -99,7 +99,7 @@ if [[ -f "$HAP_CFG" ]]; then
   if ! grep -qE '^backend usd_rate[[:space:]]*$' "$HAP_CFG"; then
     cat >> "$HAP_CFG" <<BEOF
 
-# --- курс USD ЦБ / dollar.vele.uk (manual, do not wipe without re-adding) ---
+# --- курс / dollar.vele.uk (manual, do not wipe without re-adding) ---
 backend usd_rate
     mode http
     option forwardfor
@@ -108,13 +108,34 @@ backend usd_rate
 BEOF
     echo "Appended backend usd_rate to $HAP_CFG"
   else
-    # Keep server port in sync on re-deploy
     sed -i -E "s|(server usd_rate1 127\\.0\\.0\\.1:)[0-9]+|\\1${APP_PORT}|" "$HAP_CFG"
   fi
-  # Also keep j2 map template in sync if present (survives some regenerations)
+
+  # Hard ACL (case-insensitive) so the host never falls through to BBC decoy
+  if ! grep -qE 'acl is_usd_rate ' "$HAP_CFG"; then
+    # Insert ACL + use_backend into both HTTP frontends that use the domain map
+    python3 - <<'PY'
+from pathlib import Path
+path = Path("/opt/hiddify-manager/haproxy/haproxy.cfg")
+text = path.read_text()
+needle = "http-request set-var(txn.backend) req.hdr(host),map_dom(/opt/hiddify-manager/haproxy/maps/http_domain,default)"
+inject = (
+    "  acl is_usd_rate hdr(host) -i dollar.vele.uk\n"
+    "  use_backend usd_rate if is_usd_rate\n"
+    f"  {needle}"
+)
+if needle in text and "acl is_usd_rate " not in text:
+    text = text.replace(needle, inject)
+    path.write_text(text)
+    print("Inserted is_usd_rate ACL into frontends")
+else:
+    print("ACL already present or map line missing")
+PY
+  fi
+
   if [[ -f /opt/hiddify-manager/haproxy/maps/http_domain.j2 ]] \
      && ! grep -qE "^[[:space:]]*$USD_DOMAIN[[:space:]]" /opt/hiddify-manager/haproxy/maps/http_domain.j2; then
-    printf '\n# курс USD ЦБ (manual)\n%s  usd_rate\n' "$USD_DOMAIN" \
+    printf '\n# курс (manual)\n%s  usd_rate\n' "$USD_DOMAIN" \
       >> /opt/hiddify-manager/haproxy/maps/http_domain.j2
   fi
   haproxy -c -f "$HAP_CFG" && systemctl reload hiddify-haproxy

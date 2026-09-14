@@ -1,5 +1,5 @@
 [Unit]
-Description=курс — доллар ЦБ РФ (dollar.vele.uk)
+Description=курс — USD · EUR · CNY · BTC (dollar.vele.uk)
 After=network.target
 
 [Service]
