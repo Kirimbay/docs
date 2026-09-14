@@ -32,8 +32,9 @@ async def index(request: Request) -> HTMLResponse:
         payload = None
         error = str(exc)
     return templates.TemplateResponse(
-        "index.html",
-        {"request": request, "rate": payload, "error": error},
+        request=request,
+        name="index.html",
+        context={"rate": payload, "error": error},
     )
 
 
