@@ -29,7 +29,6 @@ echo "==> uploading to $TARGET"
 "${SCP[@]}" "$TMP/usd-rate.tgz" "$TARGET:/tmp/usd-rate.tgz"
 "${SCP[@]}" "$ROOT/deploy/usd-rate.service" "$TARGET:/tmp/usd-rate.service"
 "${SCP[@]}" "$ROOT/deploy/usd-rate-nginx.conf" "$TARGET:/tmp/usd-rate-nginx.conf"
-"${SCP[@]}" "$ROOT/deploy/haproxy-usd-rate.cfg.snippet" "$TARGET:/tmp/haproxy-usd-rate.cfg.snippet"
 
 echo "==> installing remotely"
 "${SSH[@]}" bash -s -- "$USD_DOMAIN" "$APP_DIR" "$APP_PORT" "$PROXY_PORT" <<'REMOTE'
@@ -46,11 +45,14 @@ apt-get update -qq
 apt-get install -y -qq python3 python3-venv python3-pip nginx openssl
 
 systemctl stop usd-rate 2>/dev/null || true
+
+# Extract to a staging dir so APP_DIR=/opt/usd-rate does not fight the tarball name
+STAGE="$(mktemp -d /tmp/usd-rate-extract.XXXXXX)"
+tar -C "$STAGE" -xzf /tmp/usd-rate.tgz
 rm -rf "$APP_DIR"
-mkdir -p "$APP_DIR"
-tar -C /opt -xzf /tmp/usd-rate.tgz
-rm -rf "$APP_DIR"
-mv /opt/usd-rate "$APP_DIR"
+mv "$STAGE/usd-rate" "$APP_DIR"
+rmdir "$STAGE" 2>/dev/null || rm -rf "$STAGE"
+test -d "$APP_DIR/app" || { echo "install failed: missing $APP_DIR/app"; exit 1; }
 
 cd "$APP_DIR"
 python3 -m venv .venv
@@ -83,31 +85,39 @@ systemctl daemon-reload
 systemctl enable --now usd-rate
 systemctl restart usd-rate
 
-if [[ -d /opt/hiddify-manager ]]; then
-  SNIP="/opt/hiddify-manager/haproxy/usd-rate.cfg.snippet"
-  mkdir -p "$(dirname "$SNIP")"
-  sed -e "s|__USD_DOMAIN__|$USD_DOMAIN|g" \
-      -e "s|__PROXY_PORT__|$PROXY_PORT|g" \
-      /tmp/haproxy-usd-rate.cfg.snippet > "$SNIP"
+# Wire into Hiddify HAProxy the same way as КвитQR:
+# map host → backend name, and append backend pointing at uvicorn (not nginx).
+HAP_CFG="/opt/hiddify-manager/haproxy/haproxy.cfg"
+HAP_MAP="/opt/hiddify-manager/haproxy/maps/http_domain"
+if [[ -f "$HAP_MAP" ]]; then
+  if ! grep -qE "^[[:space:]]*$USD_DOMAIN[[:space:]]" "$HAP_MAP"; then
+    printf '\n# курс USD ЦБ (manual)\n%s  usd_rate\n' "$USD_DOMAIN" >> "$HAP_MAP"
+    echo "Appended $USD_DOMAIN → usd_rate to $HAP_MAP"
+  fi
+fi
+if [[ -f "$HAP_CFG" ]]; then
+  if ! grep -qE '^backend usd_rate[[:space:]]*$' "$HAP_CFG"; then
+    cat >> "$HAP_CFG" <<BEOF
 
-  for MAP in /opt/hiddify-manager/haproxy/*.map /opt/hiddify-manager/haproxy/http_domains.map; do
-    [[ -f "$MAP" ]] || continue
-    if ! grep -q "$USD_DOMAIN" "$MAP" 2>/dev/null; then
-      echo "$USD_DOMAIN usd_rate" >> "$MAP" || true
-      echo "Appended $USD_DOMAIN to $MAP"
-    fi
-  done
-
-  BACKEND_FILE="/opt/hiddify-manager/haproxy/usd-rate-backend.cfg"
-  cat > "$BACKEND_FILE" <<BEOF
+# --- курс USD ЦБ / dollar.vele.uk (manual, do not wipe without re-adding) ---
 backend usd_rate
     mode http
     option forwardfor
-    http-request set-header X-Forwarded-Proto https
-    server usd_rate1 127.0.0.1:${PROXY_PORT} ssl verify none
+    http-request set-header X-Forwarded-Proto https if { ssl_fc }
+    server usd_rate1 127.0.0.1:${APP_PORT} check
 BEOF
-  echo "Wrote $BACKEND_FILE — include it from HAProxy config if not auto-loaded"
-  systemctl reload hiddify-haproxy 2>/dev/null || systemctl reload haproxy 2>/dev/null || true
+    echo "Appended backend usd_rate to $HAP_CFG"
+  else
+    # Keep server port in sync on re-deploy
+    sed -i -E "s|(server usd_rate1 127\\.0\\.0\\.1:)[0-9]+|\\1${APP_PORT}|" "$HAP_CFG"
+  fi
+  # Also keep j2 map template in sync if present (survives some regenerations)
+  if [[ -f /opt/hiddify-manager/haproxy/maps/http_domain.j2 ]] \
+     && ! grep -qE "^[[:space:]]*$USD_DOMAIN[[:space:]]" /opt/hiddify-manager/haproxy/maps/http_domain.j2; then
+    printf '\n# курс USD ЦБ (manual)\n%s  usd_rate\n' "$USD_DOMAIN" \
+      >> /opt/hiddify-manager/haproxy/maps/http_domain.j2
+  fi
+  haproxy -c -f "$HAP_CFG" && systemctl reload hiddify-haproxy
 fi
 
 if [[ -x /opt/hiddify-manager/common/get_cert.sh ]]; then
@@ -118,11 +128,10 @@ fi
 
 echo "USD_DOMAIN=$USD_DOMAIN"
 echo "local app http://127.0.0.1:$APP_PORT"
-echo "local proxy https://127.0.0.1:$PROXY_PORT"
 systemctl --no-pager --full status usd-rate | head -25
-curl -sS -o /dev/null -w "health:%{http_code}\\n" "http://127.0.0.1:$APP_PORT/api/health" || true
+curl -sS "http://127.0.0.1:$APP_PORT/api/health" || true
+echo
 REMOTE
 
 echo
 echo "Deploy finished for https://$USD_DOMAIN"
-echo "DNS A-record must point $USD_DOMAIN → VPS. Then open the URL."
