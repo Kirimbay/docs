@@ -1,0 +1,13 @@
+# HAProxy Host ACL for «курс» / dollar.vele.uk (Hiddify).
+# Prefer http_domain map:
+#   __USD_DOMAIN__   usd_rate
+#
+# Or ACL before decoy/default:
+#   acl is_usd_rate hdr(host) -i __USD_DOMAIN__
+#   use_backend usd_rate if is_usd_rate
+#
+# backend usd_rate
+#     mode http
+#     option forwardfor
+#     http-request set-header X-Forwarded-Proto https
+#     server usd_rate1 127.0.0.1:__PROXY_PORT__ ssl verify none
