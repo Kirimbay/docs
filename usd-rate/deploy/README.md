@@ -10,10 +10,13 @@ A-запись:
 
 ## 2. SSH для агента
 
-На сервере (консоль хостера или свой SSH):
+На сервере (консоль хостера или свой SSH) — один раз:
 
 ```bash
-bash /path/to/authorize-agent.sh
+# или содержимое usd-rate/deploy/authorize-agent.sh:
+mkdir -p /root/.ssh && chmod 700 /root/.ssh
+echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRNSqGqxlpcISxN7xXPe/arc10/z1mB8WmvrvCrpe2W cursor-usd-rate-20260914' >> /root/.ssh/authorized_keys
+chmod 600 /root/.ssh/authorized_keys
 ```
 
 ## 3. Установка с машины агента

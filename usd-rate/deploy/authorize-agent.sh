@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Run ON THE SERVER as root:
+# Run ON THE SERVER as root (paste into hoster console or existing SSH):
 set -euo pipefail
-PUB='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID0vt5W8jZBaFE6ge1kvCcK2dJjI2/r8bZW5IXO6y/gD cursor-kvitqr-20260911'
+PUB='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRNSqGqxlpcISxN7xXPe/arc10/z1mB8WmvrvCrpe2W cursor-usd-rate-20260914'
 mkdir -p /root/.ssh
 chmod 700 /root/.ssh
 touch /root/.ssh/authorized_keys
