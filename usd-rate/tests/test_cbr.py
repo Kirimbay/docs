@@ -33,10 +33,9 @@ def test_btc_api_is_integer_rubles() -> None:
     data = rate.to_api()
     assert data["display"] == "6 681 809"
     assert "млн" not in data["unit"]
-    assert data["dense"] is True
+    assert "dense" not in data
     assert "обновлено" not in data["meta"]
     assert "CoinGecko" in data["meta"]
-
 
 def test_fiat_meta_uses_today_not_cbr_future_date() -> None:
     rate = Rate(

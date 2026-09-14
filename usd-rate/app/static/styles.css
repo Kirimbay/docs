@@ -7,7 +7,8 @@
   --up: #3dceb0;
   --down: #ff6b6b;
   --line: rgba(242, 245, 247, 0.08);
-  --font-brand: "Onest", system-ui, sans-serif;
+  /* Condensed + ровные цифры: одинаковый кегль и для BTC */
+  --font-brand: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
   --font-body: "Manrope", system-ui, sans-serif;
 }
 
@@ -64,7 +65,7 @@ body {
   font-family: var(--font-brand);
   font-weight: 700;
   font-size: clamp(2rem, 7vw, 3.4rem);
-  letter-spacing: -0.04em;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 
@@ -130,23 +131,23 @@ body {
   font-family: var(--font-brand);
   font-weight: 600;
   font-size: clamp(1rem, 2.6vw, 1.35rem);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: var(--ink);
 }
 
 .rate {
-  margin: 0;
+  margin: 0 auto;
+  max-width: 100%;
   font-family: var(--font-brand);
   font-weight: 700;
-  font-size: clamp(2.6rem, 10vw, 4.8rem);
-  letter-spacing: -0.035em;
-  line-height: 1;
+  /* один кегль для всех валют; condensed держит BTC в одну строку */
+  font-size: clamp(2.35rem, 8.2vw, 4rem);
+  letter-spacing: 0;
+  line-height: 1.05;
   font-variant-numeric: tabular-nums;
-}
-
-.rate--dense {
-  font-size: clamp(2rem, 7.5vw, 3.6rem);
-  letter-spacing: -0.03em;
+  font-feature-settings: "tnum" 1, "kern" 1;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .rate.muted { color: var(--mute); }
@@ -197,16 +198,12 @@ body {
   .section:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
 
   .rate {
-    font-size: clamp(2.8rem, 5.2vw, 4.2rem);
-  }
-
-  .rate--dense {
-    font-size: clamp(2.2rem, 3.8vw, 3.1rem);
+    font-size: clamp(2.5rem, 4.6vw, 3.6rem);
   }
 }
 
-@media (max-width: 480px) {
-  .rate--dense {
-    font-size: clamp(1.7rem, 8.5vw, 2.4rem);
+@media (max-width: 380px) {
+  .rate {
+    font-size: clamp(2rem, 9.5vw, 2.6rem);
   }
 }

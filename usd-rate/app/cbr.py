@@ -61,14 +61,12 @@ class Rate:
             data["delta_display"] = _format_delta(self.delta, digits=0)
             data["unit"] = "₽ за 1 биткоин"
             data["meta"] = f"CoinGecko · {today}"
-            data["dense"] = True
         else:
             data["display"] = _format_rub(self.value)
             data["previous_display"] = _format_rub(self.previous)
             data["delta_display"] = _format_delta(self.delta)
             # Не светим «курс на завтра» от ЦБ — путает; показываем дату обновления
             data["meta"] = f"ЦБ РФ · обновлено {today}"
-            data["dense"] = False
         return data
 
 @dataclass

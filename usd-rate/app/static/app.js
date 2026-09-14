@@ -25,7 +25,6 @@
     const isBtc = rate.code === "BTC";
     const digits = isBtc ? 0 : 2;
     valueEl.textContent = rate.display || fmt(rate.value, digits);
-    valueEl.classList.toggle("rate--dense", Boolean(rate.dense || isBtc));
 
     if (unitEl && rate.unit) unitEl.textContent = rate.unit;
 
