@@ -4,16 +4,12 @@
   --ink: #f2f5f7;
   --mute: #8b98a5;
   --mint: #3dceb0;
-  --up: #3dceb0;
-  --down: #ff6b6b;
   --line: rgba(242, 245, 247, 0.08);
-  /* Condensed + ровные цифры: одинаковый кегль и для BTC */
   --font-brand: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
   --font-body: "Manrope", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
 html, body {
   margin: 0;
   min-height: 100%;
@@ -25,6 +21,8 @@ html, body {
 body {
   min-height: 100dvh;
   overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .atmosphere {
@@ -48,86 +46,34 @@ body {
   mix-blend-mode: soft-light;
 }
 
-.top {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  padding: clamp(1.2rem, 3.5vw, 1.8rem) 1.25rem 0.35rem;
-  padding-top: max(1.2rem, env(safe-area-inset-top));
-  animation: rise 0.65s ease both;
-}
-
-.brand {
-  margin: 0;
-  font-family: var(--font-brand);
-  font-weight: 700;
-  font-size: clamp(2rem, 7vw, 3.4rem);
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-
-.toc {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.3rem 0.9rem;
-}
-
-.toc a {
-  color: var(--mute);
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  transition: color 0.2s ease;
-}
-
-.toc a:hover,
-.toc a:focus-visible {
-  color: var(--mint);
-}
-
 .board {
   position: relative;
   z-index: 1;
+  flex: 1;
   width: min(920px, 100%);
   margin: 0 auto;
-  padding: 0.35rem clamp(1.1rem, 4vw, 2rem) 2.5rem;
-  padding-bottom: max(2.5rem, env(safe-area-inset-bottom));
+  padding: max(1.5rem, env(safe-area-inset-top)) clamp(1.1rem, 4vw, 2rem) 1rem;
   display: flex;
   flex-direction: column;
+  justify-content: center;
 }
 
 .section {
-  scroll-margin-top: 1.1rem;
-  padding: clamp(1.6rem, 4.5vw, 2.6rem) 0;
+  padding: clamp(1.5rem, 4vw, 2.4rem) 0;
   border-top: 1px solid var(--line);
   text-align: center;
-  animation: rise 0.7s ease both;
+  animation: rise 0.65s ease both;
 }
 
-.section:nth-child(1) { animation-delay: 0.05s; }
-.section:nth-child(2) { animation-delay: 0.1s; }
-.section:nth-child(3) { animation-delay: 0.15s; }
-.section:nth-child(4) { animation-delay: 0.2s; }
+.section:nth-child(1) { animation-delay: 0.04s; }
+.section:nth-child(2) { animation-delay: 0.08s; }
+.section:nth-child(3) { animation-delay: 0.12s; }
+.section:nth-child(4) { animation-delay: 0.16s; }
 
 .section:first-child { border-top: 0; }
 
-.pair {
-  margin: 0 0 0.3rem;
-  color: var(--mint);
-  font-size: clamp(0.75rem, 1.8vw, 0.9rem);
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
 .name {
-  margin: 0 0 0.45rem;
+  margin: 0 0 0.5rem;
   font-family: var(--font-brand);
   font-weight: 600;
   font-size: clamp(1rem, 2.6vw, 1.35rem);
@@ -140,40 +86,31 @@ body {
   max-width: 100%;
   font-family: var(--font-brand);
   font-weight: 700;
-  /* один кегль для всех валют; condensed держит BTC в одну строку */
   font-size: clamp(2.35rem, 8.2vw, 4rem);
   letter-spacing: 0;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1, "kern" 1;
   white-space: nowrap;
-  overflow: hidden;
 }
 
 .rate.muted { color: var(--mute); }
 
-.unit {
-  margin: clamp(0.45rem, 1.5vw, 0.75rem) 0 0;
+.sources {
+  position: relative;
+  z-index: 1;
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 1.25rem clamp(1.1rem, 4vw, 2rem) max(1.5rem, env(safe-area-inset-bottom));
+  text-align: center;
   color: var(--mute);
-  font-size: clamp(0.88rem, 2vw, 1.05rem);
-  font-weight: 500;
-}
-
-.delta {
-  margin: clamp(0.7rem, 2vw, 1rem) 0 0;
-  font-size: clamp(0.88rem, 2vw, 1.05rem);
-  font-weight: 600;
-  color: var(--mute);
-}
-
-.delta.up { color: var(--up); }
-.delta.down { color: var(--down); }
-
-.meta {
-  margin: 0.55rem 0 0;
-  color: var(--mute);
-  font-size: clamp(0.75rem, 1.6vw, 0.88rem);
+  font-size: clamp(0.78rem, 1.7vw, 0.92rem);
+  line-height: 1.55;
   letter-spacing: 0.01em;
+}
+
+.sources p {
+  margin: 0.15rem 0;
 }
 
 @keyframes rise {
@@ -185,7 +122,9 @@ body {
   .board {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    align-content: center;
     width: min(1040px, 100%);
+    padding-top: max(2rem, env(safe-area-inset-top));
   }
 
   .section {
@@ -199,6 +138,14 @@ body {
 
   .rate {
     font-size: clamp(2.5rem, 4.6vw, 3.6rem);
+  }
+
+  .sources {
+    width: min(1040px, 100%);
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.5rem;
   }
 }
 

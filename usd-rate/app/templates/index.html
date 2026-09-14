@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#070b10" />
-  <title>курс — USD · EUR · CNY · BTC</title>
-  <meta name="description" content="Курсы доллара, евро, юаня (ЦБ РФ) и биткоина." />
+  <title>USD · EUR · CNY · BTC</title>
+  <meta name="description" content="Курсы доллара, евро, юаня и биткоина." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -14,40 +14,27 @@
 <body>
   <div class="atmosphere" aria-hidden="true"></div>
 
-  <header class="top">
-    <p class="brand">курс</p>
-    <nav class="toc" aria-label="Валюты">
-      <a href="#usd">USD</a>
-      <a href="#eur">EUR</a>
-      <a href="#cny">CNY</a>
-      <a href="#btc">BTC</a>
-    </nav>
-  </header>
-
   <main class="board" id="rates-board">
     {% if data %}
       {% for rate in data.sections %}
       <section class="section" id="{{ rate.code|lower }}" data-code="{{ rate.code|lower }}">
-        <p class="pair">{{ rate.pair }}</p>
         <h2 class="name">{{ rate.name }}</h2>
         <p class="rate" data-role="value">{{ rate.display }}</p>
-        <p class="unit" data-role="unit">{{ rate.unit }}</p>
-        <p class="delta {% if rate.delta > 0 %}up{% elif rate.delta < 0 %}down{% endif %}" data-role="delta">
-          {% if rate.delta > 0 %}▲{% elif rate.delta < 0 %}▼{% else %}●{% endif %}
-          {{ rate.delta_display }} ₽
-          {% if rate.code == 'BTC' %}за 24ч{% else %}к предыдущему{% endif %}
-        </p>
-        <p class="meta" data-role="meta">{{ rate.meta }}</p>
       </section>
       {% endfor %}
     {% else %}
       <section class="section">
         <p class="rate muted">—.——</p>
-        <p class="unit">не удалось получить курсы</p>
-        <p class="meta">{{ error }}</p>
       </section>
     {% endif %}
   </main>
+
+  {% if data and data.footer %}
+  <footer class="sources" id="sources">
+    <p data-role="fiat-source">{{ data.footer.fiat }}</p>
+    <p data-role="btc-source">{{ data.footer.btc }}</p>
+  </footer>
+  {% endif %}
 
   <script src="/static/app.js" defer></script>
 </body>

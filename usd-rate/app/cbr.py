@@ -79,6 +79,7 @@ class RatesBundle:
     fetched_at: str
 
     def to_api(self) -> dict[str, Any]:
+        today = datetime.now(MSK).strftime("%d.%m.%Y")
         return {
             "date": self.date,
             "fetched_at": self.fetched_at,
@@ -94,6 +95,10 @@ class RatesBundle:
                 self.cny.to_api(),
                 self.btc.to_api(),
             ],
+            "footer": {
+                "fiat": f"USD EUR CNY · ЦБ РФ на {today}",
+                "btc": f"BTC · CoinGecko на {today}",
+            },
         }
 
 
