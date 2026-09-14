@@ -19,39 +19,29 @@
     const valueEl = section.querySelector('[data-role="value"]');
     const deltaEl = section.querySelector('[data-role="delta"]');
     const metaEl = section.querySelector('[data-role="meta"]');
+    const unitEl = section.querySelector('[data-role="unit"]');
     if (!valueEl || !rate) return;
 
     const isBtc = rate.code === "BTC";
-    if (isBtc) {
-      const mln = (n) => (n / 1_000_000).toFixed(2).replace(".", ",");
-      const mlnDelta = (n) => `${n > 0 ? "+" : n < 0 ? "-" : ""}${mln(Math.abs(n))}`;
-      valueEl.textContent = rate.display || mln(rate.value);
-      if (deltaEl) {
-        deltaEl.classList.remove("up", "down");
-        if (rate.delta > 0) deltaEl.classList.add("up");
-        if (rate.delta < 0) deltaEl.classList.add("down");
-        const arrow = rate.delta > 0 ? "▲" : rate.delta < 0 ? "▼" : "●";
-        deltaEl.textContent = `${arrow} ${rate.delta_display || mlnDelta(rate.delta)} млн за 24ч`;
-      }
-    } else {
-      valueEl.textContent = rate.display || fmt(rate.value, 2);
-      if (deltaEl) {
-        deltaEl.classList.remove("up", "down");
-        if (rate.delta > 0) deltaEl.classList.add("up");
-        if (rate.delta < 0) deltaEl.classList.add("down");
-        const arrow = rate.delta > 0 ? "▲" : rate.delta < 0 ? "▼" : "●";
-        deltaEl.textContent = `${arrow} ${rate.delta_display || fmtDelta(rate.delta, 2)} ₽ к предыдущему`;
-      }
-    }
+    const digits = isBtc ? 0 : 2;
+    valueEl.textContent = rate.display || fmt(rate.value, digits);
+    valueEl.classList.toggle("rate--dense", Boolean(rate.dense || isBtc));
 
-    const unitEl = section.querySelector('[data-role="unit"]');
     if (unitEl && rate.unit) unitEl.textContent = rate.unit;
+
+    if (deltaEl) {
+      deltaEl.classList.remove("up", "down");
+      if (rate.delta > 0) deltaEl.classList.add("up");
+      if (rate.delta < 0) deltaEl.classList.add("down");
+      const arrow = rate.delta > 0 ? "▲" : rate.delta < 0 ? "▼" : "●";
+      const suffix = isBtc ? "за 24ч" : "к предыдущему";
+      deltaEl.textContent = `${arrow} ${rate.delta_display || fmtDelta(rate.delta, digits)} ₽ ${suffix}`;
+    }
 
     if (metaEl) {
       metaEl.textContent =
-        rate.code === "BTC"
-          ? `CoinGecko · ${rate.date}`
-          : `ЦБ РФ · курс на ${rate.date}`;
+        rate.meta ||
+        (isBtc ? `CoinGecko · ${rate.date}` : `ЦБ РФ · обновлено ${rate.date}`);
     }
   }
 

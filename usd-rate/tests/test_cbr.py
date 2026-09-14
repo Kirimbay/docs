@@ -18,15 +18,27 @@ def test_format_delta() -> None:
     assert _format_delta(-1200, digits=0) == "-1 200"
 
 
-def test_format_mln() -> None:
-    from app.cbr import _format_mln, _format_mln_delta
+def test_btc_api_is_integer_rubles() -> None:
+    rate = Rate(
+        code="BTC",
+        name="Биткоин",
+        pair="BTC → RUB",
+        unit="₽ за 1 биткоин",
+        value=6_681_809.4,
+        previous=6_512_000.0,
+        date="15.09.2026",
+        fetched_at="2026-09-14T21:00:00+03:00",
+        source="test",
+    )
+    data = rate.to_api()
+    assert data["display"] == "6 681 809"
+    assert "млн" not in data["unit"]
+    assert data["dense"] is True
+    assert "обновлено" not in data["meta"]
+    assert "CoinGecko" in data["meta"]
 
-    assert _format_mln(6_681_809) == "6,68"
-    assert _format_mln_delta(169_087) == "+0,17"
-    assert _format_mln_delta(-50_000) == "-0,05"
 
-
-def test_rate_api_shape() -> None:
+def test_fiat_meta_uses_today_not_cbr_future_date() -> None:
     rate = Rate(
         code="USD",
         name="Доллар США",
@@ -34,11 +46,11 @@ def test_rate_api_shape() -> None:
         unit="₽ за 1 доллар США",
         value=84.33,
         previous=84.0,
-        date="14.09.2026",
+        date="15.09.2026",
         fetched_at="2026-09-14T21:00:00+03:00",
         source="test",
     )
     data = rate.to_api()
     assert data["display"] == "84,33"
-    assert data["delta"] == 0.33
-    assert data["delta_display"].startswith("+")
+    assert "курс на 15.09" not in data["meta"]
+    assert data["meta"].startswith("ЦБ РФ · обновлено ")
