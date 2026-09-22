@@ -86,6 +86,28 @@ def test_purpose_rejects_form_labels():
     assert parse_receipt_text(text2).purpose == ""
 
 
+def test_ignores_handwritten_purpose_garbage():
+    """Кривой OCR рукописи в назначении не должен попадать в форму."""
+    from app.ocr import _looks_like_handwriting_garbage
+
+    assert _looks_like_handwriting_garbage("АnДрu4HоBа xxq")
+    assert _looks_like_handwriting_garbage("w3rт#п л")
+    text = SAMPLE_TEXT.replace(
+        "наименование платежа\nАндрианова Аделина, Егорова Ксения Викторовна",
+        "наименование платежа\nАnДрu4HоBа Ксeнuя xxq\nДата",
+    )
+    fields = parse_receipt_text(text)
+    assert fields.purpose == ""
+    # Печатные реквизиты всё ещё на месте
+    assert fields.bic == "004525987"
+    assert fields.payee_inn == "5010029030"
+
+
+def test_printed_purpose_still_accepted():
+    fields = parse_receipt_text(SAMPLE_TEXT)
+    assert "Андрианова Аделина" in fields.purpose
+
+
 def test_sum_near_date_block():
     from app.ocr import _extract_sum_rub
 

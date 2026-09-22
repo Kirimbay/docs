@@ -36,6 +36,8 @@ KNOWN_ORG = {
 # Tesseract rus+eng — только fallback.
 OCR_MAX_SIDE = 2000
 OCR_ENGINE = "rapid"  # rapid | tesseract
+# Рукопись на бланке даёт низкий score и кашу — ниже порога отбрасываем
+OCR_MIN_SCORE = 0.72
 _TESS_LANG = "rus+eng"
 _TESS_CONFIG = "--oem 1 --psm 6"
 
@@ -84,12 +86,67 @@ def prepare_image(image_bytes: bytes) -> Image.Image:
     return _prep_image(img)
 
 
+def _is_printed_requisite_line(s: str) -> bool:
+    """Строка с печатными реквизитами — не выкидываем даже при сомнительном виде."""
+    t = s or ""
+    if re.search(
+        r"ИНН|КПП|БИК|КБК|ОКТМО|ЕКС|ОГРН|ОКПО|л/с|сч[её]т|УФК|Банк\s*России|"
+        r"казначейск|получател|комитет",
+        t,
+        re.I,
+    ):
+        return True
+    # Длинные цифровые поля бланка
+    if re.search(r"\d{9,}", t):
+        return True
+    return False
+
+
+def _should_keep_ocr_line(text: str, score: Optional[float] = None) -> bool:
+    """Оставить печать; отбросить рукопись / низкую уверенность."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    if _is_printed_requisite_line(t):
+        return True
+    if score is not None and score < OCR_MIN_SCORE:
+        return False
+    if _looks_like_handwriting_garbage(t):
+        return False
+    return True
+
+
+def _filter_handwritten_ocr_text(text: str) -> str:
+    """Убрать строки, похожие на рукопись, из уже собранного текста."""
+    kept: list[str] = []
+    for line in (text or "").splitlines():
+        if _should_keep_ocr_line(line):
+            kept.append(line)
+    return "\n".join(kept)
+
+
 def _ocr_rapid(prepared: Image.Image) -> str:
     engine = _get_rapid()
     arr = np.asarray(prepared.convert("RGB"))
     result = engine(arr)
-    lines = list(result.txts or []) if result is not None else []
-    return "\n".join(lines).replace("\u00a0", " ")
+    if result is None:
+        return ""
+    txts = list(result.txts or [])
+    scores = list(result.scores or [])
+    if scores and len(scores) != len(txts):
+        scores = []
+    kept: list[str] = []
+    for i, line in enumerate(txts):
+        score = float(scores[i]) if i < len(scores) else None
+        if _should_keep_ocr_line(line, score):
+            kept.append(line)
+        else:
+            logger.info(
+                "OCR drop handwriting/low-conf: score=%s text=%r",
+                f"{score:.3f}" if score is not None else "?",
+                (line or "")[:80],
+            )
+    return "\n".join(kept).replace("\u00a0", " ")
 
 
 def _ocr_tesseract(prepared: Image.Image) -> str:
@@ -107,11 +164,11 @@ def ocr_image(prepared: Image.Image) -> str:
         try:
             text = _ocr_rapid(prepared)
             if text and len(text.strip()) >= 20:
-                return text
+                return _filter_handwritten_ocr_text(text)
             logger.warning("RapidOCR вернул мало текста, fallback на Tesseract")
         except Exception:
             logger.exception("RapidOCR failed, fallback на Tesseract")
-    return _ocr_tesseract(prepared)
+    return _filter_handwritten_ocr_text(_ocr_tesseract(prepared))
 
 
 def extract_text(image_bytes: bytes) -> str:
@@ -259,6 +316,7 @@ def _normalize_bank_name(raw: str) -> str:
 
 
 def parse_receipt_text(text: str) -> PaymentFields:
+    text = _filter_handwritten_ocr_text(text)
     compact = re.sub(r"[ \t]+", " ", text)
     one_line = compact.replace("\n", " ")
     fuzzy = (
@@ -434,6 +492,9 @@ def _looks_like_handwriting_garbage(s: str) -> bool:
         return True
     letters = re.findall(r"[A-Za-zА-Яа-яЁё]", t)
     digits = re.findall(r"\d", t)
+    # Печатные суммы / номера — не рукопись
+    if len(digits) >= 3 and len(digits) >= len(letters):
+        return False
     if len(letters) < 6 and len(digits) < 4:
         return True
     # Мало пробелов при длинной строке — типичный мусор OCR
@@ -445,6 +506,24 @@ def _looks_like_handwriting_garbage(s: str) -> bool:
         return True
     # Нет ни одного «словесного» куска из 3+ букв
     if not re.search(r"[A-Za-zА-Яа-яЁё]{3,}", t):
+        return True
+    # Смесь латиницы и кириллицы в одном «слове» — частый артефакт рукописи
+    mixed_words = re.findall(
+        r"(?:[A-Za-z]+[А-Яа-яЁё]+|[А-Яа-яЁё]+[A-Za-z]+)[A-Za-zА-Яа-яЁё]*",
+        t,
+    )
+    if len(mixed_words) >= 2:
+        return True
+    if len(mixed_words) == 1 and len(letters) < 14:
+        return True
+    # Случайный регистр внутри слова: «АнДрИаНоВа» / «аНдРиА»
+    weird_case = 0
+    for w in re.findall(r"[A-Za-zА-Яа-яЁё]{4,}", t):
+        if re.search(r"[а-яёa-z][А-ЯЁA-Z][а-яёa-z]", w):
+            weird_case += 1
+        elif re.search(r"[А-ЯЁA-Z]{2,}[а-яёa-z]+[А-ЯЁA-Z]", w):
+            weird_case += 1
+    if weird_case >= 1 and len(re.findall(r"[А-ЯЁа-яё]{3,}", t)) < 3:
         return True
     return False
 
@@ -500,6 +579,11 @@ def _is_form_label_junk(s: str) -> bool:
 def _looks_like_purpose_value(s: str) -> bool:
     """Назначение: ФИО/осмысленный текст, не заголовок бланка."""
     if _is_form_label_junk(s) or _looks_like_handwriting_garbage(s):
+        return False
+    # Подпись суммы/даты с числом — не назначение
+    if re.search(r"сумм[аеяи].*платеж|^\s*дат[аые]?\b", s, re.I):
+        return False
+    if re.search(r"\d", s) and re.search(r"сумм|платеж|руб|₽", s, re.I):
         return False
     # Хотя бы два «словесных» куска кириллицы (ФИО или фраза)
     words = re.findall(r"[А-ЯЁа-яё]{3,}", s)
@@ -571,11 +655,17 @@ def _extract_sum_rub(text: str) -> str:
     ):
         m = re.search(pat, text, re.I)
         if m:
+            # Не берём сумму из рукописной каши вокруг
+            ctx = m.group(0)
+            if _looks_like_handwriting_garbage(ctx) and not re.search(
+                r"Сумм|\d{2,6}\s*(?:р|руб|₽)", ctx, re.I
+            ):
+                continue
             got = _normalize_amount_token(m.group(1))
             if got:
                 return got
 
-    # Число (в т.ч. с буквами OCR) на строке перед блоком даты/суммы
+    # Число на строке перед блоком даты/суммы — только если строка не рукопись
     m = re.search(
         r"(?m)^[^\dA-Za-zА-Яа-я]*([0-9A-Za-zОоЗзIl|]{3,7})\s*$"
         r"\s*(?:\n[^\n]*){0,2}\n\s*(?:Дата|Датa|Сумм)",
@@ -583,22 +673,40 @@ def _extract_sum_rub(text: str) -> str:
         re.I,
     )
     if m:
-        got = _normalize_amount_token(m.group(1))
-        if got:
-            return got
+        line = m.group(0).split("\n", 1)[0]
+        if not _looks_like_handwriting_garbage(line):
+            got = _normalize_amount_token(m.group(1))
+            # рукописные суммы часто дают буквенно-цифровой мусор
+            if got and re.fullmatch(r"\d{2,7}([.,]\d{1,2})?", got.replace(" ", "")):
+                raw = m.group(1)
+                letter_ratio = len(re.findall(r"[A-Za-zА-Яа-яЁё]", raw)) / max(
+                    len(raw), 1
+                )
+                if letter_ratio <= 0.35:
+                    return got
     m = re.search(
         r"(?mi)(?:Дата|Сумм[аеяи].{0,24}платеж)[^\n]*\n[^\d\n]*([0-9A-Za-zОоЗз]{3,7})\b",
         text,
     )
     if m:
-        got = _normalize_amount_token(m.group(1))
-        if got:
-            return got
+        line = m.group(0)
+        if not _looks_like_handwriting_garbage(line):
+            got = _normalize_amount_token(m.group(1))
+            if got and re.fullmatch(r"\d{2,7}([.,]\d{1,2})?", got.replace(" ", "")):
+                raw = m.group(1)
+                letter_ratio = len(re.findall(r"[A-Za-zА-Яа-яЁё]", raw)) / max(
+                    len(raw), 1
+                )
+                if letter_ratio <= 0.35:
+                    return got
     return ""
 
 
 def _extract_purpose(text: str) -> str:
-    """Читаем назначение, если оно распозналось; СПР сами не подставляем."""
+    """Читаем назначение, если оно распозналось; СПР сами не подставляем.
+
+    Рукопись игнорируем: лучше пустое поле, чем неверный текст.
+    """
     candidates: list[str] = []
     m = re.search(
         r"(?:наименование платежа|назначение платежа)[^\n]*\n([^\n]{3,120})",
@@ -622,6 +730,11 @@ def _extract_purpose(text: str) -> str:
         if re.fullmatch(r"СП[РГ]\s*", cleaned, re.I):
             continue
         if not _looks_like_purpose_value(cleaned):
+            continue
+        # Доп. отсев: латинские буквы в «ФИО» почти всегда рукописный OCR
+        if re.search(r"[A-Za-z]", cleaned) and not re.search(
+            r"МБУ|ДО|ДДШИ|СПР|SP", cleaned, re.I
+        ):
             continue
         return cleaned
     return ""
