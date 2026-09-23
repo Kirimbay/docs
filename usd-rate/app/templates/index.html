@@ -18,7 +18,7 @@
     {% if data %}
       {% for rate in data.sections %}
       <section class="section" id="{{ rate.code|lower }}" data-code="{{ rate.code|lower }}">
-        <h2 class="name">{{ rate.code }}</h2>
+        <h2 class="name">{{ rate.name }}</h2>
         <p class="rate" data-role="value">{{ rate.display }}</p>
       </section>
       {% endfor %}
