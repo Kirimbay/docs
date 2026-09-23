@@ -21,7 +21,7 @@ def test_format_delta() -> None:
 def test_btc_api_is_integer_rubles() -> None:
     rate = Rate(
         code="BTC",
-        name="₿",
+        name="BTC",
         pair="BTC → RUB",
         unit="₽ за 1 биткоин",
         value=6_681_809.4,
@@ -42,7 +42,7 @@ def test_bundle_footer() -> None:
 
     rate = Rate(
         code="USD",
-        name="$",
+        name="USD",
         pair="USD → RUB",
         unit="₽",
         value=84.33,
@@ -53,7 +53,7 @@ def test_bundle_footer() -> None:
     )
     btc = Rate(
         code="BTC",
-        name="₿",
+        name="BTC",
         pair="BTC → RUB",
         unit="₽",
         value=6_000_000,

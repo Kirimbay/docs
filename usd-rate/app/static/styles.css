@@ -58,9 +58,9 @@ body {
   margin: 0 0 0.45rem;
   font-family: var(--font-brand);
   font-weight: 600;
-  font-size: clamp(1.15rem, 3vw, 1.45rem);
-  letter-spacing: 0;
-  line-height: 1;
+  font-size: clamp(0.95rem, 2.4vw, 1.15rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--mute);
 }
 
