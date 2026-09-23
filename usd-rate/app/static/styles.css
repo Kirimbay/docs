@@ -1,6 +1,5 @@
 :root {
-  --bg0: #070b10;
-  --bg1: #101820;
+  --bg0: #2a2d32;
   --ink: #f2f5f7;
   --mute: #8b98a5;
   --mint: #3dceb0;
@@ -23,29 +22,12 @@ body {
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  background: var(--bg0);
 }
 
 .atmosphere {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 90% 70% at 50% -10%, rgba(61, 206, 176, 0.14), transparent 55%),
-    radial-gradient(ellipse 55% 45% at 100% 60%, rgba(40, 90, 120, 0.18), transparent 50%),
-    radial-gradient(ellipse 45% 40% at 0% 80%, rgba(20, 40, 60, 0.28), transparent 45%),
-    linear-gradient(165deg, var(--bg0), var(--bg1) 55%, #0a1218);
+  display: none;
 }
-
-.atmosphere::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: 0.28;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
-  mix-blend-mode: soft-light;
-}
-
 .board {
   position: relative;
   z-index: 1;
