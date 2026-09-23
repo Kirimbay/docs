@@ -167,15 +167,15 @@ def _fetch_cbr_json() -> dict[str, Rate]:
     valutes = data["Valute"]
     return {
         "USD": _rate_from_cbr_valute(
-            "USD", "Доллар США", "USD → RUB", "₽ за 1 доллар США",
+            "USD", "USD", "USD → RUB", "₽ за 1 доллар США",
             valutes["USD"], date=date, source=source,
         ),
         "EUR": _rate_from_cbr_valute(
-            "EUR", "Евро", "EUR → RUB", "₽ за 1 евро",
+            "EUR", "EUR", "EUR → RUB", "₽ за 1 евро",
             valutes["EUR"], date=date, source=source,
         ),
         "CNY": _rate_from_cbr_valute(
-            "CNY", "Юань", "CNY → RUB", "₽ за 1 китайский юань",
+            "CNY", "CNY", "CNY → RUB", "₽ за 1 китайский юань",
             valutes["CNY"], date=date, source=source,
         ),
     }
@@ -189,9 +189,9 @@ def _fetch_cbr_xml() -> dict[str, Rate]:
     root = ET.fromstring(text)
     date = root.attrib.get("Date") or ""
     wanted = {
-        "USD": ("Доллар США", "USD → RUB", "₽ за 1 доллар США"),
-        "EUR": ("Евро", "EUR → RUB", "₽ за 1 евро"),
-        "CNY": ("Юань", "CNY → RUB", "₽ за 1 китайский юань"),
+        "USD": ("USD", "USD → RUB", "₽ за 1 доллар США"),
+        "EUR": ("EUR", "EUR → RUB", "₽ за 1 евро"),
+        "CNY": ("CNY", "CNY → RUB", "₽ за 1 китайский юань"),
     }
     found: dict[str, Rate] = {}
     for valute in root.findall("Valute"):
@@ -230,7 +230,7 @@ def _fetch_btc() -> Rate:
     now = datetime.now(MSK)
     return Rate(
         code="BTC",
-        name="Биткоин",
+        name="BTC",
         pair="BTC → RUB",
         unit="₽ за 1 биткоин",
         value=value,
@@ -278,7 +278,7 @@ def get_rates(*, force: bool = False) -> RatesBundle:
         # placeholder so page still renders fiat
         btc = Rate(
             code="BTC",
-            name="Биткоин",
+            name="BTC",
             pair="BTC → RUB",
             unit="₽ за 1 биткоин",
             value=0.0,
