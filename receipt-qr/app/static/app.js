@@ -1,6 +1,9 @@
 (() => {
   const drop = document.getElementById("dropzone");
   const input = document.getElementById("file-input");
+  const inputCamera = document.getElementById("file-input-camera");
+  const btnGallery = document.getElementById("btn-gallery");
+  const btnCamera = document.getElementById("btn-camera");
   const status = document.getElementById("status");
   const stepUpload = document.getElementById("step-upload");
   const stepEdit = document.getElementById("step-edit");
@@ -324,14 +327,30 @@
     }
   }
 
-  drop.addEventListener("click", () => input.click());
+  drop.addEventListener("click", (e) => {
+    if (e.target.closest("button")) return;
+    input.click();
+  });
   drop.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       input.click();
     }
   });
-  input.addEventListener("change", () => onFile(input.files?.[0]));
+  btnGallery?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    input.click();
+  });
+  btnCamera?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    inputCamera?.click();
+  });
+  const onPickerChange = (el) => () => {
+    onFile(el.files?.[0]);
+    el.value = "";
+  };
+  input.addEventListener("change", onPickerChange(input));
+  inputCamera?.addEventListener("change", onPickerChange(inputCamera));
 
   ["dragenter", "dragover"].forEach((ev) => {
     drop.addEventListener(ev, (e) => {
@@ -359,6 +378,7 @@
     stepEdit.classList.add("hidden");
     stepUpload.classList.remove("hidden");
     input.value = "";
+    if (inputCamera) inputCamera.value = "";
     setStatus("");
     showQr("", "Загрузите фото");
     for (const name of FIELD_NAMES) {

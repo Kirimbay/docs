@@ -135,6 +135,18 @@ main {
   font-size: 0.9rem;
 }
 
+.drop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: center;
+  margin-top: 1.1rem;
+}
+
+.drop-actions .btn {
+  min-width: 9.5rem;
+}
+
 .status {
   min-height: 1.4rem;
   margin: 0.4rem 0 0;

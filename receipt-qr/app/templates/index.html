@@ -21,10 +21,15 @@
       <h1 class="brand-hero">КвитQR</h1>
       <p class="lead">Загрузите фото квитанции — QR появится сразу.</p>
 
-      <div class="drop" id="dropzone" role="button" tabindex="0">
-        <input id="file-input" type="file" accept="image/*" capture="environment" hidden />
-        <span class="drop-title">Перетащите фото или нажмите</span>
+      <div class="drop" id="dropzone" role="button" tabindex="0" aria-label="Загрузить фото квитанции">
+        <input id="file-input" type="file" accept="image/*" hidden />
+        <input id="file-input-camera" type="file" accept="image/*" capture="environment" hidden />
+        <span class="drop-title">Перетащите фото или выберите</span>
         <span class="drop-sub">JPG, PNG · до 12 МБ</span>
+        <div class="drop-actions">
+          <button type="button" class="btn secondary" id="btn-gallery">Из галереи</button>
+          <button type="button" class="btn primary" id="btn-camera">Сфотографировать</button>
+        </div>
       </div>
       <p class="status" id="status" role="status"></p>
     </section>
