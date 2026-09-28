@@ -24,6 +24,7 @@ from tablecheck_client import AvailableSlot, TableCheckClient, booking_days
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 STATE_PATH = DATA_DIR / "state.json"
+CHAT_ID_PATH = DATA_DIR / "chat_id.txt"
 
 
 def env_int(name: str, default: int) -> int:
@@ -43,6 +44,9 @@ def env_float(name: str, default: float) -> float:
 def load_config() -> dict:
     load_dotenv(ROOT / ".env")
     shop = os.getenv("SHOP_SLUG", "centara-mirage-beach-resort-dubai-uno-mas").strip()
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    if not chat_id and CHAT_ID_PATH.exists():
+        chat_id = CHAT_ID_PATH.read_text(encoding="utf-8").strip()
     return {
         "shop_slug": shop,
         "booking_url": os.getenv(
@@ -59,8 +63,78 @@ def load_config() -> dict:
         "timezone": os.getenv("TIMEZONE", "Asia/Dubai").strip() or "Asia/Dubai",
         "min_hours_before": env_float("MIN_HOURS_BEFORE", 5.0),
         "telegram_token": os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
-        "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID", "").strip(),
+        "telegram_chat_id": chat_id,
     }
+
+
+def persist_chat_id(chat_id: str) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    CHAT_ID_PATH.write_text(str(chat_id).strip() + "\n", encoding="utf-8")
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        return
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+    out: list[str] = []
+    replaced = False
+    for line in lines:
+        if line.startswith("TELEGRAM_CHAT_ID="):
+            out.append(f"TELEGRAM_CHAT_ID={chat_id}")
+            replaced = True
+        else:
+            out.append(line)
+    if not replaced:
+        out.append(f"TELEGRAM_CHAT_ID={chat_id}")
+    env_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+
+def discover_chat_id(token: str, *, wait: bool = True, timeout_sec: int = 0) -> str:
+    """Resolve chat_id from Bot API getUpdates (user must message the bot once)."""
+    if not token:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN is empty")
+
+    url = f"https://api.telegram.org/bot{token}/getUpdates"
+    started = time.time()
+    offset = None
+    print(
+        "TELEGRAM_CHAT_ID not set. Open @Zdorove50_bot (or your bot) in Telegram "
+        "and press Start / send any message…"
+    )
+    while True:
+        params: dict = {"timeout": 25}
+        if offset is not None:
+            params["offset"] = offset
+        try:
+            resp = requests.get(url, params=params, timeout=35)
+            resp.raise_for_status()
+            payload = resp.json()
+        except requests.RequestException as exc:
+            print(f"Waiting for Telegram chat… ({exc})")
+            time.sleep(5)
+            continue
+
+        for update in payload.get("result") or []:
+            offset = int(update["update_id"]) + 1
+            msg = update.get("message") or update.get("edited_message") or {}
+            chat = msg.get("chat") or {}
+            chat_id = chat.get("id")
+            if chat_id is not None:
+                chat_id_s = str(chat_id)
+                persist_chat_id(chat_id_s)
+                who = chat.get("username") or chat.get("first_name") or chat_id_s
+                print(f"Captured TELEGRAM_CHAT_ID={chat_id_s} ({who})")
+                return chat_id_s
+
+        if not wait:
+            raise RuntimeError("No Telegram messages yet — write to the bot first")
+        if timeout_sec and (time.time() - started) >= timeout_sec:
+            raise TimeoutError("Timed out waiting for a Telegram message to the bot")
+
+
+def ensure_chat_id(cfg: dict, *, wait: bool = True) -> dict:
+    if cfg["telegram_chat_id"]:
+        return cfg
+    cfg["telegram_chat_id"] = discover_chat_id(cfg["telegram_token"], wait=wait)
+    return cfg
 
 
 def load_state() -> dict:
@@ -195,6 +269,14 @@ def cmd_check(cfg: dict) -> int:
 
 
 def cmd_watch(cfg: dict) -> int:
+    cfg = ensure_chat_id(cfg, wait=True)
+    send_telegram(
+        cfg["telegram_token"],
+        cfg["telegram_chat_id"],
+        "Uno Mas monitor запущен: слежу за свободными столиками "
+        f"({party_label(cfg)}), проверка каждые "
+        f"{max(60, cfg['interval']) // 60} мин.",
+    )
     print(
         f"Watching {cfg['shop_slug']} every {cfg['interval']}s "
         f"for {party_label(cfg)} (Ctrl+C to stop)"
@@ -209,6 +291,7 @@ def cmd_watch(cfg: dict) -> int:
 
 
 def cmd_notify_test(cfg: dict) -> int:
+    cfg = ensure_chat_id(cfg, wait=True)
     send_telegram(
         cfg["telegram_token"],
         cfg["telegram_chat_id"],
