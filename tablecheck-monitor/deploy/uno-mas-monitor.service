@@ -1,0 +1,16 @@
+[Unit]
+Description=Uno Mas TableCheck availability monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/uno-mas-monitor
+EnvironmentFile=/opt/uno-mas-monitor/.env
+ExecStart=/opt/uno-mas-monitor/.venv/bin/python monitor.py watch
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
