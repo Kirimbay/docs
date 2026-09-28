@@ -12,4 +12,4 @@ COPY tablecheck_client.py monitor.py ./
 
 RUN mkdir -p /app/data
 
-CMD ["python", "monitor.py", "watch"]
+CMD ["python", "bot.py"]

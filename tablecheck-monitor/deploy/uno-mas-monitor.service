@@ -8,7 +8,8 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/opt/uno-mas-monitor
 EnvironmentFile=/opt/uno-mas-monitor/.env
-ExecStart=/opt/uno-mas-monitor/.venv/bin/python monitor.py watch
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/uno-mas-monitor/.venv/bin/python bot.py
 Restart=always
 RestartSec=30
 
