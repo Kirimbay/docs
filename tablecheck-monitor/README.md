@@ -1,102 +1,138 @@
 # Монитор столиков Uno Mas (TableCheck)
 
-Опрос доступности ресторана [Uno Mas — Centara Mirage Beach Resort Dubai](https://www.tablecheck.com/en/shops/centara-mirage-beach-resort-dubai-uno-mas/reserve) и Telegram-уведомления, когда появляется свободный слот.
+Бот, который каждые 15 минут проверяет свободные столики в [Uno Mas](https://www.tablecheck.com/en/shops/centara-mirage-beach-resort-dubai-uno-mas/reserve) и пишет вам в Telegram, когда появляется **новый** слот.
 
-- Только **чтение** публичной доступности — бронь **не** создаёт
-- По умолчанию: **4 взрослых + 2 детей**, опрос каждые **15 минут**
-- Важно: у Uno Mas бронь открывается примерно **за 24 часа** и закрывается **за 5 часов** до времени еды. Даты дальше окна всегда «заняты» / недоступны
+- Только смотрит доступность — **не бронирует** сам
+- По умолчанию: **4 взрослых + 2 детей**
+- У Uno Mas бронь открывается примерно **за 24 часа** и закрывается **за 5 часов** до еды
 
-## Почему кажется, что «всё занято»
+---
 
-На странице бронирования написано:
+## Как пользоваться (по шагам)
 
-> bookings for Uno Mas can be made only **24 hours in advance** until **5 hours prior** to the mealtime
+### 1. Создайте Telegram-бота
 
-То есть смотреть неделю вперёд бессмысленно — слоты ещё не открыты. Монитор как раз ловит момент, когда открывается следующий день или появляется отмена.
+1. Откройте [@BotFather](https://t.me/BotFather) → `/newbot` → придумайте имя
+2. Скопируйте токен вида `123456:AAH...`
+3. Напишите своему новому боту любое сообщение (например `hi`)
+4. Откройте в браузере:  
+   `https://api.telegram.org/bot<ВАШ_ТОКЕН>/getUpdates`  
+   Найдите `"chat":{"id": 123456789}` — это ваш `TELEGRAM_CHAT_ID`
 
-Максимум гостей на форме — **6** (как раз ваш состав).
-
-## Быстрый старт
-
-### 1. Telegram-бот
-
-1. [@BotFather](https://t.me/BotFather) → `/newbot` → скопируйте токен
-2. Напишите боту любое сообщение
-3. Узнайте свой `chat_id`: откройте  
-   `https://api.telegram.org/bot<TOKEN>/getUpdates`  
-   и найдите `"chat":{"id": ...}`
-
-### 2. Установка
+### 2. Настройте `.env`
 
 ```bash
 cd tablecheck-monitor
-python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
 cp .env.example .env
 ```
 
-В `.env`:
+Минимум:
 
 ```env
-TELEGRAM_BOT_TOKEN=123456:ABC...
+TELEGRAM_BOT_TOKEN=123456:AAH...
 TELEGRAM_CHAT_ID=123456789
 NUM_ADULTS=4
 NUM_CHILDREN=2
 CHECK_INTERVAL_SEC=900
-DAYS=2
 MEAL_FILTER=all
 ```
 
-`MEAL_FILTER`: `all` | `lunch` | `dinner`
+| Параметр | Значение |
+|----------|----------|
+| `MEAL_FILTER=all` | обед + ужин |
+| `MEAL_FILTER=dinner` | только ужин (с 16:00 Dubai) |
+| `MEAL_FILTER=lunch` | только обед |
+| `CHECK_INTERVAL_SEC=900` | опрос раз в 15 минут |
 
-### 3. Проверка и запуск
+### 3. Запуск на своём компьютере (быстрый тест)
 
 ```bash
-python monitor.py check          # один проход, печать в консоль
-python monitor.py notify-test    # тестовое сообщение в Telegram
-python monitor.py watch          # цикл каждые 15 минут + уведомления о новых слотах
+pip install -r requirements.txt
+python monitor.py notify-test   # должно прийти сообщение в Telegram
+python monitor.py check         # показать свободные слоты сейчас
+python monitor.py watch         # следить постоянно (окно не закрывать)
 ```
 
-Окно должно оставаться открытым (или используйте systemd ниже).
+Когда придёт уведомление — сразу бронируйте по ссылке из сообщения.
 
-Когда появится новый свободный слот — бот пришлёт дату/время и ссылку на бронь. Забронируйте вручную сразу: слоты уходят быстро.
+---
+
+## Куда разместить, чтобы работало 24/7
+
+Нужен любой маленький Linux-сервер с интернетом. Ресурсы почти нулевые (один Python-процесс).
+
+| Вариант | Плюсы | Минусы |
+|---------|-------|--------|
+| **VPS** (Hetzner, Timeweb, DigitalOcean, Aeza…) | дёшево, стабильно | нужен SSH |
+| **Ваш домашний ПК / ноутбук** | бесплатно | должен быть включён |
+| **Raspberry Pi** | тихо, всегда дома | нужно настроить |
+| **Бесплатные PaaS** (Railway, Render, Fly.io) | просто | иногда «засыпают», лимиты |
+
+**Самый простой путь для 24/7:** любой дешёвый VPS + Docker или systemd ниже.
+
+### Вариант A — Docker (удобно)
+
+На сервере:
+
+```bash
+cd tablecheck-monitor
+cp .env.example .env   # заполните токены
+docker compose up -d --build
+docker compose logs -f
+```
+
+Остановить: `docker compose down`
+
+### Вариант B — systemd (без Docker)
+
+```bash
+# на сервере, из папки репозитория:
+sudo bash deploy/install-systemd.sh /opt/uno-mas-monitor
+# если .env ещё пустой — скрипт создаст его и остановится;
+# заполните TELEGRAM_* и запустите снова
+```
+
+Полезные команды:
+
+```bash
+sudo systemctl status uno-mas-monitor
+sudo journalctl -u uno-mas-monitor -f
+sudo systemctl restart uno-mas-monitor
+```
+
+---
+
+## Если дадите сервер — да, настрою
+
+Могу поставить бота за вас, если пришлёте:
+
+1. **SSH-доступ** (хост + пользователь; ключ или временный пароль)
+2. **Telegram-токен** и **chat_id** (или создадите сами через BotFather)
+3. Пожелания: только ужин / обед+ужин, интервал опроса
+
+Не нужно root на весь мир — достаточно sudo или пользователя, который может поставить Docker/systemd.
+
+После установки проверю `notify-test` и оставлю сервис автозапуском.
+
+---
 
 ## Команды
 
-| Команда | Описание |
-|--------|----------|
-| `python monitor.py check` | Проверить доступность один раз |
+| Команда | Что делает |
+|---------|------------|
+| `python monitor.py check` | Один раз проверить слоты |
 | `python monitor.py watch` | Следить и слать Telegram при **новых** слотах |
-| `python monitor.py notify-test` | Проверить Telegram |
+| `python monitor.py notify-test` | Тест Telegram |
 
-Состояние «уже уведомляли» хранится в `data/state.json`.
+Уже отправленные слоты помнятся в `data/state.json`, чтобы не спамить одно и то же.
 
-## systemd (Linux, 24/7)
+## Параллельно с ботом
 
-```ini
-[Unit]
-Description=Uno Mas TableCheck availability monitor
-After=network-online.target
-
-[Service]
-Type=simple
-WorkingDirectory=/path/to/tablecheck-monitor
-ExecStart=/path/to/tablecheck-monitor/.venv/bin/python monitor.py watch
-Restart=always
-RestartSec=30
-
-[Install]
-WantedBy=multi-user.target
-```
-
-## Параллельно с ботом — позвонить в отель
-
-Ресепшн Centara Mirage: **+971 4 522 9999** / `cdd@chr.co.th`  
-Можно попросить concierge/ресторан поставить в лист ожидания — у TableCheck нет гостевого «notify me» на свободные даты.
+Ресепшн отеля: **+971 4 522 9999** / `cdd@chr.co.th`  
+Можно попросить concierge поставить в waitlist — у TableCheck нет кнопки «уведомить, когда освободится».
 
 ## Ограничения
 
-- Не обходит очередь и не бронирует автоматически
-- Уважайте сайт: интервал по умолчанию 15 минут, не уменьшайте без нужды
-- TableCheck может изменить API формы — тогда скрипт нужно обновить
+- Не бронирует автоматически
+- Интервал по умолчанию 15 минут — не уменьшайте без нужды
+- Если TableCheck поменяет форму — скрипт нужно обновить
