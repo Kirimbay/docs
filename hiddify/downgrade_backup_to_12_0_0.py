@@ -492,14 +492,47 @@ def _convert_childs(data: dict[str, Any], notes: list[str]) -> None:
         data["childs"] = kept
 
 
-def default_output_path(source: Path) -> Path:
-    return source.with_name(f"{source.stem}.12.0.0{source.suffix or '.json'}")
+def users_only_backup(data: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Keep accounts only.
+
+    Panel 12.0.0 always reads admin_users while restoring users, because
+    each user points at an admin via added_by_uuid. Domains, proxies,
+    settings, and the node record are omitted, so a restore cannot apply
+    the 12.3.3 proxy schema.
+    """
+    if not isinstance(data, dict):
+        raise BackupError("Backup root must be a JSON object.")
+    users = data.get("users")
+    admins = data.get("admin_users")
+    if not isinstance(users, list) or not isinstance(admins, list):
+        raise BackupError("Backup must contain 'users' and 'admin_users' lists.")
+
+    admin_uuids = {str(admin.get("uuid")) for admin in admins if isinstance(admin, dict)}
+    missing = sorted({
+        str(user.get("added_by_uuid"))
+        for user in users
+        if isinstance(user, dict) and user.get("added_by_uuid") and str(user.get("added_by_uuid")) not in admin_uuids
+    })
+    notes = [
+        f"kept {len(users)} users and {len(admins)} admins",
+        "removed domains, proxies, settings, and the node record",
+    ]
+    if missing:
+        notes.append(f"{len(missing)} users point at an admin that is not in this file")
+    return {"users": users, "admin_users": admins}, notes
+
+
+def default_output_path(source: Path, users_only: bool = False) -> Path:
+    suffix = source.suffix or ".json"
+    marker = "users-only" if users_only else "12.0.0"
+    return source.with_name(f"{source.stem}.{marker}{suffix}")
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Rewrite a Hiddify 12.3.x backup so panel 12.0.0 can restore it.")
     parser.add_argument("backup", type=Path, help="Path to the JSON backup from panel 12.3.3")
-    parser.add_argument("-o", "--output", type=Path, help="Where to write the 12.0.0 backup (default: <name>.12.0.0.json)")
+    parser.add_argument("-o", "--output", type=Path, help="Where to write the backup")
+    parser.add_argument("--users-only", action="store_true", help="Keep users and their admins, drop domains, proxies, and settings")
     args = parser.parse_args(argv)
 
     source: Path = args.backup
@@ -508,12 +541,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         data = json.loads(source.read_text(encoding="utf-8"))
-        converted, notes = convert_backup(data)
+        if args.users_only:
+            converted, notes = users_only_backup(data)
+        else:
+            converted, notes = convert_backup(data)
     except (json.JSONDecodeError, BackupError) as exc:
         print(f"Cannot convert {source}: {exc}", file=sys.stderr)
         return 2
 
-    target = args.output or default_output_path(source)
+    target = args.output or default_output_path(source, users_only=args.users_only)
     target.write_text(json.dumps(converted, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote {target}")
     if notes:
@@ -522,7 +558,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {note}")
     else:
         print("No 12.3.3-only fields found. The file already matches panel 12.0.0.")
-    print("Restore it in 12.0.0: Settings → Backup, enable settings, users, and domains.")
+    if args.users_only:
+        print("Restore it in 12.0.0: Settings → Backup, enable only Restore Users.")
+    else:
+        print("Restore it in 12.0.0: Settings → Backup, enable settings, users, and domains.")
     return 0
 
 

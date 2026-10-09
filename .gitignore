@@ -1,2 +1,3 @@
 # Converted Hiddify backups contain panel keys and user ids.
 hiddify/*.12.0.0.json
+hiddify/*.users-only.json

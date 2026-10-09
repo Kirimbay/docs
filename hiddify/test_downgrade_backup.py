@@ -12,6 +12,7 @@ from downgrade_backup_to_12_0_0 import (
     PROXY_PROTOS,
     PROXY_TRANSPORTS,
     convert_backup,
+    users_only_backup,
 )
 
 
@@ -193,6 +194,13 @@ class ConvertBackupTest(unittest.TestCase):
         )
         self.assertEqual(proxies[2]["params"], {})
         self.assertTrue(any("merged duplicate proxy NaiveTLS" in note for note in notes))
+
+    def test_users_only_drops_panel_config(self):
+        converted, notes = users_only_backup(sample_backup())
+        self.assertEqual(set(converted), {"users", "admin_users"})
+        self.assertEqual(converted["users"][0]["name"], "alice")
+        self.assertEqual(converted["admin_users"][0]["uuid"], "admin")
+        self.assertTrue(any("removed domains" in note for note in notes))
 
     def test_output_is_json_serializable(self):
         converted, _notes = convert_backup(sample_backup())
