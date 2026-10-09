@@ -364,14 +364,20 @@ def _proxy_ok(proxy: dict[str, Any]) -> str | None:
     return None
 
 
-def _convert_proxies(data: dict[str, Any], notes: list[str]) -> None:
-    """Drop rows 12.0.0 cannot store, then collapse duplicate names.
+def _proxy_signature(row: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    return (str(row.get("name", "")), row["proto"], row["l3"], row["transport"], row["cdn"])
 
-    Proxy.add_or_update() matches on name, so two rows named NaiveTLS
-    (12.0.0 direct + 12.3.3 relay copy from migration _v114) become one
-    row. The direct row is the one 12.0.0 created.
+
+def _convert_proxies(data: dict[str, Any], notes: list[str]) -> None:
+    """Drop rows 12.0.0 cannot store, then make proxy names unique.
+
+    Proxy.add_or_update() looks up a row by name only. Identical copies
+    (the same name, proto, l3, transport and cdn) collapse to the last
+    copy. Rows that share a name but are different transports, such as
+    several Reality proxies saved with a blank name, get distinct names
+    so the restore keeps each of them.
     """
-    grouped: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+    collapsed: OrderedDict[tuple[str, str, str, str, str], dict[str, Any]] = OrderedDict()
     for proxy in data.get("proxies") or []:
         if not isinstance(proxy, dict):
             notes.append("dropped a proxy row that is not an object")
@@ -382,24 +388,41 @@ def _convert_proxies(data: dict[str, Any], notes: list[str]) -> None:
             notes.append(f"dropped proxy {name or '(unnamed)'} ({reason} is not in panel 12.0.0)")
             continue
         row = dict(proxy)
+        row["name"] = name
         for field in ("proto", "l3", "transport", "cdn"):
             row[field] = enum_value(row.get(field, ""))
         row["params"] = _proxy_params(row.get("params"))
-        grouped.setdefault(name, []).append(row)
+        signature = _proxy_signature(row)
+        if signature in collapsed:
+            notes.append(
+                f"merged duplicate proxy {name or '(unnamed)'} "
+                f"({row['proto']}/{row['transport']}/{row['l3']}/{row['cdn']})"
+            )
+        collapsed[signature] = row
 
-    kept: list[dict[str, Any]] = []
-    for name, rows in grouped.items():
-        if len(rows) == 1:
-            kept.append(rows[0])
+    rows = list(collapsed.values())
+    name_counts: dict[str, int] = {}
+    for row in rows:
+        name_counts[row["name"]] = name_counts.get(row["name"], 0) + 1
+    used = {row["name"] for row in rows if row["name"] and name_counts[row["name"]] == 1}
+
+    for row in rows:
+        if row["name"] and name_counts[row["name"]] == 1:
             continue
-        direct = next((row for row in rows if row.get("cdn") == "direct"), None)
-        chosen = direct or rows[0]
+        original = row["name"]
+        base = original.strip() or f"{row['l3']} {row['transport']} {row['cdn']} {row['proto']}"
+        candidate = base
+        suffix = 2
+        while candidate in used:
+            candidate = f"{base} {suffix}"
+            suffix += 1
+        row["name"] = candidate
+        used.add(candidate)
+        label = original or "(unnamed)"
         notes.append(
-            f"kept one proxy named {name} (cdn={chosen.get('cdn')}); "
-            f"12.0.0 stores a single row per name"
+            f"renamed proxy {label} ({row['proto']}/{row['transport']}/{row['l3']}) to {candidate}"
         )
-        kept.append(chosen)
-    data["proxies"] = kept
+    data["proxies"] = rows
 
 
 def _proxy_params(value: Any) -> dict[str, Any]:

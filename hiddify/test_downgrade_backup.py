@@ -115,9 +115,9 @@ class ConvertBackupTest(unittest.TestCase):
         self.assertEqual(direct["download_domain"], "")
 
         names = [row["name"] for row in converted["proxies"]]
-        self.assertEqual(names, ["VLESS TCP REALITY", "NaiveTLS"])
-        naive = converted["proxies"][1]
-        self.assertEqual(naive["cdn"], "direct")
+        self.assertEqual(names, ["VLESS TCP REALITY", "NaiveTLS", "NaiveTLS 2"])
+        self.assertEqual(converted["proxies"][1]["cdn"], "direct")
+        self.assertEqual(converted["proxies"][2]["cdn"], "relay")
         self.assertNotIn("dnstt", {row["proto"] for row in converted["proxies"]})
 
         keys = [row["key"] for row in converted["hconfigs"]]
@@ -169,6 +169,30 @@ class ConvertBackupTest(unittest.TestCase):
         self.assertEqual(versions[0]["value"], "113")
         self.assertEqual(versions[0]["child_unique_id"], "child-1")
         self.assertTrue(any("added db_version" in note for note in notes))
+
+    def test_blank_names_with_different_transports_are_kept(self):
+        data = sample_backup()
+        data["proxies"] = [
+            {"name": "", "enable": True, "proto": "vless", "l3": "reality", "transport": "xhttp", "cdn": "direct", "params": {}},
+            {"name": "", "enable": True, "proto": "vless", "l3": "reality", "transport": "tcp", "cdn": "direct", "params": {}},
+            {"name": "", "enable": False, "proto": "vless", "l3": "reality", "transport": "grpc", "cdn": "direct", "params": {}},
+            {"name": "", "enable": True, "proto": "vless", "l3": "reality", "transport": "grpc", "cdn": "direct", "params": ""},
+            {"name": "NaiveTLS", "enable": True, "proto": "naive", "l3": "tls_h2_h1", "transport": "custom", "cdn": "relay", "params": {}},
+            {"name": "NaiveTLS", "enable": True, "proto": "naive", "l3": "tls_h2_h1", "transport": "custom", "cdn": "relay", "params": {}},
+        ]
+        converted, notes = convert_backup(data)
+        proxies = converted["proxies"]
+        self.assertEqual(
+            [(row["name"], row["transport"], row["enable"]) for row in proxies],
+            [
+                ("reality xhttp direct vless", "xhttp", True),
+                ("reality tcp direct vless", "tcp", True),
+                ("reality grpc direct vless", "grpc", True),
+                ("NaiveTLS", "custom", True),
+            ],
+        )
+        self.assertEqual(proxies[2]["params"], {})
+        self.assertTrue(any("merged duplicate proxy NaiveTLS" in note for note in notes))
 
     def test_output_is_json_serializable(self):
         converted, _notes = convert_backup(sample_backup())
