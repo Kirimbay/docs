@@ -634,6 +634,29 @@ $worker = {
         return (Join-Path $tempRoot ("yandex-fullsize-" + [guid]::NewGuid().ToString("N") + ".part"))
     }
 
+    function Test-PreviewReady([string]$path) {
+        $length = Get-FileLength $path
+        if ($length -lt 800) { return $false }
+        if (Test-LooksLikeHtml $path) { return $false }
+        $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try {
+            $head = New-Object byte[] 8
+            $read = $stream.Read($head, 0, $head.Length)
+            if ($read -lt 3) { return $false }
+            $isJpeg = ($head[0] -eq 255 -and $head[1] -eq 216)
+            $isPng = ($head[0] -eq 137 -and $head[1] -eq 80 -and $head[2] -eq 78)
+            if (-not $isJpeg -and -not $isPng) { return $true }
+            $tail = New-Object byte[] 8
+            if ($length -ge 8) { [void]$stream.Seek($length - 8, [System.IO.SeekOrigin]::Begin) }
+            $tailRead = $stream.Read($tail, 0, $tail.Length)
+            if ($isJpeg) { return ($tailRead -ge 2 -and $tail[$tailRead - 2] -eq 255 -and $tail[$tailRead - 1] -eq 217) }
+            $marker = [System.Text.Encoding]::ASCII.GetString($tail, 0, $tailRead)
+            return ($marker.Contains("IEND"))
+        } finally {
+            $stream.Close()
+        }
+    }
+
     function Test-CompleteDownload([string]$path, [int64]$expected) {
         $actual = Get-FileLength $path
         if ($actual -le 0) { return $false }
@@ -801,9 +824,13 @@ $worker = {
             $hash = ""
             $size = [int64]0
             if ($node.path) { $hash = [string]$node.path }
+            $preview = ""
             if ($node.meta) {
                 if ($node.meta.original) { $href = [string]$node.meta.original }
                 if ($node.meta.size) { $size = [int64]$node.meta.size }
+                if ($node.meta.xxxlPreview) { $preview = [string]$node.meta.xxxlPreview }
+                elseif ($node.meta.lPreview) { $preview = [string]$node.meta.lPreview }
+                elseif ($node.meta.defaultPreview) { $preview = [string]$node.meta.defaultPreview }
             }
             [void]$files.Add([pscustomobject]@{
                 name = $name
@@ -811,6 +838,7 @@ $worker = {
                 size = $size
                 href = $href
                 hash = $hash
+                preview = $preview
             })
             $sync.Status = "Нашёл файлов: $($files.Count)"
         }
@@ -870,6 +898,7 @@ $worker = {
                             size = $(if ($item.size) { [int64]$item.size } else { [int64]0 })
                             href = ""
                             hash = ""
+                            preview = ""
                         })
                     }
                 }
@@ -909,9 +938,17 @@ $worker = {
         } else {
             $outRoot = [System.IO.Path]::GetFullPath($destRoot)
         }
+        if ($makeRootFolder) {
+            $previewRoot = [System.IO.Path]::GetFullPath((Join-Path $destRoot ($rootName + " — превью")))
+        } else {
+            $previewRoot = [System.IO.Path]::GetFullPath((Join-Path $destRoot "превью"))
+        }
         [void][System.IO.Directory]::CreateDirectory($outRoot)
-        Write-Log ("Файлов: {0}. Папка: {1}" -f $files.Count, $outRoot)
-        $sync.OpenPath = $outRoot
+        [void][System.IO.Directory]::CreateDirectory($previewRoot)
+        Write-Log ("Файлов: {0}" -f $files.Count)
+        Write-Log ("Полные файлы: " + $outRoot)
+        Write-Log ("Превью: " + $previewRoot)
+        $sync.OpenPath = [System.IO.Path]::GetFullPath($destRoot)
 
         $skipped = 0
         $limit = 0
@@ -939,41 +976,66 @@ $worker = {
                 $sync.Current = $index
                 $relative = Get-SafeRelative ([string]$file.path) ([string]$file.name)
                 $dest = [System.IO.Path]::GetFullPath((Join-Path $outRoot $relative))
+                $previewDest = [System.IO.Path]::GetFullPath((Join-Path $previewRoot $relative))
                 $rootPrefix = $outRoot.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
-                if (-not $dest.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $previewPrefix = $previewRoot.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+                if (-not $dest.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or -not $previewDest.StartsWith($previewPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
                     Write-Log "Пропуск, странный путь: $relative"
                     continue
                 }
                 $expected = [int64]0
                 if ($file.size) { $expected = [int64]$file.size }
+                $previewUrl = [string]$file.preview
                 $sync.PartName = [string]$file.name
                 $sync.PartExpected = $expected
                 $sync.PartGot = [int64]0
                 $sync.Status = "Файл $index из $($files.Count): $relative"
 
-                if ([System.IO.File]::Exists($dest) -and $expected -gt 0) {
-                    $have = Get-FileLength $dest
-                    if ($have -eq $expected) {
-                        $skipped++
-                        $sync.FinishedCount = $saved + $skipped
-                        $sync.PartGot = $have
-                        Write-Log ("Уже есть: {0} ({1})" -f $relative, (Format-ByteCount $have))
-                        continue
-                    }
+                $fullReady = ($expected -gt 0 -and (Get-FileLength $dest) -eq $expected)
+                $previewReady = [string]::IsNullOrWhiteSpace($previewUrl) -or (Test-PreviewReady $previewDest)
+                if ($fullReady -and $previewReady) {
+                    $skipped++
+                    $sync.FinishedCount = $saved + $skipped
+                    $sync.PartGot = $expected
+                    Write-Log ("Уже есть: {0}" -f $relative)
+                    continue
                 }
 
-                Write-Log ("Скачиваю {0}/{1}: {2}" -f $index, $files.Count, $relative)
-                try {
-                    $size = Save-FullFile ([string]$file.hash) ([string]$file.path) ([string]$file.href) $dest $expected
-                    $saved++
-                    $sync.FinishedCount = $saved + $skipped
-                    $sync.PartGot = $size
-                    Write-Log ("Готово: {0} ({1})" -f $relative, (Format-ByteCount $size))
-                } catch {
-                    if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) { throw "CANCELLED" }
+                $pending = $false
+                if (-not $previewReady) {
+                    $sync.Status = "Превью, файл $index из $($files.Count): $relative"
+                    Write-Log ("Превью {0}/{1}: {2}" -f $index, $files.Count, $relative)
+                    try {
+                        [void](Save-FullFile "" "" $previewUrl $previewDest 0)
+                        if (-not (Test-PreviewReady $previewDest)) {
+                            if ([System.IO.File]::Exists($previewDest)) { [System.IO.File]::Delete($previewDest) }
+                            throw "превью оборвалось"
+                        }
+                        Write-Log ("Превью готово: {0}" -f $relative)
+                    } catch {
+                        if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) { throw "CANCELLED" }
+                        $pending = $true
+                        Write-Log ("Превью пока не вышло: {0} — {1}" -f $relative, $_.Exception.Message)
+                    }
+                }
+                if (-not $fullReady) {
+                    Write-Log ("Скачиваю {0}/{1}: {2}" -f $index, $files.Count, $relative)
+                    try {
+                        $size = Save-FullFile ([string]$file.hash) ([string]$file.path) ([string]$file.href) $dest $expected
+                        $sync.PartGot = $size
+                        Write-Log ("Готово: {0} ({1})" -f $relative, (Format-ByteCount $size))
+                    } catch {
+                        if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) { throw "CANCELLED" }
+                        $pending = $true
+                        Write-Log ("Пока не вышло: {0} — {1}" -f $relative, $_.Exception.Message)
+                    }
+                }
+                if ($pending) {
                     [void]$left.Add($entry)
                     [void]$failed.Add($relative)
-                    Write-Log ("Пока не вышло: {0} — {1}" -f $relative, $_.Exception.Message)
+                } else {
+                    $saved++
+                    $sync.FinishedCount = $saved + $skipped
                 }
             }
             if ($left.Count -eq 0) { break }
@@ -986,7 +1048,8 @@ $worker = {
         $sync.FinishedCount = $saved + $skipped
         $sync.Status = "Готово. Новых: $saved. Уже было: $skipped."
         Write-Log $sync.Status
-        Write-Log ("Папка: " + $outRoot)
+        Write-Log ("Полные файлы: " + $outRoot)
+        Write-Log ("Превью: " + $previewRoot)
     } catch {
         if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) {
             $sync.Status = "Остановлено. Уже скачанные файлы лежат в папке."
@@ -1062,7 +1125,7 @@ $title.Anchor = "Top, Left, Right"
 $form.Controls.Add($title)
 
 $hint = New-Object System.Windows.Forms.Label
-$hint.Text = "Вставьте публичную ссылку. Каждый файл качается целиком, с теми же папками. Если секунду нет данных, программа переходит к следующему и повторяет недокачанные по кругу, пока не скачаются все."
+$hint.Text = "Полные файлы и превью сохраняются в две разные папки, с теми же вложенными папками. Если секунду нет данных, программа переходит к следующему и повторяет недокачанные по кругу."
 $hint.ForeColor = $colorMuted
 $hint.AutoSize = $false
 $hint.Location = New-Object System.Drawing.Point(18, 48)
