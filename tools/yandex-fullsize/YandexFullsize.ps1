@@ -22,9 +22,41 @@ public class YandexFullsizeWin32 {
 }
 
 [System.Windows.Forms.Application]::EnableVisualStyles()
-[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+try {
+    $protocols = [System.Net.SecurityProtocolType]::Tls12
+    $tls13 = [Enum]::Parse([System.Net.SecurityProtocolType], "Tls13")
+    $protocols = $protocols -bor $tls13
+    [System.Net.ServicePointManager]::SecurityProtocol = $protocols
+} catch {
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+}
 [System.Net.ServicePointManager]::Expect100Continue = $false
 [System.Net.ServicePointManager]::DefaultConnectionLimit = 8
+
+# .NET Framework turns "?public_key=https://..." into an extra path segment.
+# Yandex then answers 404 with description "Not Found" and nothing downloads.
+function Enable-RawQueryUris {
+    try {
+        $parserType = [System.UriParser]
+        $getSyntax = $parserType.GetMethod("GetSyntax", [Reflection.BindingFlags]"Static,NonPublic")
+        $field = $parserType.GetField("m_Flags", [Reflection.BindingFlags]"Instance,NonPublic")
+        if (-not $field) {
+            $field = $parserType.GetField("_flags", [Reflection.BindingFlags]"Instance,NonPublic")
+        }
+        if (-not $getSyntax -or -not $field) { return }
+        $unescapeDotsAndSlashes = 33554432
+        foreach ($scheme in @("http", "https")) {
+            $parser = $getSyntax.Invoke($null, @($scheme))
+            if (-not $parser) { continue }
+            $current = [int]$field.GetValue($parser)
+            $updated = $current -band (-bnot $unescapeDotsAndSlashes)
+            if ($updated -eq $current) { continue }
+            $field.SetValue($parser, [Enum]::ToObject($field.FieldType, $updated))
+        }
+    } catch {
+    }
+}
+Enable-RawQueryUris
 
 $script:sync = [hashtable]::Synchronized(@{
     Cancel = $false
@@ -34,6 +66,9 @@ $script:sync = [hashtable]::Synchronized(@{
     Status = "Вставьте публичную ссылку на папку Яндекс Диска."
     OpenPath = ""
     Request = $null
+    Process = $null
+    PartFile = ""
+    PartExpected = [int64]0
 })
 $script:sync.Messages = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList))
 $script:job = $null
@@ -89,6 +124,137 @@ $worker = {
         return "$n Б"
     }
 
+    function Get-CurlPath {
+        foreach ($candidate in @(
+            (Join-Path $env:SystemRoot "System32\curl.exe"),
+            (Join-Path $env:SystemRoot "Sysnative\curl.exe")
+        )) {
+            if ([System.IO.File]::Exists($candidate)) { return $candidate }
+        }
+        return $null
+    }
+
+    function ConvertTo-ErrorText([string]$body, [string]$fallback) {
+        if ($body -match '"message"\s*:\s*"((?:\\.|[^"\\])*)"') {
+            return (($Matches[1] -replace '\\"', '"') -replace '\\n', ' ')
+        }
+        if ($body -match '"description"\s*:\s*"((?:\\.|[^"\\])*)"') {
+            $text = $Matches[1]
+            if ($text -eq "Not Found") {
+                return "Яндекс не нашёл ресурс по этому запросу."
+            }
+            return $text
+        }
+        if ($body -match 'DiskNotFoundError') {
+            return "Ссылка не открывается. Проверьте, что она публичная и скопирована целиком."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($body) -and $body.Length -lt 300 -and $body -notmatch '<html') {
+            return $body.Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($fallback)) { return "Яндекс Диск не ответил." }
+        return $fallback
+    }
+
+    function Invoke-CurlRequest([string]$Url, [string]$OutFile, [int]$MaxSeconds) {
+        $curl = Get-CurlPath
+        if (-not $curl) { throw "NO_CURL" }
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $curl
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $safeUrl = $Url.Replace('"', '')
+        $psi.Arguments = "-sS -L --path-as-is --connect-timeout 25 --max-time $MaxSeconds -A `"$userAgent`" -o `"$OutFile`" -w %{http_code} -- `"$safeUrl`""
+        $proc = New-Object System.Diagnostics.Process
+        $proc.StartInfo = $psi
+        [void]$proc.Start()
+        $sync.Process = $proc
+        try {
+            $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
+            $stderrTask = $proc.StandardError.ReadToEndAsync()
+            while (-not $proc.WaitForExit(250)) {
+                if ($sync.Cancel) {
+                    try { $proc.Kill() } catch { }
+                    throw "CANCELLED"
+                }
+            }
+            $proc.WaitForExit() | Out-Null
+            $codeText = [string]$stdoutTask.Result
+            $errText = [string]$stderrTask.Result
+            $code = 0
+            if ($codeText -match '(\d{3})\s*$') { $code = [int]$Matches[1] }
+            if ($proc.ExitCode -ne 0 -and $code -eq 0) {
+                $reason = $errText.Trim()
+                if ($reason.Length -gt 240) { $reason = $reason.Substring(0, 240) }
+                throw ("Сеть оборвалась. " + $reason)
+            }
+            return $code
+        } finally {
+            $sync.Process = $null
+            try { $proc.Dispose() } catch { }
+        }
+    }
+
+    function Receive-ApiText([string]$url) {
+        $temp = [System.IO.Path]::GetTempFileName()
+        try {
+            if (Get-CurlPath) {
+                $code = Invoke-CurlRequest $url $temp 60
+                $body = ""
+                if ([System.IO.File]::Exists($temp)) {
+                    $body = [System.IO.File]::ReadAllText($temp, [System.Text.Encoding]::UTF8)
+                }
+                return @{ Code = $code; Body = $body }
+            }
+        } catch {
+            if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) { throw "CANCELLED" }
+            if ($_.Exception.Message -ne "NO_CURL") { throw }
+        } finally {
+            if ([System.IO.File]::Exists($temp)) {
+                try { [System.IO.File]::Delete($temp) } catch { }
+            }
+        }
+
+        $response = $null
+        try {
+            $request = [System.Net.HttpWebRequest][System.Net.WebRequest]::Create($url)
+            $request.Method = "GET"
+            $request.UserAgent = $userAgent
+            $request.Accept = "application/json"
+            $request.Timeout = 45000
+            $request.ReadWriteTimeout = 45000
+            $request.KeepAlive = $false
+            $request.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
+            $sync.Request = $request
+            $response = $request.GetResponse()
+            $reader = New-Object System.IO.StreamReader($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+            try { $json = $reader.ReadToEnd() } finally { $reader.Close() }
+            return @{ Code = [int]$response.StatusCode; Body = $json }
+        } catch {
+            if ($sync.Cancel) { throw "CANCELLED" }
+            $web = $_.Exception
+            if ($web -isnot [System.Net.WebException] -and $_.Exception.InnerException) {
+                $web = $_.Exception.InnerException
+            }
+            $body = ""
+            $code = 0
+            if ($web -is [System.Net.WebException] -and $web.Response) {
+                $code = [int]$web.Response.StatusCode
+                try {
+                    $errReader = New-Object System.IO.StreamReader($web.Response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+                    $body = $errReader.ReadToEnd()
+                    $errReader.Close()
+                } catch { }
+            }
+            if ($code -eq 0) { throw $_.Exception.Message }
+            return @{ Code = $code; Body = $body }
+        } finally {
+            $sync.Request = $null
+            if ($response) { $response.Close() }
+        }
+    }
+
     function Invoke-Yandex([string]$endpoint, [hashtable]$query) {
         $pairs = New-Object System.Collections.Generic.List[string]
         foreach ($key in $query.Keys) {
@@ -96,55 +262,33 @@ $worker = {
             if ($null -eq $value) { continue }
             $text = [string]$value
             if ($text -eq "") { continue }
-            [void]$pairs.Add(("{0}={1}" -f [uri]::EscapeDataString($key), [uri]::EscapeDataString($text)))
+            $encodedKey = [uri]::EscapeDataString([string]$key)
+            $encodedValue = [uri]::EscapeDataString($text)
+            [void]$pairs.Add("$encodedKey=$encodedValue")
         }
         $url = "https://cloud-api.yandex.net/v1/disk/public/$endpoint?" + ($pairs -join "&")
         $lastError = $null
         for ($try = 1; $try -le 4; $try++) {
             Assert-Continue
-            $response = $null
             try {
-                $request = [System.Net.HttpWebRequest][System.Net.WebRequest]::Create($url)
-                $request.Method = "GET"
-                $request.UserAgent = $userAgent
-                $request.Accept = "application/json"
-                $request.Timeout = 45000
-                $request.ReadWriteTimeout = 45000
-                $request.KeepAlive = $false
-                $request.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
-                $sync.Request = $request
-                $response = $request.GetResponse()
-                $reader = New-Object System.IO.StreamReader($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
-                try {
-                    $json = $reader.ReadToEnd()
-                } finally {
-                    $reader.Close()
+                $result = Receive-ApiText $url
+                if ($result.Code -ge 200 -and $result.Code -lt 300 -and $result.Body) {
+                    return ($result.Body | ConvertFrom-Json)
                 }
-                return ($json | ConvertFrom-Json)
-            } catch {
-                if ($sync.Cancel) { throw "CANCELLED" }
-                $detail = $_.Exception.Message
-                $web = $_.Exception
-                if ($web -isnot [System.Net.WebException] -and $_.Exception.InnerException) {
-                    $web = $_.Exception.InnerException
-                }
-                if ($web -is [System.Net.WebException] -and $web.Response) {
-                    try {
-                        $errReader = New-Object System.IO.StreamReader($web.Response.GetResponseStream(), [System.Text.Encoding]::UTF8)
-                        $body = $errReader.ReadToEnd()
-                        $errReader.Close()
-                        if ($body -match '"description"\s*:\s*"([^"]+)"') { $detail = $Matches[1] }
-                        elseif ($body) { $detail = $body }
-                    } catch {
-                    }
-                }
+                $detail = ConvertTo-ErrorText ([string]$result.Body) ("HTTP " + $result.Code)
+                if ([string]$result.Body -match 'DiskNotFoundError|FieldValidationError') { throw $detail }
                 $lastError = $detail
                 if ($try -eq 4) { throw $detail }
-                Write-Log ("Яндекс не ответил, повтор $try из 3. $detail")
+                Write-Log ("Повтор $try из 3. $detail")
                 Start-Sleep -Seconds ([Math]::Pow(2, $try))
-            } finally {
-                $sync.Request = $null
-                if ($response) { $response.Close() }
+            } catch {
+                if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) { throw "CANCELLED" }
+                $detail = $_.Exception.Message
+                if ($detail -match 'не открывается|обязательн|FieldValidation|DiskNotFound') { throw $detail }
+                $lastError = $detail
+                if ($try -eq 4) { throw $detail }
+                Write-Log ("Повтор $try из 3. $detail")
+                Start-Sleep -Seconds ([Math]::Pow(2, $try))
             }
         }
         throw $lastError
@@ -231,13 +375,24 @@ $worker = {
             Assert-Continue
             if ([System.IO.File]::Exists($part)) { [System.IO.File]::Delete($part) }
             try {
+                $sync.PartFile = $part
+                $sync.PartExpected = $expected
                 try {
-                    Receive-Http $href $part $expected
+                    if (-not (Get-CurlPath)) { throw "NO_CURL" }
+                    $httpCode = Invoke-CurlRequest $href $part 600
+                    if ($httpCode -ne 200) {
+                        throw ("Яндекс вернул код " + $httpCode)
+                    }
                 } catch {
                     if ($sync.Cancel -or $_.Exception.Message -eq "CANCELLED") { throw "CANCELLED" }
-                    Write-Log ("Прямая загрузка оборвалась, повтор через curl. " + $_.Exception.Message)
+                    if ($_.Exception.Message -ne "NO_CURL") {
+                        Write-Log ("Повтор загрузки другим способом. " + $_.Exception.Message)
+                    }
                     if ([System.IO.File]::Exists($part)) { [System.IO.File]::Delete($part) }
-                    Receive-Curl $href $part
+                    Receive-Http $href $part $expected
+                } finally {
+                    $sync.PartFile = ""
+                    $sync.PartExpected = 0
                 }
                 if (-not [System.IO.File]::Exists($part)) { throw "файл не сохранился" }
                 $actual = [int64](New-Object System.IO.FileInfo $part).Length
@@ -600,6 +755,10 @@ $btnStop.Add_Click({
     if ($request) {
         try { $request.Abort() } catch { }
     }
+    $proc = $script:sync.Process
+    if ($proc) {
+        try { if (-not $proc.HasExited) { $proc.Kill() } } catch { }
+    }
 })
 
 $btnStart.Add_Click({
@@ -659,7 +818,20 @@ $timer.Add_Tick({
         }
     } catch {
     }
-    $status.Text = [string]$script:sync.Status
+    $partFile = [string]$script:sync.PartFile
+    if ($partFile -and [System.IO.File]::Exists($partFile)) {
+        $got = [int64](New-Object System.IO.FileInfo $partFile).Length
+        $need = [int64]$script:sync.PartExpected
+        if ($need -gt 0) {
+            $pct = [int](($got * 100) / $need)
+            if ($pct -gt 100) { $pct = 100 }
+            $status.Text = "Скачивается файл $($script:sync.Current) из $($script:sync.Total) — $pct%"
+        } else {
+            $status.Text = "Скачивается файл $($script:sync.Current) из $($script:sync.Total)"
+        }
+    } else {
+        $status.Text = [string]$script:sync.Status
+    }
     $total = [int]$script:sync.Total
     $current = [int]$script:sync.Current
     if ($total -gt 0) {
@@ -689,6 +861,8 @@ $form.Add_FormClosing({
     $script:sync.Cancel = $true
     $request = $script:sync.Request
     if ($request) { try { $request.Abort() } catch { } }
+    $proc = $script:sync.Process
+    if ($proc) { try { if (-not $proc.HasExited) { $proc.Kill() } } catch { } }
     $timer.Stop()
 })
 
