@@ -321,9 +321,9 @@ $worker = {
         [void]$lines.Add("http1.1")
         if ($ForceIPv4) { [void]$lines.Add("ipv4") }
         if ($Resume) { [void]$lines.Add("continue-at = -") }
-        [void]$lines.Add("connect-timeout = 3")
+        [void]$lines.Add("connect-timeout = 1")
         [void]$lines.Add("speed-limit = 1024")
-        [void]$lines.Add("speed-time = 3")
+        [void]$lines.Add("speed-time = 1")
         [void]$lines.Add("max-time = $MaxSeconds")
         [void]$lines.Add("user-agent = `"$agent`"")
         if ($referer -match '^https?://') { [void]$lines.Add("referer = `"$referer`"") }
@@ -497,8 +497,8 @@ $worker = {
         $request = New-DiskRequest $href
         $request.Method = "GET"
         $request.Referer = $publicUrl
-        $request.Timeout = 8000
-        $request.ReadWriteTimeout = 3000
+        $request.Timeout = 2000
+        $request.ReadWriteTimeout = 1000
         $sync.Request = $request
         $sync.PartFile = $part
         $sync.PartStarted = [DateTime]::UtcNow
@@ -651,7 +651,7 @@ $worker = {
         $sync.PartFile = $part
         $lastError = "не удалось скачать файл"
         try {
-            for ($try = 1; $try -le 2; $try++) {
+            for ($try = 1; $try -le 1; $try++) {
                 Assert-Continue
                 if ([System.IO.File]::Exists($part)) { [System.IO.File]::Delete($part) }
                 $sync.PartGot = [int64]0
@@ -696,9 +696,6 @@ $worker = {
                         }
                         break
                     }
-                }
-                if ($try -lt 2) {
-                    Write-Log ("Повтор, беру новую ссылку: $lastError")
                 }
             }
             throw $lastError
@@ -982,7 +979,6 @@ $worker = {
             if ($left.Count -eq 0) { break }
             $queue = $left
             $round++
-            Start-Sleep -Seconds 1
         }
 
         $sync.SavedCount = $saved
@@ -1066,7 +1062,7 @@ $title.Anchor = "Top, Left, Right"
 $form.Controls.Add($title)
 
 $hint = New-Object System.Windows.Forms.Label
-$hint.Text = "Вставьте публичную ссылку. Каждый файл качается целиком, с теми же папками. Если 3 секунды нет данных, программа берёт новую ссылку и идёт дальше, а недокачанные повторяет по кругу, пока не скачаются все."
+$hint.Text = "Вставьте публичную ссылку. Каждый файл качается целиком, с теми же папками. Если секунду нет данных, программа переходит к следующему и повторяет недокачанные по кругу, пока не скачаются все."
 $hint.ForeColor = $colorMuted
 $hint.AutoSize = $false
 $hint.Location = New-Object System.Drawing.Point(18, 48)
