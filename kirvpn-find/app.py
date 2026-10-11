@@ -765,16 +765,113 @@ def html_esc(s: str) -> str:
 
 
 def render_info_html(text: str) -> str:
-    # The public site is the picture guide. The panel textarea is only a short
-    # line at the top, so a save cannot wipe the steps.
-    notice = html_esc(text).replace("\n", "<br>\n")
-    banner = f'<p class="notice">{notice}</p>' if notice else ""
+    # Tab «Информация»: the short status the operator saves.
+    # Tab «Инструкция» is guide.html and is not built from this text.
+    body = html_esc(text).replace("\n", "<br>\n")
+    return f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0b1220">
+  <title>KirVPN</title>
+  <style>
+    :root {{ color-scheme: dark; }}
+    * {{ box-sizing: border-box; }}
+    html, body {{ margin: 0; max-width: 100%; overflow-x: hidden; }}
+    body {{
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #0b1220;
+      color: #e8eefc;
+      display: flex;
+      flex-direction: column;
+    }}
+    .site-tabs {{
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      width: min(920px, 100%);
+      margin: 0 auto;
+      padding: 12px 16px 0;
+      background: #0b1220;
+    }}
+    .site-tabs a {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      min-width: 0;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 800;
+      color: #c5d4ea;
+      background: #121b2e;
+      border: 1px solid #24324d;
+    }}
+    .site-tabs a.on {{
+      color: #fff;
+      background: #146c36;
+      border-color: #146c36;
+    }}
+    main {{
+      flex: 1;
+      width: min(920px, 100%);
+      margin: 0 auto;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px 32px;
+    }}
+    .brand {{
+      font-size: .78rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #8aa0c2;
+      margin: 0 0 18px;
+      font-weight: 700;
+    }}
+    .msg {{
+      margin: 0;
+      font-size: clamp(2.1rem, 7vw, 4.4rem);
+      font-weight: 800;
+      line-height: 1.18;
+      letter-spacing: -0.02em;
+      overflow-wrap: anywhere;
+    }}
+  </style>
+</head>
+<body>
+  <nav class="site-tabs">
+    <a class="on" href="/">Информация</a>
+    <a href="/guide.html">Инструкция</a>
+  </nav>
+  <main>
+    <p class="brand">KirVPN · info.sarafan.uk</p>
+    <p class="msg">{body}</p>
+  </main>
+</body>
+</html>
+"""
+
+
+def publish_guide():
+    if not os.path.isfile(INFO_GUIDE_PATH):
+        return
     with open(INFO_GUIDE_PATH, encoding="utf-8") as f:
         guide = f.read()
-    marker = "<!--NOTICE-->"
-    if marker not in guide:
-        raise RuntimeError("info guide has no NOTICE marker")
-    return guide.replace(marker, banner, 1)
+    os.makedirs(INFO_WWW_DIR, exist_ok=True)
+    path = os.path.join(INFO_WWW_DIR, "guide.html")
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(guide)
+    os.replace(tmp, path)
 
 
 def save_info(text: str):
@@ -791,6 +888,7 @@ def save_info(text: str):
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(html)
         os.replace(tmp, path)
+    publish_guide()
     return {"ok": True, "text": text}
 
 
