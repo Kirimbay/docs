@@ -93,6 +93,7 @@ $script:sync = [hashtable]::Synchronized(@{
     PartExpected = [int64]0
     SavedCount = 0
     FailedCount = 0
+    FinishedCount = 0
 })
 $script:sync.Messages = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList))
 $script:job = $null
@@ -320,9 +321,9 @@ $worker = {
         [void]$lines.Add("http1.1")
         if ($ForceIPv4) { [void]$lines.Add("ipv4") }
         if ($Resume) { [void]$lines.Add("continue-at = -") }
-        [void]$lines.Add("connect-timeout = 12")
+        [void]$lines.Add("connect-timeout = 3")
         [void]$lines.Add("speed-limit = 1024")
-        [void]$lines.Add("speed-time = 12")
+        [void]$lines.Add("speed-time = 3")
         [void]$lines.Add("max-time = $MaxSeconds")
         [void]$lines.Add("user-agent = `"$agent`"")
         if ($referer -match '^https?://') { [void]$lines.Add("referer = `"$referer`"") }
@@ -496,8 +497,8 @@ $worker = {
         $request = New-DiskRequest $href
         $request.Method = "GET"
         $request.Referer = $publicUrl
-        $request.Timeout = 20000
-        $request.ReadWriteTimeout = 12000
+        $request.Timeout = 8000
+        $request.ReadWriteTimeout = 3000
         $sync.Request = $request
         $sync.PartFile = $part
         $sync.PartStarted = [DateTime]::UtcNow
@@ -650,7 +651,7 @@ $worker = {
         $sync.PartFile = $part
         $lastError = "не удалось скачать файл"
         try {
-            for ($try = 1; $try -le 4; $try++) {
+            for ($try = 1; $try -le 2; $try++) {
                 Assert-Continue
                 if ([System.IO.File]::Exists($part)) { [System.IO.File]::Delete($part) }
                 $sync.PartGot = [int64]0
@@ -696,9 +697,8 @@ $worker = {
                         break
                     }
                 }
-                if ($try -lt 4) {
-                    Write-Log ("Повтор $try из 4, беру новую ссылку: $lastError")
-                    Start-Sleep -Seconds 1
+                if ($try -lt 2) {
+                    Write-Log ("Повтор, беру новую ссылку: $lastError")
                 }
             }
             throw $lastError
@@ -917,75 +917,80 @@ $worker = {
         $sync.OpenPath = $outRoot
 
         $skipped = 0
-        $stallFiles = 0
-        $index = 0
         $limit = 0
         if ($fileLimit) { $limit = [int]$fileLimit }
+        $queue = New-Object System.Collections.Generic.List[object]
+        $listed = 0
         foreach ($file in $files) {
+            if ($limit -gt 0 -and $listed -ge $limit) { break }
+            $listed++
+            [void]$queue.Add([pscustomobject]@{ File = $file; Index = $listed })
+        }
+        $sync.FinishedCount = 0
+        $round = 1
+        while ($queue.Count -gt 0) {
             Assert-Continue
-            if ($limit -gt 0 -and $index -ge $limit) { break }
-            $index++
-            $sync.Current = $index
-            $relative = Get-SafeRelative ([string]$file.path) ([string]$file.name)
-            $dest = [System.IO.Path]::GetFullPath((Join-Path $outRoot $relative))
-            $rootPrefix = $outRoot.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
-            if (-not $dest.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-                Write-Log "Пропуск, странный путь: $relative"
-                [void]$failed.Add($relative)
-                continue
+            $left = New-Object System.Collections.Generic.List[object]
+            if ($round -gt 1) {
+                Write-Log ("Круг {0}. Осталось файлов: {1}" -f $round, $queue.Count)
+                $sync.Status = "Круг ${round}. Осталось файлов: $($queue.Count)"
             }
-            $expected = [int64]0
-            if ($file.size) { $expected = [int64]$file.size }
-            $sync.PartName = [string]$file.name
-            $sync.PartExpected = $expected
-            $sync.PartGot = [int64]0
-            $sync.Status = "Файл $index из $($files.Count): $relative"
-
-            if ([System.IO.File]::Exists($dest) -and $expected -gt 0) {
-                $have = Get-FileLength $dest
-                if ($have -eq $expected) {
-                    $skipped++
-                    $sync.PartGot = $have
-                    Write-Log ("Уже есть: {0} ({1})" -f $relative, (Format-ByteCount $have))
+            foreach ($entry in $queue) {
+                Assert-Continue
+                $file = $entry.File
+                $index = [int]$entry.Index
+                $sync.Current = $index
+                $relative = Get-SafeRelative ([string]$file.path) ([string]$file.name)
+                $dest = [System.IO.Path]::GetFullPath((Join-Path $outRoot $relative))
+                $rootPrefix = $outRoot.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+                if (-not $dest.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    Write-Log "Пропуск, странный путь: $relative"
                     continue
                 }
-            }
+                $expected = [int64]0
+                if ($file.size) { $expected = [int64]$file.size }
+                $sync.PartName = [string]$file.name
+                $sync.PartExpected = $expected
+                $sync.PartGot = [int64]0
+                $sync.Status = "Файл $index из $($files.Count): $relative"
 
-            Write-Log ("Скачиваю {0}/{1}: {2}" -f $index, $files.Count, $relative)
-            try {
-                $size = Save-FullFile ([string]$file.hash) ([string]$file.path) ([string]$file.href) $dest $expected
-                $saved++
-                $stallFiles = 0
-                $sync.PartGot = $size
-                Write-Log ("Готово: {0} ({1})" -f $relative, (Format-ByteCount $size))
-            } catch {
-                if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) { throw "CANCELLED" }
-                [void]$failed.Add($relative)
-                $reason = $_.Exception.Message
-                Write-Log ("Ошибка: {0} — {1}" -f $relative, $reason)
-                if ($reason -match 'нет данных|обрыв|too slow|timed out|Timeout') {
-                    $stallFiles++
-                } else {
-                    $stallFiles = 0
+                if ([System.IO.File]::Exists($dest) -and $expected -gt 0) {
+                    $have = Get-FileLength $dest
+                    if ($have -eq $expected) {
+                        $skipped++
+                        $sync.FinishedCount = $saved + $skipped
+                        $sync.PartGot = $have
+                        Write-Log ("Уже есть: {0} ({1})" -f $relative, (Format-ByteCount $have))
+                        continue
+                    }
                 }
-                # A few files can sit on a storage node that accepts the connection and
-                # then sends nothing. Keep going so the files that do come down are saved.
-                # Stop only when the disk has not sent a single file and keeps failing.
-                if ($stallFiles -ge 8 -and $saved -eq 0) {
-                    throw "Диск много раз подряд не отдал ни одного байта. Остановился, чтобы не висеть на каждом фото. Повторите позже."
+
+                Write-Log ("Скачиваю {0}/{1}: {2}" -f $index, $files.Count, $relative)
+                try {
+                    $size = Save-FullFile ([string]$file.hash) ([string]$file.path) ([string]$file.href) $dest $expected
+                    $saved++
+                    $sync.FinishedCount = $saved + $skipped
+                    $sync.PartGot = $size
+                    Write-Log ("Готово: {0} ({1})" -f $relative, (Format-ByteCount $size))
+                } catch {
+                    if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) { throw "CANCELLED" }
+                    [void]$left.Add($entry)
+                    [void]$failed.Add($relative)
+                    Write-Log ("Пока не вышло: {0} — {1}" -f $relative, $_.Exception.Message)
                 }
             }
+            if ($left.Count -eq 0) { break }
+            $queue = $left
+            $round++
+            Start-Sleep -Seconds 1
         }
 
         $sync.SavedCount = $saved
-        $sync.FailedCount = $failed.Count
-        $sync.Status = "Готово. Новых: $saved. Уже было: $skipped. Ошибок: $($failed.Count)."
+        $sync.FailedCount = 0
+        $sync.FinishedCount = $saved + $skipped
+        $sync.Status = "Готово. Новых: $saved. Уже было: $skipped."
         Write-Log $sync.Status
         Write-Log ("Папка: " + $outRoot)
-        if ($failed.Count -gt 0) {
-            Write-Log "Не скачались:"
-            foreach ($name in $failed) { Write-Log ("  " + $name) }
-        }
     } catch {
         if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) {
             $sync.Status = "Остановлено. Уже скачанные файлы лежат в папке."
@@ -1061,7 +1066,7 @@ $title.Anchor = "Top, Left, Right"
 $form.Controls.Add($title)
 
 $hint = New-Object System.Windows.Forms.Label
-$hint.Text = "Вставьте публичную ссылку. Программа скачает каждый файл целиком, с теми же папками, и покажет, сколько уже пришло. Если Диск замолчит, она возьмёт новую ссылку. Папку одним архивом не качает."
+$hint.Text = "Вставьте публичную ссылку. Каждый файл качается целиком, с теми же папками. Если 3 секунды нет данных, программа берёт новую ссылку и идёт дальше, а недокачанные повторяет по кругу, пока не скачаются все."
 $hint.ForeColor = $colorMuted
 $hint.AutoSize = $false
 $hint.Location = New-Object System.Drawing.Point(18, 48)
@@ -1246,6 +1251,7 @@ $btnStart.Add_Click({
     $script:sync.PartExpected = [int64]0
     $script:sync.SavedCount = 0
     $script:sync.FailedCount = 0
+    $script:sync.FinishedCount = 0
     $script:sync.Messages.Clear()
     $log.Clear()
     $bar.Value = 0
@@ -1275,15 +1281,13 @@ $timer.Add_Tick({
     }
     $status.Text = [string]$script:sync.Status
     $total = [int]$script:sync.Total
-    $current = [int]$script:sync.Current
-    if ($total -gt 0 -and $current -gt 0) {
-        $done = $current - 1
+    if ($total -gt 0) {
+        $done = [int]$script:sync.FinishedCount
         $frac = 0.0
         $need = [int64]$script:sync.PartExpected
         $got = [int64]$script:sync.PartGot
-        if ($need -gt 0 -and $got -gt 0) {
+        if ($need -gt 0 -and $got -gt 0 -and $got -lt $need) {
             $frac = [double]$got / [double]$need
-            if ($frac -gt 1) { $frac = 1 }
         }
         $overall = [int]((($done + $frac) * 1000) / $total)
         if ($overall -lt 0) { $overall = 0 }
