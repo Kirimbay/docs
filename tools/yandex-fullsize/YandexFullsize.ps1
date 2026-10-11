@@ -156,16 +156,40 @@ $worker = {
     }
 
     function Invoke-CurlRequest([string]$Url, [string]$OutFile, [int]$MaxSeconds) {
+        # The URL is written to a curl config file. On Windows a public link in the
+        # command line is rewritten, and Yandex answers "Ресурс не найден."
         $curl = Get-CurlPath
         if (-not $curl) { throw "NO_CURL" }
+        $config = [System.IO.Path]::GetTempFileName()
+        $downloadPath = $OutFile
+        $staging = $null
+        foreach ($ch in $OutFile.ToCharArray()) {
+            if ([int]$ch -gt 127) { $staging = [System.IO.Path]::GetTempFileName(); break }
+        }
+        if ($staging) { $downloadPath = $staging }
+        $curlPath = $downloadPath.Replace("\", "/")
+        $safeUrl = $Url.Replace('"', "")
+        $agent = $userAgent.Replace('"', "")
+        $lines = @(
+            "silent",
+            "show-error",
+            "location",
+            "path-as-is",
+            "connect-timeout = 25",
+            ("max-time = " + $MaxSeconds),
+            ("user-agent = `"" + $agent + "`""),
+            ("output = `"" + $curlPath + "`""),
+            'write-out = "%{http_code}"',
+            ("url = `"" + $safeUrl + "`"")
+        )
+        [System.IO.File]::WriteAllLines($config, $lines, [System.Text.Encoding]::ASCII)
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = $curl
         $psi.UseShellExecute = $false
         $psi.CreateNoWindow = $true
         $psi.RedirectStandardOutput = $true
         $psi.RedirectStandardError = $true
-        $safeUrl = $Url.Replace('"', '')
-        $psi.Arguments = "-sS -L --path-as-is --connect-timeout 25 --max-time $MaxSeconds -A `"$userAgent`" -o `"$OutFile`" -w %{http_code} -- `"$safeUrl`""
+        $psi.Arguments = "--config `"$config`""
         $proc = New-Object System.Diagnostics.Process
         $proc.StartInfo = $psi
         [void]$proc.Start()
@@ -189,10 +213,23 @@ $worker = {
                 if ($reason.Length -gt 240) { $reason = $reason.Substring(0, 240) }
                 throw ("Сеть оборвалась. " + $reason)
             }
+            if ($staging -and [System.IO.File]::Exists($staging)) {
+                $folder = [System.IO.Path]::GetDirectoryName($OutFile)
+                if ($folder) { [void][System.IO.Directory]::CreateDirectory($folder) }
+                if ([System.IO.File]::Exists($OutFile)) { [System.IO.File]::Delete($OutFile) }
+                [System.IO.File]::Move($staging, $OutFile)
+                $staging = $null
+            }
             return $code
         } finally {
             $sync.Process = $null
             try { $proc.Dispose() } catch { }
+            if ($config -and [System.IO.File]::Exists($config)) {
+                try { [System.IO.File]::Delete($config) } catch { }
+            }
+            if ($staging -and [System.IO.File]::Exists($staging)) {
+                try { [System.IO.File]::Delete($staging) } catch { }
+            }
         }
     }
 
@@ -416,47 +453,165 @@ $worker = {
         throw "не удалось скачать файл"
     }
 
-    function Get-DiskFiles([string]$url) {
-        $root = Invoke-Yandex "resources" @{ public_key = $url }
-        $files = New-Object System.Collections.Generic.List[object]
-        if ($root.type -eq "file") {
-            [void]$files.Add($root)
-            return @{ Name = $root.name; Files = $files }
+    function Get-JsonBlock([string]$text, [string]$marker) {
+        $start = $text.IndexOf($marker)
+        if ($start -lt 0) { return $null }
+        $i = $text.IndexOf("{", $start)
+        if ($i -lt 0) { return $null }
+        $depth = 0
+        $inString = $false
+        $escape = $false
+        for ($n = $i; $n -lt $text.Length; $n++) {
+            $ch = $text[$n]
+            if ($inString) {
+                if ($escape) { $escape = $false }
+                elseif ($ch -eq [char]92) { $escape = $true }
+                elseif ($ch -eq [char]34) { $inString = $false }
+                continue
+            }
+            if ($ch -eq [char]34) { $inString = $true; continue }
+            if ($ch -eq [char]123) { $depth++ }
+            elseif ($ch -eq [char]125) {
+                $depth--
+                if ($depth -eq 0) { return $text.Substring($i, ($n - $i) + 1) }
+            }
         }
+        return $null
+    }
 
-        $seen = @{}
-        $fileSeen = @{}
-        function Walk([string]$path) {
-            if ($seen.ContainsKey($path)) { return }
-            $seen[$path] = $true
+    function Get-PublicHtml([string]$pageUrl) {
+        $response = $null
+        try {
+            $request = [System.Net.HttpWebRequest][System.Net.WebRequest]::Create($pageUrl)
+            $request.Method = "GET"
+            $request.UserAgent = $userAgent
+            $request.Accept = "text/html"
+            $request.Timeout = 45000
+            $request.ReadWriteTimeout = 45000
+            $request.AllowAutoRedirect = $true
+            $request.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
+            $sync.Request = $request
+            $response = $request.GetResponse()
+            $reader = New-Object System.IO.StreamReader($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+            try { return $reader.ReadToEnd() } finally { $reader.Close() }
+        } catch {
+            if ($sync.Cancel) { throw "CANCELLED" }
+        } finally {
+            $sync.Request = $null
+            if ($response) { $response.Close() }
+        }
+        $temp = [System.IO.Path]::GetTempFileName()
+        try {
+            $code = Invoke-CurlRequest $pageUrl $temp 60
+            if ($code -lt 200 -or $code -ge 300) { throw ("Страница диска ответила кодом " + $code) }
+            return [System.IO.File]::ReadAllText($temp, [System.Text.Encoding]::UTF8)
+        } finally {
+            if ([System.IO.File]::Exists($temp)) {
+                try { [System.IO.File]::Delete($temp) } catch { }
+            }
+        }
+    }
+
+    function Get-DiskFiles([string]$url) {
+        $sync.Status = "Открываю страницу диска..."
+        Write-Log "Открываю страницу диска..."
+        $html = Get-PublicHtml $url
+        if ([string]::IsNullOrWhiteSpace($html)) { throw "Пустая страница по ссылке." }
+        $block = Get-JsonBlock $html '"resources":'
+        if (-not $block) { throw "По ссылке нет списка файлов. Проверьте, что ссылка публичная." }
+        $resources = $block | ConvertFrom-Json
+        $map = @{}
+        $root = $null
+        foreach ($prop in $resources.PSObject.Properties) {
+            $map[$prop.Name] = $prop.Value
+            $item = $prop.Value
+            if ($item.type -eq "dir" -and -not $item.parent) { $root = $item }
+        }
+        if (-not $root) {
+            foreach ($prop in $resources.PSObject.Properties) {
+                if ($prop.Value.type -eq "file") { $root = $prop.Value; break }
+            }
+        }
+        if (-not $root) { throw "По ссылке нет списка файлов." }
+
+        $files = New-Object System.Collections.Generic.List[object]
+        $seenFiles = @{}
+        $seenDirs = @{}
+        function Add-ListedFile($node, [string]$dirPrefix) {
+            $name = [string]$node.name
+            $relative = $dirPrefix + $name
+            if ($seenFiles.ContainsKey($relative)) { return }
+            $seenFiles[$relative] = $true
+            $href = ""
+            $size = [int64]0
+            if ($node.meta) {
+                if ($node.meta.original) { $href = [string]$node.meta.original }
+                if ($node.meta.size) { $size = [int64]$node.meta.size }
+            }
+            [void]$files.Add([pscustomobject]@{
+                name = $name
+                path = ("/" + $relative)
+                size = $size
+                href = $href
+            })
+            $sync.Status = "Нашёл файлов: $($files.Count)"
+        }
+        function Walk-Dir($node, [string]$dirPrefix) {
+            Assert-Continue
+            $kids = @()
+            if ($node.children) { $kids = @($node.children) }
+            if ($kids.Count -eq 0 -and $node.parent) {
+                Import-ApiFolder ($dirPrefix.TrimEnd("/"))
+                return
+            }
+            foreach ($id in $kids) {
+                $key = [string]$id
+                if (-not $map.ContainsKey($key)) {
+                    Import-ApiFolder ($dirPrefix.TrimEnd("/"))
+                    return
+                }
+                $child = $map[$key]
+                if ($child.type -eq "dir") {
+                    Walk-Dir $child ($dirPrefix + [string]$child.name + "/")
+                } elseif ($child.type -eq "file") {
+                    Add-ListedFile $child $dirPrefix
+                }
+            }
+        }
+        function Import-ApiFolder([string]$folderPath) {
+            $apiPath = "/"
+            if (-not [string]::IsNullOrWhiteSpace($folderPath)) { $apiPath = "/" + $folderPath.Trim("/") }
+            if ($seenDirs.ContainsKey($apiPath)) { return }
+            $seenDirs[$apiPath] = $true
             $offset = 0
             do {
                 Assert-Continue
-                $sync.Status = "Смотрю папки на диске..."
+                $sync.Status = "Дочитываю папку $apiPath..."
                 $page = Invoke-Yandex "resources" @{
                     public_key = $url
-                    path = $path
+                    path = $apiPath
                     limit = 100
                     offset = $offset
                 }
                 $batch = @()
-                if ($page._embedded -and $page._embedded.items) {
-                    $batch = @($page._embedded.items)
-                }
+                if ($page._embedded -and $page._embedded.items) { $batch = @($page._embedded.items) }
                 $total = 0
-                if ($page._embedded -and $null -ne $page._embedded.total) {
-                    $total = [int]$page._embedded.total
-                }
+                if ($page._embedded -and $null -ne $page._embedded.total) { $total = [int]$page._embedded.total }
                 foreach ($item in $batch) {
                     if ($null -eq $item) { continue }
                     if ($item.type -eq "dir") {
-                        Walk ([string]$item.path)
+                        Import-ApiFolder ([string]$item.path).TrimStart("/")
                     } elseif ($item.type -eq "file") {
                         $filePath = [string]$item.path
-                        if ($fileSeen.ContainsKey($filePath)) { continue }
-                        $fileSeen[$filePath] = $true
-                        [void]$files.Add($item)
-                        $sync.Status = "Нашёл файлов: $($files.Count)"
+                        if ($filePath.StartsWith("/")) { $filePath = $filePath.Substring(1) }
+                        if ($seenFiles.ContainsKey($filePath)) { continue }
+                        $seenFiles[$filePath] = $true
+                        [void]$files.Add([pscustomobject]@{
+                            name = [string]$item.name
+                            path = ("/" + $filePath)
+                            size = $(if ($item.size) { [int64]$item.size } else { [int64]0 })
+                            href = ""
+                        })
                     }
                 }
                 if ($batch.Count -eq 0) { break }
@@ -464,10 +619,14 @@ $worker = {
             } while ($offset -lt $total)
         }
 
-        Walk "/"
-        $name = [string]$root.name
-        if ([string]::IsNullOrWhiteSpace($name)) { $name = "Яндекс Диск" }
-        return @{ Name = $name; Files = $files }
+        if ($root.type -eq "file") {
+            Add-ListedFile $root ""
+        } else {
+            Walk-Dir $root ""
+        }
+        $diskName = [string]$root.name
+        if ([string]::IsNullOrWhiteSpace($diskName)) { $diskName = "Яндекс Диск" }
+        return @{ Name = $diskName; Files = $files }
     }
 
     try {
@@ -526,13 +685,18 @@ $worker = {
 
             Write-Log ("Скачиваю {0}/{1}: {2}" -f $index, $files.Count, $relative)
             try {
-                $meta = Invoke-Yandex "resources/download" @{
-                    public_key = $publicUrl
-                    path = [string]$file.path
+                $href = ""
+                if ($file.href) { $href = [string]$file.href }
+                if ([string]::IsNullOrWhiteSpace($href)) {
+                    $meta = Invoke-Yandex "resources/download" @{
+                        public_key = $publicUrl
+                        path = [string]$file.path
+                    }
+                    if (-not $meta.href) { throw "Яндекс не дал ссылку на файл" }
+                    $href = [string]$meta.href
                 }
-                if (-not $meta.href) { throw "Яндекс не дал ссылку на файл" }
-                # Only this file. Never the folder: a folder link returns a zip and stalls.
-                $size = Save-FullFile ([string]$meta.href) $dest $expected
+                # One file at full size. A folder zip is never requested.
+                $size = Save-FullFile $href $dest $expected
                 $saved++
                 Write-Log ("Готово: {0} ({1})" -f $relative, (Format-ByteCount $size))
             } catch {
