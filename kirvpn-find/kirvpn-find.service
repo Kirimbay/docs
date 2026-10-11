@@ -1,0 +1,14 @@
+[Unit]
+Description=KirVPN user search
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kirvpn-find
+ExecStart=/usr/bin/python3 /opt/kirvpn-find/app.py
+Restart=always
+RestartSec=2
+User=root
+
+[Install]
+WantedBy=multi-user.target

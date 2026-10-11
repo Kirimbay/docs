@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Оповещение</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #0b1220; color: #e8eefc;
+      display: flex; justify-content: center; padding: 32px 16px;
+    }
+    main { width: min(860px, 100%); }
+    nav.tabs {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px;
+    }
+    nav.tabs a {
+      text-decoration: none; color: #9bb0d0; font-weight: 700; font-size: .92rem;
+      padding: 8px 14px; border-radius: 10px; border: 1px solid #24324d;
+      background: #121b2e;
+    }
+    nav.tabs a.on {
+      color: #fff; background: #3b82f6; border-color: #3b82f6;
+    }
+    nav.tabs a.out {
+      margin-left: auto; color: #8aa0c2; background: transparent; font-weight: 600;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    p.lead { color: #9bb0d0; margin: 0 0 18px; }
+    input, button, textarea {
+      font: inherit; border-radius: 12px; border: 1px solid #334766;
+      padding: 12px 14px;
+    }
+    button { background: #3b82f6; color: #fff; border: 0; font-weight: 700; cursor: pointer; }
+    button.btn2 { background: #1f3a64; }
+    button:disabled { opacity: .6; cursor: default; }
+    textarea {
+      width: 100%; min-height: 120px; resize: vertical;
+      background: #0b1220; color: #fff; margin: 0;
+    }
+    .srv textarea { min-height: 88px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .card {
+      background: #121b2e; border: 1px solid #24324d; border-radius: 14px;
+      padding: 14px 16px; margin: 0 0 10px;
+    }
+    .check {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 700; margin: 0 0 12px; cursor: pointer;
+      user-select: none;
+    }
+    .check input { width: 18px; height: 18px; accent-color: #3b82f6; }
+    .grid {
+      display: grid; gap: 10px;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      margin: 0 0 12px;
+    }
+    .srv h2 { margin: 0 0 8px; font-size: .98rem; color: #93c5fd; }
+    .muted { color: #9bb0d0; font-size: .9rem; }
+    .ok { color: #86efac; font-size: .9rem; }
+    .err { color: #fca5a5; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <nav class="tabs">
+      <a href="/">Поиск</a>
+      <a href="/pro">Pro поиск</a>
+      <a href="/users">Юзеры</a>
+      <a href="/testing">Тестирование</a>
+      <a class="on" href="/announce">Оповещение</a>
+      <a href="/info">Сайт</a>
+      <a href="/traffic">Трафик</a>
+      <a class="out" href="/logout">Выйти</a>
+    </nav>
+    <h1>Оповещение</h1>
+    <p class="lead">Только плашка в Happ и Incy после обновления подписки. Сайт info.sarafan.uk не меняет. Пустое поле — плашки нет.</p>
+    <div class="card">
+      <form id="ann-form">
+        <label class="check">
+          <input type="checkbox" id="all-cb"> все сервера
+        </label>
+        <div id="all-wrap">
+          <textarea id="ann" maxlength="2000" placeholder="Например: сегодня ночью короткое обновление"></textarea>
+        </div>
+        <div id="per-wrap" class="grid hidden"></div>
+        <div class="row" style="margin-top:12px">
+          <button type="submit" id="ann-save">Сохранить</button>
+          <button type="button" class="btn2" id="ann-clear">Убрать</button>
+          <span id="ann-st" class="muted"></span>
+        </div>
+      </form>
+    </div>
+  </main>
+  <script>
+    const ann = document.getElementById("ann");
+    const allCb = document.getElementById("all-cb");
+    const allWrap = document.getElementById("all-wrap");
+    const perWrap = document.getElementById("per-wrap");
+    const annSt = document.getElementById("ann-st");
+    const saveBtn = document.getElementById("ann-save");
+    const clearBtn = document.getElementById("ann-clear");
+    const setSt = (cls, msg) => { annSt.className = cls; annSt.textContent = msg; };
+    const esc = (s) => String(s).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+    let pollTimer = null;
+    let servers = [];
+
+    function setMode(all) {
+      allCb.checked = !!all;
+      allWrap.classList.toggle("hidden", !all);
+      perWrap.classList.toggle("hidden", !!all);
+      clearBtn.textContent = all ? "Убрать" : "Убрать везде";
+    }
+    function renderServers(list) {
+      servers = (list || []).slice();
+      perWrap.innerHTML = servers.map(s =>
+        '<div class="card srv"><h2>Сервер ' + esc(s.label) + '</h2>' +
+        '<textarea data-label="' + esc(s.label) + '" maxlength="2000">' +
+        esc(s.text || "") + "</textarea></div>"
+      ).join("");
+    }
+    function collectServers() {
+      return Array.from(perWrap.querySelectorAll("textarea[data-label]")).map(el => ({
+        label: el.getAttribute("data-label"),
+        text: el.value
+      }));
+    }
+    function showResult(d) {
+      const bad = (d.nodes || []).filter(n => !n.ok);
+      if (d.pushing) { setSt("muted", "рассылаю на серверы… можно не ждать"); return; }
+      if (d.error) { setSt("err", d.error); return; }
+      if (bad.length) setSt("err", "частично: не дошло на " + bad.map(n => n.label).join(", "));
+      else if (d.done && (d.nodes || []).length) {
+        const any = allCb.checked ? (ann.value || "").trim() : collectServers().some(s => (s.text || "").trim());
+        setSt("ok", any ? "сохранено, клиенты увидят после обновления подписки" : "плашку убрал");
+      }
+    }
+    function busy(on) {
+      saveBtn.disabled = on;
+      clearBtn.disabled = on;
+    }
+    function poll() {
+      if (pollTimer) return;
+      pollTimer = setInterval(async () => {
+        try {
+          const r = await fetch("/api/announce", { credentials: "same-origin" });
+          if (r.status === 401) { location.href = "/login"; return; }
+          const d = await r.json();
+          showResult(d);
+          if (!d.pushing) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            busy(false);
+          }
+        } catch (e) {}
+      }, 800);
+    }
+    async function loadAnn() {
+      try {
+        const r = await fetch("/api/announce", { credentials: "same-origin" });
+        if (r.status === 401) { location.href = "/login"; return; }
+        const d = await r.json();
+        renderServers(d.servers || []);
+        ann.value = d.text || "";
+        setMode(d.all !== false);
+        showResult(d);
+        if (d.pushing) { busy(true); poll(); }
+      } catch (e) {}
+    }
+    async function saveAnn(payload) {
+      setSt("muted", "сохраняю…");
+      busy(true);
+      try {
+        const r = await fetch("/api/announce", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (r.status === 401) { location.href = "/login"; return; }
+        const d = await r.json();
+        if (!d.ok) { setSt("err", d.error || "ошибка"); busy(false); return; }
+        if (d.servers) renderServers(d.servers);
+        if (d.text != null) ann.value = d.text;
+        showResult(d);
+        if (d.pushing) poll();
+        else busy(false);
+      } catch (e) {
+        setSt("err", "не удалось сохранить");
+        busy(false);
+      }
+    }
+    allCb.addEventListener("change", () => {
+      if (allCb.checked) {
+        const first = collectServers().map(s => s.text).find(t => (t || "").trim());
+        if (!(ann.value || "").trim() && first) ann.value = first;
+      } else {
+        const shared = ann.value;
+        Array.from(perWrap.querySelectorAll("textarea[data-label]")).forEach(el => {
+          if (!(el.value || "").trim()) el.value = shared;
+        });
+      }
+      setMode(allCb.checked);
+    });
+    document.getElementById("ann-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (allCb.checked) saveAnn({ all: true, text: ann.value });
+      else saveAnn({ all: false, servers: collectServers() });
+    });
+    clearBtn.addEventListener("click", () => saveAnn({ all: true, text: "" }));
+    loadAnn();
+  </script>
+</body>
+</html>

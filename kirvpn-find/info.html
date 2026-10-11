@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Сайт info.sarafan.uk</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #0b1220; color: #e8eefc;
+      display: flex; justify-content: center; padding: 32px 16px;
+    }
+    main { width: min(720px, 100%); }
+    nav.tabs {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px;
+    }
+    nav.tabs a {
+      text-decoration: none; color: #9bb0d0; font-weight: 700; font-size: .92rem;
+      padding: 8px 14px; border-radius: 10px; border: 1px solid #24324d;
+      background: #121b2e;
+    }
+    nav.tabs a.on {
+      color: #fff; background: #3b82f6; border-color: #3b82f6;
+    }
+    nav.tabs a.out {
+      margin-left: auto; color: #8aa0c2; background: transparent; font-weight: 600;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    p.lead { color: #9bb0d0; margin: 0 0 18px; }
+    input, button, textarea {
+      font: inherit; border-radius: 12px; border: 1px solid #334766;
+      padding: 12px 14px;
+    }
+    button { background: #3b82f6; color: #fff; border: 0; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: default; }
+    textarea {
+      width: 100%; min-height: 160px; resize: vertical;
+      background: #0b1220; color: #fff; margin: 0 0 8px;
+    }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .card {
+      background: #121b2e; border: 1px solid #24324d; border-radius: 14px;
+      padding: 14px 16px; margin: 0 0 10px;
+    }
+    .muted { color: #9bb0d0; font-size: .9rem; }
+    .ok { color: #86efac; font-size: .9rem; }
+    .err { color: #fca5a5; }
+    a.open { color: #93c5fd; font-weight: 700; text-decoration: none; }
+    a.open:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <main>
+    <nav class="tabs">
+      <a href="/">Поиск</a>
+      <a href="/pro">Pro поиск</a>
+      <a href="/users">Юзеры</a>
+      <a href="/testing">Тестирование</a>
+      <a href="/announce">Оповещение</a>
+      <a class="on" href="/info">Сайт</a>
+      <a href="/traffic">Трафик</a>
+      <a class="out" href="/logout">Выйти</a>
+    </nav>
+    <h1>Сайт info.sarafan.uk</h1>
+    <p class="lead">Только страница info.sarafan.uk. В Happ и Incy не попадает — для этого вкладка «Оповещение».</p>
+    <div class="card">
+      <textarea id="inf" maxlength="2000" placeholder="Например: ВПН на 29.10 время 10:25 работает"></textarea>
+      <div class="row">
+        <button type="button" id="inf-save">Сохранить</button>
+        <a class="open" href="https://info.sarafan.uk/" target="_blank" rel="noopener">открыть сайт</a>
+        <span id="inf-st" class="muted"></span>
+      </div>
+    </div>
+  </main>
+  <script>
+    const inf = document.getElementById("inf");
+    const infSt = document.getElementById("inf-st");
+    const setSt = (cls, msg) => { infSt.className = cls; infSt.textContent = msg; };
+    async function loadInf() {
+      try {
+        const r = await fetch("/api/info");
+        if (r.status === 401) { location.href = "/login"; return; }
+        const d = await r.json();
+        if (d.ok) inf.value = d.text || "";
+      } catch (e) {}
+    }
+    async function saveInf() {
+      setSt("muted", "сохраняю на сайт…");
+      document.getElementById("inf-save").disabled = true;
+      try {
+        const r = await fetch("/api/info", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: inf.value })
+        });
+        if (r.status === 401) { location.href = "/login"; return; }
+        const d = await r.json();
+        if (!d.ok) { setSt("err", d.error || "ошибка"); return; }
+        inf.value = d.text || "";
+        setSt("ok", "сохранено, сразу на info.sarafan.uk");
+      } catch (e) {
+        setSt("err", "не удалось сохранить");
+      } finally {
+        document.getElementById("inf-save").disabled = false;
+      }
+    }
+    document.getElementById("inf-save").addEventListener("click", saveInf);
+    loadInf();
+  </script>
+</body>
+</html>

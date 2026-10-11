@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Pro поиск</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #0b1220; color: #e8eefc;
+      display: flex; justify-content: center; padding: 32px 16px;
+    }
+    main { width: min(720px, 100%); }
+    nav.tabs {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px;
+    }
+    nav.tabs a {
+      text-decoration: none; color: #9bb0d0; font-weight: 700; font-size: .92rem;
+      padding: 8px 14px; border-radius: 10px; border: 1px solid #24324d;
+      background: #121b2e;
+    }
+    nav.tabs a.on {
+      color: #fff; background: #3b82f6; border-color: #3b82f6;
+    }
+    nav.tabs a.out {
+      margin-left: auto; color: #8aa0c2; background: transparent; font-weight: 600;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    p.lead { color: #9bb0d0; margin: 0 0 18px; line-height: 1.45; }
+    form { display: flex; gap: 8px; margin-bottom: 18px; align-items: stretch; }
+    input, button {
+      font: inherit; border-radius: 12px; border: 1px solid #334766;
+      padding: 12px 14px;
+    }
+    .qwrap { flex: 1; position: relative; min-width: 0; }
+    .qwrap input {
+      width: 100%; background: #121b2e; color: #fff; padding-right: 42px;
+    }
+    .qwrap input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
+    .qwrap input::placeholder { color: transparent; }
+    button[type="submit"] { background: #3b82f6; color: #fff; border: 0; font-weight: 700; cursor: pointer; }
+    .clear {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+      background: #334766; color: #e8eefc; font-size: 1.15rem; line-height: 1;
+      cursor: pointer; display: none; place-items: center;
+    }
+    .qwrap.has-text .clear { display: grid; }
+    .card {
+      background: #121b2e; border: 1px solid #24324d; border-radius: 14px;
+      padding: 14px 16px; margin: 0 0 10px;
+    }
+    .card h2 { margin: 0 0 8px; font-size: 1.05rem; }
+    a.srv { color: inherit; text-decoration: none; display: block; }
+    a.srv h2 { color: #93c5fd; }
+    a.srv:hover h2 { text-decoration: underline; }
+    .muted { color: #9bb0d0; font-size: .9rem; }
+    .user {
+      display: flex; align-items: baseline; gap: 8px;
+      flex-wrap: wrap; margin-top: 8px;
+      color: inherit; text-decoration: none;
+    }
+    a.user { cursor: pointer; border-radius: 8px; }
+    a.user .name { color: #93c5fd; }
+    a.user:hover .name { text-decoration: underline; }
+    .name { font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .off { color: #fca5a5; }
+    .meta {
+      margin-left: auto;
+      color: #9bb0d0;
+      font-variant-numeric: tabular-nums;
+      font-size: .85rem;
+      white-space: nowrap;
+    }
+    .tag {
+      font-size: .72rem; font-weight: 700; color: #93c5fd;
+      border: 1px solid #334766; border-radius: 999px;
+      padding: 1px 8px;
+    }
+    .note { width: 100%; color: #9bb0d0; font-size: .85rem; margin: 0 0 0 0; }
+    .err { color: #fca5a5; }
+  </style>
+</head>
+<body>
+  <main>
+    <nav class="tabs">
+      <a href="/">Поиск</a>
+      <a class="on" href="/pro">Pro поиск</a>
+      <a href="/users">Юзеры</a>
+      <a href="/testing">Тестирование</a>
+      <a href="/announce">Оповещение</a>
+      <a href="/info">Сайт</a>
+      <a href="/traffic">Трафик</a>
+      <a class="out" href="/logout">Выйти</a>
+    </nav>
+    <h1>Pro поиск</h1>
+    <p class="lead">Ключ подписки (ru / us / sarafan.uk), uuid, имя, заметка или телефон. Нажми на человека — откроется карточка.</p>
+    <form id="f">
+      <div class="qwrap" id="qwrap">
+        <input id="q" type="search" autofocus autocomplete="off" spellcheck="false">
+        <button type="button" class="clear" id="clear" aria-label="Очистить">×</button>
+      </div>
+      <button type="submit">Найти</button>
+    </form>
+    <div id="out"></div>
+  </main>
+  <script>
+    const out = document.getElementById("out");
+    const qEl = document.getElementById("q");
+    const wrap = document.getElementById("qwrap");
+    const clear = document.getElementById("clear");
+    const syncClear = () => wrap.classList.toggle("has-text", qEl.value.length > 0);
+    qEl.addEventListener("input", syncClear);
+    clear.addEventListener("click", () => {
+      qEl.value = "";
+      out.innerHTML = "";
+      syncClear();
+      qEl.focus();
+    });
+    const esc = (s) => String(s).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+    document.getElementById("f").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const q = document.getElementById("q").value.trim();
+      out.innerHTML = '<p class="muted">Ищу…</p>';
+      try {
+        const r = await fetch("/api/pro?q=" + encodeURIComponent(q));
+        if (r.status === 401) { location.href = "/login"; return; }
+        const d = await r.json();
+        if (!d.ok) { out.innerHTML = '<p class="err">' + esc(d.error || "ошибка") + "</p>"; return; }
+        if (!d.found.length) {
+          out.innerHTML = '<p class="muted">Нигде не найден: <span class="name">' + esc(d.q) + "</span></p>";
+          return;
+        }
+        const cards = d.found.map(s => {
+          const users = s.users.map(u => {
+            const meta = [u.days, u.traffic].filter(Boolean).join(" · ");
+            const tags = (u.match || []).map(t => '<span class="tag">' + esc(t) + "</span>").join("");
+            const note = u.comment ? '<div class="note">' + esc(u.comment) + "</div>" : "";
+            const inner = '<span class="name">' + esc(u.name) + "</span> " +
+              (u.enable ? "" : '<span class="off">выключен</span>') +
+              tags +
+              (meta ? '<span class="meta">' + esc(meta) + "</span>" : "") +
+              note;
+            if (u.url && u.url.indexOf("https://") === 0) {
+              return '<a class="user" href="' + esc(u.url) + '" target="_blank" rel="noopener">' + inner + "</a>";
+            }
+            return '<div class="user">' + inner + "</div>";
+          }).join("");
+          const head = '<h2>Сервер ' + esc(s.label) + '</h2><div class="muted">' + esc(s.ip) + "</div>";
+          const srv = (s.admin_url && s.admin_url.indexOf("https://") === 0)
+            ? '<a class="srv" href="' + esc(s.admin_url) + '" target="_blank" rel="noopener">' + head + "</a>"
+            : head;
+          return '<div class="card">' + srv + users + "</div>";
+        }).join("");
+        out.innerHTML = cards;
+      } catch (err) {
+        out.innerHTML = '<p class="err">не удалось запросить</p>';
+      }
+    });
+    syncClear();
+  </script>
+</body>
+</html>
