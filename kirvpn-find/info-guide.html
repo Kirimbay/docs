@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#f4f6f8">
+  <title>KirVPN — как включить</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; max-width: 100%; overflow-x: hidden; }
+    body {
+      background: #e7ebf0;
+      color: #161b22;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      font-size: 18px;
+      line-height: 1.35;
+      -webkit-text-size-adjust: 100%;
+    }
+    .wrap {
+      width: min(440px, 100%);
+      margin: 0 auto;
+      padding: 16px 16px calc(28px + env(safe-area-inset-bottom));
+      background: #f4f6f8;
+      min-height: 100vh;
+      counter-reset: step;
+    }
+    h1 { font-size: 1.7rem; line-height: 1.1; margin: 4px 0 6px; }
+    .sub { margin: 0 0 8px; color: #3d4754; font-size: 1.05rem; }
+    .pick {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      background: #f4f6f8;
+      padding: 8px 0 10px;
+    }
+    .chip {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      min-height: 54px;
+      padding: 8px 6px;
+      border-radius: 14px;
+      border: 2px solid #c5ced8;
+      background: #fff;
+      font-weight: 800;
+      font-size: 1rem;
+      line-height: 1.15;
+      text-align: center;
+      cursor: pointer;
+    }
+    .chip input {
+      position: absolute;
+      opacity: 0;
+      width: 1px;
+      height: 1px;
+    }
+    .chip:has(input:checked) {
+      background: #146c36;
+      border-color: #146c36;
+      color: #fff;
+    }
+    .chip:has(input:focus-visible) { outline: 3px solid #146c36; }
+    .notice {
+      background: #fff4d6;
+      color: #3d2e04;
+      border: 1px solid #f0d48a;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-weight: 700;
+      margin: 0 0 12px;
+      overflow-wrap: anywhere;
+    }
+    .start {
+      background: #fff;
+      border-radius: 18px;
+      padding: 16px;
+      margin-top: 8px;
+      font-weight: 800;
+      font-size: 1.2rem;
+    }
+    body:has(input[name="os"]:checked) .start { display: none; }
+    .for-iphone, .for-android, .for-huawei, .for-windows, .for-happ, .for-any { display: none; }
+    body:has(#os-iphone:checked) .for-iphone,
+    body:has(#os-android:checked) .for-android,
+    body:has(#os-huawei:checked) .for-huawei,
+    body:has(#os-windows:checked) .for-windows,
+    body:has(#os-android:checked) .for-happ,
+    body:has(#os-huawei:checked) .for-happ,
+    body:has(#os-windows:checked) .for-happ,
+    body:has(#os-iphone:checked) .for-any,
+    body:has(#os-android:checked) .for-any,
+    body:has(#os-huawei:checked) .for-any,
+    body:has(#os-windows:checked) .for-any { display: block; }
+    h2.step {
+      font-size: 1.28rem;
+      line-height: 1.2;
+      margin: 18px 0 8px;
+    }
+    h2.step::before {
+      counter-increment: step;
+      content: counter(step) ". ";
+      color: #146c36;
+    }
+    .card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 14px;
+      margin: 0 0 12px;
+    }
+    .card p { margin: 8px 0 0; }
+    .lead {
+      margin: 0 0 10px;
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin: 0 0 14px;
+    }
+    .row:last-child { margin-bottom: 0; }
+    .n {
+      flex: 0 0 32px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #146c36;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+    }
+    .body { flex: 1 1 auto; min-width: 0; }
+    .pic {
+      background: #101826;
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 0 0 8px;
+    }
+    .pic svg { display: block; width: 100%; height: auto; }
+    svg text {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+    a.btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 56px;
+      margin-top: 10px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #146c36;
+      color: #fff;
+      font-weight: 800;
+      font-size: 1.15rem;
+      text-align: center;
+      text-decoration: none;
+    }
+    a.btn.alt { background: #0b3f86; }
+    .hint { margin: 8px 0 0; color: #3d4754; font-size: 1rem; }
+    .warn {
+      background: #fff4d6;
+      border-radius: 14px;
+      padding: 12px;
+      font-weight: 800;
+    }
+    .ok {
+      background: #e5f6ea;
+      border-radius: 18px;
+      padding: 14px;
+      font-weight: 800;
+      font-size: 1.15rem;
+    }
+    .foot { margin: 16px 0 0; color: #6b7685; font-size: .85rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <!--NOTICE-->
+    <h1>Как включить KirVPN</h1>
+    <p class="sub">Нажми своё устройство. Дальше только вниз.</p>
+    <div class="pick">
+      <label class="chip">iPhone<input type="radio" name="os" id="os-iphone"></label>
+      <label class="chip">Android<input type="radio" name="os" id="os-android"></label>
+      <label class="chip">Huawei / Honor<input type="radio" name="os" id="os-huawei"></label>
+      <label class="chip">Windows<input type="radio" name="os" id="os-windows"></label>
+    </div>
+
+    <p class="start">Сначала нажми кнопку сверху: iPhone, Android, Huawei или Windows.</p>
+
+    <section class="for-iphone">
+      <h2 class="step">Что установить</h2>
+      <div class="card">
+        <p class="lead">Нужно приложение Incy.</p>
+        <p class="hint">Открой App Store. Нажми фото человека вверху справа. Там написана страна.</p>
+        <a class="btn" href="https://apps.apple.com/tr/app/incy/id6756943388">Страна не Россия — скачать Incy</a>
+        <a class="btn alt" href="https://incy.cc/">Страна Россия — открыть incy.cc</a>
+        <p class="hint">На incy.cc нажми iOS.</p>
+      </div>
+    </section>
+
+    <section class="for-android">
+      <h2 class="step">Что установить</h2>
+      <div class="card">
+        <p class="lead">Нужно приложение Happ.</p>
+        <a class="btn" href="https://play.google.com/store/apps/details?id=com.happproxy">Скачать Happ</a>
+        <p class="hint">Это кнопка с сайта <a href="https://happ.info/ru/">happ.info</a>.</p>
+      </div>
+    </section>
+
+    <section class="for-huawei">
+      <h2 class="step">Что установить</h2>
+      <div class="card">
+        <p class="lead">Huawei и Honor. Магазина Google нет — качай файл Happ.</p>
+        <a class="btn" href="https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk">Скачать Happ</a>
+        <p class="hint">Если телефон спросит — разреши установку. Файл тот же, что на <a href="https://happ.info/ru/">happ.info</a>.</p>
+      </div>
+    </section>
+
+    <section class="for-windows">
+      <h2 class="step">Что установить</h2>
+      <div class="card">
+        <p class="lead">Нужно приложение Happ.</p>
+        <a class="btn" href="https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe">Скачать Happ</a>
+        <p class="hint">Запусти файл и нажимай «Далее». Файл тот же, что на <a href="https://happ.info/ru/">happ.info</a>.</p>
+      </div>
+    </section>
+
+    <section class="for-any">
+      <h2 class="step">Как получить ключ</h2>
+      <div class="card">
+        <div class="pic" aria-hidden="true">
+          <svg viewBox="0 0 360 170" role="img">
+            <rect width="360" height="170" fill="#101826"/>
+            <rect x="18" y="22" width="168" height="58" rx="16" fill="#2f6fed"/>
+            <text x="32" y="57" fill="#fff" font-size="20" font-weight="700">ссылка-ключ</text>
+            <circle cx="48" cy="108" r="18" fill="#f3c3a0" stroke="#fff" stroke-width="3"/>
+            <rect x="168" y="78" width="174" height="70" rx="14" fill="#fff"/>
+            <text x="186" y="120" fill="#146c36" font-size="22" font-weight="800">Скопировать</text>
+            <path d="M150 96 L168 110" stroke="#ffd60a" stroke-width="4" fill="none"/>
+          </svg>
+        </div>
+        <p class="lead">Ключ уже в чате. Это длинная ссылка.</p>
+        <p>Зажми её пальцем. Нажми «Скопировать».</p>
+      </div>
+    </section>
+
+    <section class="for-iphone">
+      <h2 class="step">Как вставить ключ</h2>
+      <div class="card">
+        <div class="row">
+          <div class="n">1</div>
+          <div class="body">
+            <div class="pic">
+              <svg viewBox="0 0 360 150" role="img">
+                <rect width="360" height="150" fill="#101826"/>
+                <rect x="78" y="10" width="204" height="130" rx="18" fill="#1b2433" stroke="#3d4f70" stroke-width="3"/>
+                <rect x="90" y="96" width="56" height="32" rx="8" fill="#0e1522"/>
+                <rect x="152" y="90" width="80" height="40" rx="10" fill="#146c36" stroke="#ffd60a" stroke-width="3"/>
+                <text x="160" y="115" fill="#fff" font-size="13" font-weight="800">Сервера</text>
+                <rect x="238" y="96" width="32" height="32" rx="8" fill="#0e1522"/>
+              </svg>
+            </div>
+            <p>Открой Incy. Внизу, посередине, нажми «Сервера».</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="n">2</div>
+          <div class="body">
+            <div class="pic">
+              <svg viewBox="0 0 360 150" role="img">
+                <rect width="360" height="150" fill="#101826"/>
+                <rect x="78" y="16" width="204" height="118" rx="18" fill="#1b2433" stroke="#3d4f70" stroke-width="3"/>
+                <circle cx="250" cy="42" r="16" fill="#146c36" stroke="#ffd60a" stroke-width="3"/>
+                <text x="243" y="48" fill="#fff" font-size="22" font-weight="800">+</text>
+                <rect x="118" y="68" width="150" height="46" rx="12" fill="#fff"/>
+                <text x="142" y="97" fill="#146c36" font-size="20" font-weight="800">Вставить</text>
+              </svg>
+            </div>
+            <p>Справа вверху нажми +. Потом «Вставить» и «Добавить».</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="for-happ">
+      <h2 class="step">Как вставить ключ</h2>
+      <div class="card">
+        <div class="pic">
+          <svg viewBox="0 0 360 150" role="img">
+            <rect width="360" height="150" fill="#101826"/>
+            <rect x="78" y="16" width="204" height="118" rx="18" fill="#1b2433" stroke="#3d4f70" stroke-width="3"/>
+            <circle cx="250" cy="42" r="16" fill="#146c36" stroke="#ffd60a" stroke-width="3"/>
+            <text x="243" y="48" fill="#fff" font-size="22" font-weight="800">+</text>
+            <rect x="108" y="66" width="176" height="50" rx="12" fill="#fff"/>
+            <text x="124" y="88" fill="#146c36" font-size="16" font-weight="800">Вставить</text>
+            <text x="124" y="106" fill="#146c36" font-size="16" font-weight="800">из буфера</text>
+          </svg>
+        </div>
+        <p class="lead">Открой Happ. Справа вверху нажми +. Потом «Вставить из буфера».</p>
+      </div>
+    </section>
+
+    <section class="for-windows">
+      <div class="card">
+        <div class="warn">Только Windows. Под кнопкой «Тест пинга» включи PROXY.</div>
+        <div class="pic" style="margin-top:10px">
+          <svg viewBox="0 0 360 130" role="img">
+            <rect width="360" height="130" fill="#101826"/>
+            <rect x="90" y="16" width="180" height="36" rx="10" fill="#243044"/>
+            <text x="122" y="40" fill="#fff" font-size="16" font-weight="700">Тест пинга</text>
+            <rect x="90" y="66" width="84" height="40" rx="12" fill="#146c36" stroke="#ffd60a" stroke-width="3"/>
+            <text x="100" y="92" fill="#fff" font-size="16" font-weight="800">PROXY</text>
+            <rect x="186" y="66" width="84" height="40" rx="12" fill="#243044" stroke="#5c6b80" stroke-width="2"/>
+            <text x="210" y="92" fill="#9aabbf" font-size="16" font-weight="700">TUN</text>
+          </svg>
+        </div>
+        <p>Зелёная кнопка PROXY должна гореть. TUN не трогай.</p>
+      </div>
+    </section>
+
+    <section class="for-iphone">
+      <h2 class="step">Как включить</h2>
+      <div class="card">
+        <div class="row">
+          <div class="n">1</div>
+          <div class="body">
+            <div class="pic">
+              <svg viewBox="0 0 360 150" role="img">
+                <rect width="360" height="150" fill="#101826"/>
+                <rect x="70" y="18" width="220" height="46" rx="12" fill="#243044" stroke="#ffd60a" stroke-width="3"/>
+                <ellipse cx="96" cy="41" rx="14" ry="12" fill="#d7b07a"/>
+                <circle cx="90" cy="38" r="5" fill="#fff"/>
+                <circle cx="104" cy="38" r="5" fill="#fff"/>
+                <circle cx="90" cy="39" r="2" fill="#222"/>
+                <circle cx="104" cy="39" r="2" fill="#222"/>
+                <path d="M94 46 L98 51 L102 46" fill="#e07a2f"/>
+                <text x="122" y="47" fill="#fff" font-size="20" font-weight="800">Сова</text>
+              </svg>
+            </div>
+            <p>Вкладка «Подключение». Нажми на сову.</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="n">2</div>
+          <div class="body">
+            <div class="pic">
+              <svg viewBox="0 0 360 150" role="img">
+                <rect width="360" height="150" fill="#101826"/>
+                <rect x="110" y="16" width="140" height="118" rx="22" fill="#1b2433" stroke="#3d4f70" stroke-width="3"/>
+                <circle cx="180" cy="52" r="24" fill="#146c36" stroke="#ffd60a" stroke-width="4"/>
+                <text x="164" y="58" fill="#fff" font-size="16" font-weight="800">вкл</text>
+              </svg>
+            </div>
+            <p>Вверху нажми круглую кнопку. Разреши. Введи пароль телефона.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="for-happ">
+      <h2 class="step">Как включить</h2>
+      <div class="card">
+        <div class="pic">
+          <svg viewBox="0 0 360 168" role="img">
+            <rect width="360" height="168" fill="#101826"/>
+            <rect x="36" y="16" width="200" height="36" rx="10" fill="#243044"/>
+            <text x="48" y="40" fill="#9aabbf" font-size="16">первый</text>
+            <rect x="36" y="58" width="200" height="36" rx="10" fill="#243044"/>
+            <text x="48" y="82" fill="#9aabbf" font-size="16">второй</text>
+            <rect x="36" y="100" width="200" height="40" rx="10" fill="#146c36" stroke="#ffd60a" stroke-width="3"/>
+            <text x="48" y="126" fill="#fff" font-size="16" font-weight="800">🦓 последний</text>
+            <circle cx="286" cy="84" r="28" fill="#146c36" stroke="#ffd60a" stroke-width="4"/>
+            <text x="270" y="90" fill="#fff" font-size="16" font-weight="800">вкл</text>
+          </svg>
+        </div>
+        <p class="lead">В строках появились звери — ключ на месте.</p>
+        <p>Нажми последнего зверя. Потом большую круглую кнопку.</p>
+      </div>
+    </section>
+
+    <section class="for-iphone">
+      <h2 class="step">Чтобы не щёлкать VPN</h2>
+      <div class="card">
+        <p class="lead">Один раз добавь правила. Потом VPN можно не выключать.</p>
+        <a class="btn" href="https://tinyurl.com/mv7kfcvu">Добавить правила</a>
+        <p class="hint">Нажми «Разрешить». Incy откроется сам и напишет, что профиль добавлен. Это быстро.</p>
+        <p>Потом выключи VPN и сразу включи снова.</p>
+      </div>
+      <p class="ok">Готово. Можно пользоваться.</p>
+    </section>
+
+    <section class="for-happ">
+      <h2 class="step">Чтобы не щёлкать VPN</h2>
+      <div class="card">
+        <p class="lead">Один раз добавь правила. Потом VPN можно не выключать.</p>
+        <div class="row">
+          <div class="n">1</div>
+          <div class="body">
+            <a class="btn" href="https://tinyurl.com/j3w6rkr8">Добавить правила</a>
+            <p class="hint">Экран может быть белым. Нажми «Разрешить». Happ напишет, что профиль добавлен.</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="n">2</div>
+          <div class="body">
+            <div class="pic">
+              <svg viewBox="0 0 360 118" role="img">
+                <rect width="360" height="118" fill="#101826"/>
+                <rect x="28" y="18" width="304" height="40" rx="10" fill="#243044"/>
+                <text x="42" y="44" fill="#fff" font-size="18">моё имя</text>
+                <text x="292" y="46" fill="#ffd60a" font-size="28" font-weight="800">⋮</text>
+                <rect x="176" y="66" width="156" height="36" rx="10" fill="#fff"/>
+                <text x="188" y="90" fill="#146c36" font-size="16" font-weight="800">Маршрутизация</text>
+              </svg>
+            </div>
+            <p>В строке со своим именем нажми три точки справа. Выбери «Маршрутизация».</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="n">3</div>
+          <div class="body">
+            <div class="pic">
+              <svg viewBox="0 0 360 132" role="img">
+                <rect width="360" height="132" fill="#101826"/>
+                <text x="300" y="32" fill="#ffd60a" font-size="28" font-weight="800">⋮</text>
+                <text x="250" y="18" fill="#9aabbf" font-size="12">вверху</text>
+                <rect x="150" y="40" width="180" height="34" rx="8" fill="#fff"/>
+                <text x="164" y="62" fill="#161b22" font-size="16" font-weight="800">Копировать из</text>
+                <rect x="150" y="82" width="180" height="34" rx="8" fill="#146c36" stroke="#ffd60a" stroke-width="3"/>
+                <text x="164" y="104" fill="#fff" font-size="16" font-weight="800">RoscomVPN</text>
+              </svg>
+            </div>
+            <p>Снова три точки, уже вверху. «Копировать из» → RoscomVPN.</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="n">4</div>
+          <div class="body">
+            <p>Вернись на главный экран. Выключи VPN и сразу включи снова.</p>
+          </div>
+        </div>
+      </div>
+      <p class="ok">Готово. Можно пользоваться.</p>
+    </section>
+
+    <p class="foot">info.sarafan.uk</p>
+  </main>
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search).get("os") || "";
+      var picked = document.getElementById(q ? "os-" + q : "");
+      if (!picked) {
+        var ua = navigator.userAgent || "";
+        var id = "";
+        if (/iPhone|iPad|iPod/i.test(ua)) id = "os-iphone";
+        else if (/Windows/i.test(ua)) id = "os-windows";
+        else if (/HUAWEI|HONOR|HarmonyOS/i.test(ua)) id = "os-huawei";
+        else if (/Android/i.test(ua)) id = "os-android";
+        picked = id && document.getElementById(id);
+      }
+      if (picked) picked.checked = true;
+    })();
+  </script>
+</body>
+</html>

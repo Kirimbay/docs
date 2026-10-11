@@ -28,6 +28,7 @@ ANNOUNCE_PATH = os.path.join(ROOT, "announce.txt")
 ANNOUNCE_DIR = os.path.join(ROOT, "announce.d")
 INFO_HTML_PATH = os.path.join(ROOT, "info.html")
 INFO_TEXT_PATH = os.path.join(ROOT, "info.txt")
+INFO_GUIDE_PATH = os.path.join(ROOT, "info-guide.html")
 INFO_WWW_DIR = "/var/www/info.sarafan.uk"
 INFO_PAGES = ("index.html", "go.html", "add-us.html")
 TRAFFIC_HTML_PATH = os.path.join(ROOT, "traffic.html")
@@ -764,58 +765,16 @@ def html_esc(s: str) -> str:
 
 
 def render_info_html(text: str) -> str:
-    body = html_esc(text).replace("\n", "<br>\n")
-    return f"""<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="robots" content="noindex,nofollow">
-  <meta name="theme-color" content="#0b1220">
-  <title>KirVPN</title>
-  <style>
-    :root {{ color-scheme: dark; }}
-    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      min-height: 100vh;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      background: #0b1220;
-      color: #e8eefc;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px 16px;
-    }}
-    main {{
-      width: min(920px, 100%);
-      text-align: center;
-    }}
-    .brand {{
-      font-size: .78rem;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-      color: #8aa0c2;
-      margin: 0 0 18px;
-      font-weight: 700;
-    }}
-    .msg {{
-      margin: 0;
-      font-size: clamp(2.1rem, 7vw, 4.4rem);
-      font-weight: 800;
-      line-height: 1.18;
-      letter-spacing: -0.02em;
-    }}
-  </style>
-</head>
-<body>
-  <main>
-    <p class="brand">KirVPN · info.sarafan.uk</p>
-    <p class="msg">{body}</p>
-  </main>
-</body>
-</html>
-"""
+    # The public site is the picture guide. The panel textarea is only a short
+    # line at the top, so a save cannot wipe the steps.
+    notice = html_esc(text).replace("\n", "<br>\n")
+    banner = f'<p class="notice">{notice}</p>' if notice else ""
+    with open(INFO_GUIDE_PATH, encoding="utf-8") as f:
+        guide = f.read()
+    marker = "<!--NOTICE-->"
+    if marker not in guide:
+        raise RuntimeError("info guide has no NOTICE marker")
+    return guide.replace(marker, banner, 1)
 
 
 def save_info(text: str):
