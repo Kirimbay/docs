@@ -2,12 +2,24 @@
 # Double-click YandexFullsize.bat. Paste a public link. Each file is downloaded
 # on its own, at original size, into the same folders as on the disk.
 # A whole-folder zip is never requested: that call hangs while Disk is unstable.
+#
+# Headless check (no window): 
+#   powershell -File YandexFullsize.ps1 -SelfTestUrl http://127.0.0.1:9/d/x -SelfTestDest C:\temp\out
 
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
+param(
+    [string]$SelfTestUrl = "",
+    [string]$SelfTestDest = "",
+    [int]$SelfTestLimit = 0
+)
 
-try {
-    Add-Type @"
+$script:selfTest = -not [string]::IsNullOrWhiteSpace($SelfTestUrl)
+
+if (-not $script:selfTest) {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+
+    try {
+        Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 public class YandexFullsizeWin32 {
@@ -17,21 +29,29 @@ public class YandexFullsizeWin32 {
     public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
 }
 "@
-    [YandexFullsizeWin32]::SetProcessDPIAware() | Out-Null
-} catch {
+        [YandexFullsizeWin32]::SetProcessDPIAware() | Out-Null
+    } catch {
+    }
+
+    [System.Windows.Forms.Application]::EnableVisualStyles()
 }
 
-[System.Windows.Forms.Application]::EnableVisualStyles()
 try {
     $protocols = [System.Net.SecurityProtocolType]::Tls12
     $tls13 = [Enum]::Parse([System.Net.SecurityProtocolType], "Tls13")
     $protocols = $protocols -bor $tls13
     [System.Net.ServicePointManager]::SecurityProtocol = $protocols
 } catch {
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+    try {
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+    } catch {
+    }
 }
-[System.Net.ServicePointManager]::Expect100Continue = $false
-[System.Net.ServicePointManager]::DefaultConnectionLimit = 8
+try {
+    [System.Net.ServicePointManager]::Expect100Continue = $false
+    [System.Net.ServicePointManager]::DefaultConnectionLimit = 8
+} catch {
+}
 
 # .NET Framework turns "?public_key=https://..." into an extra path segment.
 # Yandex then answers 404 with description "Not Found" and nothing downloads.
@@ -68,7 +88,11 @@ $script:sync = [hashtable]::Synchronized(@{
     Request = $null
     Process = $null
     PartFile = ""
+    PartName = ""
+    PartGot = [int64]0
     PartExpected = [int64]0
+    SavedCount = 0
+    FailedCount = 0
 })
 $script:sync.Messages = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList))
 $script:job = $null
@@ -78,10 +102,15 @@ function Add-LogLine([string]$text) {
 }
 
 $worker = {
-    param($sync, $publicUrl, $destRoot, $makeRootFolder)
+    param($sync, $publicUrl, $destRoot, $makeRootFolder, $fileLimit)
 
     $ErrorActionPreference = "Stop"
     $userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    $state = @{
+        Sk = ""
+        Origin = ""
+        Cookies = (New-Object System.Net.CookieContainer)
+    }
 
     function Write-Log([string]$text) {
         if ($text.Length -gt 500) { $text = $text.Substring(0, 500) }
@@ -115,7 +144,7 @@ $worker = {
         $parts = @($diskPath -split "/" | Where-Object { $_ -and ($_ -ne ".") -and ($_ -ne "..") })
         if ($parts.Count -eq 0) { return (ConvertTo-SafeSegment $fallbackName) }
         $safe = foreach ($part in $parts) { ConvertTo-SafeSegment $part }
-        return ($safe -join "\")
+        return ($safe -join [System.IO.Path]::DirectorySeparatorChar)
     }
 
     function Format-ByteCount([int64]$n) {
@@ -125,17 +154,38 @@ $worker = {
     }
 
     function Get-CurlPath {
-        foreach ($candidate in @(
-            (Join-Path $env:SystemRoot "System32\curl.exe"),
-            (Join-Path $env:SystemRoot "Sysnative\curl.exe")
-        )) {
-            if ([System.IO.File]::Exists($candidate)) { return $candidate }
+        if ($env:SystemRoot) {
+            foreach ($rel in @("System32\curl.exe", "Sysnative\curl.exe")) {
+                $candidate = Join-Path $env:SystemRoot $rel
+                if ([System.IO.File]::Exists($candidate)) { return $candidate }
+            }
         }
+        $cmd = @(Get-Command curl -CommandType Application -ErrorAction SilentlyContinue) | Select-Object -First 1
+        if ($cmd -and $cmd.Source) { return [string]$cmd.Source }
         return $null
+    }
+
+    function Get-FileLength([string]$path) {
+        if ([string]::IsNullOrWhiteSpace($path)) { return [int64]0 }
+        if (-not [System.IO.File]::Exists($path)) { return [int64]0 }
+        try {
+            $stream = [System.IO.File]::Open(
+                $path,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::Read,
+                [System.IO.FileShare]::ReadWrite
+            )
+            try { return [int64]$stream.Length } finally { $stream.Close() }
+        } catch {
+            try { return [int64](New-Object System.IO.FileInfo $path).Length } catch { return [int64]0 }
+        }
     }
 
     function ConvertTo-ErrorText([string]$body, [string]$fallback) {
         if ($body -match '"message"\s*:\s*"((?:\\.|[^"\\])*)"') {
+            return (($Matches[1] -replace '\\"', '"') -replace '\\n', ' ')
+        }
+        if ($body -match '"title"\s*:\s*"((?:\\.|[^"\\])*)"') {
             return (($Matches[1] -replace '\\"', '"') -replace '\\n', ' ')
         }
         if ($body -match '"description"\s*:\s*"((?:\\.|[^"\\])*)"') {
@@ -155,80 +205,183 @@ $worker = {
         return $fallback
     }
 
-    function Invoke-CurlRequest([string]$Url, [string]$OutFile, [int]$MaxSeconds) {
-        # The URL is written to a curl config file. On Windows a public link in the
-        # command line is rewritten, and Yandex answers "Ресурс не найден."
+    function Get-SiteOrigin([string]$url) {
+        $uri = [Uri]$url
+        if ($uri.IsDefaultPort) { return ($uri.Scheme + "://" + $uri.Host) }
+        return ($uri.Scheme + "://" + $uri.Host + ":" + $uri.Port)
+    }
+
+    function New-DiskRequest([string]$url) {
+        $request = [System.Net.HttpWebRequest][System.Net.WebRequest]::Create($url)
+        $request.UserAgent = $userAgent
+        $request.CookieContainer = $state.Cookies
+        $request.AllowAutoRedirect = $true
+        $request.KeepAlive = $false
+        $request.Timeout = 30000
+        $request.ReadWriteTimeout = 30000
+        try {
+            $request.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
+        } catch {
+        }
+        return $request
+    }
+
+    function Get-CurlPathQuoted([string]$path) {
+        return $path.Replace("\", "/")
+    }
+
+    function Invoke-CurlProcess([string[]]$configLines) {
         $curl = Get-CurlPath
         if (-not $curl) { throw "NO_CURL" }
         $config = [System.IO.Path]::GetTempFileName()
-        $downloadPath = $OutFile
-        $staging = $null
-        foreach ($ch in $OutFile.ToCharArray()) {
-            if ([int]$ch -gt 127) { $staging = [System.IO.Path]::GetTempFileName(); break }
-        }
-        if ($staging) { $downloadPath = $staging }
-        $curlPath = $downloadPath.Replace("\", "/")
-        $safeUrl = $Url.Replace('"', "")
-        $agent = $userAgent.Replace('"', "")
-        $lines = @(
-            "silent",
-            "show-error",
-            "location",
-            "path-as-is",
-            "connect-timeout = 25",
-            ("max-time = " + $MaxSeconds),
-            ("user-agent = `"" + $agent + "`""),
-            ("output = `"" + $curlPath + "`""),
-            'write-out = "%{http_code}"',
-            ("url = `"" + $safeUrl + "`"")
-        )
-        [System.IO.File]::WriteAllLines($config, $lines, [System.Text.Encoding]::ASCII)
+        [System.IO.File]::WriteAllLines($config, $configLines, [System.Text.Encoding]::ASCII)
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = $curl
         $psi.UseShellExecute = $false
         $psi.CreateNoWindow = $true
-        $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError = $true
+        $psi.RedirectStandardOutput = $false
+        $psi.RedirectStandardError = $false
         $psi.Arguments = "--config `"$config`""
         $proc = New-Object System.Diagnostics.Process
         $proc.StartInfo = $psi
         [void]$proc.Start()
         $sync.Process = $proc
         try {
-            $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
-            $stderrTask = $proc.StandardError.ReadToEndAsync()
             while (-not $proc.WaitForExit(250)) {
                 if ($sync.Cancel) {
                     try { $proc.Kill() } catch { }
                     throw "CANCELLED"
                 }
+                Update-TransferStatus
             }
-            $proc.WaitForExit() | Out-Null
-            $codeText = [string]$stdoutTask.Result
-            $errText = [string]$stderrTask.Result
-            $code = 0
-            if ($codeText -match '(\d{3})\s*$') { $code = [int]$Matches[1] }
-            if ($proc.ExitCode -ne 0 -and $code -eq 0) {
-                $reason = $errText.Trim()
-                if ($reason.Length -gt 240) { $reason = $reason.Substring(0, 240) }
-                throw ("Сеть оборвалась. " + $reason)
-            }
-            if ($staging -and [System.IO.File]::Exists($staging)) {
-                $folder = [System.IO.Path]::GetDirectoryName($OutFile)
-                if ($folder) { [void][System.IO.Directory]::CreateDirectory($folder) }
-                if ([System.IO.File]::Exists($OutFile)) { [System.IO.File]::Delete($OutFile) }
-                [System.IO.File]::Move($staging, $OutFile)
-                $staging = $null
-            }
-            return $code
+            try { $proc.WaitForExit() | Out-Null } catch { }
+            if ($sync.Cancel) { throw "CANCELLED" }
+            return [int]$proc.ExitCode
         } finally {
             $sync.Process = $null
             try { $proc.Dispose() } catch { }
-            if ($config -and [System.IO.File]::Exists($config)) {
+            if ([System.IO.File]::Exists($config)) {
                 try { [System.IO.File]::Delete($config) } catch { }
             }
-            if ($staging -and [System.IO.File]::Exists($staging)) {
-                try { [System.IO.File]::Delete($staging) } catch { }
+        }
+    }
+
+    function Update-TransferStatus {
+        $path = [string]$sync.PartFile
+        if ([string]::IsNullOrWhiteSpace($path)) { return }
+        $got = Get-FileLength $path
+        $sync.PartGot = $got
+        $need = [int64]$sync.PartExpected
+        $elapsed = 0
+        $started = $sync.PartStarted
+        if ($started -is [DateTime]) {
+            $elapsed = [int]([DateTime]::UtcNow - $started).TotalSeconds
+            if ($elapsed -lt 0) { $elapsed = 0 }
+        }
+        $name = [string]$sync.PartName
+        if ($got -gt 0 -and $need -gt 0) {
+            $pct = [int](($got * 100) / $need)
+            if ($pct -gt 100) { $pct = 100 }
+            $sync.Status = "Скачивается файл $($sync.Current) из $($sync.Total) — $pct% ($name, $(Format-ByteCount $got) из $(Format-ByteCount $need))"
+        } elseif ($got -gt 0) {
+            $sync.Status = "Скачивается файл $($sync.Current) из $($sync.Total) — $name, $(Format-ByteCount $got)"
+        } else {
+            $sync.Status = "Жду данные ${elapsed} с: файл $($sync.Current) из $($sync.Total) — $name"
+        }
+    }
+
+    function Get-LastHttpCode([string]$headerFile) {
+        if (-not [System.IO.File]::Exists($headerFile)) { return 0 }
+        $text = [System.IO.File]::ReadAllText($headerFile)
+        $code = 0
+        foreach ($match in [regex]::Matches($text, 'HTTP/\d(?:\.\d)?\s+(\d{3})')) {
+            $code = [int]$match.Groups[1].Value
+        }
+        return $code
+    }
+
+    function Invoke-CurlDownload([string]$Url, [string]$OutFile, [int]$MaxSeconds, [bool]$ForceIPv4, [bool]$Resume) {
+        $curl = Get-CurlPath
+        if (-not $curl) { throw "NO_CURL" }
+        $headerFile = [System.IO.Path]::GetTempFileName()
+        $errFile = [System.IO.Path]::GetTempFileName()
+        $sync.PartFile = $OutFile
+        $sync.PartStarted = [DateTime]::UtcNow
+        Update-TransferStatus
+
+        $agent = $userAgent.Replace('"', "")
+        $referer = ([string]$publicUrl).Replace('"', "")
+        $safeUrl = $Url.Replace('"', "")
+        $lines = New-Object System.Collections.Generic.List[string]
+        [void]$lines.Add("silent")
+        [void]$lines.Add("show-error")
+        [void]$lines.Add("location")
+        [void]$lines.Add("path-as-is")
+        [void]$lines.Add("http1.1")
+        if ($ForceIPv4) { [void]$lines.Add("ipv4") }
+        if ($Resume) { [void]$lines.Add("continue-at = -") }
+        [void]$lines.Add("connect-timeout = 12")
+        [void]$lines.Add("speed-limit = 1024")
+        [void]$lines.Add("speed-time = 12")
+        [void]$lines.Add("max-time = $MaxSeconds")
+        [void]$lines.Add("user-agent = `"$agent`"")
+        if ($referer -match '^https?://') { [void]$lines.Add("referer = `"$referer`"") }
+        [void]$lines.Add("output = `"$(Get-CurlPathQuoted $OutFile)`"")
+        [void]$lines.Add("dump-header = `"$(Get-CurlPathQuoted $headerFile)`"")
+        [void]$lines.Add("stderr = `"$(Get-CurlPathQuoted $errFile)`"")
+        [void]$lines.Add("url = `"$safeUrl`"")
+
+        try {
+            $exitCode = Invoke-CurlProcess $lines.ToArray()
+            $httpCode = Get-LastHttpCode $headerFile
+            $errText = ""
+            if ([System.IO.File]::Exists($errFile)) { $errText = [System.IO.File]::ReadAllText($errFile).Trim() }
+            if ($errText.Length -gt 180) { $errText = $errText.Substring(0, 180) }
+            $sync.PartGot = Get-FileLength $OutFile
+            return @{ Exit = $exitCode; Http = $httpCode; Error = $errText }
+        } finally {
+            foreach ($extra in @($headerFile, $errFile)) {
+                if ([System.IO.File]::Exists($extra)) {
+                    try { [System.IO.File]::Delete($extra) } catch { }
+                }
+            }
+        }
+    }
+
+    function Invoke-CurlToFile([string]$Url, [string]$OutFile, [int]$MaxSeconds) {
+        $headerFile = [System.IO.Path]::GetTempFileName()
+        $errFile = [System.IO.Path]::GetTempFileName()
+        $agent = $userAgent.Replace('"', "")
+        $safeUrl = $Url.Replace('"', "")
+        $lines = @(
+            "silent",
+            "show-error",
+            "location",
+            "path-as-is",
+            "http1.1",
+            "connect-timeout = 15",
+            ("max-time = " + $MaxSeconds),
+            ("user-agent = `"" + $agent + "`""),
+            ("output = `"" + (Get-CurlPathQuoted $OutFile) + "`""),
+            ("dump-header = `"" + (Get-CurlPathQuoted $headerFile) + "`""),
+            ("stderr = `"" + (Get-CurlPathQuoted $errFile) + "`""),
+            ("url = `"" + $safeUrl + "`"")
+        )
+        try {
+            $exitCode = Invoke-CurlProcess $lines
+            $httpCode = Get-LastHttpCode $headerFile
+            if ($exitCode -ne 0 -and $httpCode -eq 0) {
+                $errText = ""
+                if ([System.IO.File]::Exists($errFile)) { $errText = [System.IO.File]::ReadAllText($errFile).Trim() }
+                if ($errText.Length -gt 180) { $errText = $errText.Substring(0, 180) }
+                throw ("Сеть оборвалась. " + $errText)
+            }
+            return $httpCode
+        } finally {
+            foreach ($extra in @($headerFile, $errFile)) {
+                if ([System.IO.File]::Exists($extra)) {
+                    try { [System.IO.File]::Delete($extra) } catch { }
+                }
             }
         }
     }
@@ -237,7 +390,7 @@ $worker = {
         $temp = [System.IO.Path]::GetTempFileName()
         try {
             if (Get-CurlPath) {
-                $code = Invoke-CurlRequest $url $temp 60
+                $code = Invoke-CurlToFile $url $temp 45
                 $body = ""
                 if ([System.IO.File]::Exists($temp)) {
                     $body = [System.IO.File]::ReadAllText($temp, [System.Text.Encoding]::UTF8)
@@ -255,14 +408,9 @@ $worker = {
 
         $response = $null
         try {
-            $request = [System.Net.HttpWebRequest][System.Net.WebRequest]::Create($url)
+            $request = New-DiskRequest $url
             $request.Method = "GET"
-            $request.UserAgent = $userAgent
             $request.Accept = "application/json"
-            $request.Timeout = 45000
-            $request.ReadWriteTimeout = 45000
-            $request.KeepAlive = $false
-            $request.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
             $sync.Request = $request
             $response = $request.GetResponse()
             $reader = New-Object System.IO.StreamReader($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
@@ -305,7 +453,7 @@ $worker = {
         }
         $url = "https://cloud-api.yandex.net/v1/disk/public/$endpoint?" + ($pairs -join "&")
         $lastError = $null
-        for ($try = 1; $try -le 4; $try++) {
+        for ($try = 1; $try -le 3; $try++) {
             Assert-Continue
             try {
                 $result = Receive-ApiText $url
@@ -315,24 +463,24 @@ $worker = {
                 $detail = ConvertTo-ErrorText ([string]$result.Body) ("HTTP " + $result.Code)
                 if ([string]$result.Body -match 'DiskNotFoundError|FieldValidationError') { throw $detail }
                 $lastError = $detail
-                if ($try -eq 4) { throw $detail }
-                Write-Log ("Повтор $try из 3. $detail")
-                Start-Sleep -Seconds ([Math]::Pow(2, $try))
+                if ($try -eq 3) { throw $detail }
+                Write-Log ("Повтор $try. $detail")
+                Start-Sleep -Seconds 1
             } catch {
                 if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) { throw "CANCELLED" }
                 $detail = $_.Exception.Message
                 if ($detail -match 'не открывается|обязательн|FieldValidation|DiskNotFound') { throw $detail }
                 $lastError = $detail
-                if ($try -eq 4) { throw $detail }
-                Write-Log ("Повтор $try из 3. $detail")
-                Start-Sleep -Seconds ([Math]::Pow(2, $try))
+                if ($try -eq 3) { throw $detail }
+                Write-Log ("Повтор $try. $detail")
+                Start-Sleep -Seconds 1
             }
         }
         throw $lastError
     }
 
     function Test-LooksLikeHtml([string]$path) {
-        $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+        $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
         try {
             $buffer = New-Object byte[] 64
             $read = $stream.Read($buffer, 0, $buffer.Length)
@@ -345,15 +493,16 @@ $worker = {
     }
 
     function Receive-Http([string]$href, [string]$part, [int64]$expected) {
-        $request = [System.Net.HttpWebRequest][System.Net.WebRequest]::Create($href)
+        $request = New-DiskRequest $href
         $request.Method = "GET"
-        $request.UserAgent = $userAgent
         $request.Referer = $publicUrl
-        $request.Timeout = 60000
-        $request.ReadWriteTimeout = 40000
-        $request.AllowAutoRedirect = $true
-        $request.KeepAlive = $false
+        $request.Timeout = 20000
+        $request.ReadWriteTimeout = 12000
         $sync.Request = $request
+        $sync.PartFile = $part
+        $sync.PartStarted = [DateTime]::UtcNow
+        $sync.PartExpected = $expected
+        $sync.PartGot = [int64]0
         $response = $null
         $body = $null
         $file = $null
@@ -365,19 +514,12 @@ $worker = {
             $file = [System.IO.File]::Create($part)
             $buffer = New-Object byte[] 65536
             $got = [int64]0
-            $total = [int64]$response.ContentLength
-            if ($total -lt 0 -and $expected -gt 0) { $total = $expected }
             while (($count = $body.Read($buffer, 0, $buffer.Length)) -gt 0) {
                 if ($sync.Cancel) { throw "CANCELLED" }
                 $file.Write($buffer, 0, $count)
                 $got += $count
-                if ($total -gt 0) {
-                    $pct = [int](($got * 100) / $total)
-                    if ($pct -gt 100) { $pct = 100 }
-                    $sync.Status = "Скачивается файл $($sync.Current) из $($sync.Total) — $pct%"
-                } else {
-                    $sync.Status = "Скачивается файл $($sync.Current) из $($sync.Total) — $(Format-ByteCount $got)"
-                }
+                $sync.PartGot = $got
+                Update-TransferStatus
             }
         } finally {
             if ($file) { $file.Close() }
@@ -387,70 +529,185 @@ $worker = {
         }
     }
 
-    function Receive-Curl([string]$href, [string]$part) {
-        $curl = Join-Path $env:SystemRoot "System32\curl.exe"
-        if (-not [System.IO.File]::Exists($curl)) { throw "curl.exe не найден" }
-        $curlArgs = @(
-            "-L", "--fail", "--retry", "2", "--retry-delay", "2",
-            "--connect-timeout", "25", "--max-time", "600",
-            "-A", $userAgent, "-e", $publicUrl,
-            "-sS", "-o", $part, "--", $href
-        )
-        $curlOutput = & $curl @curlArgs 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            $text = ($curlOutput | Out-String).Trim()
-            if ($text.Length -gt 300) { $text = $text.Substring(0, 300) }
-            throw "curl: $text"
+    function Get-DownloadHref([string]$hash) {
+        if ([string]::IsNullOrWhiteSpace($hash)) { throw "нет кода файла" }
+        if ([string]::IsNullOrWhiteSpace($state.Sk)) { throw "нет ключа страницы" }
+        $origin = $state.Origin
+        if ([string]::IsNullOrWhiteSpace($origin)) { $origin = Get-SiteOrigin $publicUrl }
+        $url = $origin + "/public/api/download-url"
+        $lastText = ""
+        for ($round = 1; $round -le 2; $round++) {
+            Assert-Continue
+            $json = '{"hash":"' + ($hash.Replace('\', '\\').Replace('"', '\"')) + '","inline":false,"sk":"' + ($state.Sk.Replace('"', '\"')) + '"}'
+            $encoded = [uri]::EscapeDataString($json)
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($encoded)
+            $request = New-DiskRequest $url
+            $request.Method = "POST"
+            $request.ContentType = "text/plain"
+            $request.Accept = "application/json"
+            $request.Referer = $publicUrl
+            $request.Headers.Add("X-Requested-With", "XMLHttpRequest")
+            $request.ContentLength = $bytes.Length
+            $sync.Request = $request
+            $response = $null
+            try {
+                $stream = $request.GetRequestStream()
+                $stream.Write($bytes, 0, $bytes.Length)
+                $stream.Close()
+                $response = $request.GetResponse()
+                $reader = New-Object System.IO.StreamReader($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+                try { $lastText = $reader.ReadToEnd() } finally { $reader.Close() }
+            } catch {
+                if ($sync.Cancel) { throw "CANCELLED" }
+                $web = $_.Exception
+                if ($web -isnot [System.Net.WebException] -and $_.Exception.InnerException) {
+                    $web = $_.Exception.InnerException
+                }
+                if ($web -is [System.Net.WebException] -and $web.Response) {
+                    $errReader = New-Object System.IO.StreamReader($web.Response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+                    try { $lastText = $errReader.ReadToEnd() } finally { $errReader.Close() }
+                } else {
+                    throw $_.Exception.Message
+                }
+            } finally {
+                $sync.Request = $null
+                if ($response) { $response.Close() }
+            }
+            if ($lastText -match 'wrongSk' -and $lastText -match '"newSk"\s*:\s*"([^"]+)"' -and $round -eq 1) {
+                $state.Sk = $Matches[1]
+                continue
+            }
+            break
         }
+        $parsed = $null
+        try { $parsed = $lastText | ConvertFrom-Json } catch { throw (ConvertTo-ErrorText $lastText "Диск не дал ссылку на файл") }
+        if ($parsed -and $parsed.data -and $parsed.data.url) { return [string]$parsed.data.url }
+        throw (ConvertTo-ErrorText $lastText "Диск не дал ссылку на файл")
     }
 
-    function Save-FullFile([string]$href, [string]$dest, [int64]$expected) {
-        $part = $dest + ".part"
-        $folder = [System.IO.Path]::GetDirectoryName($dest)
-        [void][System.IO.Directory]::CreateDirectory($folder)
-        for ($try = 1; $try -le 4; $try++) {
-            Assert-Continue
-            if ([System.IO.File]::Exists($part)) { [System.IO.File]::Delete($part) }
-            try {
-                $sync.PartFile = $part
-                $sync.PartExpected = $expected
-                try {
-                    if (-not (Get-CurlPath)) { throw "NO_CURL" }
-                    $httpCode = Invoke-CurlRequest $href $part 600
-                    if ($httpCode -ne 200) {
-                        throw ("Яндекс вернул код " + $httpCode)
-                    }
-                } catch {
-                    if ($sync.Cancel -or $_.Exception.Message -eq "CANCELLED") { throw "CANCELLED" }
-                    if ($_.Exception.Message -ne "NO_CURL") {
-                        Write-Log ("Повтор загрузки другим способом. " + $_.Exception.Message)
-                    }
-                    if ([System.IO.File]::Exists($part)) { [System.IO.File]::Delete($part) }
-                    Receive-Http $href $part $expected
-                } finally {
-                    $sync.PartFile = ""
-                    $sync.PartExpected = 0
-                }
-                if (-not [System.IO.File]::Exists($part)) { throw "файл не сохранился" }
-                $actual = [int64](New-Object System.IO.FileInfo $part).Length
-                if (Test-LooksLikeHtml $part) { throw "вместо файла пришла страница" }
-                if ($expected -gt 0 -and $actual -ne $expected) {
-                    throw ("размер не совпал: скачано {0}, на диске {1}" -f $actual, $expected)
-                }
-                if ([System.IO.File]::Exists($dest)) { [System.IO.File]::Delete($dest) }
-                [System.IO.File]::Move($part, $dest)
-                return $actual
-            } catch {
-                if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) { throw "CANCELLED" }
-                if ([System.IO.File]::Exists($part)) {
-                    try { [System.IO.File]::Delete($part) } catch { }
-                }
-                if ($try -eq 4) { throw }
-                Write-Log ("Не вышло (попытка $try из 4): " + $_.Exception.Message)
-                Start-Sleep -Seconds ([Math]::Pow(2, $try))
+    function Resolve-FileHref([string]$hash, [string]$diskPath, [string]$fallback) {
+        if (-not [string]::IsNullOrWhiteSpace($hash) -and -not [string]::IsNullOrWhiteSpace($state.Sk)) {
+            try { return (Get-DownloadHref $hash) } catch {
+                if ($_.Exception.Message -eq "CANCELLED") { throw "CANCELLED" }
+                Write-Log ("Свежая ссылка не выдалась: " + $_.Exception.Message)
             }
         }
-        throw "не удалось скачать файл"
+        if (-not [string]::IsNullOrWhiteSpace($diskPath)) {
+            try {
+                $meta = Invoke-Yandex "resources/download" @{
+                    public_key = $publicUrl
+                    path = $diskPath
+                }
+                if ($meta.href) { return [string]$meta.href }
+            } catch {
+                if ($_.Exception.Message -eq "CANCELLED") { throw "CANCELLED" }
+            }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($fallback)) { return $fallback }
+        throw "Яндекс не дал ссылку на файл"
+    }
+
+    function Get-MaxSeconds([int64]$expected) {
+        $seconds = 180
+        if ($expected -gt 0) { $seconds = [int]($expected / 100000) + 60 }
+        if ($seconds -lt 90) { $seconds = 90 }
+        if ($seconds -gt 7200) { $seconds = 7200 }
+        return $seconds
+    }
+
+    function Test-NonAscii([string]$text) {
+        foreach ($ch in $text.ToCharArray()) {
+            if ([int]$ch -gt 127) { return $true }
+        }
+        return $false
+    }
+
+    function Get-DownloadPartPath([string]$dest) {
+        $part = $dest + ".part"
+        if (-not (Test-NonAscii $part)) { return $part }
+        $tempRoot = $env:TEMP
+        if ([string]::IsNullOrWhiteSpace($tempRoot)) { $tempRoot = [System.IO.Path]::GetTempPath() }
+        if ((Test-NonAscii $tempRoot) -and $env:SystemRoot) {
+            $tempRoot = Join-Path $env:SystemRoot "Temp"
+        }
+        return (Join-Path $tempRoot ("yandex-fullsize-" + [guid]::NewGuid().ToString("N") + ".part"))
+    }
+
+    function Test-CompleteDownload([string]$path, [int64]$expected) {
+        $actual = Get-FileLength $path
+        if ($actual -le 0) { return $false }
+        if (Test-LooksLikeHtml $path) { return $false }
+        if ($expected -gt 0 -and $actual -ne $expected) { return $false }
+        return $true
+    }
+
+    function Save-FullFile([string]$hash, [string]$diskPath, [string]$fallback, [string]$dest, [int64]$expected) {
+        $folder = [System.IO.Path]::GetDirectoryName($dest)
+        [void][System.IO.Directory]::CreateDirectory($folder)
+        $part = Get-DownloadPartPath $dest
+        $maxSeconds = Get-MaxSeconds $expected
+        $sync.PartExpected = $expected
+        $sync.PartFile = $part
+        $lastError = "не удалось скачать файл"
+        try {
+            for ($try = 1; $try -le 4; $try++) {
+                Assert-Continue
+                if ([System.IO.File]::Exists($part)) { [System.IO.File]::Delete($part) }
+                $sync.PartGot = [int64]0
+                $href = Resolve-FileHref $hash $diskPath $fallback
+                $forceV4 = (($try % 2) -eq 1)
+                if (-not (Get-CurlPath)) {
+                    Receive-Http $href $part $expected
+                    if (Test-CompleteDownload $part $expected) {
+                        $actual = Get-FileLength $part
+                        if ([System.IO.File]::Exists($dest)) { [System.IO.File]::Delete($dest) }
+                        [System.IO.File]::Move($part, $dest)
+                        $sync.PartGot = $actual
+                        return $actual
+                    }
+                    $lastError = "нет данных от Диска"
+                } else {
+                    for ($piece = 1; $piece -le 8; $piece++) {
+                        Assert-Continue
+                        $before = Get-FileLength $part
+                        $result = Invoke-CurlDownload $href $part $maxSeconds $forceV4 ($before -gt 0)
+                        if ($sync.Cancel) { throw "CANCELLED" }
+                        $actual = Get-FileLength $part
+                        $sync.PartGot = $actual
+                        if ($result.Http -ge 400) {
+                            $lastError = "Яндекс вернул код " + $result.Http
+                            break
+                        }
+                        if (Test-CompleteDownload $part $expected) {
+                            if ([System.IO.File]::Exists($dest)) { [System.IO.File]::Delete($dest) }
+                            [System.IO.File]::Move($part, $dest)
+                            $sync.PartFile = ""
+                            $sync.PartGot = $actual
+                            return $actual
+                        }
+                        if ($actual -gt $before) {
+                            Write-Log ("Связь оборвалась на {0}, продолжаю с этого места" -f (Format-ByteCount $actual))
+                            continue
+                        }
+                        $lastError = [string]$result.Error
+                        if ([string]::IsNullOrWhiteSpace($lastError) -or $lastError -match 'too slow|timed out|Timeout|transfer closed|Operation|SSL') {
+                            $lastError = "нет данных от Диска"
+                        }
+                        break
+                    }
+                }
+                if ($try -lt 4) {
+                    Write-Log ("Повтор $try из 4, беру новую ссылку: $lastError")
+                    Start-Sleep -Seconds 1
+                }
+            }
+            throw $lastError
+        } finally {
+            $sync.PartFile = ""
+            if ([System.IO.File]::Exists($part)) {
+                try { [System.IO.File]::Delete($part) } catch { }
+            }
+        }
     }
 
     function Get-JsonBlock([string]$text, [string]$marker) {
@@ -482,16 +739,14 @@ $worker = {
     function Get-PublicHtml([string]$pageUrl) {
         $response = $null
         try {
-            $request = [System.Net.HttpWebRequest][System.Net.WebRequest]::Create($pageUrl)
+            $request = New-DiskRequest $pageUrl
             $request.Method = "GET"
-            $request.UserAgent = $userAgent
             $request.Accept = "text/html"
             $request.Timeout = 45000
             $request.ReadWriteTimeout = 45000
-            $request.AllowAutoRedirect = $true
-            $request.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
             $sync.Request = $request
             $response = $request.GetResponse()
+            if ($response.ResponseUri) { $state.Origin = Get-SiteOrigin ([string]$response.ResponseUri.AbsoluteUri) }
             $reader = New-Object System.IO.StreamReader($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
             try { return $reader.ReadToEnd() } finally { $reader.Close() }
         } catch {
@@ -502,8 +757,9 @@ $worker = {
         }
         $temp = [System.IO.Path]::GetTempFileName()
         try {
-            $code = Invoke-CurlRequest $pageUrl $temp 60
+            $code = Invoke-CurlToFile $pageUrl $temp 60
             if ($code -lt 200 -or $code -ge 300) { throw ("Страница диска ответила кодом " + $code) }
+            if ([string]::IsNullOrWhiteSpace($state.Origin)) { $state.Origin = Get-SiteOrigin $pageUrl }
             return [System.IO.File]::ReadAllText($temp, [System.Text.Encoding]::UTF8)
         } finally {
             if ([System.IO.File]::Exists($temp)) {
@@ -517,6 +773,8 @@ $worker = {
         Write-Log "Открываю страницу диска..."
         $html = Get-PublicHtml $url
         if ([string]::IsNullOrWhiteSpace($html)) { throw "Пустая страница по ссылке." }
+        if ($html -match '"sk"\s*:\s*"([^"]+)"') { $state.Sk = $Matches[1] }
+        if ([string]::IsNullOrWhiteSpace($state.Origin)) { $state.Origin = Get-SiteOrigin $url }
         $block = Get-JsonBlock $html '"resources":'
         if (-not $block) { throw "По ссылке нет списка файлов. Проверьте, что ссылка публичная." }
         $resources = $block | ConvertFrom-Json
@@ -543,7 +801,9 @@ $worker = {
             if ($seenFiles.ContainsKey($relative)) { return }
             $seenFiles[$relative] = $true
             $href = ""
+            $hash = ""
             $size = [int64]0
+            if ($node.path) { $hash = [string]$node.path }
             if ($node.meta) {
                 if ($node.meta.original) { $href = [string]$node.meta.original }
                 if ($node.meta.size) { $size = [int64]$node.meta.size }
@@ -553,6 +813,7 @@ $worker = {
                 path = ("/" + $relative)
                 size = $size
                 href = $href
+                hash = $hash
             })
             $sync.Status = "Нашёл файлов: $($files.Count)"
         }
@@ -611,6 +872,7 @@ $worker = {
                             path = ("/" + $filePath)
                             size = $(if ($item.size) { [int64]$item.size } else { [int64]0 })
                             href = ""
+                            hash = ""
                         })
                     }
                 }
@@ -629,6 +891,8 @@ $worker = {
         return @{ Name = $diskName; Files = $files }
     }
 
+    $saved = 0
+    $failed = New-Object System.Collections.Generic.List[string]
     try {
         Write-Log "Читаю ссылку..."
         $sync.Status = "Открываю ссылку..."
@@ -652,32 +916,36 @@ $worker = {
         Write-Log ("Файлов: {0}. Папка: {1}" -f $files.Count, $outRoot)
         $sync.OpenPath = $outRoot
 
-        $saved = 0
         $skipped = 0
-        $failed = New-Object System.Collections.Generic.List[string]
+        $stallFiles = 0
         $index = 0
+        $limit = 0
+        if ($fileLimit) { $limit = [int]$fileLimit }
         foreach ($file in $files) {
             Assert-Continue
+            if ($limit -gt 0 -and $index -ge $limit) { break }
             $index++
             $sync.Current = $index
             $relative = Get-SafeRelative ([string]$file.path) ([string]$file.name)
             $dest = [System.IO.Path]::GetFullPath((Join-Path $outRoot $relative))
-            $rootPrefix = $outRoot.TrimEnd("\") + "\"
-            $destKey = $dest.ToLowerInvariant()
-            $rootKey = $rootPrefix.ToLowerInvariant()
-            if (-not $destKey.StartsWith($rootKey)) {
+            $rootPrefix = $outRoot.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+            if (-not $dest.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
                 Write-Log "Пропуск, странный путь: $relative"
                 [void]$failed.Add($relative)
                 continue
             }
             $expected = [int64]0
             if ($file.size) { $expected = [int64]$file.size }
+            $sync.PartName = [string]$file.name
+            $sync.PartExpected = $expected
+            $sync.PartGot = [int64]0
             $sync.Status = "Файл $index из $($files.Count): $relative"
 
             if ([System.IO.File]::Exists($dest) -and $expected -gt 0) {
-                $have = [int64](New-Object System.IO.FileInfo $dest).Length
+                $have = Get-FileLength $dest
                 if ($have -eq $expected) {
                     $skipped++
+                    $sync.PartGot = $have
                     Write-Log ("Уже есть: {0} ({1})" -f $relative, (Format-ByteCount $have))
                     continue
                 }
@@ -685,28 +953,32 @@ $worker = {
 
             Write-Log ("Скачиваю {0}/{1}: {2}" -f $index, $files.Count, $relative)
             try {
-                $href = ""
-                if ($file.href) { $href = [string]$file.href }
-                if ([string]::IsNullOrWhiteSpace($href)) {
-                    $meta = Invoke-Yandex "resources/download" @{
-                        public_key = $publicUrl
-                        path = [string]$file.path
-                    }
-                    if (-not $meta.href) { throw "Яндекс не дал ссылку на файл" }
-                    $href = [string]$meta.href
-                }
-                # One file at full size. A folder zip is never requested.
-                $size = Save-FullFile $href $dest $expected
+                $size = Save-FullFile ([string]$file.hash) ([string]$file.path) ([string]$file.href) $dest $expected
                 $saved++
+                $stallFiles = 0
+                $sync.PartGot = $size
                 Write-Log ("Готово: {0} ({1})" -f $relative, (Format-ByteCount $size))
             } catch {
                 if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) { throw "CANCELLED" }
-                $failed.Add($relative) | Out-Null
-                Write-Log ("Ошибка: {0} — {1}" -f $relative, $_.Exception.Message)
+                [void]$failed.Add($relative)
+                $reason = $_.Exception.Message
+                Write-Log ("Ошибка: {0} — {1}" -f $relative, $reason)
+                if ($reason -match 'нет данных|обрыв|too slow|timed out|Timeout') {
+                    $stallFiles++
+                } else {
+                    $stallFiles = 0
+                }
+                # A few files can sit on a storage node that accepts the connection and
+                # then sends nothing. Keep going so the files that do come down are saved.
+                # Stop only when the disk has not sent a single file and keeps failing.
+                if ($stallFiles -ge 8 -and $saved -eq 0) {
+                    throw "Диск много раз подряд не отдал ни одного байта. Остановился, чтобы не висеть на каждом фото. Повторите позже."
+                }
             }
-            Start-Sleep -Milliseconds 400
         }
 
+        $sync.SavedCount = $saved
+        $sync.FailedCount = $failed.Count
         $sync.Status = "Готово. Новых: $saved. Уже было: $skipped. Ошибок: $($failed.Count)."
         Write-Log $sync.Status
         Write-Log ("Папка: " + $outRoot)
@@ -717,15 +989,31 @@ $worker = {
     } catch {
         if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) {
             $sync.Status = "Остановлено. Уже скачанные файлы лежат в папке."
+            $sync.SavedCount = $saved
+            $sync.FailedCount = $failed.Count
             Write-Log $sync.Status
             return
         }
         $sync.Status = "Ошибка: " + $_.Exception.Message
+        $sync.SavedCount = $saved
+        if ($failed.Count -gt 0) { $sync.FailedCount = $failed.Count } else { $sync.FailedCount = 1 }
         Write-Log $sync.Status
     } finally {
         $sync.Request = $null
+        $sync.PartFile = ""
         $sync.Done = $true
     }
+}
+
+if ($script:selfTest) {
+    if ([string]::IsNullOrWhiteSpace($SelfTestDest)) { throw "Нужна папка -SelfTestDest" }
+    $script:sync.Cancel = $false
+    $script:sync.Done = $false
+    & $worker $script:sync $SelfTestUrl $SelfTestDest $true $SelfTestLimit
+    foreach ($line in @($script:sync.Messages)) { Write-Output $line }
+    Write-Output ("RESULT saved={0} failed={1}" -f $script:sync.SavedCount, $script:sync.FailedCount)
+    if ([int]$script:sync.SavedCount -lt 1 -or [int]$script:sync.FailedCount -gt 0) { exit 1 }
+    exit 0
 }
 
 function Read-Settings {
@@ -773,22 +1061,22 @@ $title.Anchor = "Top, Left, Right"
 $form.Controls.Add($title)
 
 $hint = New-Object System.Windows.Forms.Label
-$hint.Text = "Вставьте публичную ссылку. Программа обойдёт файлы и скачает каждый целиком, с теми же папками. Папку одним архивом не качает."
+$hint.Text = "Вставьте публичную ссылку. Программа скачает каждый файл целиком, с теми же папками, и покажет, сколько уже пришло. Если Диск замолчит, она возьмёт новую ссылку. Папку одним архивом не качает."
 $hint.ForeColor = $colorMuted
 $hint.AutoSize = $false
 $hint.Location = New-Object System.Drawing.Point(18, 48)
-$hint.Size = New-Object System.Drawing.Size(644, 40)
+$hint.Size = New-Object System.Drawing.Size(644, 48)
 $hint.Anchor = "Top, Left, Right"
 $form.Controls.Add($hint)
 
 $linkLabel = New-Object System.Windows.Forms.Label
 $linkLabel.Text = "Ссылка"
-$linkLabel.Location = New-Object System.Drawing.Point(18, 96)
+$linkLabel.Location = New-Object System.Drawing.Point(18, 100)
 $linkLabel.Size = New-Object System.Drawing.Size(200, 20)
 $form.Controls.Add($linkLabel)
 
 $urlBox = New-Object System.Windows.Forms.TextBox
-$urlBox.Location = New-Object System.Drawing.Point(18, 118)
+$urlBox.Location = New-Object System.Drawing.Point(18, 122)
 $urlBox.Size = New-Object System.Drawing.Size(644, 28)
 $urlBox.Anchor = "Top, Left, Right"
 $urlBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
@@ -796,12 +1084,12 @@ $form.Controls.Add($urlBox)
 
 $folderLabel = New-Object System.Windows.Forms.Label
 $folderLabel.Text = "Куда сохранить"
-$folderLabel.Location = New-Object System.Drawing.Point(18, 156)
+$folderLabel.Location = New-Object System.Drawing.Point(18, 160)
 $folderLabel.Size = New-Object System.Drawing.Size(200, 20)
 $form.Controls.Add($folderLabel)
 
 $destBox = New-Object System.Windows.Forms.TextBox
-$destBox.Location = New-Object System.Drawing.Point(18, 178)
+$destBox.Location = New-Object System.Drawing.Point(18, 182)
 $destBox.Size = New-Object System.Drawing.Size(520, 28)
 $destBox.Anchor = "Top, Left, Right"
 $destBox.Text = [Environment]::GetFolderPath("Desktop")
@@ -809,7 +1097,7 @@ $form.Controls.Add($destBox)
 
 $browse = New-Object System.Windows.Forms.Button
 $browse.Text = "Обзор"
-$browse.Location = New-Object System.Drawing.Point(548, 176)
+$browse.Location = New-Object System.Drawing.Point(548, 180)
 $browse.Size = New-Object System.Drawing.Size(114, 30)
 $browse.Anchor = "Top, Right"
 $browse.FlatStyle = "Flat"
@@ -820,12 +1108,12 @@ $makeRoot = New-Object System.Windows.Forms.CheckBox
 $makeRoot.Text = "Создать папку с именем диска"
 $makeRoot.Checked = $true
 $makeRoot.AutoSize = $true
-$makeRoot.Location = New-Object System.Drawing.Point(18, 216)
+$makeRoot.Location = New-Object System.Drawing.Point(18, 220)
 $form.Controls.Add($makeRoot)
 
 $btnStart = New-Object System.Windows.Forms.Button
 $btnStart.Text = "Скачать"
-$btnStart.Location = New-Object System.Drawing.Point(18, 248)
+$btnStart.Location = New-Object System.Drawing.Point(18, 252)
 $btnStart.Size = New-Object System.Drawing.Size(150, 36)
 $btnStart.FlatStyle = "Flat"
 $btnStart.FlatAppearance.BorderSize = 0
@@ -836,7 +1124,7 @@ $form.Controls.Add($btnStart)
 
 $btnStop = New-Object System.Windows.Forms.Button
 $btnStop.Text = "Стоп"
-$btnStop.Location = New-Object System.Drawing.Point(178, 248)
+$btnStop.Location = New-Object System.Drawing.Point(178, 252)
 $btnStop.Size = New-Object System.Drawing.Size(110, 36)
 $btnStop.FlatStyle = "Flat"
 $btnStop.Enabled = $false
@@ -844,11 +1132,11 @@ $btnStop.BackColor = [System.Drawing.Color]::White
 $form.Controls.Add($btnStop)
 
 $bar = New-Object System.Windows.Forms.ProgressBar
-$bar.Location = New-Object System.Drawing.Point(18, 298)
+$bar.Location = New-Object System.Drawing.Point(18, 302)
 $bar.Size = New-Object System.Drawing.Size(644, 16)
 $bar.Anchor = "Top, Left, Right"
 $bar.Minimum = 0
-$bar.Maximum = 1
+$bar.Maximum = 1000
 $bar.Value = 0
 $bar.Style = "Continuous"
 $form.Controls.Add($bar)
@@ -857,7 +1145,7 @@ $status = New-Object System.Windows.Forms.Label
 $status.Text = $script:sync.Status
 $status.ForeColor = $colorMuted
 $status.AutoSize = $false
-$status.Location = New-Object System.Drawing.Point(18, 320)
+$status.Location = New-Object System.Drawing.Point(18, 324)
 $status.Size = New-Object System.Drawing.Size(644, 22)
 $status.Anchor = "Top, Left, Right"
 $form.Controls.Add($status)
@@ -868,8 +1156,8 @@ $log.ReadOnly = $true
 $log.ScrollBars = "Vertical"
 $log.WordWrap = $true
 $log.BackColor = [System.Drawing.Color]::White
-$log.Location = New-Object System.Drawing.Point(18, 348)
-$log.Size = New-Object System.Drawing.Size(644, 154)
+$log.Location = New-Object System.Drawing.Point(18, 352)
+$log.Size = New-Object System.Drawing.Size(644, 150)
 $log.Anchor = "Top, Bottom, Left, Right"
 $log.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $form.Controls.Add($log)
@@ -954,10 +1242,13 @@ $btnStart.Add_Click({
     $script:sync.Current = 0
     $script:sync.Total = 0
     $script:sync.OpenPath = ""
+    $script:sync.PartGot = [int64]0
+    $script:sync.PartExpected = [int64]0
+    $script:sync.SavedCount = 0
+    $script:sync.FailedCount = 0
     $script:sync.Messages.Clear()
     $log.Clear()
     $bar.Value = 0
-    $bar.Maximum = 1
     $status.Text = "Запускаю..."
     Set-Running $true
 
@@ -966,7 +1257,7 @@ $btnStart.Add_Click({
     $rs.Open()
     $ps = [powershell]::Create()
     $ps.Runspace = $rs
-    [void]$ps.AddScript($worker).AddArgument($script:sync).AddArgument($url).AddArgument($folder).AddArgument([bool]$makeRoot.Checked)
+    [void]$ps.AddScript($worker).AddArgument($script:sync).AddArgument($url).AddArgument($folder).AddArgument([bool]$makeRoot.Checked).AddArgument(0)
     $handle = $ps.BeginInvoke()
     $script:job = @{ Ps = $ps; Runspace = $rs; Handle = $handle }
 })
@@ -982,28 +1273,26 @@ $timer.Add_Tick({
         }
     } catch {
     }
-    $partFile = [string]$script:sync.PartFile
-    if ($partFile -and [System.IO.File]::Exists($partFile)) {
-        $got = [int64](New-Object System.IO.FileInfo $partFile).Length
-        $need = [int64]$script:sync.PartExpected
-        if ($need -gt 0) {
-            $pct = [int](($got * 100) / $need)
-            if ($pct -gt 100) { $pct = 100 }
-            $status.Text = "Скачивается файл $($script:sync.Current) из $($script:sync.Total) — $pct%"
-        } else {
-            $status.Text = "Скачивается файл $($script:sync.Current) из $($script:sync.Total)"
-        }
-    } else {
-        $status.Text = [string]$script:sync.Status
-    }
+    $status.Text = [string]$script:sync.Status
     $total = [int]$script:sync.Total
     $current = [int]$script:sync.Current
-    if ($total -gt 0) {
-        if ($bar.Maximum -ne $total) { $bar.Maximum = $total }
-        $value = $current
-        if ($value -lt 0) { $value = 0 }
-        if ($value -gt $bar.Maximum) { $value = $bar.Maximum }
-        $bar.Value = $value
+    if ($total -gt 0 -and $current -gt 0) {
+        $done = $current - 1
+        $frac = 0.0
+        $need = [int64]$script:sync.PartExpected
+        $got = [int64]$script:sync.PartGot
+        if ($need -gt 0 -and $got -gt 0) {
+            $frac = [double]$got / [double]$need
+            if ($frac -gt 1) { $frac = 1 }
+        }
+        $overall = [int]((($done + $frac) * 1000) / $total)
+        if ($overall -lt 0) { $overall = 0 }
+        if ($overall -gt 1000) { $overall = 1000 }
+        if ($bar.Maximum -ne 1000) {
+            $bar.Value = 0
+            $bar.Maximum = 1000
+        }
+        $bar.Value = $overall
     }
     if ($script:sync.Done -and $script:job -and $script:job.Handle.IsCompleted) {
         try { $script:job.Ps.EndInvoke($script:job.Handle) | Out-Null } catch { }
