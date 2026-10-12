@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Open the pasted subscription link in Happ or Incy unchanged.
 
-The app stores that exact address. Routing is a separate profile link,
-returned beside it, so the subscription address is not replaced.
+kind=sub returns only the subscription deeplink. The app stores that
+exact address. kind=rules returns only the routing profile, which the
+app adds and turns on for the open subscription. One response never
+contains both, so one tap cannot open both.
 Older /s/<token> copies stay available so a subscription added before
 this change can still refresh.
 """
@@ -471,13 +473,20 @@ class Handler(BaseHTTPRequestHandler):
             return
         app = str(data.get("app") or "")
         url = str(data.get("url") or "").strip()
+        kind = str(data.get("kind") or "sub")
         if app not in {"happ", "incy"}:
             self._json(400, {"ok": False, "error": "Выбери Incy или Happ."})
             return
-        with _lock:
-            rules = _rules.get(app) or ""
-        if not _rule_ok(app, rules):
-            self._json(503, {"ok": False, "error": "Правила сейчас недоступны."})
+        if kind not in {"sub", "rules"}:
+            self._json(400, {"ok": False, "error": "Не получилось открыть приложение."})
+            return
+        if kind == "rules":
+            with _lock:
+                rules = _rules.get(app) or ""
+            if not _rule_ok(app, rules) or (url and url in rules):
+                self._json(503, {"ok": False, "error": "Правила сейчас недоступны."})
+                return
+            self._json(200, {"ok": True, "open": rules})
             return
         low = url.lower()
         try:
@@ -496,10 +505,14 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             self._json(502, {"ok": False, "error": "По этой ссылке нет ключа."})
             return
-        if low.startswith("https://") and url not in open_link:
+        if low.startswith("https://") and (
+            url not in open_link
+            or "info.sarafan.uk" in open_link
+            or "://routing/" in open_link
+        ):
             self._json(502, {"ok": False, "error": "Не получилось открыть приложение."})
             return
-        self._json(200, {"ok": True, "open": open_link, "rules": rules})
+        self._json(200, {"ok": True, "open": open_link})
 
 
 def main():
