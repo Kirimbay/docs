@@ -1,0 +1,12 @@
+[Unit]
+Description=KirVPN subscription wrap (key plus routing)
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/kirvpn-find/wrap.py
+WorkingDirectory=/opt/kirvpn-find
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

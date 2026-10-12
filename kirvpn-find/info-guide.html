@@ -87,8 +87,39 @@
       text-align: center;
       text-decoration: none;
     }
-    a.btn.alt { background: #0b3f86; }
+    a.btn.alt, button.btn.alt { background: #0b3f86; }
+    button.btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 48px;
+      margin-top: 8px;
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 12px;
+      background: #146c36;
+      color: #fff;
+      font: inherit;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button.btn:disabled { opacity: .6; cursor: default; }
+    input.key {
+      width: 100%;
+      min-height: 48px;
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #24324d;
+      background: #0b1220;
+      color: #e8eefc;
+      font: inherit;
+      font-size: 16px;
+    }
     .hint { margin: 8px 0 0; color: #9bb0d0; font-size: 0.92rem; }
+    .hint.err { color: #f0a8a8; }
     .foot { margin: 14px 0 0; color: #8aa0c2; font-size: .8rem; text-align: center; }
   </style>
 </head>
@@ -99,6 +130,21 @@
   </nav>
   <main class="wrap">
     <h1>Как включить</h1>
+
+    <h2>Сделать всё за меня</h2>
+    <p class="hint">Вставь ссылку из чата. Ключ и правила поставятся сами. Приложение уже должно быть установлено.</p>
+    <div class="card">
+      <p><b>Incy</b></p>
+      <input class="key" id="incy-key" autocomplete="off" spellcheck="false" placeholder="Ссылка из чата">
+      <button class="btn" type="button" id="incy-go">Поставить в Incy</button>
+      <p class="hint" id="incy-st"></p>
+    </div>
+    <div class="card">
+      <p><b>Happ</b></p>
+      <input class="key" id="happ-key" autocomplete="off" spellcheck="false" placeholder="Ссылка из чата">
+      <button class="btn alt" type="button" id="happ-go">Поставить в Happ</button>
+      <p class="hint" id="happ-st"></p>
+    </div>
 
     <h2>iPhone</h2>
     <div class="card">
@@ -149,5 +195,59 @@
 
     <p class="foot">info.sarafan.uk</p>
   </main>
+  <script>
+    function arm(app, inputId, buttonId, statusId) {
+      const input = document.getElementById(inputId);
+      const button = document.getElementById(buttonId);
+      const status = document.getElementById(statusId);
+      button.addEventListener("click", async function () {
+        const url = (input.value || "").trim();
+        status.className = "hint";
+        if (!url) {
+          status.className = "hint err";
+          status.textContent = "Сначала вставь ссылку.";
+          return;
+        }
+        button.disabled = true;
+        status.textContent = "Открываю приложение…";
+        try {
+          const r = await fetch("/wrap", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ app: app, url: url })
+          });
+          const data = await r.json();
+          if (!r.ok || !data.open) {
+            status.className = "hint err";
+            status.textContent = (data && data.error) || "Не получилось. Проверь ссылку.";
+            return;
+          }
+          if (!/^(happ|incy):/.test(data.open)) {
+            status.className = "hint err";
+            status.textContent = "Не получилось. Проверь ссылку.";
+            return;
+          }
+          status.textContent = "Если приложение не открылось, нажми кнопку ниже.";
+          let link = document.getElementById(statusId + "-open");
+          if (!link) {
+            link = document.createElement("a");
+            link.id = statusId + "-open";
+            link.className = "btn";
+            status.insertAdjacentElement("afterend", link);
+          }
+          link.href = data.open;
+          link.textContent = app === "incy" ? "Открыть Incy" : "Открыть Happ";
+          window.location.href = data.open;
+        } catch (e) {
+          status.className = "hint err";
+          status.textContent = "Не получилось. Проверь ссылку.";
+        } finally {
+          button.disabled = false;
+        }
+      });
+    }
+    arm("incy", "incy-key", "incy-go", "incy-st");
+    arm("happ", "happ-key", "happ-go", "happ-st");
+  </script>
 </body>
 </html>
