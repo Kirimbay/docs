@@ -123,7 +123,7 @@
   </nav>
   <main class="wrap">
     <h1>Сделать всё за меня</h1>
-    <p class="hint">В подписку попадает именно ссылка из чата. В Happ правила приходят вместе с ней и включаются у этой подписки, а не в общем списке маршрутов. Если подписка уже стоит, нажми «Добавить и включить правила»: откроется та же ссылка, Happ обновит её и включит правила. В Incy вторая кнопка ставит правила отдельно и сразу включает их. Приложение уже должно быть установлено, оно на вкладке «Инструкция».</p>
+    <p class="hint">Сначала поставь подписку: в приложение попадёт именно ссылка из чата. Потом нажми «Добавить и включить правила»: профиль добавится к этой подписке и сразу включится. Ссылку это не меняет. Одно нажатие делает одно действие. Приложение уже должно быть установлено, оно на вкладке «Инструкция».</p>
     <div class="card">
       <p><b>Incy</b></p>
       <input class="key" id="incy-key" autocomplete="off" spellcheck="false" placeholder="Ссылка из чата">
@@ -147,7 +147,7 @@
       const rules = document.getElementById(rulesId);
       const status = document.getElementById(statusId);
       const buttons = [sub, rules];
-      async function go(kind, waitText) {
+      async function go(kind) {
         const url = (input.value || "").trim();
         status.className = "hint";
         if (kind === "sub" && !url) {
@@ -156,7 +156,7 @@
           return;
         }
         buttons.forEach(function (button) { button.disabled = true; });
-        status.textContent = waitText || (kind === "rules" ? "Открываю правила…" : "Открываю подписку…");
+        status.textContent = kind === "rules" ? "Открываю правила…" : "Открываю подписку…";
         try {
           const r = await fetch("/wrap", {
             method: "POST",
@@ -191,10 +191,7 @@
         }
       }
       sub.addEventListener("click", function () { go("sub"); });
-      rules.addEventListener("click", function () {
-        if (app === "happ") go("sub", "Обновляю подписку и включаю правила…");
-        else go("rules");
-      });
+      rules.addEventListener("click", function () { go("rules"); });
     }
     arm("incy", "incy-key", "incy-go", "incy-rules", "incy-st");
     arm("happ", "happ-key", "happ-go", "happ-rules", "happ-st");

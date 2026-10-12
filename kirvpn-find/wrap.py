@@ -2,10 +2,9 @@
 """Open the pasted subscription link in Happ or Incy unchanged.
 
 kind=sub returns only the subscription deeplink. The app stores that
-exact address. Incy kind=rules returns only the routing profile.
-Happ binds rules from the subscription response itself, so a Happ
-rules request is refused instead of opening the global profile.
-One response never contains both links.
+exact address. kind=rules returns only the routing profile, which the
+app adds and turns on for the open subscription. One response never
+contains both, so one tap cannot open both.
 Older /s/<token> copies stay available so a subscription added before
 this change can still refresh.
 """
@@ -480,12 +479,6 @@ class Handler(BaseHTTPRequestHandler):
             return
         if kind not in {"sub", "rules"}:
             self._json(400, {"ok": False, "error": "Не получилось открыть приложение."})
-            return
-        if kind == "rules" and app == "happ":
-            self._json(400, {
-                "ok": False,
-                "error": "В Happ правила включаются вместе с подпиской. Нажми «Поставить подписку».",
-            })
             return
         if kind == "rules":
             with _lock:
