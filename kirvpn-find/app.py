@@ -840,8 +840,10 @@ def render_info_html(text: str) -> str:
       letter-spacing: .12em;
       text-transform: uppercase;
       color: #8aa0c2;
-      margin: 0 0 18px;
+      margin: 0;
+      padding: 8px 16px calc(14px + env(safe-area-inset-bottom));
       font-weight: 700;
+      text-align: center;
     }}
     .msg {{
       margin: 0;
@@ -859,9 +861,9 @@ def render_info_html(text: str) -> str:
     <a href="/auto.html">Сделать всё<br>за меня</a>
   </nav>
   <main>
-    <p class="brand">KirVPN · info.sarafan.uk</p>
     <p class="msg">{body}</p>
   </main>
+  <p class="brand">KirVPN · info.sarafan.uk</p>
 </body>
 </html>
 """
