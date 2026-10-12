@@ -795,7 +795,7 @@ def render_info_html(text: str) -> str:
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
-      width: min(920px, 100%);
+      width: min(440px, 100%);
       margin: 0 auto;
       padding: 12px 16px 0;
       background: #0b1220;
@@ -806,9 +806,12 @@ def render_info_html(text: str) -> str:
       justify-content: center;
       min-height: 48px;
       min-width: 0;
+      padding: 8px 10px;
       border-radius: 12px;
       text-decoration: none;
-      font-weight: 800;
+      font-weight: 700;
+      font-size: 1rem;
+      line-height: 1.2;
       color: #c5d4ea;
       background: #121b2e;
       border: 1px solid #24324d;
@@ -820,7 +823,7 @@ def render_info_html(text: str) -> str:
     }}
     main {{
       flex: 1;
-      width: min(920px, 100%);
+      width: min(440px, 100%);
       margin: 0 auto;
       text-align: center;
       display: flex;
