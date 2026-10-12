@@ -847,7 +847,7 @@ def render_info_html(text: str) -> str:
     }}
     .msg {{
       margin: 0;
-      font-size: 1.125rem;
+      font-size: 1.4625rem;
       font-weight: 600;
       line-height: 1.45;
       overflow-wrap: anywhere;
