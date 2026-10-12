@@ -934,15 +934,14 @@ $worker = {
 
         $rootName = ConvertTo-SafeSegment ([string]$disk.Name)
         if ($makeRootFolder) {
-            $outRoot = [System.IO.Path]::GetFullPath((Join-Path $destRoot $rootName))
+            $fullName = $rootName + " original"
+            $smallName = $rootName + " small"
         } else {
-            $outRoot = [System.IO.Path]::GetFullPath($destRoot)
+            $fullName = "original"
+            $smallName = "small"
         }
-        if ($makeRootFolder) {
-            $previewRoot = [System.IO.Path]::GetFullPath((Join-Path $destRoot ($rootName + " — превью")))
-        } else {
-            $previewRoot = [System.IO.Path]::GetFullPath((Join-Path $destRoot "превью"))
-        }
+        $outRoot = [System.IO.Path]::GetFullPath((Join-Path $destRoot $fullName))
+        $previewRoot = [System.IO.Path]::GetFullPath((Join-Path $destRoot $smallName))
         [void][System.IO.Directory]::CreateDirectory($outRoot)
         [void][System.IO.Directory]::CreateDirectory($previewRoot)
         Write-Log ("Файлов: {0}" -f $files.Count)
@@ -961,8 +960,9 @@ $worker = {
             [void]$queue.Add([pscustomobject]@{ File = $file; Index = $listed })
         }
         $sync.FinishedCount = 0
+        $left = New-Object System.Collections.Generic.List[object]
         $round = 1
-        while ($queue.Count -gt 0) {
+        while ($queue.Count -gt 0 -and $round -le 2) {
             Assert-Continue
             $left = New-Object System.Collections.Generic.List[object]
             if ($round -gt 1) {
@@ -1039,14 +1039,29 @@ $worker = {
                 }
             }
             if ($left.Count -eq 0) { break }
+            if ($round -ge 2) {
+                Write-Log "Два круга пройдены. Дальше не повторяю."
+                break
+            }
             $queue = $left
             $round++
         }
 
+        $missing = New-Object System.Collections.Generic.List[string]
+        foreach ($entry in $left) {
+            $file = $entry.File
+            $relative = Get-SafeRelative ([string]$file.path) ([string]$file.name)
+            [void]$missing.Add($relative)
+            Write-Log ("Не скачалось: {0}" -f $relative)
+        }
         $sync.SavedCount = $saved
-        $sync.FailedCount = 0
+        $sync.FailedCount = $missing.Count
         $sync.FinishedCount = $saved + $skipped
-        $sync.Status = "Готово. Новых: $saved. Уже было: $skipped."
+        if ($missing.Count -eq 0) {
+            $sync.Status = "Готово. Новых: $saved. Уже было: $skipped."
+        } else {
+            $sync.Status = "Готово. Новых: $saved. Уже было: $skipped. Не скачались: $($missing.Count)."
+        }
         Write-Log $sync.Status
         Write-Log ("Полные файлы: " + $outRoot)
         Write-Log ("Превью: " + $previewRoot)
@@ -1125,7 +1140,7 @@ $title.Anchor = "Top, Left, Right"
 $form.Controls.Add($title)
 
 $hint = New-Object System.Windows.Forms.Label
-$hint.Text = "Полные файлы и превью сохраняются в две разные папки, с теми же вложенными папками. Если секунду нет данных, программа переходит к следующему и повторяет недокачанные по кругу."
+$hint.Text = "Папка «имя original» — большие файлы, «имя small» — превью. Секунда без данных — следующий файл, всего два круга."
 $hint.ForeColor = $colorMuted
 $hint.AutoSize = $false
 $hint.Location = New-Object System.Drawing.Point(18, 48)
@@ -1169,7 +1184,7 @@ $browse.BackColor = [System.Drawing.Color]::White
 $form.Controls.Add($browse)
 
 $makeRoot = New-Object System.Windows.Forms.CheckBox
-$makeRoot.Text = "Создать папку с именем диска"
+$makeRoot.Text = "Добавить имя диска к папкам original и small"
 $makeRoot.Checked = $true
 $makeRoot.AutoSize = $true
 $makeRoot.Location = New-Object System.Drawing.Point(18, 220)
