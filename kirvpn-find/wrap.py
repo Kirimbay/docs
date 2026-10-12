@@ -28,7 +28,6 @@ RULES_PATH = os.environ.get(
 PUBLIC_BASE = os.environ.get("KIRVPN_WRAP_BASE", "https://info.sarafan.uk")
 HAPP_RULES_URL = "https://tinyurl.com/j3w6rkr8"
 INCY_RULES_URL = "https://tinyurl.com/mv7kfcvu"
-HAPP_CRYPT = "https://crypto.happ.su/api-v2.php"
 MAX_BODY = 512 * 1024
 FETCH_TIMEOUT = 12
 
@@ -319,21 +318,59 @@ def save_token(kind, app, payload):
     return token
 
 
+def _b64decode(compact):
+    if len(compact) < 16:
+        return None
+    pad = compact + b"=" * ((4 - len(compact) % 4) % 4)
+    for fn in (base64.b64decode, base64.urlsafe_b64decode):
+        try:
+            return fn(pad)
+        except Exception:
+            continue
+    return None
+
+
+def _sub_kind(data):
+    sample = data.lstrip()[:1]
+    if sample in (b"{", b"["):
+        return "json"
+    for raw_line in data.splitlines():
+        line = raw_line.strip().lower()
+        if not line:
+            continue
+        if line.startswith((
+            b"vless://", b"vmess://", b"trojan://", b"ss://",
+            b"hysteria2://", b"hy2://", b"happ://", b"socks://", b"#",
+        )):
+            return "links"
+        return ""
+    return ""
+
+
+def attach_routing(body, routing):
+    """Keep the key text intact and add the Happ routing profile beside it."""
+    line = routing.strip().encode("utf-8")
+    if not line or line in body:
+        return body
+    compact = b"".join(body.split())
+    kind = _sub_kind(body)
+    decoded = None if kind else _b64decode(compact)
+    decoded_kind = _sub_kind(decoded) if decoded else ""
+    if decoded_kind == "json" or kind == "json":
+        return body
+    target = decoded if decoded_kind == "links" else body
+    if line in target:
+        return body
+    if target and not target.endswith(b"\n"):
+        target += b"\n"
+    merged = line + b"\n" + target
+    if decoded_kind == "links":
+        return base64.b64encode(merged)
+    return merged
+
+
 def happ_open(page_url):
-    raw = json.dumps({"url": page_url}).encode()
-    req = urllib.request.Request(
-        HAPP_CRYPT, data=raw, headers={"Content-Type": "application/json"}
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            data = json.loads(resp.read().decode("utf-8", "replace"))
-        link = str(data.get("encrypted_link") or "")
-        if link.startswith("happ://"):
-            return link
-    except (OSError, ValueError, json.JSONDecodeError):
-        pass
-    packed = base64.urlsafe_b64encode(page_url.encode()).decode().rstrip("=")
-    return "happ://add/" + packed
+    return "happ://add/" + page_url
 
 
 def incy_open(page_url):
@@ -406,6 +443,8 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             self._json(502, {"ok": False, "error": "Ключ сейчас не открывается."})
             return
+        if app == "happ":
+            body = attach_routing(body, routing)
         extra["routing"] = routing
         self._send(200, body, extra, "text/plain; charset=utf-8")
 

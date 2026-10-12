@@ -29,6 +29,7 @@ ANNOUNCE_DIR = os.path.join(ROOT, "announce.d")
 INFO_HTML_PATH = os.path.join(ROOT, "info.html")
 INFO_TEXT_PATH = os.path.join(ROOT, "info.txt")
 INFO_GUIDE_PATH = os.path.join(ROOT, "info-guide.html")
+INFO_AUTO_PATH = os.path.join(ROOT, "info-auto.html")
 INFO_WWW_DIR = "/var/www/info.sarafan.uk"
 INFO_PAGES = ("index.html", "go.html", "add-us.html")
 TRAFFIC_HTML_PATH = os.path.join(ROOT, "traffic.html")
@@ -793,7 +794,7 @@ def render_info_html(text: str) -> str:
       top: 0;
       z-index: 2;
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 8px;
       width: min(440px, 100%);
       margin: 0 auto;
@@ -806,12 +807,14 @@ def render_info_html(text: str) -> str:
       justify-content: center;
       min-height: 48px;
       min-width: 0;
-      padding: 8px 10px;
+      padding: 8px 6px;
       border-radius: 12px;
       text-decoration: none;
       font-weight: 700;
-      font-size: 1rem;
-      line-height: 1.2;
+      font-size: 0.875rem;
+      line-height: 1.15;
+      text-align: center;
+      overflow-wrap: anywhere;
       color: #c5d4ea;
       background: #121b2e;
       border: 1px solid #24324d;
@@ -853,6 +856,7 @@ def render_info_html(text: str) -> str:
   <nav class="site-tabs">
     <a class="on" href="/">Информация</a>
     <a href="/guide.html">Инструкция</a>
+    <a href="/auto.html">Сделать всё<br>за меня</a>
   </nav>
   <main>
     <p class="brand">KirVPN · info.sarafan.uk</p>
@@ -863,17 +867,22 @@ def render_info_html(text: str) -> str:
 """
 
 
-def publish_guide():
-    if not os.path.isfile(INFO_GUIDE_PATH):
+def _publish_static(src: str, name: str):
+    if not os.path.isfile(src):
         return
-    with open(INFO_GUIDE_PATH, encoding="utf-8") as f:
-        guide = f.read()
+    with open(src, encoding="utf-8") as f:
+        data = f.read()
     os.makedirs(INFO_WWW_DIR, exist_ok=True)
-    path = os.path.join(INFO_WWW_DIR, "guide.html")
+    path = os.path.join(INFO_WWW_DIR, name)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        f.write(guide)
+        f.write(data)
     os.replace(tmp, path)
+
+
+def publish_guide():
+    _publish_static(INFO_GUIDE_PATH, "guide.html")
+    _publish_static(INFO_AUTO_PATH, "auto.html")
 
 
 def save_info(text: str):
