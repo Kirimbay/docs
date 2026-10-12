@@ -839,10 +839,9 @@ def render_info_html(text: str) -> str:
     }}
     .msg {{
       margin: 0;
-      font-size: clamp(2.1rem, 7vw, 4.4rem);
-      font-weight: 800;
-      line-height: 1.18;
-      letter-spacing: -0.02em;
+      font-size: 1.125rem;
+      font-weight: 600;
+      line-height: 1.45;
       overflow-wrap: anywhere;
     }}
   </style>
