@@ -780,6 +780,7 @@ def render_info_html(text: str) -> str:
   <style>
     :root {{ color-scheme: dark; }}
     * {{ box-sizing: border-box; }}
+    html {{ overflow-y: scroll; scrollbar-gutter: stable; }}
     html, body {{ margin: 0; max-width: 100%; overflow-x: hidden; }}
     body {{
       min-height: 100vh;
@@ -794,35 +795,43 @@ def render_info_html(text: str) -> str:
       top: 0;
       z-index: 2;
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      align-content: end;
       gap: 8px;
       width: min(440px, 100%);
+      height: 62px;
       margin: 0 auto;
       padding: 12px 16px 0;
       background: #0b1220;
+      flex: 0 0 auto;
+      align-self: center;
     }}
     .site-tabs a {{
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 48px;
+      width: 100%;
+      height: 50px;
+      min-height: 50px;
+      max-height: 50px;
       min-width: 0;
-      padding: 8px 6px;
+      margin: 0;
+      padding: 6px;
       border-radius: 12px;
       text-decoration: none;
       font-weight: 700;
       font-size: 0.875rem;
       line-height: 1.15;
       text-align: center;
-      overflow-wrap: anywhere;
+      overflow: hidden;
       color: #c5d4ea;
       background: #121b2e;
       border: 1px solid #24324d;
     }}
     .site-tabs a.on {{
-      color: #fff;
-      background: #146c36;
-      border-color: #146c36;
+      color: #d5deec;
+      background: #1c2738;
+      border-color: #5c6b82;
     }}
     main {{
       flex: 1;
