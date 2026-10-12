@@ -13,6 +13,7 @@ import shutil
 import ssl
 import subprocess
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -49,6 +50,13 @@ def rule_text() -> str:
         raise SystemExit("routing file is not usable")
     if len(link) < 40 or len(link) > 20000:
         raise SystemExit("routing file is not usable")
+    # The panel process is not root. It has to walk the directory and read this file.
+    RULE_FILE.parent.chmod(0o755)
+    try:
+        shutil.chown(RULE_FILE, user="hiddify-panel", group="hiddify-panel")
+        RULE_FILE.chmod(0o600)
+    except (LookupError, PermissionError, OSError):
+        RULE_FILE.chmod(0o644)
     return link
 
 
@@ -125,15 +133,31 @@ def verify(link: str) -> None:
     url = "https://127.0.0.1/%s/%s/" % (path, user)
     ctx = ssl._create_unverified_context()
 
+    class _Stop(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPSHandler(context=ctx), _Stop
+    )
+
     def fetch(ua: str):
         req = urllib.request.Request(url, headers={"User-Agent": ua, "Host": host})
-        with urllib.request.urlopen(req, context=ctx, timeout=20) as resp:
-            body = resp.read()
-            headers = {k.lower(): v for k, v in resp.headers.items()}
-            return resp.status, headers, body
+        try:
+            resp = opener.open(req, timeout=20)
+        except urllib.error.HTTPError as exc:
+            resp = exc
+        body = resp.read()
+        headers = {k.lower(): v for k, v in resp.headers.items()}
+        return resp.status, headers, body
 
     status, headers, body = fetch("Happ/1.51.0")
     routing = headers.get("routing") or ""
+    if routing != link:
+        names = ",".join(sorted(k for k in headers if "rout" in k or k.startswith("profile") or k.startswith("sub")))
+        raise SystemExit("routing-%s-status-%s-len-%s-names-%s" % (
+            "missing" if not routing else "diff", status, len(routing), names or "-"
+        ))
     other_status, other_headers, _other_body = fetch("Mozilla/5.0")
     sample = body[:1200].lstrip().lower()
     if status != 200 or other_status != 200 or not body:
