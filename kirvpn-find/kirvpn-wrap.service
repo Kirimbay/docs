@@ -1,5 +1,6 @@
 [Unit]
 Description=KirVPN subscription wrap (key plus routing)
+# The HTTPS site proxies /wrap and /s/ to 127.0.0.1:18770. Not the port-80 redirect.
 After=network-online.target
 
 [Service]
