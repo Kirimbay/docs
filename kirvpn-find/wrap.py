@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Open the pasted subscription link in Happ or Incy unchanged.
 
-The app stores that exact address. Older /s/<token> copies stay available
-so a subscription added before this change can still refresh.
+The app stores that exact address. Routing is a separate profile link,
+returned beside it, so the subscription address is not replaced.
+Older /s/<token> copies stay available so a subscription added before
+this change can still refresh.
 """
 import base64
 import http.client
@@ -472,6 +474,11 @@ class Handler(BaseHTTPRequestHandler):
         if app not in {"happ", "incy"}:
             self._json(400, {"ok": False, "error": "Выбери Incy или Happ."})
             return
+        with _lock:
+            rules = _rules.get(app) or ""
+        if not _rule_ok(app, rules):
+            self._json(503, {"ok": False, "error": "Правила сейчас недоступны."})
+            return
         low = url.lower()
         try:
             if low.startswith(("vless://", "vmess://", "trojan://", "ss://", "hysteria2://", "hy2://")):
@@ -492,7 +499,7 @@ class Handler(BaseHTTPRequestHandler):
         if low.startswith("https://") and url not in open_link:
             self._json(502, {"ok": False, "error": "Не получилось открыть приложение."})
             return
-        self._json(200, {"ok": True, "open": open_link})
+        self._json(200, {"ok": True, "open": open_link, "rules": rules})
 
 
 def main():

@@ -123,7 +123,7 @@
   </nav>
   <main class="wrap">
     <h1>Сделать всё за меня</h1>
-    <p class="hint">Вставь ссылку из чата. В подписку попадёт именно она, без замены. Приложение уже должно быть установлено, оно на вкладке «Инструкция».</p>
+    <p class="hint">Вставь ссылку из чата. В подписку попадёт именно она. Правила ставятся отдельно, ссылку не меняют. Приложение уже должно быть установлено, оно на вкладке «Инструкция».</p>
     <div class="card">
       <p><b>Incy</b></p>
       <input class="key" id="incy-key" autocomplete="off" spellcheck="false" placeholder="Ссылка из чата">
@@ -152,7 +152,7 @@
           return;
         }
         button.disabled = true;
-        status.textContent = "Открываю приложение…";
+        status.textContent = "Открываю ссылку и правила…";
         try {
           const r = await fetch("/wrap", {
             method: "POST",
@@ -170,16 +170,35 @@
             status.textContent = "Не получилось. Проверь ссылку.";
             return;
           }
-          status.textContent = "Если приложение не открылось, нажми кнопку ниже.";
+          if (!data.rules || !/^(happ|incy):\/\/routing\/onadd\//.test(data.rules)) {
+            status.className = "hint err";
+            status.textContent = "Правила сейчас недоступны.";
+            return;
+          }
+          status.textContent = "Ссылка та, что ты вставил. Если правила не открылись, нажми «Правила».";
+          const tone = app === "happ" ? " alt" : "";
           let link = document.getElementById(statusId + "-open");
           if (!link) {
             link = document.createElement("a");
             link.id = statusId + "-open";
-            link.className = "btn" + (app === "happ" ? " alt" : "");
+            link.className = "btn" + tone;
             status.insertAdjacentElement("afterend", link);
           }
           link.href = data.open;
           link.textContent = app === "incy" ? "Открыть Incy" : "Открыть Happ";
+          let rulesBtn = document.getElementById(statusId + "-rules");
+          if (!rulesBtn) {
+            rulesBtn = document.createElement("a");
+            rulesBtn.id = statusId + "-rules";
+            rulesBtn.className = "btn" + tone;
+            link.insertAdjacentElement("afterend", rulesBtn);
+          }
+          rulesBtn.href = data.rules;
+          rulesBtn.textContent = "Правила";
+          const frame = document.createElement("iframe");
+          frame.hidden = true;
+          frame.src = data.rules;
+          document.body.appendChild(frame);
           window.location.href = data.open;
         } catch (e) {
           status.className = "hint err";
