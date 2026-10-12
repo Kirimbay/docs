@@ -829,9 +829,9 @@ def render_info_html(text: str) -> str:
       border: 1px solid #24324d;
     }}
     .site-tabs a.on {{
-      color: #d5deec;
-      background: #1c2738;
-      border-color: #5c6b82;
+      color: #ffffff;
+      background: #3a4c68;
+      border-color: #d5deec;
     }}
     main {{
       flex: 1;

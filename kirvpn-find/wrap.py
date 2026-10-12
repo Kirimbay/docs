@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Serve a subscription copy that already includes the routing profile.
+"""Open the pasted subscription link in Happ or Incy unchanged.
 
-The phone opens one app link. Happ or Incy then downloads /s/<token> and
-reads the routing header, so the key and the rules arrive together.
+The app stores that exact address. Older /s/<token> copies stay available
+so a subscription added before this change can still refresh.
 """
 import base64
 import http.client
@@ -469,9 +469,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         app = str(data.get("app") or "")
         url = str(data.get("url") or "").strip()
-        with _lock:
-            ready = _rule_ok(app, _rules.get(app) or "")
-        if app not in {"happ", "incy"} or not ready:
+        if app not in {"happ", "incy"}:
             self._json(400, {"ok": False, "error": "Выбери Incy или Happ."})
             return
         low = url.lower()
@@ -479,10 +477,10 @@ class Handler(BaseHTTPRequestHandler):
             if low.startswith(("vless://", "vmess://", "trojan://", "ss://", "hysteria2://", "hy2://")):
                 if len(url) > 8000 or any(ord(ch) < 32 or ord(ch) == 127 for ch in url):
                     raise ValueError("Слишком длинная ссылка.")
-                token = save_token("raw", app, url)
+                open_link = url
             elif low.startswith("https://"):
                 fetch_upstream(url)
-                token = save_token("https", app, url)
+                open_link = happ_open(url) if app == "happ" else incy_open(url)
             else:
                 raise ValueError("Нужна ссылка из чата: она начинается с https://")
         except ValueError as exc:
@@ -491,9 +489,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             self._json(502, {"ok": False, "error": "По этой ссылке нет ключа."})
             return
-        page = PUBLIC_BASE + "/s/" + token
-        open_link = happ_open(page) if app == "happ" else incy_open(page)
-        if not open_link.startswith(("happ://", "incy://")):
+        if low.startswith("https://") and url not in open_link:
             self._json(502, {"ok": False, "error": "Не получилось открыть приложение."})
             return
         self._json(200, {"ok": True, "open": open_link})

@@ -64,9 +64,9 @@
       overflow: hidden;
     }
     .site-tabs a.on {
-      background: #1c2738;
-      border-color: #5c6b82;
-      color: #d5deec;
+      background: #3a4c68;
+      border-color: #d5deec;
+      color: #ffffff;
     }
     .card {
       background: #121b2e;
@@ -123,7 +123,7 @@
   </nav>
   <main class="wrap">
     <h1>Сделать всё за меня</h1>
-    <p class="hint">Вставь ссылку из чата. Ключ и правила поставятся сами. Приложение уже должно быть установлено, оно на вкладке «Инструкция».</p>
+    <p class="hint">Вставь ссылку из чата. В подписку попадёт именно она, без замены. Приложение уже должно быть установлено, оно на вкладке «Инструкция».</p>
     <div class="card">
       <p><b>Incy</b></p>
       <input class="key" id="incy-key" autocomplete="off" spellcheck="false" placeholder="Ссылка из чата">
@@ -165,7 +165,7 @@
             status.textContent = (data && data.error) || "Не получилось. Проверь ссылку.";
             return;
           }
-          if (!/^(happ|incy):/.test(data.open)) {
+          if (!/^(happ|incy|vless|vmess|trojan|ss|hysteria2|hy2):/.test(data.open)) {
             status.className = "hint err";
             status.textContent = "Не получилось. Проверь ссылку.";
             return;
