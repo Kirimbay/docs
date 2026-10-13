@@ -98,6 +98,18 @@
     }
     a.btn.alt, button.btn.alt { background: #0b3f86; }
     button.btn:disabled { opacity: .6; cursor: default; }
+    input.key {
+      width: 100%;
+      min-height: 48px;
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #24324d;
+      background: #0b1220;
+      color: #e8eefc;
+      font: inherit;
+      font-size: 16px;
+    }
     .hint { margin: 8px 0 0; color: #9bb0d0; font-size: 0.92rem; }
     .hint.err { color: #f0a8a8; }
     .foot { margin: 14px 0 0; color: #8aa0c2; font-size: .8rem; text-align: center; }
@@ -111,15 +123,17 @@
   </nav>
   <main class="wrap">
     <h1>Сделать всё за меня</h1>
-    <p class="hint">Скопируй ссылку в чате и нажми «Поставить подписку». В приложение попадёт именно эта ссылка. Правила — отдельная кнопка. Одно нажатие делает одно действие. Приложение уже должно быть установлено, оно на вкладке «Инструкция».</p>
+    <p class="hint">Сначала поставь подписку: в приложение попадёт именно ссылка из чата. Потом нажми «Добавить и включить правила»: профиль добавится к этой подписке и сразу включится. Ссылку это не меняет. Одно нажатие делает одно действие. Приложение уже должно быть установлено, оно на вкладке «Инструкция».</p>
     <div class="card">
       <p><b>Incy</b></p>
+      <input class="key" id="incy-key" autocomplete="off" spellcheck="false" placeholder="Ссылка из чата">
       <button class="btn" type="button" id="incy-go">Поставить подписку</button>
       <button class="btn" type="button" id="incy-rules">Добавить и включить правила</button>
       <p class="hint" id="incy-st"></p>
     </div>
     <div class="card">
       <p><b>Happ</b></p>
+      <input class="key" id="happ-key" autocomplete="off" spellcheck="false" placeholder="Ссылка из чата">
       <button class="btn alt" type="button" id="happ-go">Поставить подписку</button>
       <button class="btn alt" type="button" id="happ-rules">Добавить и включить правила</button>
       <p class="hint" id="happ-st"></p>
@@ -127,37 +141,19 @@
     <p class="foot">info.sarafan.uk</p>
   </main>
   <script>
-    function extractLink(text) {
-      const raw = String(text || "").replace(/\u00a0/g, " ").trim();
-      if (!raw) return "";
-      const first = raw.split(/[\r\n]+/).map(function (line) { return line.trim(); }).filter(Boolean)[0] || "";
-      if (/^(vless|vmess|trojan|ss|hysteria2|hy2):\/\//i.test(first)) return first.split(/\s+/)[0];
-      const https = raw.match(/https:\/\/[^\s<>"'`]+/i);
-      return https ? https[0].replace(/[)\]».,;]+$/g, "") : "";
-    }
-    function arm(app, subId, rulesId, statusId) {
+    function arm(app, inputId, subId, rulesId, statusId) {
+      const input = document.getElementById(inputId);
       const sub = document.getElementById(subId);
       const rules = document.getElementById(rulesId);
       const status = document.getElementById(statusId);
       const buttons = [sub, rules];
-      async function go(kind, clip) {
-        let url = "";
+      async function go(kind) {
+        const url = (input.value || "").trim();
         status.className = "hint";
-        if (kind === "sub") {
-          let text = "";
-          try {
-            text = await clip;
-          } catch (e) {
-            status.className = "hint err";
-            status.textContent = "Не удалось прочитать буфер. Скопируй ссылку из чата и нажми ещё раз.";
-            return;
-          }
-          url = extractLink(text);
-          if (!url) {
-            status.className = "hint err";
-            status.textContent = "В буфере нет ссылки. Скопируй её в чате и нажми ещё раз.";
-            return;
-          }
+        if (kind === "sub" && !url) {
+          status.className = "hint err";
+          status.textContent = "Сначала вставь ссылку.";
+          return;
         }
         buttons.forEach(function (button) { button.disabled = true; });
         status.textContent = kind === "rules" ? "Открываю правила…" : "Открываю подписку…";
@@ -194,16 +190,11 @@
           buttons.forEach(function (button) { button.disabled = false; });
         }
       }
-      sub.addEventListener("click", function () {
-        const clip = (navigator.clipboard && navigator.clipboard.readText)
-          ? navigator.clipboard.readText()
-          : Promise.reject(new Error("clipboard"));
-        go("sub", clip);
-      });
+      sub.addEventListener("click", function () { go("sub"); });
       rules.addEventListener("click", function () { go("rules"); });
     }
-    arm("incy", "incy-go", "incy-rules", "incy-st");
-    arm("happ", "happ-go", "happ-rules", "happ-st");
+    arm("incy", "incy-key", "incy-go", "incy-rules", "incy-st");
+    arm("happ", "happ-key", "happ-go", "happ-rules", "happ-st");
   </script>
 </body>
 </html>
