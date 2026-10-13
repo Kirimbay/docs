@@ -13,7 +13,7 @@ param(
 )
 
 # Shown at the top of the window. Change this number whenever the file is updated.
-$script:AppVersion = "1.5"
+$script:AppVersion = "1.6"
 
 $script:selfTest = -not [string]::IsNullOrWhiteSpace($SelfTestUrl)
 
@@ -30,6 +30,8 @@ public class YandexFullsizeWin32 {
     public static extern bool SetProcessDPIAware();
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
+    [DllImport("user32.dll", EntryPoint = "SendMessage")]
+    public static extern IntPtr SendMessageInt(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 }
 "@
         [YandexFullsizeWin32]::SetProcessDPIAware() | Out-Null
@@ -1083,6 +1085,8 @@ $worker = {
     } finally {
         $sync.Request = $null
         $sync.PartFile = ""
+        $sync.PartGot = [int64]0
+        $sync.PartExpected = [int64]0
         $sync.Done = $true
     }
 }
@@ -1342,6 +1346,7 @@ $btnStart.Add_Click({
     $script:sync.FinishedCount = 0
     $script:sync.Messages.Clear()
     $log.Clear()
+    Set-ProgressState 1
     $bar.Value = 0
     $status.Text = "Запускаю..."
     Set-Running $true
@@ -1356,6 +1361,39 @@ $btnStart.Add_Click({
     $script:job = @{ Ps = $ps; Runspace = $rs; Handle = $handle }
 })
 
+function Set-ProgressState([int]$state) {
+    try {
+        # 0x410 is PBM_SETSTATE. 1 runs, 3 pauses and stops the moving highlight.
+        [YandexFullsizeWin32]::SendMessageInt($bar.Handle, 0x410, [IntPtr]$state, [IntPtr]::Zero) | Out-Null
+    } catch {
+    }
+}
+
+function Set-ProgressValue([int]$value) {
+    if ($bar.Maximum -ne 1000) {
+        $bar.Value = 0
+        $bar.Maximum = 1000
+    }
+    if ($value -lt 0) { $value = 0 }
+    if ($value -gt 1000) { $value = 1000 }
+    # Assigning the same value again restarts the Windows slide animation.
+    if ($bar.Value -eq $value) { return }
+    $bar.Value = $value
+}
+
+function Set-ProgressFull {
+    if ($bar.Maximum -ne 1000) {
+        $bar.Value = 0
+        $bar.Maximum = 1000
+    }
+    Set-ProgressState 1
+    # A themed bar animates toward the value and stops short unless the
+    # value is nudged back and forth in the same tick.
+    $bar.Value = 1000
+    $bar.Value = 999
+    $bar.Value = 1000
+}
+
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 200
 $timer.Add_Tick({
@@ -1368,25 +1406,27 @@ $timer.Add_Tick({
     } catch {
     }
     $status.Text = [string]$script:sync.Status
-    $total = [int]$script:sync.Total
-    if ($total -gt 0) {
-        $done = [int]$script:sync.FinishedCount
-        $frac = 0.0
-        $need = [int64]$script:sync.PartExpected
-        $got = [int64]$script:sync.PartGot
-        if ($need -gt 0 -and $got -gt 0 -and $got -lt $need) {
-            $frac = [double]$got / [double]$need
+    $finishedNow = $script:sync.Done -and $script:job -and $script:job.Handle.IsCompleted
+    if ($script:job -and -not $finishedNow) {
+        $total = [int]$script:sync.Total
+        if ($total -gt 0) {
+            $done = [int]$script:sync.FinishedCount
+            $frac = 0.0
+            $need = [int64]$script:sync.PartExpected
+            $got = [int64]$script:sync.PartGot
+            if ($need -gt 0 -and $got -gt 0 -and $got -lt $need) {
+                $frac = [double]$got / [double]$need
+            }
+            $overall = [int]((($done + $frac) * 1000) / $total)
+            Set-ProgressValue $overall
         }
-        $overall = [int]((($done + $frac) * 1000) / $total)
-        if ($overall -lt 0) { $overall = 0 }
-        if ($overall -gt 1000) { $overall = 1000 }
-        if ($bar.Maximum -ne 1000) {
-            $bar.Value = 0
-            $bar.Maximum = 1000
-        }
-        $bar.Value = $overall
     }
-    if ($script:sync.Done -and $script:job -and $script:job.Handle.IsCompleted) {
+    if ($finishedNow) {
+        if ($script:sync.Cancel) {
+            Set-ProgressState 3
+        } else {
+            Set-ProgressFull
+        }
         try { $script:job.Ps.EndInvoke($script:job.Handle) | Out-Null } catch { }
         try { $script:job.Ps.Dispose() } catch { }
         try { $script:job.Runspace.Close(); $script:job.Runspace.Dispose() } catch { }
