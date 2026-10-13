@@ -232,13 +232,13 @@
       async function go(kind) {
         const url = (input.value || "").trim();
         status.className = "hint";
+        status.textContent = "";
         if (kind === "sub" && !url) {
           status.className = "hint err";
           status.textContent = "Сначала вставь ссылку.";
           return;
         }
         buttons.forEach(function (button) { button.disabled = true; });
-        status.textContent = kind === "rules" ? "Открываю правила…" : "Открываю подписку…";
         try {
           const r = await fetch("/wrap", {
             method: "POST",
