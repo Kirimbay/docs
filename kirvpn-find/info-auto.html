@@ -141,8 +141,53 @@
     <p class="foot">info.sarafan.uk</p>
   </main>
   <script>
+    function extractLink(text) {
+      const raw = String(text || "").replace(/\u00a0/g, " ").trim();
+      if (!raw) return "";
+      const first = raw.split(/[\r\n]+/).map(function (line) { return line.trim(); }).filter(Boolean)[0] || "";
+      if (/^(vless|vmess|trojan|ss|hysteria2|hy2):\/\//i.test(first)) return first.split(/\s+/)[0];
+      const https = raw.match(/https:\/\/[^\s<>"'`]+/i);
+      return https ? https[0].replace(/[)\]».,;]+$/g, "") : "";
+    }
+    function isIos() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent)
+        || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    }
     function arm(app, inputId, subId, rulesId, statusId) {
       const input = document.getElementById(inputId);
+      let pasteWaiting = false;
+      let pasteAgainAt = 0;
+      let pasteFromTouch = false;
+      function offerPaste(event) {
+        if (!isIos() || !navigator.clipboard || !navigator.clipboard.readText) return;
+        if (Date.now() < pasteAgainAt) return;
+        const clip = navigator.clipboard.readText();
+        pasteWaiting = true;
+        if (event.cancelable) event.preventDefault();
+        clip.then(function (text) {
+          const url = extractLink(text);
+          if (url) input.value = url;
+        }).catch(function () {
+          pasteAgainAt = Date.now() + 800;
+        }).then(function () {
+          pasteWaiting = false;
+        });
+      }
+      input.addEventListener("touchend", function (event) {
+        pasteFromTouch = true;
+        offerPaste(event);
+      }, { passive: false });
+      input.addEventListener("mousedown", function (event) {
+        if (pasteWaiting && event.cancelable) event.preventDefault();
+      });
+      input.addEventListener("click", function (event) {
+        if (pasteFromTouch) {
+          pasteFromTouch = false;
+          if (pasteWaiting && event.cancelable) event.preventDefault();
+          return;
+        }
+        offerPaste(event);
+      });
       const sub = document.getElementById(subId);
       const rules = document.getElementById(rulesId);
       const status = document.getElementById(statusId);
