@@ -12,6 +12,9 @@ param(
     [int]$SelfTestLimit = 0
 )
 
+# Shown at the top of the window. Change this number whenever the file is updated.
+$script:AppVersion = "1.5"
+
 $script:selfTest = -not [string]::IsNullOrWhiteSpace($SelfTestUrl)
 
 if (-not $script:selfTest) {
@@ -1122,10 +1125,10 @@ $colorMuted = [System.Drawing.Color]::FromArgb(90, 90, 90)
 $colorGreen = [System.Drawing.Color]::FromArgb(31, 107, 58)
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Яндекс Диск — полные файлы"
+$form.Text = "Яндекс Диск — полные файлы — версия $script:AppVersion"
 $form.StartPosition = "CenterScreen"
 $form.ClientSize = New-Object System.Drawing.Size(680, 520)
-$form.MinimumSize = New-Object System.Drawing.Size(560, 440)
+$form.MinimumSize = New-Object System.Drawing.Size(720, 480)
 $form.BackColor = $colorBg
 $form.ForeColor = $colorText
 $form.Font = New-Object System.Drawing.Font("Segoe UI", 10)
@@ -1135,9 +1138,20 @@ $title.Text = "Полные файлы с Яндекс Диска"
 $title.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
 $title.AutoSize = $false
 $title.Location = New-Object System.Drawing.Point(18, 14)
-$title.Size = New-Object System.Drawing.Size(644, 32)
-$title.Anchor = "Top, Left, Right"
+$title.Size = New-Object System.Drawing.Size(450, 32)
+$title.Anchor = "Top, Left"
 $form.Controls.Add($title)
+
+$versionLabel = New-Object System.Windows.Forms.Label
+$versionLabel.Text = "версия $script:AppVersion"
+$versionLabel.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$versionLabel.ForeColor = $colorGreen
+$versionLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
+$versionLabel.AutoSize = $false
+$versionLabel.Location = New-Object System.Drawing.Point(486, 14)
+$versionLabel.Size = New-Object System.Drawing.Size(176, 32)
+$versionLabel.Anchor = "Top, Right"
+$form.Controls.Add($versionLabel)
 
 $hint = New-Object System.Windows.Forms.Label
 $hint.Text = "Папка «имя original» — большие файлы, «имя small» — превью. Секунда без данных — следующий файл, всего два круга."
