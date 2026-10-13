@@ -98,11 +98,12 @@
     }
     a.btn.alt, button.btn.alt { background: #0b3f86; }
     button.btn:disabled { opacity: .6; cursor: default; }
+    .field { position: relative; margin-top: 8px; }
     input.key {
       width: 100%;
       min-height: 48px;
-      margin-top: 8px;
-      padding: 10px 12px;
+      margin-top: 0;
+      padding: 10px 44px 10px 12px;
       border-radius: 12px;
       border: 1px solid #24324d;
       background: #0b1220;
@@ -110,6 +111,24 @@
       font: inherit;
       font-size: 16px;
     }
+    button.clear {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 44px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: #9bb0d0;
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    button.clear[hidden] { display: none; }
     .hint { margin: 8px 0 0; color: #9bb0d0; font-size: 0.92rem; }
     .hint.err { color: #f0a8a8; }
     .foot { margin: 14px 0 0; color: #8aa0c2; font-size: .8rem; text-align: center; }
@@ -126,14 +145,20 @@
     <p class="hint">Сначала поставь подписку: в приложение попадёт именно ссылка из чата. Потом нажми «Добавить и включить правила»: профиль добавится к этой подписке и сразу включится. Ссылку это не меняет. Одно нажатие делает одно действие. Приложение уже должно быть установлено, оно на вкладке «Инструкция».</p>
     <div class="card">
       <p><b>Incy</b></p>
-      <input class="key" id="incy-key" autocomplete="off" spellcheck="false" placeholder="Ссылка из чата">
+      <div class="field">
+        <input class="key" id="incy-key" autocomplete="off" spellcheck="false" placeholder="Ссылка из чата">
+        <button class="clear" type="button" id="incy-clear" hidden aria-label="Стереть">×</button>
+      </div>
       <button class="btn" type="button" id="incy-go">Поставить подписку</button>
       <button class="btn" type="button" id="incy-rules">Добавить и включить правила</button>
       <p class="hint" id="incy-st"></p>
     </div>
     <div class="card">
       <p><b>Happ</b></p>
-      <input class="key" id="happ-key" autocomplete="off" spellcheck="false" placeholder="Ссылка из чата">
+      <div class="field">
+        <input class="key" id="happ-key" autocomplete="off" spellcheck="false" placeholder="Ссылка из чата">
+        <button class="clear" type="button" id="happ-clear" hidden aria-label="Стереть">×</button>
+      </div>
       <button class="btn alt" type="button" id="happ-go">Поставить подписку</button>
       <button class="btn alt" type="button" id="happ-rules">Добавить и включить правила</button>
       <p class="hint" id="happ-st"></p>
@@ -155,6 +180,17 @@
     }
     function arm(app, inputId, subId, rulesId, statusId) {
       const input = document.getElementById(inputId);
+      const clear = document.getElementById(inputId.replace("-key", "-clear"));
+      function syncClear() {
+        clear.hidden = !(input.value || "").length;
+      }
+      input.addEventListener("input", syncClear);
+      clear.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        input.value = "";
+        syncClear();
+      });
       let pasteWaiting = false;
       let pasteAgainAt = 0;
       let pasteFromTouch = false;
@@ -167,6 +203,7 @@
         clip.then(function (text) {
           const url = extractLink(text);
           if (url) input.value = url;
+          syncClear();
         }).catch(function () {
           pasteAgainAt = Date.now() + 800;
         }).then(function () {
