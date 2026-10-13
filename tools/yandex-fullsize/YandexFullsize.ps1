@@ -13,7 +13,7 @@ param(
 )
 
 # Shown at the top of the window. Change this number whenever the file is updated.
-$script:AppVersion = "1.6"
+$script:AppVersion = "1.7"
 
 $script:selfTest = -not [string]::IsNullOrWhiteSpace($SelfTestUrl)
 
@@ -115,6 +115,9 @@ $worker = {
     $state = @{
         Sk = ""
         Origin = ""
+        PageUrl = ""
+        PublicKey = ""
+        CurlUrl = ""
         Cookies = (New-Object System.Net.CookieContainer)
     }
 
@@ -354,6 +357,21 @@ $worker = {
         }
     }
 
+    function Get-EffectiveUrl([string]$headerFile, [string]$startUrl) {
+        $current = $startUrl
+        if (-not [System.IO.File]::Exists($headerFile)) { return $current }
+        $text = [System.IO.File]::ReadAllText($headerFile)
+        foreach ($match in [regex]::Matches($text, '(?im)^Location:\s*(\S+)')) {
+            $loc = $match.Groups[1].Value.Trim()
+            if ($loc -match '^https?://') {
+                $current = $loc
+            } else {
+                try { $current = (New-Object System.Uri([Uri]$current, $loc)).AbsoluteUri } catch { }
+            }
+        }
+        return $current
+    }
+
     function Invoke-CurlToFile([string]$Url, [string]$OutFile, [int]$MaxSeconds) {
         $headerFile = [System.IO.Path]::GetTempFileName()
         $errFile = [System.IO.Path]::GetTempFileName()
@@ -375,6 +393,7 @@ $worker = {
         )
         try {
             $exitCode = Invoke-CurlProcess $lines
+            $state.CurlUrl = Get-EffectiveUrl $headerFile $Url
             $httpCode = Get-LastHttpCode $headerFile
             if ($exitCode -ne 0 -and $httpCode -eq 0) {
                 $errText = ""
@@ -457,7 +476,7 @@ $worker = {
             $encodedValue = [uri]::EscapeDataString($text)
             [void]$pairs.Add("$encodedKey=$encodedValue")
         }
-        $url = "https://cloud-api.yandex.net/v1/disk/public/$endpoint?" + ($pairs -join "&")
+        $url = "https://cloud-api.yandex.net/v1/disk/public/${endpoint}?" + ($pairs -join "&")
         $lastError = $null
         for ($try = 1; $try -le 3; $try++) {
             Assert-Continue
@@ -600,8 +619,10 @@ $worker = {
         }
         if (-not [string]::IsNullOrWhiteSpace($diskPath)) {
             try {
+                $key = $publicUrl
+                if (-not [string]::IsNullOrWhiteSpace($state.PublicKey)) { $key = $state.PublicKey }
                 $meta = Invoke-Yandex "resources/download" @{
-                    public_key = $publicUrl
+                    public_key = $key
                     path = $diskPath
                 }
                 if ($meta.href) { return [string]$meta.href }
@@ -771,7 +792,10 @@ $worker = {
             $request.ReadWriteTimeout = 45000
             $sync.Request = $request
             $response = $request.GetResponse()
-            if ($response.ResponseUri) { $state.Origin = Get-SiteOrigin ([string]$response.ResponseUri.AbsoluteUri) }
+            if ($response.ResponseUri) {
+                $state.PageUrl = [string]$response.ResponseUri.AbsoluteUri
+                $state.Origin = Get-SiteOrigin $state.PageUrl
+            }
             $reader = New-Object System.IO.StreamReader($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
             try { return $reader.ReadToEnd() } finally { $reader.Close() }
         } catch {
@@ -784,7 +808,9 @@ $worker = {
         try {
             $code = Invoke-CurlToFile $pageUrl $temp 60
             if ($code -lt 200 -or $code -ge 300) { throw ("Страница диска ответила кодом " + $code) }
-            if ([string]::IsNullOrWhiteSpace($state.Origin)) { $state.Origin = Get-SiteOrigin $pageUrl }
+            if ($state.CurlUrl) { $state.PageUrl = [string]$state.CurlUrl }
+            if ([string]::IsNullOrWhiteSpace($state.PageUrl)) { $state.PageUrl = $pageUrl }
+            if ([string]::IsNullOrWhiteSpace($state.Origin)) { $state.Origin = Get-SiteOrigin $state.PageUrl }
             return [System.IO.File]::ReadAllText($temp, [System.Text.Encoding]::UTF8)
         } finally {
             if ([System.IO.File]::Exists($temp)) {
@@ -817,29 +843,50 @@ $worker = {
         }
         if (-not $root) { throw "По ссылке нет списка файлов." }
 
+        $pageUrl = [string]$state.PageUrl
+        if ([string]::IsNullOrWhiteSpace($pageUrl)) { $pageUrl = $url }
+        $linkParts = Split-PublicPage $pageUrl
+        $state.PublicKey = [string]$linkParts.Key
+        $opened = [string]$linkParts.Opened
+
         $files = New-Object System.Collections.Generic.List[object]
         $seenFiles = @{}
         $seenDirs = @{}
-        function Add-ListedFile($node, [string]$dirPrefix) {
-            $name = [string]$node.name
-            $relative = $dirPrefix + $name
-            if ($seenFiles.ContainsKey($relative)) { return }
-            $seenFiles[$relative] = $true
-            $href = ""
-            $hash = ""
-            $size = [int64]0
-            if ($node.path) { $hash = [string]$node.path }
-            $preview = ""
-            if ($node.meta) {
-                if ($node.meta.original) { $href = [string]$node.meta.original }
-                if ($node.meta.size) { $size = [int64]$node.meta.size }
-                if ($node.meta.xxxlPreview) { $preview = [string]$node.meta.xxxlPreview }
-                elseif ($node.meta.lPreview) { $preview = [string]$node.meta.lPreview }
-                elseif ($node.meta.defaultPreview) { $preview = [string]$node.meta.defaultPreview }
+        function Join-Relative([string]$left, [string]$right) {
+            $parts = New-Object System.Collections.Generic.List[string]
+            foreach ($chunk in @($left, $right)) {
+                if ([string]::IsNullOrWhiteSpace($chunk)) { continue }
+                [void]$parts.Add($chunk.Trim("/"))
             }
+            return ($parts -join "/")
+        }
+        function Get-PathAfterHash([string]$nodePath) {
+            $path = $nodePath.Replace("\", "/").Trim()
+            $colon = $path.IndexOf(":/")
+            if ($colon -ge 0) { return $path.Substring($colon + 2).Trim("/") }
+            return $path.Trim("/")
+        }
+        function Get-LocalRelative([string]$diskPath) {
+            $path = Get-PathAfterHash $diskPath
+            $prefix = $opened.Trim("/")
+            if (-not [string]::IsNullOrWhiteSpace($prefix)) {
+                if ($path.Equals($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { return "" }
+                $head = $prefix + "/"
+                if ($path.StartsWith($head, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    return $path.Substring($head.Length)
+                }
+            }
+            return $path
+        }
+        function Add-FileRecord([string]$name, [string]$localRelative, [string]$diskPath, [string]$hash, [string]$href, [string]$preview, [int64]$size) {
+            $localRelative = $localRelative.Trim("/")
+            if ([string]::IsNullOrWhiteSpace($localRelative)) { $localRelative = $name }
+            if ($seenFiles.ContainsKey($localRelative)) { return }
+            $seenFiles[$localRelative] = $true
             [void]$files.Add([pscustomobject]@{
                 name = $name
-                path = ("/" + $relative)
+                path = ("/" + $localRelative)
+                diskPath = $diskPath
                 size = $size
                 href = $href
                 hash = $hash
@@ -847,39 +894,80 @@ $worker = {
             })
             $sync.Status = "Нашёл файлов: $($files.Count)"
         }
-        function Walk-Dir($node, [string]$dirPrefix) {
-            Assert-Continue
+        function Get-ApiPreview($item) {
+            if ($item.sizes) {
+                foreach ($wanted in @("XXXL", "XXL", "XL", "L", "DEFAULT")) {
+                    foreach ($size in @($item.sizes)) {
+                        if ([string]$size.name -eq $wanted -and $size.url) { return [string]$size.url }
+                    }
+                }
+            }
+            if ($item.preview) { return [string]$item.preview }
+            return ""
+        }
+        function Test-DirLoaded($node) {
             $kids = @()
             if ($node.children) { $kids = @($node.children) }
-            if ($kids.Count -eq 0 -and $node.parent) {
-                Import-ApiFolder ($dirPrefix.TrimEnd("/"))
+            if ($kids.Count -eq 0) { return $false }
+            foreach ($id in $kids) {
+                if (-not $map.ContainsKey([string]$id)) { return $false }
+            }
+            $completedProp = $node.PSObject.Properties["completed"]
+            if ($completedProp -and $node.completed -eq $false) { return $false }
+            return $true
+        }
+        function Walk-Dir($node, [string]$dirPrefix) {
+            Assert-Continue
+            if ($node.type -eq "file") {
+                $local = Join-Relative $dirPrefix ([string]$node.name)
+                $diskPath = "/" + (Join-Relative $opened $local)
+                $href = ""
+                $preview = ""
+                $size = [int64]0
+                if ($node.meta) {
+                    if ($node.meta.original) { $href = [string]$node.meta.original }
+                    if ($node.meta.size) { $size = [int64]$node.meta.size }
+                    if ($node.meta.xxxlPreview) { $preview = [string]$node.meta.xxxlPreview }
+                    elseif ($node.meta.lPreview) { $preview = [string]$node.meta.lPreview }
+                    elseif ($node.meta.defaultPreview) { $preview = [string]$node.meta.defaultPreview }
+                }
+                Add-FileRecord ([string]$node.name) $local $diskPath ([string]$node.path) $href $preview $size
                 return
             }
+            if (-not (Test-DirLoaded $node)) {
+                try {
+                    Import-ApiFolder (Join-Relative $opened $dirPrefix)
+                    return
+                } catch {
+                    if ($_.Exception.Message -eq "CANCELLED" -or $sync.Cancel) { throw "CANCELLED" }
+                    Write-Log ("Папка не открылась целиком: " + (Join-Relative $opened $dirPrefix) + " — " + $_.Exception.Message)
+                }
+            }
+            $kids = @()
+            if ($node.children) { $kids = @($node.children) }
             foreach ($id in $kids) {
                 $key = [string]$id
-                if (-not $map.ContainsKey($key)) {
-                    Import-ApiFolder ($dirPrefix.TrimEnd("/"))
-                    return
-                }
+                if (-not $map.ContainsKey($key)) { continue }
                 $child = $map[$key]
                 if ($child.type -eq "dir") {
-                    Walk-Dir $child ($dirPrefix + [string]$child.name + "/")
+                    Walk-Dir $child (Join-Relative $dirPrefix ([string]$child.name))
                 } elseif ($child.type -eq "file") {
-                    Add-ListedFile $child $dirPrefix
+                    Walk-Dir $child $dirPrefix
                 }
             }
         }
-        function Import-ApiFolder([string]$folderPath) {
+        function Import-ApiFolder([string]$diskRelative) {
             $apiPath = "/"
-            if (-not [string]::IsNullOrWhiteSpace($folderPath)) { $apiPath = "/" + $folderPath.Trim("/") }
+            if (-not [string]::IsNullOrWhiteSpace($diskRelative)) { $apiPath = "/" + $diskRelative.Trim("/") }
             if ($seenDirs.ContainsKey($apiPath)) { return }
             $seenDirs[$apiPath] = $true
+            Write-Log ("Папка: " + $apiPath)
             $offset = 0
             do {
                 Assert-Continue
-                $sync.Status = "Дочитываю папку $apiPath..."
+                $sync.Status = "Читаю папку $apiPath..."
                 $page = Invoke-Yandex "resources" @{
-                    public_key = $url
+                    public_key = $state.PublicKey
                     path = $apiPath
                     limit = 100
                     offset = $offset
@@ -893,18 +981,14 @@ $worker = {
                     if ($item.type -eq "dir") {
                         Import-ApiFolder ([string]$item.path).TrimStart("/")
                     } elseif ($item.type -eq "file") {
-                        $filePath = [string]$item.path
-                        if ($filePath.StartsWith("/")) { $filePath = $filePath.Substring(1) }
-                        if ($seenFiles.ContainsKey($filePath)) { continue }
-                        $seenFiles[$filePath] = $true
-                        [void]$files.Add([pscustomobject]@{
-                            name = [string]$item.name
-                            path = ("/" + $filePath)
-                            size = $(if ($item.size) { [int64]$item.size } else { [int64]0 })
-                            href = ""
-                            hash = ""
-                            preview = ""
-                        })
+                        $diskPath = [string]$item.path
+                        if ([string]::IsNullOrWhiteSpace($diskPath)) { $diskPath = $apiPath.TrimEnd("/") + "/" + [string]$item.name }
+                        $local = Get-LocalRelative $diskPath
+                        $href = ""
+                        if ($item.file) { $href = [string]$item.file }
+                        $size = [int64]0
+                        if ($item.size) { $size = [int64]$item.size }
+                        Add-FileRecord ([string]$item.name) $local $diskPath "" $href (Get-ApiPreview $item) $size
                     }
                 }
                 if ($batch.Count -eq 0) { break }
@@ -912,14 +996,48 @@ $worker = {
             } while ($offset -lt $total)
         }
 
-        if ($root.type -eq "file") {
-            Add-ListedFile $root ""
-        } else {
-            Walk-Dir $root ""
+        $start = $null
+        if (-not [string]::IsNullOrWhiteSpace($opened)) {
+            foreach ($prop in $resources.PSObject.Properties) {
+                $item = $prop.Value
+                if ($item.type -ne "dir") { continue }
+                $rel = Get-PathAfterHash ([string]$item.path)
+                if ($rel.Equals($opened, [System.StringComparison]::OrdinalIgnoreCase)) { $start = $item; break }
+            }
         }
-        $diskName = [string]$root.name
+        if (-not $start) { $start = $root }
+        if ($start.type -eq "file") {
+            Walk-Dir $start ""
+        } elseif (-not [string]::IsNullOrWhiteSpace($opened) -and $start -eq $root -and -not (Get-PathAfterHash ([string]$root.path)).Equals($opened, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Import-ApiFolder $opened
+        } else {
+            Walk-Dir $start ""
+        }
+        $diskName = [string]$start.name
+        if (-not [string]::IsNullOrWhiteSpace($opened)) {
+            $openedParts = @($opened -split "/" | Where-Object { $_ })
+            if ($openedParts.Count -gt 0) { $diskName = [string]$openedParts[$openedParts.Count - 1] }
+            if ($start -and $start.name -and $start -ne $root) { $diskName = [string]$start.name }
+        }
         if ([string]::IsNullOrWhiteSpace($diskName)) { $diskName = "Яндекс Диск" }
         return @{ Name = $diskName; Files = $files }
+    }
+
+    function Split-PublicPage([string]$pageUrl) {
+        $fallback = @{ Key = $pageUrl; Opened = "" }
+        $uri = $null
+        try { $uri = [Uri]$pageUrl } catch { return $fallback }
+        $parts = @($uri.AbsolutePath.Trim("/") -split "/" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        if ($parts.Count -lt 2) { return $fallback }
+        if (@("d", "i", "a") -notcontains $parts[0]) { return $fallback }
+        $origin = $uri.Scheme + "://" + $uri.Host
+        if (-not $uri.IsDefaultPort) { $origin += ":" + $uri.Port }
+        $opened = ""
+        if ($parts.Count -gt 2) {
+            $decoded = foreach ($part in $parts[2..($parts.Count - 1)]) { [Uri]::UnescapeDataString([string]$part) }
+            $opened = $decoded -join "/"
+        }
+        return @{ Key = ($origin + "/" + $parts[0] + "/" + $parts[1]); Opened = $opened }
     }
 
     $saved = 0
@@ -1026,7 +1144,9 @@ $worker = {
                 if (-not $fullReady) {
                     Write-Log ("Скачиваю {0}/{1}: {2}" -f $index, $files.Count, $relative)
                     try {
-                        $size = Save-FullFile ([string]$file.hash) ([string]$file.path) ([string]$file.href) $dest $expected
+                        $diskPath = [string]$file.path
+                        if ($file.diskPath) { $diskPath = [string]$file.diskPath }
+                        $size = Save-FullFile ([string]$file.hash) $diskPath ([string]$file.href) $dest $expected
                         $sync.PartGot = $size
                         Write-Log ("Готово: {0} ({1})" -f $relative, (Format-ByteCount $size))
                     } catch {
@@ -1158,7 +1278,7 @@ $versionLabel.Anchor = "Top, Right"
 $form.Controls.Add($versionLabel)
 
 $hint = New-Object System.Windows.Forms.Label
-$hint.Text = "Папка «имя original» — большие файлы, «имя small» — превью. Секунда без данных — следующий файл, всего два круга."
+$hint.Text = "Папки «имя original» и «имя small» повторяют все вложенные папки ссылки. Секунда без данных — следующий файл, всего два круга."
 $hint.ForeColor = $colorMuted
 $hint.AutoSize = $false
 $hint.Location = New-Object System.Drawing.Point(18, 48)
