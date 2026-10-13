@@ -13,7 +13,7 @@ param(
 )
 
 # Shown at the top of the window. Change this number whenever the file is updated.
-$script:AppVersion = "1.7"
+$script:AppVersion = "1.8"
 
 $script:selfTest = -not [string]::IsNullOrWhiteSpace($SelfTestUrl)
 
@@ -108,7 +108,7 @@ function Add-LogLine([string]$text) {
 }
 
 $worker = {
-    param($sync, $publicUrl, $destRoot, $makeRootFolder, $fileLimit)
+    param($sync, $publicUrl, $destRoot, $fileLimit)
 
     $ErrorActionPreference = "Stop"
     $userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
@@ -1056,13 +1056,8 @@ $worker = {
         }
 
         $rootName = ConvertTo-SafeSegment ([string]$disk.Name)
-        if ($makeRootFolder) {
-            $fullName = $rootName + " original"
-            $smallName = $rootName + " small"
-        } else {
-            $fullName = "original"
-            $smallName = "small"
-        }
+        $fullName = $rootName + " original"
+        $smallName = $rootName + " small"
         $outRoot = [System.IO.Path]::GetFullPath((Join-Path $destRoot $fullName))
         $previewRoot = [System.IO.Path]::GetFullPath((Join-Path $destRoot $smallName))
         [void][System.IO.Directory]::CreateDirectory($outRoot)
@@ -1215,7 +1210,7 @@ if ($script:selfTest) {
     if ([string]::IsNullOrWhiteSpace($SelfTestDest)) { throw "Нужна папка -SelfTestDest" }
     $script:sync.Cancel = $false
     $script:sync.Done = $false
-    & $worker $script:sync $SelfTestUrl $SelfTestDest $true $SelfTestLimit
+    & $worker $script:sync $SelfTestUrl $SelfTestDest $SelfTestLimit
     foreach ($line in @($script:sync.Messages)) { Write-Output $line }
     Write-Output ("RESULT saved={0} failed={1}" -f $script:sync.SavedCount, $script:sync.FailedCount)
     if ([int]$script:sync.SavedCount -lt 1 -or [int]$script:sync.FailedCount -gt 0) { exit 1 }
@@ -1233,11 +1228,11 @@ function Read-Settings {
     }
 }
 
-function Write-Settings([string]$url, [string]$folder, [bool]$makeRoot) {
+function Write-Settings([string]$url, [string]$folder) {
     try {
         $dir = Join-Path $env:APPDATA "YandexFullsize"
         [void][System.IO.Directory]::CreateDirectory($dir)
-        $json = (@{ url = $url; folder = $folder; makeRoot = $makeRoot } | ConvertTo-Json -Compress)
+        $json = (@{ url = $url; folder = $folder } | ConvertTo-Json -Compress)
         [System.IO.File]::WriteAllText((Join-Path $dir "settings.json"), $json, [System.Text.Encoding]::UTF8)
     } catch {
     }
@@ -1321,16 +1316,9 @@ $browse.FlatStyle = "Flat"
 $browse.BackColor = [System.Drawing.Color]::White
 $form.Controls.Add($browse)
 
-$makeRoot = New-Object System.Windows.Forms.CheckBox
-$makeRoot.Text = "Добавить имя диска к папкам original и small"
-$makeRoot.Checked = $true
-$makeRoot.AutoSize = $true
-$makeRoot.Location = New-Object System.Drawing.Point(18, 220)
-$form.Controls.Add($makeRoot)
-
 $btnStart = New-Object System.Windows.Forms.Button
 $btnStart.Text = "Скачать"
-$btnStart.Location = New-Object System.Drawing.Point(18, 252)
+$btnStart.Location = New-Object System.Drawing.Point(18, 220)
 $btnStart.Size = New-Object System.Drawing.Size(150, 36)
 $btnStart.FlatStyle = "Flat"
 $btnStart.FlatAppearance.BorderSize = 0
@@ -1341,7 +1329,7 @@ $form.Controls.Add($btnStart)
 
 $btnStop = New-Object System.Windows.Forms.Button
 $btnStop.Text = "Стоп"
-$btnStop.Location = New-Object System.Drawing.Point(178, 252)
+$btnStop.Location = New-Object System.Drawing.Point(178, 220)
 $btnStop.Size = New-Object System.Drawing.Size(110, 36)
 $btnStop.FlatStyle = "Flat"
 $btnStop.Enabled = $false
@@ -1349,7 +1337,7 @@ $btnStop.BackColor = [System.Drawing.Color]::White
 $form.Controls.Add($btnStop)
 
 $bar = New-Object System.Windows.Forms.ProgressBar
-$bar.Location = New-Object System.Drawing.Point(18, 302)
+$bar.Location = New-Object System.Drawing.Point(18, 270)
 $bar.Size = New-Object System.Drawing.Size(644, 16)
 $bar.Anchor = "Top, Left, Right"
 $bar.Minimum = 0
@@ -1362,7 +1350,7 @@ $status = New-Object System.Windows.Forms.Label
 $status.Text = $script:sync.Status
 $status.ForeColor = $colorMuted
 $status.AutoSize = $false
-$status.Location = New-Object System.Drawing.Point(18, 324)
+$status.Location = New-Object System.Drawing.Point(18, 292)
 $status.Size = New-Object System.Drawing.Size(644, 22)
 $status.Anchor = "Top, Left, Right"
 $form.Controls.Add($status)
@@ -1373,8 +1361,8 @@ $log.ReadOnly = $true
 $log.ScrollBars = "Vertical"
 $log.WordWrap = $true
 $log.BackColor = [System.Drawing.Color]::White
-$log.Location = New-Object System.Drawing.Point(18, 352)
-$log.Size = New-Object System.Drawing.Size(644, 150)
+$log.Location = New-Object System.Drawing.Point(18, 320)
+$log.Size = New-Object System.Drawing.Size(644, 182)
 $log.Anchor = "Top, Bottom, Left, Right"
 $log.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $form.Controls.Add($log)
@@ -1388,7 +1376,6 @@ if ($saved) {
     if ($saved.folder -and [System.IO.Directory]::Exists([string]$saved.folder)) {
         $destBox.Text = [string]$saved.folder
     }
-    if ($null -ne $saved.makeRoot) { $makeRoot.Checked = [bool]$saved.makeRoot }
 }
 
 $form.Add_Shown({
@@ -1414,7 +1401,6 @@ function Set-Running([bool]$running) {
     $urlBox.Enabled = -not $running
     $destBox.Enabled = -not $running
     $browse.Enabled = -not $running
-    $makeRoot.Enabled = -not $running
 }
 
 $btnStop.Add_Click({
@@ -1453,7 +1439,7 @@ $btnStart.Add_Click({
         return
     }
 
-    Write-Settings $url $folder $makeRoot.Checked
+    Write-Settings $url $folder
     $script:sync.Cancel = $false
     $script:sync.Done = $false
     $script:sync.Current = 0
@@ -1476,7 +1462,7 @@ $btnStart.Add_Click({
     $rs.Open()
     $ps = [powershell]::Create()
     $ps.Runspace = $rs
-    [void]$ps.AddScript($worker).AddArgument($script:sync).AddArgument($url).AddArgument($folder).AddArgument([bool]$makeRoot.Checked).AddArgument(0)
+    [void]$ps.AddScript($worker).AddArgument($script:sync).AddArgument($url).AddArgument($folder).AddArgument(0)
     $handle = $ps.BeginInvoke()
     $script:job = @{ Ps = $ps; Runspace = $rs; Handle = $handle }
 })
