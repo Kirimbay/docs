@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Инструкция по VPN</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #12141a;
+      --card: #1c2030;
+      --text: #f2f4f8;
+      --muted: #b7c0d0;
+      --line: #2e3548;
+      --happ: #6d5efc;
+      --incy: #2f6fed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 18px/1.45 system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    main { max-width: 980px; margin: 0 auto; padding: 28px 16px 48px; }
+    h1 { font-size: 28px; margin: 0 0 12px; }
+    h2 { font-size: 22px; margin: 0 0 14px; }
+    .note { color: var(--muted); margin: 0 0 22px; }
+    .sides {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+    }
+    .happ { border-color: #4c43b0; }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 52px;
+      padding: 12px 22px;
+      border-radius: 12px;
+      color: white;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .btn-incy { background: var(--incy); }
+    .btn-happ { background: var(--happ); }
+    ol { margin: 14px 0 0; padding-left: 22px; }
+    li + li { margin-top: 8px; }
+    a { color: #c9c2ff; }
+    .rules {
+      margin-top: 14px;
+    }
+    .rules p { margin: 0 0 8px; }
+    .qr {
+      margin: 16px 0 0;
+      text-align: center;
+    }
+    .qr img {
+      width: min(100%, 240px);
+      height: auto;
+      background: white;
+      border-radius: 12px;
+    }
+    .qr figcaption {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    @media (max-width: 800px) {
+      .sides { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Инструкция по VPN</h1>
+    <p class="note">Белые списки не обходит. Страна только Швеция. Один ключ на одно устройство.</p>
+
+    <div class="sides">
+      <section class="card">
+        <h2>iPhone</h2>
+        <a class="btn btn-incy" href="https://apps.apple.com/tr/app/incy/id6756943388">Incy</a>
+        <ol>
+          <li>В переписке долго нажмите на ключ и выберите «Скопировать».</li>
+          <li>Откройте Incy, вкладка «Подключение», кнопка «Вставить».</li>
+          <li>Нажмите круглую кнопку вверху. Если iPhone спросит разрешение, нажмите «Разрешить».</li>
+          <li>Правила Incy: откройте <a href="https://incy.routing.help/">incy.routing.help</a>, нажмите «Разрешить», затем выключите VPN и включите снова.</li>
+        </ol>
+      </section>
+
+      <section class="card happ">
+        <h2>Android, Huawei, Windows</h2>
+        <a class="btn btn-happ" href="https://happ.info">Happ</a>
+        <div class="rules">
+          <p>Правила только для Happ. Они нужны, чтобы не переключать VPN вручную.</p>
+          <ol>
+            <li>Скачайте Happ по кнопке выше. В переписке скопируйте ключ. В Happ нажмите «+», затем «Вставить из буфера обмена».</li>
+            <li>Если в списке есть звери, нажмите последнее животное и круглую кнопку подключения.</li>
+            <li>Откройте <a href="https://routing.help">routing.help</a> или отсканируйте код ниже в Happ. Нажмите «Разрешить». Happ добавит профиль RoscomVPN.</li>
+            <li>Справа от имени нажмите три точки, затем «Маршрутизация». Снова три точки, «Копировать из», затем RoscomVPN.</li>
+            <li>Выключите VPN и включите снова.</li>
+          </ol>
+        </div>
+        <figure class="qr">
+          <img src="images/happ-roscomvpn-qr.png" alt="QR правил RoscomVPN для Happ">
+          <figcaption>Правила RoscomVPN. Сканируйте этот код в Happ.</figcaption>
+        </figure>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
