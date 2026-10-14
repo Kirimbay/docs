@@ -867,7 +867,7 @@ def render_info_html(text: str) -> str:
   <nav class="site-tabs">
     <a class="on" href="/">Информация</a>
     <a href="/guide.html">Инструкция</a>
-    <a href="/auto.html">Сделать всё<br>за меня</a>
+    <a href="/auto.html">Правила</a>
   </nav>
   <main>
     <p class="msg">{body}</p>
