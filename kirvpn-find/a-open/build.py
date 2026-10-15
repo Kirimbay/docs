@@ -21,28 +21,17 @@ def data_uri(name: str) -> str:
 
 
 def key_script(mapping: str) -> str:
-    # Desktop Happ 4.5.4 stores the whole happ://add/ string in the subscription
-    # field. The plain https address is what must be saved, so Windows copies it.
-    # Phones keep one unencoded happ://add/ navigation.
+    # Phones open one unencoded happ://add/ link. Desktop Happ 4.5.4 stores that
+    # whole string in the subscription field, so Windows opens a .happ file whose
+    # text is the plain https address. Happ imports the file and keeps that address.
     return (
         "(function(){var MAP=" + mapping + ";"
         "var orig=MAP[(location.hostname||\"\").toLowerCase()];if(!orig)return;"
-        "var url=\"https://\"+orig+location.pathname+location.search+location.hash;"
+        "var tail=location.pathname+location.search+location.hash;"
+        "var url=\"https://\"+orig+tail;"
         "var n=document.querySelectorAll(\"a[data-app]\");"
-        "var hint=document.getElementById(\"winhint\");"
         "var win=/Windows/i.test(navigator.userAgent||\"\");"
-        "if(win&&hint)hint.hidden=false;"
-        "if(n[0]){if(win){n[0].href=url;n[0].addEventListener(\"click\",function(e){"
-        "e.preventDefault();"
-        "var mark=function(){if(hint)hint.textContent=\"Адрес скопирован. Вставь его в Happ через «+».\";};"
-        "var legacy=function(){var t=document.createElement(\"textarea\");t.value=url;"
-        "t.setAttribute(\"readonly\",\"\");t.style.position=\"fixed\";t.style.left=\"-9999px\";"
-        "document.body.appendChild(t);t.focus();t.select();var copied=false;"
-        "try{copied=document.execCommand(\"copy\");}catch(err){copied=false;}t.remove();return copied;};"
-        "if(navigator.clipboard&&navigator.clipboard.writeText){"
-        "navigator.clipboard.writeText(url).then(mark,function(){if(legacy())mark();else if(hint)hint.textContent=url;});"
-        "}else if(legacy())mark();else if(hint)hint.textContent=url;"
-        "});}else n[0].href=\"happ://add/\"+url;}"
+        "if(n[0])n[0].href=win?(\"/key.happ?p=\"+encodeURIComponent(tail)):(\"happ://add/\"+url);"
         "if(n[1])n[1].href=\"incy://import/\"+url;})();"
     )
 
@@ -83,7 +72,6 @@ def page() -> str:
 <a class="pick" data-app href="happ://add/"><img alt="" src="{happ}"><span>Happ</span></a>
 <a class="pick" data-app href="incy://import/"><img alt="" src="{incy}"><span>Incy</span></a>
 </div>
-<p class="note" id="winhint" hidden>На компьютере эта кнопка копирует адрес. Вставь его в Happ через «+».</p>
 <script>__KEY_SCRIPT__</script>
 <!--#include virtual="/rules-snippet.html" -->
 <a class="info" href="https://info.sarafan.uk/">Информация<span>info.sarafan.uk</span></a>
@@ -127,6 +115,12 @@ server {{
         root /var/www/a-open;
     }}
 
+    location = /key.happ {{
+        access_log off;
+        proxy_pass http://127.0.0.1:18771;
+        proxy_set_header Host $host;
+    }}
+
     location / {{
         ssi on;
         ssi_silent_errors on;
@@ -143,6 +137,10 @@ def main() -> None:
         raise SystemExit("brand leaked into the page head")
     if html.count("data-app href") != 2:
         raise SystemExit("expected two subscription buttons")
+    if "clipboard" in html or "execCommand" in html or "winhint" in html:
+        raise SystemExit("windows button must open a happ file, not copy the address")
+    if "/key.happ?p=" not in html or "happ://add/" not in html:
+        raise SystemExit("missing the windows file link or the phone link")
     for name, original in MAP.items():
         if not name.startswith("a") or original != name[1:]:
             raise SystemExit("subscription host must be the name after the letter A: " + name)

@@ -1,0 +1,12 @@
+[Unit]
+Description=Happ file for the letter-A pages
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/a-open/happfile.py
+WorkingDirectory=/opt/a-open
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
