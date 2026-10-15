@@ -1,0 +1,13 @@
+id_ed25519
+id_ed25519.pub
+htpasswd
+session.key
+hostup.key
+announce.txt
+info.txt
+fleet.json
+nodes.json
+excluded-ips.txt
+announce.d/
+__pycache__/
+*.pyc

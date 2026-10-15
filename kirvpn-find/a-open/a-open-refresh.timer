@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh the letter-A rules buttons every five minutes
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=5min
+AccuracySec=15s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

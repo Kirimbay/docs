@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="format-detection" content="telephone=no, email=no, address=no, date=no">
+  <title>Трафик</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #0b1220; color: #e8eefc;
+      display: flex; justify-content: center; padding: 32px 16px;
+      -webkit-text-size-adjust: 100%;
+    }
+    a[x-apple-data-detectors],
+    u { color: inherit !important; text-decoration: none !important; }
+    main { width: min(760px, 100%); }
+    nav.tabs {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px;
+    }
+    nav.tabs a {
+      text-decoration: none; color: #9bb0d0; font-weight: 700; font-size: .92rem;
+      padding: 8px 14px; border-radius: 10px; border: 1px solid #24324d;
+      background: #121b2e;
+    }
+    nav.tabs a.on {
+      color: #fff; background: #3b82f6; border-color: #3b82f6;
+    }
+    nav.tabs a.out {
+      margin-left: auto; color: #8aa0c2; background: transparent; font-weight: 600;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    p.lead { color: #9bb0d0; margin: 0 0 18px; line-height: 1.45; }
+    button {
+      font: inherit; border-radius: 12px; border: 0;
+      padding: 10px 14px; background: #3b82f6; color: #fff;
+      font-weight: 700; cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: default; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 14px; }
+    .card {
+      display: block;
+      background: #121b2e; border: 1px solid #24324d; border-radius: 14px;
+      padding: 14px 16px; margin: 0 0 10px;
+      color: inherit; text-decoration: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+    }
+    a.card { cursor: pointer; }
+    a.card:hover, a.card:focus-visible { border-color: #3b82f6; }
+    a.card:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+    .card.warn { border-color: #b45309; }
+    .card.hot { border-color: #dc2626; }
+    .head {
+      display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    }
+    .head h2 { margin: 0; font-size: 1.05rem; color: #93c5fd; }
+    .ip { color: #9bb0d0; font-size: .88rem; }
+    .pct {
+      margin-left: auto; font-variant-numeric: tabular-nums;
+      font-weight: 800; font-size: 1.05rem;
+    }
+    .ok .pct { color: #86efac; }
+    .mid .pct { color: #fde047; }
+    .warn .pct { color: #fdba74; }
+    .hot .pct { color: #fca5a5; }
+    .bar {
+      height: 10px; border-radius: 999px; background: #0b1220;
+      overflow: hidden; margin: 10px 0 8px;
+    }
+    .bar > span {
+      display: block; height: 100%; border-radius: 999px;
+      background: #22c55e; width: 0;
+    }
+    .mid .bar > span { background: #eab308; }
+    .warn .bar > span { background: #f97316; }
+    .hot .bar > span { background: #ef4444; }
+    .nums {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      color: #9bb0d0; font-size: .9rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .nums b { color: #e8eefc; font-weight: 700; }
+    .left.warn-left b { color: #fdba74; }
+    .left.hot-left b { color: #fca5a5; }
+    .hint {
+      margin-top: 8px; color: #6b82a8; font-size: .78rem;
+    }
+    .badge {
+      font-size: .75rem; font-weight: 800; letter-spacing: .04em;
+      text-transform: uppercase; padding: 3px 8px; border-radius: 999px;
+    }
+    .badge.hot { background: #7f1d1d; color: #fecaca; }
+    .badge.warn { background: #7c2d12; color: #fed7aa; }
+    .muted { color: #9bb0d0; font-size: .9rem; }
+    .okt { color: #86efac; font-size: .9rem; }
+    .err { color: #fca5a5; }
+    .sum { margin: 0 0 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <nav class="tabs">
+      <a href="/">Поиск</a>
+      <a href="/pro">Pro поиск</a>
+      <a href="/users">Юзеры</a>
+      <a href="/testing">Тестирование</a>
+      <a href="/announce">Оповещение</a>
+      <a href="/info">Сайт</a>
+      <a class="on" href="/traffic">Трафик</a>
+      <a class="out" href="/logout">Выйти</a>
+    </nav>
+    <h1>Трафик HostUp</h1>
+    <p class="lead">Квота хостера на сервер и сколько уже съели. Сверху те, кому скоро докупать. Нажми карточку — откроется Billing этого сервера в HostUp.</p>
+    <div class="row">
+      <button type="button" id="reload">Обновить</button>
+      <span id="st" class="muted"></span>
+    </div>
+    <div id="sum" class="sum"></div>
+    <div id="out"></div>
+  </main>
+  <script>
+    const out = document.getElementById("out");
+    const st = document.getElementById("st");
+    const sum = document.getElementById("sum");
+    const btn = document.getElementById("reload");
+    const esc = (s) => String(s).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+    function setSt(cls, msg) { st.className = cls; st.textContent = msg || ""; }
+    function when(ts) {
+      if (!ts) return "";
+      const d = new Date(ts * 1000);
+      const pad = n => String(n).padStart(2, "0");
+      return pad(d.getHours()) + ":" + pad(d.getMinutes());
+    }
+    function render(d) {
+      const servers = d.servers || [];
+      const close = servers.filter(s => s.level === "hot" || s.level === "warn");
+      if (d.error && !servers.length) {
+        sum.innerHTML = "";
+        out.innerHTML = '<p class="err">' + esc(d.error) + "</p>";
+        return;
+      }
+      if (close.length) {
+        sum.innerHTML = '<p class="err">Близко к лимиту: ' +
+          close.map(s => "сервер " + esc(s.label) + " " + esc(s.pct_s)).join(", ") +
+          " — докупи у HostUp</p>";
+      } else {
+        sum.innerHTML = '<p class="okt">Пока ни у кого не жмёт. Запас есть.</p>';
+      }
+      out.innerHTML = servers.map(s => {
+        const lvl = s.level || "ok";
+        const leftCls = lvl === "hot" ? "hot-left" : (lvl === "warn" ? "warn-left" : "");
+        const badge = lvl === "hot"
+          ? '<span class="badge hot">скоро конец</span>'
+          : (lvl === "warn" ? '<span class="badge warn">близко</span>' : "");
+        const over = s.over ? '<span class="badge hot">overage</span>' : "";
+        const href = /^https:\/\/cloud\.hostup\.se\/instance\/vps_[0-9a-z]{26}\?tab=billing$/.test(s.billing_url || "")
+          ? s.billing_url
+          : "";
+        const tag = href ? "a" : "div";
+        const linkAttr = href
+          ? ' href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"'
+          : "";
+        const hint = href ? '<div class="hint">открыть Billing в HostUp</div>' : "";
+        return "<" + tag + ' class="card ' + lvl + '"' + linkAttr + '><div class="head">' +
+          "<h2>Сервер " + esc(s.label) + "</h2>" +
+          '<span class="ip">' + esc(s.ip || "") + "</span>" + badge + over +
+          '<span class="pct">' + esc(s.pct_s) + "</span></div>" +
+          '<div class="bar"><span style="width:' + Math.min(100, s.pct || 0) + '%"></span></div>' +
+          '<div class="nums"><span>съели <b>' + esc(s.used_s) + "</b></span>" +
+          "<span>лимит <b>" + esc(s.limit_s) + "</b></span>" +
+          '<span class="left ' + leftCls + '">осталось <b>' + esc(s.left_s) + "</b></span></div>" +
+          hint + "</" + tag + ">";
+      }).join("");
+      if (d.error) setSt("err", "данные старые: " + d.error);
+      else setSt("muted", "обновлено " + when(d.updated) + (d.stale ? ", кэш" : ""));
+    }
+    async function load(force) {
+      btn.disabled = true;
+      setSt("muted", "спрашиваю HostUp…");
+      try {
+        const r = await fetch("/api/traffic" + (force ? "?refresh=1" : ""), { credentials: "same-origin" });
+        if (r.status === 401) { location.href = "/login?next=/traffic"; return; }
+        const d = await r.json();
+        if (!d.ok && !(d.servers || []).length) {
+          setSt("err", d.error || "ошибка");
+          out.innerHTML = '<p class="err">' + esc(d.error || "не удалось взять трафик") + "</p>";
+          sum.innerHTML = "";
+          return;
+        }
+        render(d);
+      } catch (e) {
+        setSt("err", "не удалось запросить");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    btn.addEventListener("click", () => load(true));
+    load(false);
+    setInterval(() => load(false), 60000);
+  </script>
+</body>
+</html>

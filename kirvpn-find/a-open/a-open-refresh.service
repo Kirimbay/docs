@@ -1,0 +1,8 @@
+[Unit]
+Description=Refresh the rules buttons for the letter-A pages
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/a-open/refresh-rules.py
+Nice=10

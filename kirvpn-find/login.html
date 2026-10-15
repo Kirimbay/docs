@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Вход — find.kirvpn.us</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #0b1220; color: #e8eefc;
+      display: flex; justify-content: center; padding: 48px 16px;
+    }
+    main { width: min(420px, 100%); }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    p.lead { color: #9bb0d0; margin: 0 0 18px; line-height: 1.45; }
+    .card {
+      background: #121b2e; border: 1px solid #24324d; border-radius: 14px;
+      padding: 16px;
+    }
+    label.field { display: block; margin: 0 0 12px; }
+    label.field span { display: block; color: #9bb0d0; font-size: .88rem; margin: 0 0 6px; }
+    input[type="text"], input[type="password"] {
+      width: 100%; font: inherit; border-radius: 12px; border: 1px solid #334766;
+      padding: 12px 14px; background: #0b1220; color: #fff;
+    }
+    label.check {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 700; margin: 4px 0 14px; cursor: pointer; user-select: none;
+    }
+    label.check input { width: 18px; height: 18px; accent-color: #3b82f6; }
+    button {
+      width: 100%; font: inherit; border-radius: 12px; border: 0;
+      padding: 12px 14px; background: #3b82f6; color: #fff; font-weight: 700; cursor: pointer;
+    }
+    .err { color: #fca5a5; margin: 0 0 12px; }
+    .muted { color: #8aa0c2; font-size: .88rem; margin: 12px 0 0; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Вход</h1>
+    <p class="lead">find.kirvpn.us — только ты. Сайт info.sarafan.uk без пароля, как был.</p>
+    <form class="card" method="post" action="/login" autocomplete="on">
+      __ERROR__
+      <input type="hidden" name="next" value="__NEXT__">
+      <label class="field">
+        <span>Логин</span>
+        <input type="text" name="username" id="username" autocomplete="username" autocapitalize="off" spellcheck="false" required autofocus>
+      </label>
+      <label class="field">
+        <span>Пароль</span>
+        <input type="password" name="password" id="password" autocomplete="current-password" required>
+      </label>
+      <label class="check">
+        <input type="checkbox" name="remember" value="1" checked>
+        Запомнить на этом устройстве
+      </label>
+      <button type="submit">Войти</button>
+      <p class="muted">Safari/Chrome сохранят пароль в связку — на iPhone следующий ввод через Face ID. Пока галочка стоит, пароль не спрашивается ~полгода.</p>
+    </form>
+  </main>
+</body>
+</html>
