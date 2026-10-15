@@ -1,0 +1,27 @@
+{
+  "name": "misha-tutor",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "test": "tsx scripts/test-expr.ts",
+    "audio": "tsx scripts/dump-speeches.ts && python3 scripts/tts.py"
+  },
+  "dependencies": {
+    "@fontsource/nunito": "^5.2.7",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.4.1",
+    "puppeteer-core": "^25.14.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}
