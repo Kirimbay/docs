@@ -77,14 +77,23 @@ export function glyph(tok: Tok): string {
   return tok.v
 }
 
-function opWords(op: Op, a: number, b: number): string {
-  const word =
-    op === '+' ? 'плюс' : op === '−' ? 'минус' : op === '·' ? 'умножить на' : 'разделить на'
-  return `${say(a)} ${word} ${say(b)}`
-}
-
 function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+/** How many times, with the right Russian ending: «три раза», «пять раз». */
+function times(n: number): string {
+  const n10 = n % 10
+  const n100 = n % 100
+  const word = n10 === 1 && n100 !== 11 ? 'раз' : n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14) ? 'раза' : 'раз'
+  return `${say(n)} ${word}`
+}
+
+function picture(op: Op, a: number, b: number, value: number): string {
+  if (op === '+') return `${cap(say(a))} и ещё ${say(b)} — вместе ${say(value)}.`
+  if (op === '−') return `От ${say(a)} отнимаем ${say(b)}, как будто убрали. Останется ${say(value)}.`
+  if (op === '·') return `${cap(say(a))} взять ${times(b)}. Получится ${say(value)}.`
+  return `Смотрим, сколько раз по ${say(b)} умещается в числе ${say(a)}. ${cap(times(value))}.`
 }
 
 function findInnermost(tokens: Tok[]): { start: number; end: number } | null {
@@ -153,9 +162,9 @@ export function solve(input: string): SolveStep[] {
           after,
           from: paren.start,
           to: paren.end,
-          why: 'Скобки с одним числом можно снять.',
+          why: 'Скобки уже ничего не прячут.',
           caption: `(${value}) = ${value}`,
-          speech: `Число ${say(value)} стоит в скобках одно. Такие скобки можно убрать.`,
+          speech: `В скобках осталось одно число, ${say(value)}. Коробочка пустая, её можно снять, число не меняется.`,
         })
         tokens = after
         continue
@@ -169,9 +178,9 @@ export function solve(input: string): SolveStep[] {
         after,
         from: hit.from,
         to: hit.to,
-        why: 'Сначала считаем в скобках.',
+        why: 'Сначала коробочка — скобки.',
         caption: `${hit.a} ${hit.op} ${hit.b} = ${value}`,
-        speech: `Сначала то, что в скобках. ${cap(opWords(hit.op, hit.a, hit.b))} — получится ${say(value)}.`,
+        speech: `Скобки — это коробочка. Снаружи пока не трогаем, считаем только внутри. ${picture(hit.op, hit.a, hit.b, value)}`,
       })
       tokens = after
       continue
@@ -184,14 +193,14 @@ export function solve(input: string): SolveStep[] {
     let why: string
     let lead: string
     if (isMul(hit.op) && hasAdd) {
-      why = 'Умножение и деление раньше сложения.'
-      lead = 'Умножение и деление делаем раньше сложения и вычитания.'
+      why = 'Группы считаем раньше плюса и минуса.'
+      lead = 'Плюс и минус пока не трогаем. Умножение и деление сильнее: они про целые группы, поэтому их делают раньше.'
     } else if (isMul(hit.op)) {
-      why = 'Умножение и деление слева направо.'
-      lead = 'Умножение и деление одинаково сильные. Идём слева направо.'
+      why = 'Кто левее, тот первый.'
+      lead = 'Умножение и деление здесь одной силы. Не перескакиваем к правому знаку.'
     } else {
-      why = 'Сложение и вычитание слева направо.'
-      lead = 'Сложение и вычитание считаем по порядку, слева направо.'
+      why = 'Плюс и минус — шаги слева направо.'
+      lead = 'Группы уже посчитаны. Плюс не важнее минуса: идём слева направо.'
     }
     const after = replaceRange(tokens, hit.from, hit.to, value)
     steps.push({
@@ -201,7 +210,7 @@ export function solve(input: string): SolveStep[] {
       to: hit.to,
       why,
       caption: `${hit.a} ${hit.op} ${hit.b} = ${value}`,
-      speech: `${lead} ${cap(opWords(hit.op, hit.a, hit.b))} — получится ${say(value)}.`,
+      speech: `${lead} ${picture(hit.op, hit.a, hit.b, value)}`,
     })
     tokens = after
   }
@@ -234,9 +243,9 @@ export function readExpr(input: string): string {
 }
 
 export function exprIntro(input: string): string {
-  return `Разберём пример: ${readExpr(input)}. Смотри на знаки и иди по одному действию.`
+  return `Сначала прочитаю пример: ${readExpr(input)}. Потом скажу, почему первое действие именно это, а не соседнее.`
 }
 
 export function exprFinal(input: string): string {
-  return `Готово. Значение выражения — ${say(resultOf(input))}.`
+  return `Вот и всё. В ответе ${say(resultOf(input))}. Запиши число, чтобы оно запомнилось.`
 }

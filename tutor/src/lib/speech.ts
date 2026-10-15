@@ -31,7 +31,7 @@ if (typeof speechSynthesis !== 'undefined') {
   })
 }
 
-/** Browser voice only if the recorded file is missing. Rate 1, pitch 1. */
+/** Browser voice only if the recorded file is missing. A bit faster, medium pitch. */
 export function speakFallback(text: string, onend: () => void): void {
   if (typeof speechSynthesis === 'undefined') {
     onend()
@@ -40,7 +40,7 @@ export function speakFallback(text: string, onend: () => void): void {
   try {
     const utter = new SpeechSynthesisUtterance(text)
     utter.lang = 'ru-RU'
-    utter.rate = 1
+    utter.rate = 1.25
     utter.pitch = 1
     const voice = pickVoice()
     if (voice) utter.voice = voice

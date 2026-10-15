@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Record Misha's lines with a calm male neural voice.
+"""Record Kukuzya's lines with a calm male neural voice.
 
 Voice: ru-RU-DmitryNeural
-Speed: +0% (medium)
+Speed: +25% (a bit faster, still clear)
 Pitch: +0Hz (medium)
 """
 
@@ -18,7 +18,7 @@ PHRASES = Path(__file__).with_name("speeches.json")
 AUDIO = ROOT / "public" / "audio"
 MAP = ROOT / "src" / "audio-map.json"
 VOICE = "ru-RU-DmitryNeural"
-RATE = "+0%"
+RATE = "+25%"
 PITCH = "+0Hz"
 
 

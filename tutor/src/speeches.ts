@@ -60,7 +60,7 @@ export function allSpeeches(): string[] {
   for (const col of multCols) add(bag, col.speech)
   for (const scheme of schemes) add(bag, scheme.speech)
   for (const speech of Object.values(shapeSpeech)) add(bag, speech)
-  add(bag, 'Таблица заполнена. Произведение — это результат умножения двух множителей.')
+  add(bag, 'Таблица заполнена. В каждой клетке теперь видно, какие два числа перемножили и что получилось.')
 
   const exprs = new Set<string>([...expr24, ...expr25, ruleExample, ...schemes.map((s) => s.example)])
   for (const expr of exprs) {

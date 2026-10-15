@@ -131,7 +131,7 @@ export function Replay({ text }: { text: string }) {
   const { speak, speaking } = useVoice()
   return (
     <button type="button" className="btn ghost" onClick={() => speak(text)}>
-      {speaking ? 'Миша говорит…' : 'Слушать ещё раз'}
+      {speaking ? 'Кукузя говорит…' : 'Слушать ещё раз'}
     </button>
   )
 }

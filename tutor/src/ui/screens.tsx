@@ -171,7 +171,7 @@ export function ExpressionLesson({
           </button>
         )}
       </div>
-      {done && <AnswerBox fields={[{ label: 'значение', answer: answerValue }]} onCorrect={onSolved} />}
+      {done && <AnswerBox fields={[{ label: 'ответ', answer: answerValue }]} onCorrect={onSolved} />}
       <p className="step-count">{done ? 'Ответ' : index < 0 ? 'Начало' : `Шаг ${index + 1} из ${steps.length}`}</p>
     </div>
   )
@@ -362,7 +362,7 @@ export function CloakTask({ onDone }: { onDone: () => void }) {
   )
 }
 
-const tableDone = 'Таблица заполнена. Произведение — это результат умножения двух множителей.'
+const tableDone = 'Таблица заполнена. В каждой клетке теперь видно, какие два числа перемножили и что получилось.'
 
 export function MultiplyTask({ onDone }: { onDone: () => void }) {
   const [col, setCol] = useState(0)
@@ -590,11 +590,11 @@ function Perimeter({ fig }: { fig: 'square' | 'tri' | 'rect' }) {
   const n1 = Number(a)
   const n2 = Number(b)
   let result: string | null = null
-  if (fig === 'square' && n1 > 0) result = `Периметр ${n1} · 4 = ${n1 * 4}. Осей симметрии: 4.`
-  if (fig === 'tri' && n1 > 0) result = `Периметр ${n1} · 3 = ${n1 * 3}. Осей симметрии: 3.`
+  if (fig === 'square' && n1 > 0) result = `По краю ${n1} · 4 = ${n1 * 4}. Сгибов: 4.`
+  if (fig === 'tri' && n1 > 0) result = `По краю ${n1} · 3 = ${n1 * 3}. Сгибов: 3.`
   if (fig === 'rect' && n1 > 0 && n2 > 0) {
     const axes = n1 === n2 ? 4 : 2
-    result = `Периметр (${n1} + ${n2}) · 2 = ${(n1 + n2) * 2}. Осей симметрии: ${axes}.`
+    result = `По краю (${n1} + ${n2}) · 2 = ${(n1 + n2) * 2}. Сгибов: ${axes}.`
   }
   return (
     <div className="answer">
@@ -703,8 +703,8 @@ export function RebusTask({ onDone }: { onDone: () => void }) {
         <AnswerBox
           fields={[
             { label: 'первое число', answer: '46' },
-            { label: 'уменьшаемое', answer: '65' },
-            { label: 'вычитаемое', answer: '29' },
+            { label: 'число, из которого отнимали', answer: '65' },
+            { label: 'какое число отняли', answer: '29' },
           ]}
           onCorrect={onDone}
         />

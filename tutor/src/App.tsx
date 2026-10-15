@@ -67,7 +67,7 @@ function Shell() {
         <button type="button" className="brand" onClick={() => setScreen({ name: 'home' })}>
           <Misha speaking={voice.speaking} mood={screen.name === 'home' ? 'cheer' : 'calm'} />
           <span>
-            <strong>Миша</strong>
+            <strong>Кукузя</strong>
             <small>добрый репетитор</small>
           </span>
         </button>
@@ -145,21 +145,21 @@ function Home({ onStart }: { onStart: () => void }) {
           <p className="eyebrow">Страницы 24–25</p>
           <h1>Разберём учебник по шагам</h1>
           <p className="lead">
-            Нажми на задание. Миша расскажет спокойным голосом, что делать и почему, и покажет это на картинке.
+            Нажми на задание. Кукузя расскажет спокойным голосом, что делать и почему, и покажет это на картинке.
           </p>
           <div className="row">
             <button type="button" className="btn" onClick={onStart}>
               Открыть задания
             </button>
             <button type="button" className="btn ghost" onClick={() => { unlock(); speak(greeting) }}>
-              Пусть Миша поздоровается
+              Пусть Кукузя поздоровается
             </button>
           </div>
         </div>
       </div>
       <ol className="howto">
         <li>Выбери задание на странице.</li>
-        <li>Слушай Мишу и смотри, что загорается.</li>
+        <li>Слушай Кукузю и смотри, что загорается.</li>
         <li>Запиши ответ на больших кнопках.</li>
       </ol>
     </section>

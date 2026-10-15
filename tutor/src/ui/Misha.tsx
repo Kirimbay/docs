@@ -4,7 +4,7 @@ export function Misha({ speaking, mood = 'calm' }: { speaking: boolean; mood?: '
       className={`misha ${speaking ? 'is-speaking' : ''} ${mood === 'cheer' ? 'is-cheer' : ''}`}
       viewBox="0 0 220 250"
       role="img"
-      aria-label="Миша"
+      aria-label="Кукузя"
     >
       <ellipse cx="110" cy="236" rx="58" ry="7" fill="rgba(70,50,20,.13)" />
       <path d="M78 214c2 16 14 24 32 24s30-8 32-24v-8H78z" fill="#3d4d73" />
