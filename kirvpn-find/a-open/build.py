@@ -113,10 +113,9 @@ def main() -> None:
         raise SystemExit("brand leaked into the page head")
     if html.count("data-app href") != 2:
         raise SystemExit("expected two subscription buttons")
-    if MAP["ahid8.kirvpn.us"] != "hid8.kirvpn.us":
-        raise SystemExit("hid8.us mapping changed")
-    if MAP["a14.kirvpn.us"] != "14.kirvpn.ru":
-        raise SystemExit("us copy must keep the ru subscription")
+    for name, original in MAP.items():
+        if not name.startswith("a") or original != name[1:]:
+            raise SystemExit("subscription host must be the name after the letter A: " + name)
     (ROOT / "index.html").write_text(html, encoding="utf-8")
     (ROOT / "a-open.nginx.conf").write_text(nginx(), encoding="utf-8")
     print(f"names {len(MAP)} html {len(html)}")
