@@ -780,10 +780,17 @@ def render_info_html(text: str) -> str:
   <style>
     :root {{ color-scheme: dark; }}
     * {{ box-sizing: border-box; }}
-    html {{ overflow-y: scroll; scrollbar-gutter: stable; }}
-    html, body {{ margin: 0; max-width: 100%; overflow-x: hidden; }}
+    html, body {{
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      height: 100svh;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }}
     body {{
-      min-height: 100vh;
+      position: fixed;
+      inset: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
       background: #0b1220;
       color: #e8eefc;
@@ -791,8 +798,7 @@ def render_info_html(text: str) -> str:
       flex-direction: column;
     }}
     .site-tabs {{
-      position: sticky;
-      top: 0;
+      position: relative;
       z-index: 2;
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -835,6 +841,7 @@ def render_info_html(text: str) -> str:
     }}
     main {{
       flex: 1;
+      min-height: 0;
       width: min(440px, 100%);
       margin: 0 auto;
       text-align: center;
@@ -842,7 +849,7 @@ def render_info_html(text: str) -> str:
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 24px 16px 32px;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
     }}
     .msg {{
       margin: 0;
