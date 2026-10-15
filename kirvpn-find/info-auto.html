@@ -34,13 +34,13 @@
       min-height: 0;
       width: min(440px, 100%);
       margin: 0 auto;
-      padding: 8px 14px calc(10px + env(safe-area-inset-bottom));
+      padding: 10px 14px calc(8px + env(safe-area-inset-bottom));
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      gap: 10px;
+      justify-content: flex-start;
+      gap: 8px;
     }
-    h1 { font-size: 1rem; line-height: 1.15; margin: 0; text-align: center; }
+    h1 { font-size: 1rem; line-height: 1.15; height: 1.15rem; margin: 0; text-align: center; flex: 0 0 auto; }
     .site-tabs {
       position: relative;
       z-index: 4;
@@ -90,18 +90,23 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      min-height: 0;
-      padding: 10px 8px;
+      gap: 4px;
+      height: 88px;
+      min-height: 88px;
+      max-height: 88px;
+      padding: 8px 6px;
       border-radius: 14px;
       border: 1px solid #24324d;
       background: #121b2e;
       color: #fff;
       font-weight: 700;
-      font-size: 0.9rem;
+      font-size: 0.82rem;
+      line-height: 1.15;
+      text-align: center;
       text-decoration: none;
+      overflow: hidden;
     }
-    a.pick img { width: 48px; height: 48px; border-radius: 12px; display: block; }
+    a.pick img { width: 44px; height: 44px; border-radius: 12px; display: block; }
     .hint { margin: 0; color: #9bb0d0; font-size: 0.78rem; line-height: 1.25; text-align: center; }
     .note { margin: 0; color: #9bb0d0; font-size: 0.68rem; line-height: 1.2; text-align: left; }
     .hint.err { color: #f0a8a8; }
