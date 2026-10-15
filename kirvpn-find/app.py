@@ -776,7 +776,14 @@ def render_info_html(text: str) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#0b1220">
-  <title>KirVPN</title>
+  <title>Информация</title>
+  <meta name="description" content="Информация">
+  <meta property="og:title" content="Информация">
+  <meta property="og:description" content="Информация">
+  <meta property="og:site_name" content="Информация">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Информация">
+  <meta name="twitter:description" content="Информация">
   <style>
     :root {{ color-scheme: dark; }}
     * {{ box-sizing: border-box; }}
