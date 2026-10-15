@@ -139,7 +139,8 @@ input, select {
 table { width: 100%; border-collapse: collapse; background: var(--paper); }
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font-size: 13px; font-weight: 600; }
-.url { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.url { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+.table-scroll { overflow-x: auto; }
 .tag {
   font-family: var(--mono);
   font-size: 11px;
@@ -307,7 +308,7 @@ export function renderApp({ user, notice, error, watches, events, unseen, sample
         </td>
       </tr>`;
     }).join("")
-    : `<tr><td colspan="4">No pages yet. The sample catalog is a safe first watch: <span class="url">${esc(sampleUrl)}</span> with focus text <strong>Price</strong>. Then change the sample price and check again.</td></tr>`;
+    : `<tr><td colspan="4">No pages yet. Use <strong>Watch the sample catalog</strong>, raise the price on that page, then run Check now.</td></tr>`;
   const feed = events.length
     ? `<ul>${events.slice(0, 8).map((event) =>
       `<li><a href="/watches/${event.watch_id}">${esc(event.label)}</a> · ${esc(event.kind)} · ${esc(formatTime(event.created_at))}</li>`).join("")}</ul>`
@@ -320,24 +321,36 @@ export function renderApp({ user, notice, error, watches, events, unseen, sample
       <p class="kicker">${esc(plan.label)} · ${plan.watches} pages max</p>
       <h1>Desk</h1>
       <div class="desk">
-        <form class="panel" method="post" action="/watches">
+        <div class="panel">
           <h2>Add a page</h2>
+          <form method="post" action="/watches">
+            <input type="hidden" name="label" value="Sample catalog">
+            <input type="hidden" name="url" value="${esc(sampleUrl)}">
+            <input type="hidden" name="focus" value="Price">
+            <input type="hidden" name="interval" value="1440">
+            <p><button class="quiet" type="submit">Watch the sample catalog</button></p>
+          </form>
+          <p class="help">Uses this server’s sample page and focus text Price. Raise that price, then check again.</p>
+          <form method="post" action="/watches">
           <label for="label">Label</label>
           <input id="label" name="label" maxlength="120" required placeholder="Rival notebook">
           <label for="url">Public URL</label>
-          <input id="url" name="url" type="url" required placeholder="https://example.com/notebook">
+          <input id="url" name="url" type="text" inputmode="url" spellcheck="false" autocapitalize="off" required placeholder="https://example.com/notebook">
           <label for="focus">Focus text, optional</label>
           <input id="focus" name="focus" maxlength="200" placeholder="Price">
           <p class="help">If set, only the text starting at that phrase is compared.</p>
           <label for="interval">Schedule</label>
           <select id="interval" name="interval">${options}</select>
           <p><button class="primary" type="submit">Watch it</button></p>
-        </form>
+          </form>
+        </div>
         <div>
+          <div class="table-scroll">
           <table>
             <thead><tr><th>Page</th><th>State</th><th>Last check</th><th></th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
+          </div>
           <h2 style="margin-top:28px">Recent notes</h2>
           ${feed}
         </div>

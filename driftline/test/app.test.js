@@ -76,6 +76,8 @@ test("a desk watches the sample page and notices a price change", async () => {
     assert.equal(signup.status, 303);
     const cookie = cookieOf(signup);
     assert.match(cookie, /^dl_session=/);
+    const emptyDesk = await (await send(app.baseUrl, "/app", { cookie })).text();
+    assert.match(emptyDesk, /Watch the sample catalog/);
 
     const sample = `${app.baseUrl}/sample/catalog`;
     const created = await send(app.baseUrl, "/watches", {
