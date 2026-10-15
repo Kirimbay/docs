@@ -844,16 +844,6 @@ def render_info_html(text: str) -> str:
       justify-content: center;
       padding: 24px 16px 32px;
     }}
-    .brand {{
-      font-size: .78rem;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-      color: #8aa0c2;
-      margin: 0;
-      padding: 8px 16px calc(14px + env(safe-area-inset-bottom));
-      font-weight: 700;
-      text-align: center;
-    }}
     .msg {{
       margin: 0;
       font-size: 1.4625rem;
@@ -872,7 +862,6 @@ def render_info_html(text: str) -> str:
   <main>
     <p class="msg">{body}</p>
   </main>
-  <p class="brand">KirVPN · info.sarafan.uk</p>
 </body>
 </html>
 """
