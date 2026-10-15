@@ -767,7 +767,7 @@ def html_esc(s: str) -> str:
 
 def render_info_html(text: str) -> str:
     # Tab «Информация»: the short status the operator saves.
-    # Tab «Инструкция» is guide.html and is not built from this text.
+    # Tab «Приложение» is guide.html and is not built from this text.
     body = html_esc(text).replace("\n", "<br>\n")
     return f"""<!DOCTYPE html>
 <html lang="ru">
@@ -863,7 +863,7 @@ def render_info_html(text: str) -> str:
 <body>
   <nav class="site-tabs">
     <a class="on" href="/">Информация</a>
-    <a href="/guide.html">Инструкция</a>
+    <a href="/guide.html">Приложение</a>
     <a href="/auto.html">Правила</a>
   </nav>
   <main>
