@@ -1,4 +1,5 @@
-import { resultOf, solve } from '../src/lib/expr.ts'
+import { exprTwin, ruleTwin } from '../src/extra.ts'
+import { exprAltBeats, resultOf, solve } from '../src/lib/expr.ts'
 
 const cases: [string, number][] = [
   ['30 + 15 − 6', 39],
@@ -41,6 +42,15 @@ for (const [expr, answer] of cases) {
     failed++
     console.error('EMPTY', expr)
   }
+}
+
+for (const expr of [...cases.map(([item]) => item), ruleTwin, ...Object.values(exprTwin)]) {
+  const beats = exprAltBeats(expr)
+  if (beats.length < 3 || beats.some((beat) => !beat.speech || !beat.caption)) {
+    failed++
+    console.error('ALT', expr, beats.length)
+  }
+  resultOf(expr)
 }
 
 if (failed) {

@@ -14,10 +14,7 @@ import {
   expr25Intro,
   fabricIntro,
   fabricRows,
-  geoIntro,
-  geoRect,
-  geoSquare,
-  geoTri,
+  geoBeats,
   greeting,
   kiteBeats,
   kiteIntro,
@@ -34,7 +31,8 @@ import {
   treeBeats,
   wrongSpeech,
 } from './content'
-import { exprFinal, exprIntro, solve } from './lib/expr'
+import { exprTwin, helpBeats, practices, ruleTwin } from './extra'
+import { exprAltBeats, exprFinal, exprIntro, practiceSpeech, solve } from './lib/expr'
 
 function add(bag: Set<string>, text: string) {
   if (text.trim()) bag.add(text)
@@ -46,10 +44,6 @@ export function allSpeeches(): string[] {
   add(bag, correctSpeech)
   add(bag, wrongSpeech)
   add(bag, revealSpeech)
-  add(bag, geoIntro)
-  add(bag, geoSquare)
-  add(bag, geoTri)
-  add(bag, geoRect)
   add(bag, expr24Intro)
   add(bag, expr24BottomIntro)
   add(bag, expr25Intro)
@@ -59,14 +53,18 @@ export function allSpeeches(): string[] {
   add(bag, shapesIntro)
   add(bag, kiteIntro)
   add(bag, rebusIntro)
-  for (const beat of [...ruleBeats, ...cubeBeats, ...chairBeats, ...treeBeats, ...appleBeats, ...cloakBeats, ...kiteBeats, ...rebusBeats]) {
+  for (const beat of [...ruleBeats, ...geoBeats, ...cubeBeats, ...chairBeats, ...treeBeats, ...appleBeats, ...cloakBeats, ...kiteBeats, ...rebusBeats]) {
     add(bag, beat.speech)
   }
+  for (const beats of Object.values(helpBeats)) {
+    for (const beat of beats) add(bag, beat.speech)
+  }
+  for (const practice of Object.values(practices)) add(bag, practice.speech)
   for (const row of fabricRows) add(bag, row.speech)
   for (const col of multCols) add(bag, col.speech)
   for (const scheme of schemes) add(bag, scheme.speech)
   for (const speech of Object.values(shapeSpeech)) add(bag, speech)
-  add(bag, 'Таблица заполнена. В каждой клетке теперь видно, какие два числа перемножили и что получилось.')
+  add(bag, 'Таблица заполнена. В каждом столбике два множителя и произведение.')
 
   const exprs = new Set<string>([
     ...expr24,
@@ -74,12 +72,16 @@ export function allSpeeches(): string[] {
     ...expr25,
     ...expr25Bottom,
     ruleExample,
+    ruleTwin,
+    ...Object.values(exprTwin),
     ...schemes.map((s) => s.example),
   ])
   for (const expr of exprs) {
     add(bag, exprIntro(expr))
     add(bag, exprFinal(expr))
+    add(bag, practiceSpeech(expr))
     for (const step of solve(expr)) add(bag, step.speech)
+    for (const beat of exprAltBeats(expr)) add(bag, beat.speech)
   }
   return [...bag]
 }

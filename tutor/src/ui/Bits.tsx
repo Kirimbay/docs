@@ -1,14 +1,18 @@
 import { useState, type ReactNode } from 'react'
 import type { Tok } from '../lib/expr'
-import { glyph } from '../lib/expr'
+import { glyph, parse } from '../lib/expr'
+import { say } from '../lib/russian'
+import type { Beat } from '../content'
+import type { Practice } from '../extra'
 import { correctSpeech, revealSpeech, wrongSpeech } from '../content'
-import { useNarration, useVoice } from './voice'
+import { NarrationPause, useNarration, useVoice } from './voice'
 
 export function Tokens({ tokens, hotFrom, hotTo }: { tokens: Tok[]; hotFrom?: number; hotTo?: number }) {
+  const marking = hotFrom !== undefined && hotTo !== undefined
   return (
-    <div className="expr" aria-label="пример">
+    <div className={`expr ${marking ? 'has-hot' : ''}`} aria-label="пример">
       {tokens.map((tok, i) => {
-        const hot = hotFrom !== undefined && hotTo !== undefined && i >= hotFrom && i <= hotTo
+        const hot = marking && i >= hotFrom && i <= hotTo
         const op = tok.k === 'op' || tok.k === 'lp' || tok.k === 'rp'
         return (
           <span key={`${glyph(tok)}-${i}`} className={`tok ${op ? 'op' : 'num'} ${hot ? 'hot' : ''}`}>
@@ -18,6 +22,97 @@ export function Tokens({ tokens, hotFrom, hotTo }: { tokens: Tok[]; hotFrom?: nu
       })}
     </div>
   )
+}
+
+const STEMS = [
+  'скобк',
+  'умножен',
+  'делен',
+  'сложен',
+  'вычитан',
+  'периметр',
+  'берёз',
+  'рябин',
+  'яблок',
+  'плащ',
+  'костюм',
+  'звёзд',
+  'ступен',
+  'жёлт',
+  'красн',
+  'квадрат',
+  'треугольник',
+  'прямоугольник',
+  'ряд',
+]
+
+/** Lights the words in Kukuzya's line that name the current caption. */
+export function MarkSpeech({ text, caption }: { text: string; caption?: string }) {
+  return <>{highlightSpeech(text, caption)}</>
+}
+
+function highlightSpeech(text: string, caption?: string): ReactNode[] {
+  if (!caption) return [text]
+  const phrases = numberPhrases(caption)
+  const stems = phrases.length ? [] : STEMS.filter((stem) => caption.toLowerCase().includes(stem))
+  const out: ReactNode[] = []
+  let buf = ''
+  let i = 0
+  let key = 0
+  const flush = () => {
+    if (!buf) return
+    out.push(buf)
+    buf = ''
+  }
+  while (i < text.length) {
+    if (wordStart(text, i)) {
+      const phrase = phrases.find((item) => startsPhrase(text, i, item))
+      if (phrase) {
+        flush()
+        out.push(<mark key={key++}>{text.slice(i, i + phrase.length)}</mark>)
+        i += phrase.length
+        continue
+      }
+      const word = readWord(text, i)
+      if (stems.some((stem) => word.toLowerCase().startsWith(stem))) {
+        flush()
+        out.push(<mark key={key++}>{word}</mark>)
+        i += word.length
+        continue
+      }
+    }
+    buf += text[i]
+    i++
+  }
+  flush()
+  return out
+}
+
+function numberPhrases(caption: string): string[] {
+  const found: string[] = []
+  const re = /\d+/g
+  let match: RegExpExecArray | null
+  while ((match = re.exec(caption))) {
+    const after = caption[match.index + match[0].length]
+    if (match[0].length === 1 && (after === '.' || after === ')')) continue
+    found.push(say(Number(match[0])))
+  }
+  return [...new Set(found)].sort((a, b) => b.length - a.length)
+}
+
+function wordStart(text: string, i: number): boolean {
+  if (i > 0 && /[\p{L}\p{N}]/u.test(text[i - 1] ?? '')) return false
+  return /[\p{L}\p{N}]/u.test(text[i] ?? '')
+}
+
+function startsPhrase(text: string, i: number, phrase: string): boolean {
+  if (text.slice(i, i + phrase.length).toLowerCase() !== phrase) return false
+  return !/[\p{L}\p{N}]/u.test(text[i + phrase.length] ?? '')
+}
+
+function readWord(text: string, i: number): string {
+  const match = text.slice(i).match(/^[\p{L}\p{N}-]+/u)
+  return match?.[0] ?? text[i] ?? ''
 }
 
 export function Confetti() {
@@ -37,7 +132,7 @@ export function AnswerBox({
   fields: { label: string; answer: string }[]
   onCorrect: () => void
 }) {
-  const { speak } = useVoice()
+  const { speak, praiseNow } = useVoice()
   const [values, setValues] = useState(() => fields.map(() => ''))
   const [focus, setFocus] = useState(0)
   const [shake, setShake] = useState(false)
@@ -54,6 +149,7 @@ export function AnswerBox({
     if (ok) {
       setDone(true)
       speak(correctSpeech)
+      praiseNow()
       onCorrect()
       return
     }
@@ -142,12 +238,16 @@ export function Stepper({
   after,
   onDone,
   doneLabel = 'Я понял',
+  eyebrow,
+  plate,
 }: {
   steps: { speech: string; caption: string }[]
   render?: (index: number) => ReactNode
   after?: ReactNode
   onDone?: () => void
   doneLabel?: string
+  eyebrow?: string
+  plate?: ReactNode
 }) {
   const [index, setIndex] = useState(0)
   const [nonce, setNonce] = useState(0)
@@ -165,9 +265,13 @@ export function Stepper({
 
   return (
     <div className="stage">
+      {eyebrow && <p className="help-kicker">{eyebrow}</p>}
+      {plate}
       <div className="why">{step.caption}</div>
       {render?.(index)}
-      <p className="bubble-text">{step.speech}</p>
+      <p className="bubble-text">
+        <MarkSpeech text={step.speech} caption={step.caption} />
+      </p>
       <div className="row">
         <button type="button" className="btn ghost" disabled={index === 0} onClick={() => go(index - 1)}>
           Шаг назад
@@ -191,6 +295,95 @@ export function Stepper({
         Шаг {index + 1} из {steps.length}
       </p>
     </div>
+  )
+}
+
+export function WithHelp({
+  beats,
+  render,
+  plate,
+  children,
+}: {
+  beats: Beat[]
+  render?: (index: number) => ReactNode
+  plate?: ReactNode
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <NarrationPause paused={open}>
+        <div hidden={open}>{children}</div>
+      </NarrationPause>
+      {open ? (
+        <Stepper
+          steps={beats}
+          render={render}
+          plate={plate}
+          eyebrow="Другое объяснение"
+          doneLabel="Вернуться к заданию"
+          onDone={() => setOpen(false)}
+        />
+      ) : (
+        <button type="button" className="btn stuck" onClick={() => setOpen(true)}>
+          Ничего непонятно
+        </button>
+      )}
+    </>
+  )
+}
+
+export function PracticeView({
+  practice,
+  expr,
+  picture,
+  onDone,
+}: {
+  practice: Practice
+  expr?: string
+  picture?: ReactNode
+  onDone: () => void
+}) {
+  useNarration(practice.speech)
+  return (
+    <div className="practice">
+      <div className="why">Проверочное задание</div>
+      {picture && <div className="spot">{picture}</div>}
+      {expr && <Tokens tokens={parse(expr)} />}
+      <p className="bubble-text">
+        <MarkSpeech text={practice.speech} caption={practice.fields.map((field) => field.label).join(' ')} />
+      </p>
+      <AnswerBox fields={practice.fields} onCorrect={onDone} />
+    </div>
+  )
+}
+
+export function TaskGate({
+  help,
+  helpRender,
+  practice,
+  practicePicture,
+  plate,
+  onDone,
+  children,
+}: {
+  help: Beat[]
+  helpRender?: (index: number) => ReactNode
+  practice: Practice
+  practicePicture?: ReactNode
+  plate?: ReactNode
+  onDone: () => void
+  children: (finishBook: () => void) => ReactNode
+}) {
+  const [phase, setPhase] = useState<'book' | 'check'>('book')
+  return (
+    <WithHelp beats={help} render={helpRender} plate={plate}>
+      {phase === 'book' ? (
+        children(() => setPhase('check'))
+      ) : (
+        <PracticeView practice={practice} picture={practicePicture} onDone={onDone} />
+      )}
+    </WithHelp>
   )
 }
 
