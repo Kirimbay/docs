@@ -6,10 +6,7 @@ import {
   cubeBeats,
   fabricIntro,
   fabricRows,
-  geoIntro,
-  geoRect,
-  geoSquare,
-  geoTri,
+  geoBeats,
   kiteBeats,
   multCols,
   rebusBeats,
@@ -22,43 +19,54 @@ import {
   shapesIntro,
   treeBeats,
 } from '../content'
-import { exprFinal, exprIntro, parse, solve } from '../lib/expr'
-import { AnswerBox, Stepper, Tokens } from './Bits'
+import { exprTwin, helpBeats, practices, ruleTwin } from '../extra'
+import { detailedSpeech, exprFinal, exprIntro, parse, practiceSpeech, resultOf, solve } from '../lib/expr'
+import { AnswerBox, PracticeView, Stepper, TaskGate, Tokens, WithHelp } from './Bits'
+import { GeoMeasure, GeoVisual } from './GeoAnim'
 import { useNarration, useVoice } from './voice'
 
 export function RuleTask({ onDone }: { onDone: () => void }) {
   const [showExample, setShowExample] = useState(false)
   if (!showExample) {
     return (
-      <Stepper
-        steps={ruleBeats}
-        render={(index) => <RuleVisual step={index} />}
-        doneLabel="Разобрать пример"
-        onDone={() => setShowExample(true)}
-      />
+      <WithHelp beats={helpBeats.order}>
+        <Stepper
+          steps={ruleBeats}
+          render={(index) => <RuleVisual step={index} />}
+          doneLabel="Разобрать пример"
+          onDone={() => setShowExample(true)}
+        />
+      </WithHelp>
     )
   }
   return (
     <div className="stage">
-      <ExpressionLesson expr={ruleExample} intro={exprIntro(ruleExample)} onSolved={onDone} />
+      <ExpressionLesson expr={ruleExample} twin={ruleTwin} intro={exprIntro(ruleExample)} onSolved={onDone} />
     </div>
   )
 }
 
 function RuleVisual({ step }: { step: number }) {
-  const stairs = [
-    { n: '1', t: 'Скобки', on: step >= 1 },
-    { n: '2', t: '· и : слева направо', on: step >= 2 },
-    { n: '3', t: '+ и − слева направо', on: step >= 3 },
+  const rules = [
+    { n: '1', t: 'Вначале скобки' },
+    { n: '2', t: 'Следующее: умножение и деление, слева направо' },
+    { n: '3', t: 'Потом сложение и вычитание, слева направо' },
   ]
   return (
     <div className="stairs">
-      {stairs.map((s) => (
-        <div key={s.n} className={`stair ${s.on ? 'on' : ''}`}>
-          <b>{s.n}</b>
-          <span>{s.t}</span>
+      <p className="rule-lead">Нельзя выполнять действия как захочется.</p>
+      {rules.map((rule, index) => (
+        <div key={rule.n} className={`stair ${step > index ? 'on' : ''}`}>
+          <b>{rule.n}</b>
+          <span>{rule.t}</span>
         </div>
       ))}
+      {step >= 4 && (
+        <div className="rule-check">
+          <p>12 + 6 : 2 − 7 · 2</p>
+          <p>Как захочется: 4. По правилам: 1.</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -100,10 +108,10 @@ export function ExpressionSet({
       {current ? (
         <ExpressionLesson key={current} expr={current} intro={exprIntro(current)} onSolved={() => onSolve(current)} />
       ) : (
-        <>
+        <WithHelp beats={helpBeats.order}>
           <p className="bubble-text">{intro}</p>
           <Say text={intro} />
-        </>
+        </WithHelp>
       )}
       {finished && (
         <button type="button" className="btn" onClick={onDone}>
@@ -118,17 +126,22 @@ export function ExpressionLesson({
   expr,
   intro,
   onSolved,
+  twin,
 }: {
   expr: string
   intro?: string
   onSolved: () => void
+  twin?: string
 }) {
+  const practiceExpr = twin ?? exprTwin[expr]
   const steps = useMemo(() => solve(expr), [expr])
   const [index, setIndex] = useState(intro ? -1 : 0)
   const [nonce, setNonce] = useState(0)
+  const [check, setCheck] = useState(false)
   const { speak } = useVoice()
   const done = index >= steps.length
-  const text = index < 0 ? intro || exprIntro(expr) : done ? exprFinal(expr) : steps[index].speech
+  const helpExpr = check && practiceExpr ? practiceExpr : expr
+  const text = check ? '' : index < 0 ? intro || exprIntro(expr) : done ? exprFinal(expr) : steps[index].speech
   useNarration(text, nonce)
 
   function go(next: number) {
@@ -141,9 +154,10 @@ export function ExpressionLesson({
   const answerValue = answer && answer.k === 'n' ? String(answer.v) : ''
 
   return (
+    <WithHelp beats={[{ caption: 'Как это считается', speech: detailedSpeech(helpExpr) }]}>
     <div className="expr-lesson">
       {index < 0 && <Tokens tokens={parse(expr)} />}
-      {index >= 0 && !done && (
+      {index >= 0 && !done && !check && (
         <>
           <div className="why">{steps[index].why}</div>
           <Tokens tokens={steps[index].before} hotFrom={steps[index].from} hotTo={steps[index].to} />
@@ -151,39 +165,63 @@ export function ExpressionLesson({
           <Tokens tokens={steps[index].after} hotFrom={steps[index].from} hotTo={steps[index].from} />
         </>
       )}
-      {done && answer && answer.k === 'n' && (
+      {done && answer && answer.k === 'n' && !check && (
         <>
           <Tokens tokens={parse(expr)} />
           <div className="caption big">= {answer.v}</div>
         </>
       )}
-      <p className="bubble-text">{text}</p>
-      <div className="row">
-        <button type="button" className="btn ghost" disabled={index <= (intro ? -1 : 0)} onClick={() => go(index - 1)}>
-          Шаг назад
-        </button>
-        <button type="button" className="btn ghost" onClick={() => setNonce((n) => n + 1)}>
-          Слушать ещё раз
-        </button>
-        {!done && (
-          <button type="button" className="btn" onClick={() => go(index + 1)}>
-            {index < 0 ? 'Показать шаг' : 'Дальше'}
+      {text && <p className="bubble-text">{text}</p>}
+      {!check && (
+        <div className="row">
+          <button type="button" className="btn ghost" disabled={index <= (intro ? -1 : 0)} onClick={() => go(index - 1)}>
+            Шаг назад
           </button>
-        )}
-      </div>
-      {done && <AnswerBox fields={[{ label: 'ответ', answer: answerValue }]} onCorrect={onSolved} />}
-      <p className="step-count">{done ? 'Ответ' : index < 0 ? 'Начало' : `Шаг ${index + 1} из ${steps.length}`}</p>
+          <button type="button" className="btn ghost" onClick={() => setNonce((n) => n + 1)}>
+            Слушать ещё раз
+          </button>
+          {!done && (
+            <button type="button" className="btn" onClick={() => go(index + 1)}>
+              {index < 0 ? 'Показать шаг' : 'Дальше'}
+            </button>
+          )}
+        </div>
+      )}
+      {done && !check && (
+        <AnswerBox
+          fields={[{ label: 'ответ', answer: answerValue }]}
+          onCorrect={() => (practiceExpr ? setCheck(true) : onSolved())}
+        />
+      )}
+      {check && practiceExpr && (
+        <PracticeView
+          expr={practiceExpr}
+          practice={{
+            speech: practiceSpeech(practiceExpr),
+            fields: [{ label: 'ответ', answer: String(resultOf(practiceExpr)) }],
+          }}
+          onDone={onSolved}
+        />
+      )}
+      {!check && (
+        <p className="step-count">{done ? 'Ответ' : index < 0 ? 'Начало' : `Шаг ${index + 1} из ${steps.length}`}</p>
+      )}
     </div>
+    </WithHelp>
   )
 }
 
 export function CubeTask({ onDone }: { onDone: () => void }) {
   return (
-    <Stepper
-      steps={cubeBeats}
-      render={(i) => <Cubes phase={i} />}
-      after={<AnswerBox fields={[{ label: 'кубиков в коробке', answer: '32' }]} onCorrect={onDone} />}
-    />
+    <TaskGate help={helpBeats.cubes} practice={practices.cubes} onDone={onDone}>
+      {(finishBook) => (
+        <Stepper
+          steps={cubeBeats}
+          render={(i) => <Cubes phase={i} />}
+          after={<AnswerBox fields={[{ label: 'кубиков в коробке', answer: '32' }]} onCorrect={finishBook} />}
+        />
+      )}
+    </TaskGate>
   )
 }
 
@@ -548,72 +586,26 @@ export function SchemeTask({ onDone }: { onDone: () => void }) {
 }
 
 export function GeometryTask({ onDone }: { onDone: () => void }) {
-  const [fig, setFig] = useState<'square' | 'tri' | 'rect' | null>(null)
-  const [seen, setSeen] = useState<string[]>([])
-  const speech = fig === 'square' ? geoSquare : fig === 'tri' ? geoTri : fig === 'rect' ? geoRect : geoIntro
-  useNarration(speech, fig ? 1 : 0)
   return (
-    <div className="stage">
-      <div className="figures">
-        <button type="button" className={`fig square ${fig === 'square' ? 'on' : ''}`} onClick={() => open('square')}>
-          <i />
-          <span>А Б Ц Д</span>
-        </button>
-        <button type="button" className={`fig tri ${fig === 'tri' ? 'on' : ''}`} onClick={() => open('tri')}>
-          <i />
-          <span>К Л М</span>
-        </button>
-        <button type="button" className={`fig rect ${fig === 'rect' ? 'on' : ''}`} onClick={() => open('rect')}>
-          <i />
-          <span>Н О П Т</span>
-        </button>
-      </div>
-      <p className="bubble-text">{speech}</p>
-      {fig && <Perimeter fig={fig} />}
-      {seen.length === 3 && (
-        <button type="button" className="btn" onClick={onDone}>
-          Фигуры разобраны
-        </button>
+    <TaskGate
+      help={helpBeats.geometry}
+      helpRender={(index) => <GeoVisual step={[1, 2, 6][index] ?? 1} />}
+      practice={practices.geometry}
+      onDone={onDone}
+    >
+      {(finish) => (
+        <Stepper
+          steps={geoBeats}
+          render={(index) => <GeoVisual step={index} />}
+          after={<GeoMeasure onContinue={finish} />}
+        />
       )}
-    </div>
-  )
-
-  function open(id: 'square' | 'tri' | 'rect') {
-    setFig(id)
-    setSeen((prev) => (prev.includes(id) ? prev : [...prev, id]))
-  }
-}
-
-function Perimeter({ fig }: { fig: 'square' | 'tri' | 'rect' }) {
-  const [a, setA] = useState('')
-  const [b, setB] = useState('')
-  const n1 = Number(a)
-  const n2 = Number(b)
-  let result: string | null = null
-  if (fig === 'square' && n1 > 0) result = `По краю ${n1} · 4 = ${n1 * 4}. Сгибов: 4.`
-  if (fig === 'tri' && n1 > 0) result = `По краю ${n1} · 3 = ${n1 * 3}. Сгибов: 3.`
-  if (fig === 'rect' && n1 > 0 && n2 > 0) {
-    const axes = n1 === n2 ? 4 : 2
-    result = `По краю (${n1} + ${n2}) · 2 = ${(n1 + n2) * 2}. Сгибов: ${axes}.`
-  }
-  return (
-    <div className="answer">
-      <label>
-        <span>{fig === 'rect' ? 'длина, см' : 'сторона, см'}</span>
-        <input inputMode="numeric" value={a} onChange={(e) => setA(e.target.value.replace(/[^\d]/g, ''))} />
-      </label>
-      {fig === 'rect' && (
-        <label>
-          <span>ширина, см</span>
-          <input inputMode="numeric" value={b} onChange={(e) => setB(e.target.value.replace(/[^\d]/g, ''))} />
-        </label>
-      )}
-      {result && <div className="caption">{result}</div>}
-    </div>
+    </TaskGate>
   )
 }
 
 export function ShapesTask({ onDone }: { onDone: () => void }) {
+  const { praiseNow } = useVoice()
   const [picked, setPicked] = useState<string | null>(null)
   const [found, setFound] = useState<string[]>([])
   const speech = picked ? shapeSpeech[picked] : shapesIntro
@@ -642,7 +634,10 @@ export function ShapesTask({ onDone }: { onDone: () => void }) {
   function pick(id: string) {
     setPicked(id)
     const shape = shapes.find((s) => s.id === id)
-    if (shape?.valid) setFound((prev) => (prev.includes(id) ? prev : [...prev, id]))
+    if (shape?.valid && !found.includes(id)) {
+      praiseNow()
+      setFound((prev) => (prev.includes(id) ? prev : [...prev, id]))
+    }
   }
 }
 

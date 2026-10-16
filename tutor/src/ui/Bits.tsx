@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import type { Tok } from '../lib/expr'
-import { glyph } from '../lib/expr'
+import { glyph, parse } from '../lib/expr'
+import type { Beat } from '../content'
+import type { Practice } from '../extra'
 import { correctSpeech, revealSpeech, wrongSpeech } from '../content'
-import { useNarration, useVoice } from './voice'
+import { NarrationPause, useNarration, useVoice } from './voice'
 
 export function Tokens({ tokens, hotFrom, hotTo }: { tokens: Tok[]; hotFrom?: number; hotTo?: number }) {
   return (
@@ -37,7 +39,7 @@ export function AnswerBox({
   fields: { label: string; answer: string }[]
   onCorrect: () => void
 }) {
-  const { speak } = useVoice()
+  const { speak, praiseNow } = useVoice()
   const [values, setValues] = useState(() => fields.map(() => ''))
   const [focus, setFocus] = useState(0)
   const [shake, setShake] = useState(false)
@@ -54,6 +56,7 @@ export function AnswerBox({
     if (ok) {
       setDone(true)
       speak(correctSpeech)
+      praiseNow()
       onCorrect()
       return
     }
@@ -191,6 +194,69 @@ export function Stepper({
         Шаг {index + 1} из {steps.length}
       </p>
     </div>
+  )
+}
+
+export function WithHelp({
+  beats,
+  render,
+  children,
+}: {
+  beats: Beat[]
+  render?: (index: number) => ReactNode
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <NarrationPause paused={open}>
+        <div hidden={open}>{children}</div>
+      </NarrationPause>
+      {open ? (
+        <Stepper steps={beats} render={render} doneLabel="Вернуться к заданию" onDone={() => setOpen(false)} />
+      ) : (
+        <button type="button" className="btn stuck" onClick={() => setOpen(true)}>
+          Ничего непонятно
+        </button>
+      )}
+    </>
+  )
+}
+
+export function PracticeView({ practice, expr, onDone }: { practice: Practice; expr?: string; onDone: () => void }) {
+  useNarration(practice.speech)
+  return (
+    <div className="practice">
+      <div className="why">Проверочное задание</div>
+      {expr && <Tokens tokens={parse(expr)} />}
+      <p className="bubble-text">{practice.speech}</p>
+      <AnswerBox fields={practice.fields} onCorrect={onDone} />
+    </div>
+  )
+}
+
+export function TaskGate({
+  help,
+  helpRender,
+  practice,
+  onDone,
+  children,
+}: {
+  help: Beat[]
+  helpRender?: (index: number) => ReactNode
+  practice: Practice
+  onDone: () => void
+  children: (finishBook: () => void) => ReactNode
+}) {
+  const [phase, setPhase] = useState<'book' | 'check'>('book')
+  return (
+    <WithHelp beats={help} render={helpRender}>
+      {phase === 'book' ? (
+        children(() => setPhase('check'))
+      ) : (
+        <PracticeView practice={practice} onDone={onDone} />
+      )}
+    </WithHelp>
   )
 }
 

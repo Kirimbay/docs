@@ -4,24 +4,42 @@ import { audioUrl, speakFallback, stopFallback } from '../lib/speech'
 const SILENT_WAV =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
 
+export type Praise = 'thumb' | 'heart' | 'kiss' | 'clap'
+
 type Voice = {
   speak: (text: string) => number
   stopOwned: (token: number) => void
   unlock: () => void
+  praiseNow: () => void
   speaking: boolean
+  praise: Praise | null
   enabled: boolean
   setEnabled: (on: boolean) => void
   line: string
 }
 
 const Ctx = createContext<Voice | null>(null)
+const PauseCtx = createContext(false)
+
+export function NarrationPause({ paused, children }: { paused: boolean; children: ReactNode }) {
+  return <PauseCtx.Provider value={paused}>{children}</PauseCtx.Provider>
+}
 
 export function VoiceProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const token = useRef(0)
   const [speaking, setSpeaking] = useState(false)
+  const [praise, setPraise] = useState<Praise | null>(null)
+  const praiseTimer = useRef(0)
   const [line, setLine] = useState('')
   const [enabled, setEnabledState] = useState(() => localStorage.getItem('misha-voice') !== 'off')
+
+  const praiseNow = useCallback(() => {
+    const kinds: Praise[] = ['thumb', 'heart', 'kiss', 'clap']
+    setPraise(kinds[Math.floor(Math.random() * kinds.length)])
+    window.clearTimeout(praiseTimer.current)
+    praiseTimer.current = window.setTimeout(() => setPraise(null), 2800)
+  }, [])
 
   const silence = useCallback((my: number) => {
     if (token.current !== my) return
@@ -93,8 +111,8 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo(
-    () => ({ speak, stopOwned: silence, unlock, speaking, enabled, setEnabled, line }),
-    [speak, silence, unlock, speaking, enabled, setEnabled, line],
+    () => ({ speak, stopOwned: silence, unlock, praiseNow, speaking, praise, enabled, setEnabled, line }),
+    [speak, silence, unlock, praiseNow, speaking, praise, enabled, setEnabled, line],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
@@ -109,12 +127,14 @@ export function useVoice(): Voice {
 /** Plays `text` whenever it or `nonce` changes. */
 export function useNarration(text: string, nonce: number | string = 0) {
   const { speak, stopOwned, line } = useVoice()
+  const paused = useContext(PauseCtx)
   const lineRef = useRef(line)
   lineRef.current = line
   useEffect(() => {
+    if (paused || !text) return
     // A click may have started this exact line already. Don't restart it.
     if (nonce === 0 && lineRef.current === text) return
     const my = speak(text)
     return () => stopOwned(my)
-  }, [text, nonce, speak, stopOwned])
+  }, [text, nonce, speak, stopOwned, paused])
 }

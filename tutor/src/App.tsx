@@ -69,7 +69,7 @@ function Shell() {
     <div className="app">
       <header className="top">
         <button type="button" className="brand" onClick={() => setScreen({ name: 'home' })}>
-          <Misha speaking={voice.speaking} mood={screen.name === 'home' ? 'cheer' : 'calm'} />
+          <Misha speaking={voice.speaking} praise={voice.praise} mood={screen.name === 'home' ? 'cheer' : 'calm'} />
           <span>
             <strong>Кукузя</strong>
             <small>добрый репетитор</small>
@@ -121,7 +121,7 @@ function Shell() {
         <section className="lesson">
           <div className="lesson-grid">
             <aside className="tutor">
-              <Misha speaking={voice.speaking} mood="calm" />
+              <Misha speaking={voice.speaking} praise={voice.praise} mood="calm" />
             </aside>
             <div>
               <div className="lesson-head">
@@ -141,11 +141,11 @@ function Shell() {
 }
 
 function Home({ onStart }: { onStart: () => void }) {
-  const { speak, speaking, unlock } = useVoice()
+  const { speak, speaking, unlock, praise } = useVoice()
   return (
     <section className="home">
       <div className="hero">
-        <Misha speaking={speaking} mood="cheer" />
+        <Misha speaking={speaking} praise={praise} mood="cheer" />
         <div>
           <p className="eyebrow">Страницы 24–25</p>
           <h1>Разберём учебник по шагам</h1>

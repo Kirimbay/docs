@@ -14,10 +14,7 @@ import {
   expr25Intro,
   fabricIntro,
   fabricRows,
-  geoIntro,
-  geoRect,
-  geoSquare,
-  geoTri,
+  geoBeats,
   greeting,
   kiteBeats,
   kiteIntro,
@@ -34,6 +31,7 @@ import {
   treeBeats,
   wrongSpeech,
 } from './content'
+import { geoHelp, geoPractice } from './extra'
 import { exprFinal, exprIntro, solve } from './lib/expr'
 
 function add(bag: Set<string>, text: string) {
@@ -46,10 +44,6 @@ export function allSpeeches(): string[] {
   add(bag, correctSpeech)
   add(bag, wrongSpeech)
   add(bag, revealSpeech)
-  add(bag, geoIntro)
-  add(bag, geoSquare)
-  add(bag, geoTri)
-  add(bag, geoRect)
   add(bag, expr24Intro)
   add(bag, expr24BottomIntro)
   add(bag, expr25Intro)
@@ -59,9 +53,10 @@ export function allSpeeches(): string[] {
   add(bag, shapesIntro)
   add(bag, kiteIntro)
   add(bag, rebusIntro)
-  for (const beat of [...ruleBeats, ...cubeBeats, ...chairBeats, ...treeBeats, ...appleBeats, ...cloakBeats, ...kiteBeats, ...rebusBeats]) {
+  for (const beat of [...ruleBeats, ...geoBeats, ...geoHelp, ...cubeBeats, ...chairBeats, ...treeBeats, ...appleBeats, ...cloakBeats, ...kiteBeats, ...rebusBeats]) {
     add(bag, beat.speech)
   }
+  add(bag, geoPractice.speech)
   for (const row of fabricRows) add(bag, row.speech)
   for (const col of multCols) add(bag, col.speech)
   for (const scheme of schemes) add(bag, scheme.speech)
