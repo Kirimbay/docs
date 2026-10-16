@@ -350,9 +350,9 @@ export function AppleTask({ onDone }: { onDone: () => void }) {
                 shot={shots.apples}
                 active={[['was', 'took', 'adda', 'addb', 'equal'], ['took', 'adda', 'addb'], ['equal'], ['aska', 'askb'], ['was']][i]}
               />
-              {i === 1 && <div className="badge spot">13 − 2 + 3 = 14</div>}
+              {i === 1 && <div className="badge spot">13 − 2 = 11, затем 11 + 3 = 14</div>}
               {i === 2 && <div className="badge spot">14 : 2 = 7</div>}
-              {i === 3 && <div className="badge spot">7 − 3 = 4 и 7 + 2 = 9</div>}
+              {i === 3 && <div className="badge spot">7 + 2 = 9 и 7 − 3 = 4</div>}
               {i === 4 && <div className="badge spot">9 + 4 = 13</div>}
             </>
           )}
@@ -398,7 +398,7 @@ export function CloakTask({ onDone }: { onDone: () => void }) {
   )
 }
 
-const tableDone = 'Таблица заполнена. В каждой клетке теперь видно, какие два числа перемножили и что получилось.'
+const tableDone = 'Таблица заполнена. В каждом столбике два множителя и произведение.'
 
 export function MultiplyTask({ onDone }: { onDone: () => void }) {
   return (

@@ -149,15 +149,15 @@ export function solve(input: string): SolveStep[] {
       if (innerCount === 1 && only.k === 'n') {
         const value = only.v
         const after = replaceRange(tokens, paren.start, paren.end, value)
-        steps.push({
-          before: tokens,
-          after,
-          from: paren.start,
-          to: paren.end,
-          why: 'Скобки уже посчитаны.',
-          caption: `(${value}) = ${value}`,
-          speech: `В скобках осталось одно число, ${say(value)}. Скобки больше не нужны: ставим это число.`,
-        })
+      steps.push({
+        before: tokens,
+        after,
+        from: paren.start,
+        to: paren.end,
+        why: 'Скобки уже посчитаны.',
+        caption: `(${value}) = ${value}`,
+        speech: `В скобках осталось одно число, ${say(value)}. Скобки убираем и пишем ${say(value)}.`,
+      })
         tokens = after
         continue
       }
@@ -170,9 +170,9 @@ export function solve(input: string): SolveStep[] {
         after,
         from: hit.from,
         to: hit.to,
-        why: 'Вначале — действие в скобках.',
+        why: 'Сначала скобки.',
         caption: `${hit.a} ${hit.op} ${hit.b} = ${value}`,
-        speech: `Вначале считаем в скобках. Снаружи пока не трогаем. ${picture(hit.op, hit.a, hit.b, value)}`,
+        speech: `Сначала действие в скобках. Снаружи пока не считаем. ${picture(hit.op, hit.a, hit.b, value)} Это число пишем вместо скобок.`,
       })
       tokens = after
       continue
@@ -185,14 +185,14 @@ export function solve(input: string): SolveStep[] {
     let why: string
     let lead: string
     if (isMul(hit.op) && hasAdd) {
-      why = 'Следующее — умножение и деление.'
-      lead = 'Сложение и вычитание ещё рано. По правилу сначала умножение и деление.'
+      why = 'Сначала умножение и деление.'
+      lead = 'Умножение и деление делаем раньше сложения и вычитания.'
     } else if (isMul(hit.op)) {
-      why = 'Слева направо.'
-      lead = 'Умножение и деление идут слева направо. Сначала левый знак.'
+      why = 'Умножение и деление слева направо.'
+      lead = 'Умножение и деление выполняем слева направо. Сначала левый знак.'
     } else {
-      why = 'Потом сложение и вычитание.'
-      lead = 'Скобки, умножение и деление уже сделаны. Сложение и вычитание идут слева направо.'
+      why = 'Сложение и вычитание слева направо.'
+      lead = 'Скобки, умножение и деление уже посчитаны. Сложение и вычитание выполняем слева направо.'
     }
     const after = replaceRange(tokens, hit.from, hit.to, value)
     steps.push({
@@ -231,15 +231,15 @@ export function readExpr(input: string): string {
       if (t.v === '·') return 'умножить на'
       return 'разделить на'
     })
-    .join(', ')
+    .join(' ')
 }
 
 export function exprIntro(input: string): string {
-  return `Читаю пример: ${readExpr(input)}. Считать можно только по правилу. Сначала скобки, если они есть. Потом умножение и деление, слева направо. Потом сложение и вычитание, слева направо. Сейчас скажу, какое действие первое и почему.`
+  return `Пример: ${readExpr(input)}. Сначала скобки, если они есть. Потом умножение и деление слева направо. Потом сложение и вычитание слева направо. Сейчас первое действие.`
 }
 
 export function exprFinal(input: string): string {
-  return `Вот и всё. В ответе ${say(resultOf(input))}. Запиши число, чтобы оно запомнилось.`
+  return `Готово. Ответ ${say(resultOf(input))}. Запиши это число.`
 }
 
 /** Which rule this expression follows, told slowly, before the steps. */
@@ -249,21 +249,21 @@ export function ruleSpeech(input: string): string {
   const hasParen = tokens.some((t) => t.k === 'lp')
   const hasMul = ops.some((op) => isMul(op))
   const hasAdd = ops.some((op) => !isMul(op))
-  const parts = [`Нельзя считать как захочется. Смотрим, что делается вначале, а что следующее. Пример: ${readExpr(input)}.`]
+  const parts = [`Пример: ${readExpr(input)}. Действия выполняем по правилу.`]
   if (hasParen) {
-    parts.push('Вначале действия в скобках. Снаружи не считаем, пока внутри не останется одно число.')
+    parts.push('Сначала то, что в скобках. Снаружи не считаем, пока внутри не останется одно число.')
   }
   if (hasMul && hasAdd) {
-    parts.push('Следующее: умножение и деление. Их делают раньше сложения и вычитания.')
+    parts.push('Потом умножение и деление: их делаем раньше сложения и вычитания.')
   } else if (hasMul) {
-    parts.push('Здесь умножение и деление. Скобок нет, идём слева направо: сначала левый знак.')
+    parts.push('Здесь умножение и деление. Скобок нет, выполняем их слева направо.')
   }
   if (hasAdd && !hasMul && !hasParen) {
-    parts.push('Здесь только сложение и вычитание. Они равны между собой. Идём слева направо: сначала левый знак, потом следующий.')
+    parts.push('Здесь только сложение и вычитание. Выполняем их слева направо.')
   } else if (hasAdd) {
     parts.push('Потом сложение и вычитание, слева направо.')
   }
-  parts.push('Сейчас пройду эти шаги по порядку.')
+  parts.push('Сейчас эти шаги по порядку.')
   return parts.join(' ')
 }
 
@@ -295,11 +295,15 @@ function stepAction(step: SolveStep): { kind: Op | 'unwrap'; a: number; b: numbe
 }
 
 function queueNote(why: string): string {
-  if (why.startsWith('Вначале')) return 'Снаружи пока не считаем: это действие в скобках, оно первое.'
-  if (why.startsWith('Скобки уже')) return 'Внутри скобок осталось одно число, поэтому скобки снимаем.'
-  if (why.startsWith('Следующее')) return 'Плюс и минус ещё рано трогать: сначала очередь умножения и деления.'
-  if (why.startsWith('Слева')) return 'Этот знак левее другого умножения или деления, поэтому он следующий.'
-  return 'Скобки, умножение и деление уже сделаны. Плюс и минус берём слева направо, сначала левый знак.'
+  if (why.startsWith('Сначала скобки')) return 'Это действие в скобках. Его делаем первым, снаружи пока не считаем.'
+  if (why.startsWith('Скобки уже')) return 'В скобках осталось одно число, поэтому скобки убираем.'
+  if (why.startsWith('Сначала умножение')) return 'Это умножение или деление. Сложение и вычитание делаем после них.'
+  if (why.startsWith('Умножение и деление слева')) return 'Здесь умножение или деление. Их выполняем слева направо, поэтому берём левый знак.'
+  return 'Скобки, умножение и деление уже посчитаны. Сложение и вычитание выполняем слева направо.'
+}
+
+function spokenExpr(tokens: Tok[]): string {
+  return readExpr(tokens.map(glyph).join(''))
 }
 
 /** Another walk of the same example: dots on the picture, and why this sign is next. */
@@ -307,8 +311,8 @@ export function exprAltBeats(input: string): AltBeat[] {
   const steps = solve(input)
   const beats: AltBeat[] = [
     {
-      caption: 'Другое объяснение: очередь знаков',
-      speech: `Это другое объяснение, не повтор. Пример: ${readExpr(input)}. На картинке три правила по порядку. Нельзя брать знак просто потому, что он левее. Сначала скобки, если они есть. Потом умножение и деление, слева направо. Потом сложение и вычитание, слева направо. Сейчас каждое действие покажу точками.`,
+      caption: 'Тот же пример, каждый шаг отдельно',
+      speech: `Разберём этот пример ещё раз, по одному действию. ${readExpr(input)}. Сначала скобки, если они есть. Потом умножение и деление слева направо. Потом сложение и вычитание слева направо. После каждого действия прочитаю, что осталось.`,
       picture: 'intro',
       a: 0,
       b: 0,
@@ -318,10 +322,11 @@ export function exprAltBeats(input: string): AltBeat[] {
   for (const step of steps) {
     const act = stepAction(step)
     const note = queueNote(step.why)
+    const rest = step.after.length > 1 ? ` Теперь пример: ${spokenExpr(step.after)}.` : ''
     if (act.kind === 'unwrap') {
       beats.push({
         caption: `Скобки сняты: ${act.value}`,
-        speech: `В скобках осталось одно число, ${say(act.a)}. На картинке скобки раскрываются, и остаётся ${say(act.value)}. ${note}`,
+        speech: `В скобках одно число, ${say(act.a)}. Скобки убираем, остаётся ${say(act.value)}. ${note}${rest}`,
         picture: 'unwrap',
         a: act.a,
         b: 0,
@@ -330,7 +335,7 @@ export function exprAltBeats(input: string): AltBeat[] {
     } else if (act.kind === '+') {
       beats.push({
         caption: `${act.a} + ${act.b} = ${act.value}`,
-        speech: `Складываем ${say(act.a)} и ${say(act.b)}. На картинке жёлтые точки — первое число, красные — второе, они съезжаются. Вместе ${say(act.value)}. ${note}`,
+        speech: `${note} ${cap(say(act.a))} плюс ${say(act.b)} равно ${say(act.value)}.${rest}`,
         picture: 'dots',
         a: act.a,
         b: act.b,
@@ -339,7 +344,7 @@ export function exprAltBeats(input: string): AltBeat[] {
     } else if (act.kind === '−') {
       beats.push({
         caption: `${act.a} − ${act.b} = ${act.value}`,
-        speech: `Вычитаем. Было ${say(act.a)} точек, ${say(act.b)} из них бледнеют и пропадают. Остаётся ${say(act.value)}. ${note}`,
+        speech: `${note} ${cap(say(act.a))} минус ${say(act.b)} равно ${say(act.value)}.${rest}`,
         picture: 'fade',
         a: act.a,
         b: act.b,
@@ -348,7 +353,7 @@ export function exprAltBeats(input: string): AltBeat[] {
     } else if (act.kind === '·') {
       beats.push({
         caption: `${act.a} · ${act.b} = ${act.value}`,
-        speech: `Умножаем. В ряду ${say(act.a)} точек, рядов ${say(act.b)}. На картинке ряды появляются по очереди. Всего точек ${say(act.value)}. ${note}`,
+        speech: `${note} ${cap(say(act.a))} умножить на ${say(act.b)} равно ${say(act.value)}.${rest}`,
         picture: 'rows',
         a: act.a,
         b: act.b,
@@ -357,7 +362,7 @@ export function exprAltBeats(input: string): AltBeat[] {
     } else {
       beats.push({
         caption: `${act.a} : ${act.b} = ${act.value}`,
-        speech: `Делим. ${say(act.a)} точек раскладываем на ${say(act.b)}. На картинке ряды одинаковые, в каждом по ${say(act.value)}. ${note}`,
+        speech: `${note} ${cap(say(act.a))} разделить на ${say(act.b)} равно ${say(act.value)}.${rest}`,
         picture: 'split',
         a: act.a,
         b: act.b,
@@ -368,7 +373,7 @@ export function exprAltBeats(input: string): AltBeat[] {
   const value = resultOf(input)
   beats.push({
     caption: 'Одно число в конце',
-    speech: `На картинке осталось одно число: ${say(value)}. Если у тебя вышло другое, очередь знаков сбилась. Вернись к первому действию: что по правилу раньше, то и считаем. В ответе ${say(value)}.`,
+    speech: `Осталось одно число: ${say(value)}. Это ответ. Если у тебя вышло другое, проверь, какое действие было первым.`,
     picture: 'answer',
     a: 0,
     b: 0,
@@ -383,9 +388,9 @@ export function detailedSpeech(input: string): string {
   const walk = steps
     .map((step, index) => `Шаг ${index + 1}. ${step.speech}`)
     .join(' ')
-  return `${ruleSpeech(input)} ${walk} В ответе ${say(resultOf(input))}. Если вышло другое число, проверь, что сделано вначале, а что следующее.`
+  return `${ruleSpeech(input)} ${walk} В ответе ${say(resultOf(input))}. Если вышло другое число, проверь первое действие.`
 }
 
 export function practiceSpeech(input: string): string {
-  return `Проверочное задание. Способ тот же, числа другие. ${readExpr(input)}. Посчитай сам и запиши ответ.`
+  return `Проверь себя. Пример: ${readExpr(input)}. Сначала скобки, потом умножение и деление слева направо, потом сложение и вычитание слева направо. Запиши ответ.`
 }

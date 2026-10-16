@@ -189,7 +189,7 @@ function orderScene(step: number) {
   }
   if (step === 1) return (<><Rows count={3} rows={2} color="#2f7dbe" /><Eq text="6 : 2 = 3" /></>)
   if (step === 2) return (<><Rows count={3} rows={2} /><Eq text="3 · 2 = 6" /><Eq text="8 + 3 − 6" /></>)
-  if (step === 3) return (<><Dots n={8} color="#f0b429" /><Dots n={3} color="#e85d4c" /><Eq text="8 + 3 − 6 = 5" /></>)
+  if (step === 3) return (<><Eq text="8 + 3 = 11" /><Eq text="11 − 6 = 5" /></>)
   return (
     <div className="compare">
       <Eq text="8" bad />
@@ -199,14 +199,14 @@ function orderScene(step: number) {
 }
 
 function cubeScene(step: number) {
-  if (step <= 1) return (<><Rows count={3} rows={2} color="#f0b429" /><Eq text="3 + 3 = 6 жёлтых" /></>)
+  if (step <= 1) return (<><Rows count={3} rows={2} color="#f0b429" /><Eq text="3 · 2 = 6 жёлтых" /></>)
   if (step === 2) return (<><Rows count={3} rows={2} color="#f0b429" /><Dots n={4} color="#e85d4c" /><Eq text="6 + 4 = 10" /></>)
   if (step === 3) return (<><Rows count={8} rows={2} color="#f0b429" /><Eq text="8 + 8 = 16" /></>)
   return <Eq text="16 + 16 = 32" />
 }
 
 function chairScene(step: number) {
-  if (step <= 1) return (<><Rows count={4} rows={3} color="#2f7dbe" /><Eq text="12 на 3 ряда = 4" /></>)
+  if (step <= 1) return (<><Rows count={4} rows={3} color="#2f7dbe" /><Eq text="12 : 3 = 4" /></>)
   if (step === 2) return (<><Eq text="два ряда: 8" /><Eq text="десять рядов: 40" /></>)
   if (step === 3) return (<><Rows count={8} rows={1} color="#2f7dbe" /><Eq text="24 на 3 = 8" /></>)
   return (<><Eq text="два ряда: 16" /><Eq text="десять рядов: 80" /></>)
@@ -225,15 +225,11 @@ function treeScene(step: number) {
 }
 
 function appleScene(step: number) {
-  const end = step >= 1 && step < 4
-  const left = step >= 4 ? 9 : step === 3 ? 6 : end ? 5 : 4
-  const right = step >= 4 ? 4 : step === 3 ? 2 : end ? 5 : 4
-  return (
-    <div className="vases">
-      <Vase n={left} label={step >= 4 ? 'сначала 9' : step === 3 ? 'сначала 6' : end ? 'стало 5' : '?'} />
-      <Vase n={right} label={step >= 4 ? 'сначала 4' : step === 3 ? 'сначала 2' : end ? 'стало 5' : '?'} />
-    </div>
-  )
+  if (step <= 0) return <Eq text="было 8, взяли 1, добавили 3" />
+  if (step === 1) return <Eq text="8 − 1 = 7, затем 7 + 3 = 10" />
+  if (step === 2) return <Eq text="10 : 2 = 5" />
+  if (step === 3) return <Eq text="5 − 3 = 2 и 5 + 1 = 6" />
+  return <Eq text="в задании сначала 9 и 4" />
 }
 
 function Vase({ n, label }: { n: number; label: string }) {
@@ -259,7 +255,7 @@ function cloakScene(step: number) {
           <span key={i} className="cloak on">{book ? '3 м' : '4 м'}</span>
         ))}
       </div>
-      <Eq text={book ? '12 + 38 = 50' : step >= 2 ? '8 + 10 = 18' : 'отрезали 8 м'} />
+      <Eq text={book ? '12 + 38 = 50' : step >= 2 ? '8 + 10 = 18' : '2 · 4 = 8'} />
     </>
   )
 }

@@ -247,7 +247,7 @@ function periFrame(fig: Figure, now: number, reduce: boolean): Frame {
     done: false,
     axis: 0,
     fold: 0,
-    status: `Сторона ${fig.sides[index].name}. Полоска едет по ней: эту длину мы и берём.`,
+    status: `Считаем сторону ${fig.sides[index].name}. Её длину измеряют линейкой.`,
     tone: '',
   }
 }
