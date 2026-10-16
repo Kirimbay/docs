@@ -191,7 +191,7 @@ function Trio() {
   return (
     <div className="geo-card">
       <BookPhoto box={ZOOM.all} />
-      <p className="geo-status">Буквы стоят на углах, как в учебнике.</p>
+      <p className="geo-status spot">Буквы стоят на углах, как в учебнике.</p>
       <p className="geo-rule">1. Периметр — сумма сторон. 2. Ось симметрии — две одинаковые половины.</p>
     </div>
   )
@@ -213,7 +213,7 @@ function AnimatedFigure({ kind, mode }: { kind: Kind; mode: Mode }) {
         {mode === 'peri' && <PerimeterDraw fig={fig} frame={frame} />}
         {mode === 'axes' && <AxesDraw fig={fig} frame={frame} />}
       </BookPhoto>
-      <p className={`geo-status ${frame.tone}`}>{frame.status}</p>
+      <p className={`geo-status spot ${frame.tone}`}>{frame.status}</p>
       <p className="geo-rule">{mode === 'peri' ? fig.rule : fig.axesCount}</p>
     </div>
   )

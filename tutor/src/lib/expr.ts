@@ -267,6 +267,116 @@ export function ruleSpeech(input: string): string {
   return parts.join(' ')
 }
 
+export type AltPicture = 'intro' | 'dots' | 'rows' | 'split' | 'fade' | 'unwrap' | 'answer'
+
+export type AltBeat = {
+  caption: string
+  speech: string
+  picture: AltPicture
+  a: number
+  b: number
+  value: number
+}
+
+function stepAction(step: SolveStep): { kind: Op | 'unwrap'; a: number; b: number; value: number } {
+  const slice = step.before.slice(step.from, step.to + 1)
+  const valueTok = step.after[step.from]
+  const value = valueTok && valueTok.k === 'n' ? valueTok.v : 0
+  if (slice[0]?.k === 'lp' && slice.at(-1)?.k === 'rp' && slice.length === 3) {
+    const n = slice[1]
+    return { kind: 'unwrap', a: n && n.k === 'n' ? n.v : value, b: 0, value }
+  }
+  const opTok = slice.find((t) => t.k === 'op')
+  const nums = slice.filter((t) => t.k === 'n')
+  if (!opTok || opTok.k !== 'op' || nums.length < 2 || !nums[0] || !nums[1]) {
+    return { kind: 'unwrap', a: value, b: 0, value }
+  }
+  return { kind: opTok.v, a: nums[0].v, b: nums[1].v, value }
+}
+
+function queueNote(why: string): string {
+  if (why.startsWith('Вначале')) return 'Снаружи пока не считаем: это действие в скобках, оно первое.'
+  if (why.startsWith('Скобки уже')) return 'Внутри скобок осталось одно число, поэтому скобки снимаем.'
+  if (why.startsWith('Следующее')) return 'Плюс и минус ещё рано трогать: сначала очередь умножения и деления.'
+  if (why.startsWith('Слева')) return 'Этот знак левее другого умножения или деления, поэтому он следующий.'
+  return 'Скобки, умножение и деление уже сделаны. Плюс и минус берём слева направо, сначала левый знак.'
+}
+
+/** Another walk of the same example: dots on the picture, and why this sign is next. */
+export function exprAltBeats(input: string): AltBeat[] {
+  const steps = solve(input)
+  const beats: AltBeat[] = [
+    {
+      caption: 'Другое объяснение: очередь знаков',
+      speech: `Это другое объяснение, не повтор. Пример: ${readExpr(input)}. На картинке три правила по порядку. Нельзя брать знак просто потому, что он левее. Сначала скобки, если они есть. Потом умножение и деление, слева направо. Потом сложение и вычитание, слева направо. Сейчас каждое действие покажу точками.`,
+      picture: 'intro',
+      a: 0,
+      b: 0,
+      value: 0,
+    },
+  ]
+  for (const step of steps) {
+    const act = stepAction(step)
+    const note = queueNote(step.why)
+    if (act.kind === 'unwrap') {
+      beats.push({
+        caption: `Скобки сняты: ${act.value}`,
+        speech: `В скобках осталось одно число, ${say(act.a)}. На картинке скобки раскрываются, и остаётся ${say(act.value)}. ${note}`,
+        picture: 'unwrap',
+        a: act.a,
+        b: 0,
+        value: act.value,
+      })
+    } else if (act.kind === '+') {
+      beats.push({
+        caption: `${act.a} + ${act.b} = ${act.value}`,
+        speech: `Складываем ${say(act.a)} и ${say(act.b)}. На картинке жёлтые точки — первое число, красные — второе, они съезжаются. Вместе ${say(act.value)}. ${note}`,
+        picture: 'dots',
+        a: act.a,
+        b: act.b,
+        value: act.value,
+      })
+    } else if (act.kind === '−') {
+      beats.push({
+        caption: `${act.a} − ${act.b} = ${act.value}`,
+        speech: `Вычитаем. Было ${say(act.a)} точек, ${say(act.b)} из них бледнеют и пропадают. Остаётся ${say(act.value)}. ${note}`,
+        picture: 'fade',
+        a: act.a,
+        b: act.b,
+        value: act.value,
+      })
+    } else if (act.kind === '·') {
+      beats.push({
+        caption: `${act.a} · ${act.b} = ${act.value}`,
+        speech: `Умножаем. В ряду ${say(act.a)} точек, рядов ${say(act.b)}. На картинке ряды появляются по очереди. Всего точек ${say(act.value)}. ${note}`,
+        picture: 'rows',
+        a: act.a,
+        b: act.b,
+        value: act.value,
+      })
+    } else {
+      beats.push({
+        caption: `${act.a} : ${act.b} = ${act.value}`,
+        speech: `Делим. ${say(act.a)} точек раскладываем на ${say(act.b)}. На картинке ряды одинаковые, в каждом по ${say(act.value)}. ${note}`,
+        picture: 'split',
+        a: act.a,
+        b: act.b,
+        value: act.value,
+      })
+    }
+  }
+  const value = resultOf(input)
+  beats.push({
+    caption: 'Одно число в конце',
+    speech: `На картинке осталось одно число: ${say(value)}. Если у тебя вышло другое, очередь знаков сбилась. Вернись к первому действию: что по правилу раньше, то и считаем. В ответе ${say(value)}.`,
+    picture: 'answer',
+    a: 0,
+    b: 0,
+    value,
+  })
+  return beats
+}
+
 /** One slow explanation: the rule, every step, and how to notice a wrong answer. */
 export function detailedSpeech(input: string): string {
   const steps = solve(input)
