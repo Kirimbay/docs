@@ -1,8 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   expr24,
+  expr24Bottom,
+  expr24BottomIntro,
   expr24Intro,
   expr25,
+  expr25Bottom,
+  expr25BottomIntro,
   expr25Intro,
   greeting,
   openingSpeech,
@@ -121,10 +125,11 @@ function Shell() {
             </aside>
             <div>
               <div className="lesson-head">
-                <p>
-                  Страница {task.page} · {task.title}
+                <p>Страница {task.page}</p>
+                <h1>{task.place}</h1>
+                <p className="task-name">
+                  {task.title}. {task.blurb}
                 </p>
-                <h1>{task.blurb}</h1>
               </div>
               <TaskBody id={task.id} progress={progress} onDone={() => mark(task.id)} onSolve={markExpr} />
             </div>
@@ -158,7 +163,7 @@ function Home({ onStart }: { onStart: () => void }) {
         </div>
       </div>
       <ol className="howto">
-        <li>Выбери задание на странице.</li>
+        <li>Выбери карточку: номер задания, поля или низ страницы.</li>
         <li>Слушай Кукузю и смотри, что загорается.</li>
         <li>Запиши ответ на больших кнопках.</li>
       </ol>
@@ -176,18 +181,21 @@ function Map({
   onOpen: (id: string) => void
 }) {
   const pages = [24, 25] as const
-  const exprProgress = useMemo(
-    () => ({
-      expr24: expr24.filter((e) => exprDone.includes(e)).length,
-      expr25: expr25.filter((e) => exprDone.includes(e)).length,
-    }),
-    [exprDone],
-  )
+  const exprLists: Record<string, string[]> = {
+    expr24,
+    expr24bottom: expr24Bottom,
+    expr25,
+    expr25bottom: expr25Bottom,
+  }
   return (
     <section className="map">
       <div className="map-intro">
         <h1>Порядок действий</h1>
-        <p>Пятнадцать заданий с этих двух страниц. Звезда появляется, когда задание дослушано и ответ записан.</p>
+        <p>
+          Номер на карточке такой же, как в учебнике: страница 24, задание 1, задание 2 и дальше. То, что
+          на полях, подписано «дополнительное задание на полях». То, что под чертой, — «дополнительное задание
+          внизу страницы».
+        </p>
       </div>
       {pages.map((page) => (
         <div key={page} className="page-block">
@@ -196,12 +204,8 @@ function Map({
             {tasks
               .filter((task) => task.page === page)
               .map((task) => {
-                const extra =
-                  task.id === 'expr24'
-                    ? `${exprProgress.expr24}/${expr24.length}`
-                    : task.id === 'expr25'
-                      ? `${exprProgress.expr25}/${expr25.length}`
-                      : null
+                const list = exprLists[task.id]
+                const extra = list ? `${list.filter((e) => exprDone.includes(e)).length}/${list.length}` : null
                 return (
                   <button
                     key={task.id}
@@ -210,7 +214,8 @@ function Map({
                     style={{ background: task.tint }}
                     onClick={() => onOpen(task.id)}
                   >
-                    <span className="ico">{task.icon}</span>
+                    <span className={`ico ${task.icon.length > 1 ? 'word' : ''}`}>{task.icon}</span>
+                    <span className="place">{task.place}</span>
                     <strong>{task.title}</strong>
                     <em>{task.blurb}</em>
                     {extra && <small>{extra}</small>}
@@ -223,7 +228,9 @@ function Map({
       ))}
       <figure className="photo">
         <img src="/textbook.jpg" alt="Разворот учебника, страницы 24 и 25" />
-        <figcaption>Так эти страницы выглядят в учебнике. Задания те же, только здесь их можно нажимать.</figcaption>
+        <figcaption>
+          Сверь с учебником: номер задания, поля слева или справа, и примеры под чертой внизу страницы.
+        </figcaption>
       </figure>
     </section>
   )
@@ -252,11 +259,33 @@ function TaskBody({
       />
     )
   }
+  if (id === 'expr24bottom') {
+    return (
+      <ExpressionSet
+        exprs={expr24Bottom}
+        intro={expr24BottomIntro}
+        solved={progress.exprs}
+        onSolve={onSolve}
+        onDone={onDone}
+      />
+    )
+  }
   if (id === 'expr25') {
     return (
       <ExpressionSet
         exprs={expr25}
         intro={expr25Intro}
+        solved={progress.exprs}
+        onSolve={onSolve}
+        onDone={onDone}
+      />
+    )
+  }
+  if (id === 'expr25bottom') {
+    return (
+      <ExpressionSet
+        exprs={expr25Bottom}
+        intro={expr25BottomIntro}
         solved={progress.exprs}
         onSolve={onSolve}
         onDone={onDone}

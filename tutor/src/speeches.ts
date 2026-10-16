@@ -5,8 +5,12 @@ import {
   correctSpeech,
   cubeBeats,
   expr24,
+  expr24Bottom,
+  expr24BottomIntro,
   expr24Intro,
   expr25,
+  expr25Bottom,
+  expr25BottomIntro,
   expr25Intro,
   fabricIntro,
   fabricRows,
@@ -47,7 +51,9 @@ export function allSpeeches(): string[] {
   add(bag, geoTri)
   add(bag, geoRect)
   add(bag, expr24Intro)
+  add(bag, expr24BottomIntro)
   add(bag, expr25Intro)
+  add(bag, expr25BottomIntro)
   add(bag, schemeIntro)
   add(bag, fabricIntro)
   add(bag, shapesIntro)
@@ -62,7 +68,14 @@ export function allSpeeches(): string[] {
   for (const speech of Object.values(shapeSpeech)) add(bag, speech)
   add(bag, 'Таблица заполнена. В каждой клетке теперь видно, какие два числа перемножили и что получилось.')
 
-  const exprs = new Set<string>([...expr24, ...expr25, ruleExample, ...schemes.map((s) => s.example)])
+  const exprs = new Set<string>([
+    ...expr24,
+    ...expr24Bottom,
+    ...expr25,
+    ...expr25Bottom,
+    ruleExample,
+    ...schemes.map((s) => s.example),
+  ])
   for (const expr of exprs) {
     add(bag, exprIntro(expr))
     add(bag, exprFinal(expr))

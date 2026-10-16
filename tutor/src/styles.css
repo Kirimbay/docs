@@ -135,6 +135,16 @@ body {
   gap: 4px;
 }
 .task-card .ico { font-size: 28px; font-weight: 900; }
+.task-card .ico.word { font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; }
+.task-card .place {
+  display: inline-block;
+  justify-self: start;
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 900;
+  line-height: 1.25;
+}
 .task-card em { font-style: normal; color: var(--muted); font-weight: 700; }
 .task-card small { font-weight: 800; color: var(--sky); }
 .task-card .star { position: absolute; right: 12px; top: 10px; font-size: 22px; color: #e0a106; }
@@ -148,6 +158,7 @@ body {
 .tutor .misha { width: 100%; filter: drop-shadow(0 10px 0 rgba(228, 211, 184, .9)); }
 .lesson-head { padding: 16px 18px; }
 .lesson-head p { color: var(--sky); font-weight: 800; }
+.lesson-head .task-name { color: var(--ink); font-size: 20px; margin: 0; }
 .stage, .expr-lesson { padding: 16px; margin-top: 12px; }
 .why, .caption, .badge {
   display: inline-block;
