@@ -6,10 +6,7 @@ import {
   cubeBeats,
   fabricIntro,
   fabricRows,
-  geoIntro,
-  geoRect,
-  geoSquare,
-  geoTri,
+  geoBeats,
   kiteBeats,
   multCols,
   rebusBeats,
@@ -22,43 +19,63 @@ import {
   shapesIntro,
   treeBeats,
 } from '../content'
-import { exprFinal, exprIntro, parse, solve } from '../lib/expr'
-import { AnswerBox, Stepper, Tokens } from './Bits'
+import { exprTwin, helpBeats, practices, ruleTwin } from '../extra'
+import { exprAltBeats, exprFinal, exprIntro, parse, practiceSpeech, resultOf, solve } from '../lib/expr'
+import { shots } from '../clips'
+import { AnswerBox, MarkSpeech, PracticeView, Stepper, TaskGate, Tokens, WithHelp } from './Bits'
+import { BookClip } from './BookClip'
+import { GeoMeasure, GeoVisual } from './GeoAnim'
+import { ExprAltPicture, HelpPicture, PracticePicture, type HelpTopic } from './HelpVisuals'
 import { useNarration, useVoice } from './voice'
+
+function helpOf(topic: HelpTopic) {
+  return (step: number) => <HelpPicture topic={topic} step={step} />
+}
 
 export function RuleTask({ onDone }: { onDone: () => void }) {
   const [showExample, setShowExample] = useState(false)
   if (!showExample) {
     return (
-      <Stepper
-        steps={ruleBeats}
-        render={(index) => <RuleVisual step={index} />}
-        doneLabel="Разобрать пример"
-        onDone={() => setShowExample(true)}
-      />
+      <WithHelp beats={helpBeats.order} render={helpOf('order')} plate={<BookClip shot={shots.rule} active="banner" />}>
+        <Stepper
+          steps={ruleBeats}
+          plate={<BookClip shot={shots.rule} active="banner" />}
+          render={(index) => <RuleVisual step={index} />}
+          doneLabel="Разобрать пример"
+          onDone={() => setShowExample(true)}
+        />
+      </WithHelp>
     )
   }
   return (
     <div className="stage">
-      <ExpressionLesson expr={ruleExample} intro={exprIntro(ruleExample)} onSolved={onDone} />
+      <BookClip shot={shots.expr24} active={ruleExample} />
+      <ExpressionLesson expr={ruleExample} twin={ruleTwin} intro={exprIntro(ruleExample)} onSolved={onDone} />
     </div>
   )
 }
 
 function RuleVisual({ step }: { step: number }) {
-  const stairs = [
-    { n: '1', t: 'Скобки', on: step >= 1 },
-    { n: '2', t: '· и : слева направо', on: step >= 2 },
-    { n: '3', t: '+ и − слева направо', on: step >= 3 },
+  const rules = [
+    { n: '1', t: 'Вначале скобки' },
+    { n: '2', t: 'Следующее: умножение и деление, слева направо' },
+    { n: '3', t: 'Потом сложение и вычитание, слева направо' },
   ]
   return (
     <div className="stairs">
-      {stairs.map((s) => (
-        <div key={s.n} className={`stair ${s.on ? 'on' : ''}`}>
-          <b>{s.n}</b>
-          <span>{s.t}</span>
+      <p className={`rule-lead ${step === 0 ? 'spot' : ''}`}>Нельзя выполнять действия как захочется.</p>
+      {rules.map((rule, index) => (
+        <div key={rule.n} className={`stair ${step === index + 1 ? 'spot' : ''} ${step > index + 1 ? 'on' : ''}`}>
+          <b>{rule.n}</b>
+          <span>{rule.t}</span>
         </div>
       ))}
+      {step >= 4 && (
+        <div className="rule-check spot">
+          <p>12 + 6 : 2 − 7 · 2</p>
+          <p>Как захочется: 4. По правилам: 1.</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -69,12 +86,14 @@ export function ExpressionSet({
   solved,
   onSolve,
   onDone,
+  shot,
 }: {
   exprs: string[]
   intro: string
   solved: string[]
   onSolve: (expr: string) => void
   onDone: () => void
+  shot: (typeof shots)['expr24']
 }) {
   const [current, setCurrent] = useState<string | null>(null)
   const { speak } = useVoice()
@@ -82,6 +101,7 @@ export function ExpressionSet({
 
   return (
     <div className="stage">
+      <BookClip shot={shot} active={current} />
       <div className="chip-grid">
         {exprs.map((expr) => (
           <button
@@ -100,10 +120,10 @@ export function ExpressionSet({
       {current ? (
         <ExpressionLesson key={current} expr={current} intro={exprIntro(current)} onSolved={() => onSolve(current)} />
       ) : (
-        <>
+        <WithHelp beats={helpBeats.order} render={helpOf('order')}>
           <p className="bubble-text">{intro}</p>
           <Say text={intro} />
-        </>
+        </WithHelp>
       )}
       {finished && (
         <button type="button" className="btn" onClick={onDone}>
@@ -118,17 +138,23 @@ export function ExpressionLesson({
   expr,
   intro,
   onSolved,
+  twin,
 }: {
   expr: string
   intro?: string
   onSolved: () => void
+  twin?: string
 }) {
+  const practiceExpr = twin ?? exprTwin[expr]
   const steps = useMemo(() => solve(expr), [expr])
   const [index, setIndex] = useState(intro ? -1 : 0)
   const [nonce, setNonce] = useState(0)
+  const [check, setCheck] = useState(false)
   const { speak } = useVoice()
   const done = index >= steps.length
-  const text = index < 0 ? intro || exprIntro(expr) : done ? exprFinal(expr) : steps[index].speech
+  const helpExpr = check && practiceExpr ? practiceExpr : expr
+  const help = useMemo(() => exprAltBeats(helpExpr), [helpExpr])
+  const text = check ? '' : index < 0 ? intro || exprIntro(expr) : done ? exprFinal(expr) : steps[index].speech
   useNarration(text, nonce)
 
   function go(next: number) {
@@ -141,230 +167,255 @@ export function ExpressionLesson({
   const answerValue = answer && answer.k === 'n' ? String(answer.v) : ''
 
   return (
+    <WithHelp beats={help} render={(i) => <ExprAltPicture beat={help[i]} />}>
     <div className="expr-lesson">
-      {index < 0 && <Tokens tokens={parse(expr)} />}
-      {index >= 0 && !done && (
+      {index < 0 && <Tokens tokens={parse(expr)} hotFrom={steps[0]?.from} hotTo={steps[0]?.to} />}
+      {index >= 0 && !done && !check && (
         <>
           <div className="why">{steps[index].why}</div>
           <Tokens tokens={steps[index].before} hotFrom={steps[index].from} hotTo={steps[index].to} />
-          <div className="caption">{steps[index].caption}</div>
+          <div className="caption spot">{steps[index].caption}</div>
           <Tokens tokens={steps[index].after} hotFrom={steps[index].from} hotTo={steps[index].from} />
         </>
       )}
-      {done && answer && answer.k === 'n' && (
+      {done && answer && answer.k === 'n' && !check && (
         <>
           <Tokens tokens={parse(expr)} />
-          <div className="caption big">= {answer.v}</div>
+          <div className="caption big spot">= {answer.v}</div>
         </>
       )}
-      <p className="bubble-text">{text}</p>
-      <div className="row">
-        <button type="button" className="btn ghost" disabled={index <= (intro ? -1 : 0)} onClick={() => go(index - 1)}>
-          Шаг назад
-        </button>
-        <button type="button" className="btn ghost" onClick={() => setNonce((n) => n + 1)}>
-          Слушать ещё раз
-        </button>
-        {!done && (
-          <button type="button" className="btn" onClick={() => go(index + 1)}>
-            {index < 0 ? 'Показать шаг' : 'Дальше'}
+      {text && (
+        <p className="bubble-text">
+          <MarkSpeech
+            text={text}
+            caption={index < 0 ? expr : done ? answerValue : steps[index]?.caption}
+          />
+        </p>
+      )}
+      {!check && (
+        <div className="row">
+          <button type="button" className="btn ghost" disabled={index <= (intro ? -1 : 0)} onClick={() => go(index - 1)}>
+            Шаг назад
           </button>
-        )}
-      </div>
-      {done && <AnswerBox fields={[{ label: 'ответ', answer: answerValue }]} onCorrect={onSolved} />}
-      <p className="step-count">{done ? 'Ответ' : index < 0 ? 'Начало' : `Шаг ${index + 1} из ${steps.length}`}</p>
+          <button type="button" className="btn ghost" onClick={() => setNonce((n) => n + 1)}>
+            Слушать ещё раз
+          </button>
+          {!done && (
+            <button type="button" className="btn" onClick={() => go(index + 1)}>
+              {index < 0 ? 'Показать шаг' : 'Дальше'}
+            </button>
+          )}
+        </div>
+      )}
+      {done && !check && (
+        <AnswerBox
+          fields={[{ label: 'ответ', answer: answerValue }]}
+          onCorrect={() => (practiceExpr ? setCheck(true) : onSolved())}
+        />
+      )}
+      {check && practiceExpr && (
+        <PracticeView
+          expr={practiceExpr}
+          practice={{
+            speech: practiceSpeech(practiceExpr),
+            fields: [{ label: 'ответ', answer: String(resultOf(practiceExpr)) }],
+          }}
+          onDone={onSolved}
+        />
+      )}
+      {!check && (
+        <p className="step-count">{done ? 'Ответ' : index < 0 ? 'Начало' : `Шаг ${index + 1} из ${steps.length}`}</p>
+      )}
     </div>
+    </WithHelp>
   )
 }
 
 export function CubeTask({ onDone }: { onDone: () => void }) {
   return (
-    <Stepper
-      steps={cubeBeats}
-      render={(i) => <Cubes phase={i} />}
-      after={<AnswerBox fields={[{ label: 'кубиков в коробке', answer: '32' }]} onCorrect={onDone} />}
-    />
-  )
-}
-
-function Cubes({ phase }: { phase: number }) {
-  const yellow = phase >= 1 ? 8 : 0
-  const red = phase >= 2 ? 16 : 0
-  return (
-    <div className="scene">
-      <div className="box">
-        <Row count={yellow} color="y" />
-        <Row count={yellow} color="y" />
-        <Row count={Math.min(red, 8)} color="r" />
-        {red > 8 && <Row count={red - 8} color="r" />}
-      </div>
-      {phase >= 3 && <div className="badge">16 + 16 = 32</div>}
-    </div>
-  )
-}
-
-function Row({ count, color }: { count: number; color: 'y' | 'r' }) {
-  return (
-    <div className="cube-row">
-      {Array.from({ length: count }, (_, i) => (
-        <i key={i} className={`cube ${color}`} style={{ animationDelay: `${i * 40}ms` }} />
-      ))}
-    </div>
+    <TaskGate
+      help={helpBeats.cubes}
+      helpRender={helpOf('cubes')}
+      practice={practices.cubes}
+      practicePicture={<PracticePicture topic="cubes" />}
+      plate={<BookClip shot={shots.cubes} />}
+      onDone={onDone}
+    >
+      {(finishBook) => (
+        <Stepper
+          steps={cubeBeats}
+          render={(i) => (
+            <>
+              <BookClip shot={shots.cubes} active={[['rows', 'eight', 'red'], ['rows', 'eight'], ['red'], ['ask']][i]} />
+              {i === 1 && <div className="badge spot">8 · 2 = 16 жёлтых</div>}
+              {i === 2 && <div className="badge spot">красных уже 16</div>}
+              {i === 3 && <div className="badge spot">16 + 16 = 32</div>}
+            </>
+          )}
+          after={<AnswerBox fields={[{ label: 'кубиков в коробке', answer: '32' }]} onCorrect={finishBook} />}
+        />
+      )}
+    </TaskGate>
   )
 }
 
 export function ChairTask({ onDone }: { onDone: () => void }) {
   return (
-    <Stepper
-      steps={chairBeats}
-      render={(i) => <Chairs phase={i} />}
-      after={
-        <AnswerBox
-          fields={[
-            { label: 'в одном ряду', answer: '8' },
-            { label: 'в двух рядах', answer: '16' },
-            { label: 'в десяти рядах', answer: '80' },
-          ]}
-          onCorrect={onDone}
+    <TaskGate
+      help={helpBeats.chairs}
+      helpRender={helpOf('chairs')}
+      practice={practices.chairs}
+      practicePicture={<PracticePicture topic="chairs" />}
+      plate={<BookClip shot={shots.chairs} />}
+      onDone={onDone}
+    >
+      {(finish) => (
+        <Stepper
+          steps={chairBeats}
+          render={(i) => (
+            <>
+              <BookClip shot={shots.chairs} active={[['rows', 'total'], ['q1a', 'q1b'], ['q2a', 'q2b'], ['q3']][i]} />
+              {i === 1 && <div className="badge spot">24 : 3 = 8 в ряду</div>}
+              {i === 2 && <div className="badge spot">8 · 2 = 16</div>}
+              {i === 3 && <div className="badge spot">8 · 10 = 80</div>}
+            </>
+          )}
+          after={
+            <AnswerBox
+              fields={[
+                { label: 'в одном ряду', answer: '8' },
+                { label: 'в двух рядах', answer: '16' },
+                { label: 'в десяти рядах', answer: '80' },
+              ]}
+              onCorrect={finish}
+            />
+          }
         />
-      }
-    />
-  )
-}
-
-function Chairs({ phase }: { phase: number }) {
-  const rows = phase === 2 ? 2 : phase >= 1 ? 1 : 3
-  const shown = phase === 0 ? 0 : 8
-  return (
-    <div className="scene">
-      <div className="chair-rows">
-        {Array.from({ length: phase === 0 ? 3 : rows }, (_, r) => (
-          <div key={r} className="chair-row">
-            {Array.from({ length: shown }, (_, i) => (
-              <span key={i} className="chair" style={{ animationDelay: `${(r * 8 + i) * 25}ms` }} />
-            ))}
-          </div>
-        ))}
-      </div>
-      {phase === 2 && <div className="badge">два ряда — 16</div>}
-      {phase === 3 && <div className="badge">десять рядов по 8 — 80</div>}
-    </div>
+      )}
+    </TaskGate>
   )
 }
 
 export function TreeTask({ onDone }: { onDone: () => void }) {
   return (
-    <Stepper
-      steps={treeBeats}
-      render={(i) => <Trees phase={i} />}
-      after={
-        <AnswerBox
-          fields={[
-            { label: 'на сколько метров', answer: '12' },
-            { label: 'во сколько раз', answer: '5' },
-          ]}
-          onCorrect={onDone}
+    <TaskGate
+      help={helpBeats.trees}
+      helpRender={helpOf('trees')}
+      practice={practices.trees}
+      practicePicture={<PracticePicture topic="trees" />}
+      plate={<BookClip shot={shots.trees} />}
+      onDone={onDone}
+    >
+      {(finish) => (
+        <Stepper
+          steps={treeBeats}
+          render={(i) => (
+            <>
+              <BookClip shot={shots.trees} active={[['birch', 'rowan'], ['q1a', 'q1b'], ['q2a', 'q2b']][i]} />
+              {i === 1 && <div className="badge spot">15 − 3 = 12 метров</div>}
+              {i === 2 && <div className="badge spot">15 : 3 = 5 раз</div>}
+            </>
+          )}
+          after={
+            <AnswerBox
+              fields={[
+                { label: 'на сколько метров', answer: '12' },
+                { label: 'во сколько раз', answer: '5' },
+              ]}
+              onCorrect={finish}
+            />
+          }
         />
-      }
-    />
-  )
-}
-
-function Trees({ phase }: { phase: number }) {
-  return (
-    <div className="trees">
-      <div className="tree birch">
-        <div className="crown" />
-        <div className="trunk" />
-        <b>15 м</b>
-      </div>
-      <div className="gap">
-        {phase >= 1 && <em>на 12 м</em>}
-        {phase >= 2 && <em>в 5 раз</em>}
-      </div>
-      <div className="tree rowan">
-        <div className="crown" />
-        <div className="trunk" />
-        <b>3 м</b>
-      </div>
-    </div>
+      )}
+    </TaskGate>
   )
 }
 
 export function AppleTask({ onDone }: { onDone: () => void }) {
   return (
-    <Stepper
-      steps={appleBeats}
-      render={(i) => <Apples phase={i} />}
-      after={
-        <AnswerBox
-          fields={[
-            { label: 'ваза, из которой взяли', answer: '9' },
-            { label: 'ваза, куда добавили', answer: '4' },
-          ]}
-          onCorrect={onDone}
+    <TaskGate
+      help={helpBeats.apples}
+      helpRender={helpOf('apples')}
+      practice={practices.apples}
+      practicePicture={<PracticePicture topic="apples" />}
+      plate={<BookClip shot={shots.apples} />}
+      onDone={onDone}
+    >
+      {(finish) => (
+        <Stepper
+          steps={appleBeats}
+          render={(i) => (
+            <>
+              <BookClip
+                shot={shots.apples}
+                active={[['was', 'took', 'adda', 'addb', 'equal'], ['took', 'adda', 'addb'], ['equal'], ['aska', 'askb'], ['was']][i]}
+              />
+              {i === 1 && <div className="badge spot">13 − 2 = 11, затем 11 + 3 = 14</div>}
+              {i === 2 && <div className="badge spot">14 : 2 = 7</div>}
+              {i === 3 && <div className="badge spot">7 + 2 = 9 и 7 − 3 = 4</div>}
+              {i === 4 && <div className="badge spot">9 + 4 = 13</div>}
+            </>
+          )}
+          after={
+            <AnswerBox
+              fields={[
+                { label: 'ваза, из которой взяли', answer: '9' },
+                { label: 'ваза, куда добавили', answer: '4' },
+              ]}
+              onCorrect={finish}
+            />
+          }
         />
-      }
-    />
-  )
-}
-
-function Apples({ phase }: { phase: number }) {
-  const start = phase >= 4
-  const equal = phase >= 2 && !start
-  const leftCount = start ? 9 : equal ? 7 : phase >= 1 ? 6 : 5
-  const rightCount = start ? 4 : equal ? 7 : phase >= 1 ? 7 : 5
-  const leftLabel = start ? 'сначала 9' : equal ? 'стало 7' : '?'
-  const rightLabel = start ? 'сначала 4' : equal ? 'стало 7' : '?'
-  return (
-    <div className="vases">
-      <Vase count={leftCount} label={leftLabel} />
-      <div className="gap">
-        {phase === 1 && <em>13 − 2 + 3 = 14</em>}
-        {equal && <em>по 7</em>}
-        {start && <em>9 и 4</em>}
-      </div>
-      <Vase count={rightCount} label={rightLabel} />
-    </div>
-  )
-}
-
-function Vase({ count, label, fly }: { count: number; label: string; fly?: 'out' | 'in' }) {
-  return (
-    <div className={`vase ${fly ?? ''}`}>
-      <div className="apples">
-        {Array.from({ length: count }, (_, i) => (
-          <i key={i} />
-        ))}
-      </div>
-      <b>{label}</b>
-    </div>
+      )}
+    </TaskGate>
   )
 }
 
 export function CloakTask({ onDone }: { onDone: () => void }) {
   return (
-    <Stepper
-      steps={cloakBeats}
-      render={(i) => (
-        <div className="scene cloaks">
-          {Array.from({ length: 4 }, (_, n) => (
-            <span key={n} className={`cloak ${i >= 1 ? 'on' : ''}`} style={{ animationDelay: `${n * 80}ms` }}>
-              3 м
-            </span>
-          ))}
-          {i >= 1 && <div className="badge">ушло 12 м</div>}
-          {i >= 2 && <div className="badge mint">осталось 38 м → было 50 м</div>}
-        </div>
+    <TaskGate
+      help={helpBeats.cloaks}
+      helpRender={helpOf('cloaks')}
+      practice={practices.cloaks}
+      practicePicture={<PracticePicture topic="cloaks" />}
+      plate={<BookClip shot={shots.cloaks} />}
+      onDone={onDone}
+    >
+      {(finish) => (
+        <Stepper
+          steps={cloakBeats}
+          render={(i) => (
+            <>
+              <BookClip shot={shots.cloaks} active={[['n4', 'n3'], ['n4', 'n3'], ['n38', 'ask1', 'ask2']][i]} />
+              {i === 1 && <div className="badge spot">4 · 3 = 12 метров ушло</div>}
+              {i === 2 && <div className="badge spot">12 + 38 = 50 метров было</div>}
+            </>
+          )}
+          after={<AnswerBox fields={[{ label: 'метров сначала', answer: '50' }]} onCorrect={finish} />}
+        />
       )}
-      after={<AnswerBox fields={[{ label: 'метров сначала', answer: '50' }]} onCorrect={onDone} />}
-    />
+    </TaskGate>
   )
 }
 
-const tableDone = 'Таблица заполнена. В каждой клетке теперь видно, какие два числа перемножили и что получилось.'
+const tableDone = 'Таблица заполнена. В каждом столбике два множителя и произведение.'
 
 export function MultiplyTask({ onDone }: { onDone: () => void }) {
+  return (
+    <TaskGate
+      help={helpBeats.multiply}
+      helpRender={helpOf('multiply')}
+      practice={practices.multiply}
+      practicePicture={<PracticePicture topic="multiply" />}
+      plate={<BookClip shot={shots.multiply} />}
+      onDone={onDone}
+    >
+      {(finish) => <MultiplyWork onDone={finish} />}
+    </TaskGate>
+  )
+}
+
+function MultiplyWork({ onDone }: { onDone: () => void }) {
   const [col, setCol] = useState(0)
   const [nonce, setNonce] = useState(0)
   const [filled, setFilled] = useState<string[]>(() => multCols.map(() => ''))
@@ -375,6 +426,7 @@ export function MultiplyTask({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="stage">
+      <BookClip shot={shots.multiply} active={finished ? null : String(col)} />
       <table className="mult">
         <tbody>
           <tr>
@@ -424,7 +476,7 @@ export function MultiplyTask({ onDone }: { onDone: () => void }) {
       )}
       {finished && (
         <button type="button" className="btn" onClick={onDone}>
-          Таблица готова
+          К проверочному заданию
         </button>
       )}
     </div>
@@ -437,12 +489,37 @@ function cell(printed: string, blank: boolean, value: string) {
 }
 
 export function FabricTask({ onDone }: { onDone: () => void }) {
+  return (
+    <TaskGate
+      help={helpBeats.fabric}
+      helpRender={helpOf('fabric')}
+      practice={practices.fabric}
+      practicePicture={<PracticePicture topic="fabric" />}
+      plate={<BookClip shot={shots.fabric} />}
+      onDone={onDone}
+    >
+      {(finish) => <FabricWork onDone={finish} />}
+    </TaskGate>
+  )
+}
+
+function FabricWork({ onDone }: { onDone: () => void }) {
   const [row, setRow] = useState<number | null>(null)
   const [doneRows, setDoneRows] = useState<number[]>([])
   const { speak } = useVoice()
   const all = doneRows.length === fabricRows.length
   return (
     <div className="stage">
+      <BookClip
+        shot={shots.fabric}
+        active={row === null ? null : [['a0', 'b0', 'c0'], ['a1', 'b1', 'c1'], ['a2', 'b2', 'c2']][row]}
+        onPick={(id) => {
+          const next = Number(id.slice(1))
+          if (!fabricRows[next]) return
+          speak(fabricRows[next].speech)
+          setRow(next)
+        }}
+      />
       <p className="bubble-text">{row === null ? fabricIntro : fabricRows[row].speech}</p>
       <Say text={row === null ? fabricIntro : fabricRows[row].speech} />
       <div className="chip-grid">
@@ -450,7 +527,7 @@ export function FabricTask({ onDone }: { onDone: () => void }) {
           <button
             key={item.title}
             type="button"
-            className={`chip ${doneRows.includes(i) ? 'ok' : ''}`}
+            className={`chip ${doneRows.includes(i) ? 'ok' : ''} ${row === i ? 'spot' : ''}`}
             onClick={() => {
               speak(item.speech)
               setRow(i)
@@ -465,7 +542,7 @@ export function FabricTask({ onDone }: { onDone: () => void }) {
       </div>
       {row !== null && (
         <div className="scene">
-          <Cloth meters={row === 0 ? 6 : 6} suits={row === 2 ? 2 : 2} />
+          <div className="badge spot">{['3 · 2 = 6', '6 : 2 = 3', '6 : 3 = 2'][row]}</div>
           <AnswerBox
             key={row}
             fields={[{ label: fabricRows[row].label, answer: fabricRows[row].answer }]}
@@ -477,25 +554,29 @@ export function FabricTask({ onDone }: { onDone: () => void }) {
       )}
       {all && (
         <button type="button" className="btn" onClick={onDone}>
-          Три задачи решены
+          К проверочному заданию
         </button>
       )}
     </div>
   )
 }
 
-function Cloth({ meters, suits }: { meters: number; suits: number }) {
+export function SchemeTask({ onDone }: { onDone: () => void }) {
   return (
-    <div className="cloth">
-      {Array.from({ length: suits }, (_, i) => (
-        <span key={i} className="suit" />
-      ))}
-      <b>{meters} м ткани</b>
-    </div>
+    <TaskGate
+      help={helpBeats.schemes}
+      helpRender={helpOf('schemes')}
+      practice={practices.schemes}
+      practicePicture={<PracticePicture topic="schemes" />}
+      plate={<BookClip shot={shots.schemes} />}
+      onDone={onDone}
+    >
+      {(finish) => <SchemeWork onDone={finish} />}
+    </TaskGate>
   )
 }
 
-export function SchemeTask({ onDone }: { onDone: () => void }) {
+function SchemeWork({ onDone }: { onDone: () => void }) {
   const [id, setId] = useState<string | null>(null)
   const [cleared, setCleared] = useState<string[]>([])
   const { speak } = useVoice()
@@ -503,6 +584,16 @@ export function SchemeTask({ onDone }: { onDone: () => void }) {
   const ready = cleared.length >= 3
   return (
     <div className="stage">
+      <BookClip
+        shot={shots.schemes}
+        active={id}
+        onPick={(next) => {
+          const picked = schemes.find((item) => item.id === next)
+          if (!picked) return
+          speak(picked.speech)
+          setId(picked.id)
+        }}
+      />
       {!scheme && (
         <>
           <p className="bubble-text">{schemeIntro}</p>
@@ -514,7 +605,7 @@ export function SchemeTask({ onDone }: { onDone: () => void }) {
           <button
             key={s.id}
             type="button"
-            className={`chip ${cleared.includes(s.id) ? 'ok' : ''}`}
+            className={`chip ${cleared.includes(s.id) ? 'ok' : ''} ${id === s.id ? 'spot' : ''}`}
             onClick={() => {
               speak(s.speech)
               setId(s.id)
@@ -527,7 +618,7 @@ export function SchemeTask({ onDone }: { onDone: () => void }) {
       {scheme && (
         <div className="scheme">
           <div className="why">{scheme.order}</div>
-          <p className="pattern">{scheme.pattern}</p>
+          <p className="pattern spot">{scheme.pattern}</p>
           <p className="bubble-text">{scheme.speech}</p>
           <ExpressionLesson
             key={scheme.id}
@@ -539,7 +630,7 @@ export function SchemeTask({ onDone }: { onDone: () => void }) {
       )}
       {ready && (
         <button type="button" className="btn" onClick={onDone}>
-          Схемы разобраны
+          К проверочному заданию
         </button>
       )}
       {!ready && <p className="step-count">Посчитай три разные схемы. Сейчас {cleared.length} из 3.</p>}
@@ -548,92 +639,55 @@ export function SchemeTask({ onDone }: { onDone: () => void }) {
 }
 
 export function GeometryTask({ onDone }: { onDone: () => void }) {
-  const [fig, setFig] = useState<'square' | 'tri' | 'rect' | null>(null)
-  const [seen, setSeen] = useState<string[]>([])
-  const speech = fig === 'square' ? geoSquare : fig === 'tri' ? geoTri : fig === 'rect' ? geoRect : geoIntro
-  useNarration(speech, fig ? 1 : 0)
   return (
-    <div className="stage">
-      <div className="figures">
-        <button type="button" className={`fig square ${fig === 'square' ? 'on' : ''}`} onClick={() => open('square')}>
-          <i />
-          <span>А Б Ц Д</span>
-        </button>
-        <button type="button" className={`fig tri ${fig === 'tri' ? 'on' : ''}`} onClick={() => open('tri')}>
-          <i />
-          <span>К Л М</span>
-        </button>
-        <button type="button" className={`fig rect ${fig === 'rect' ? 'on' : ''}`} onClick={() => open('rect')}>
-          <i />
-          <span>Н О П Т</span>
-        </button>
-      </div>
-      <p className="bubble-text">{speech}</p>
-      {fig && <Perimeter fig={fig} />}
-      {seen.length === 3 && (
-        <button type="button" className="btn" onClick={onDone}>
-          Фигуры разобраны
-        </button>
+    <TaskGate
+      help={helpBeats.geometry}
+      helpRender={helpOf('geometry')}
+      practice={practices.geometry}
+      practicePicture={<PracticePicture topic="geometry" />}
+      plate={<BookClip shot={shots.geometry} active={['square', 'tri', 'rect']} />}
+      onDone={onDone}
+    >
+      {(finish) => (
+        <Stepper
+          steps={geoBeats}
+          render={(index) => <GeoVisual step={index} />}
+          after={<GeoMeasure onContinue={finish} />}
+        />
       )}
-    </div>
-  )
-
-  function open(id: 'square' | 'tri' | 'rect') {
-    setFig(id)
-    setSeen((prev) => (prev.includes(id) ? prev : [...prev, id]))
-  }
-}
-
-function Perimeter({ fig }: { fig: 'square' | 'tri' | 'rect' }) {
-  const [a, setA] = useState('')
-  const [b, setB] = useState('')
-  const n1 = Number(a)
-  const n2 = Number(b)
-  let result: string | null = null
-  if (fig === 'square' && n1 > 0) result = `По краю ${n1} · 4 = ${n1 * 4}. Сгибов: 4.`
-  if (fig === 'tri' && n1 > 0) result = `По краю ${n1} · 3 = ${n1 * 3}. Сгибов: 3.`
-  if (fig === 'rect' && n1 > 0 && n2 > 0) {
-    const axes = n1 === n2 ? 4 : 2
-    result = `По краю (${n1} + ${n2}) · 2 = ${(n1 + n2) * 2}. Сгибов: ${axes}.`
-  }
-  return (
-    <div className="answer">
-      <label>
-        <span>{fig === 'rect' ? 'длина, см' : 'сторона, см'}</span>
-        <input inputMode="numeric" value={a} onChange={(e) => setA(e.target.value.replace(/[^\d]/g, ''))} />
-      </label>
-      {fig === 'rect' && (
-        <label>
-          <span>ширина, см</span>
-          <input inputMode="numeric" value={b} onChange={(e) => setB(e.target.value.replace(/[^\d]/g, ''))} />
-        </label>
-      )}
-      {result && <div className="caption">{result}</div>}
-    </div>
+    </TaskGate>
   )
 }
 
 export function ShapesTask({ onDone }: { onDone: () => void }) {
+  return (
+    <TaskGate
+      help={helpBeats.shapes}
+      helpRender={helpOf('shapes')}
+      practice={practices.shapes}
+      practicePicture={<PracticePicture topic="shapes" />}
+      plate={<BookClip shot={shots.shapes} />}
+      onDone={onDone}
+    >
+      {(finish) => <ShapesWork onDone={finish} />}
+    </TaskGate>
+  )
+}
+
+function ShapesWork({ onDone }: { onDone: () => void }) {
+  const { praiseNow } = useVoice()
   const [picked, setPicked] = useState<string | null>(null)
   const [found, setFound] = useState<string[]>([])
   const speech = picked ? shapeSpeech[picked] : shapesIntro
   useNarration(speech, picked ?? 'intro')
   return (
     <div className="stage">
-      <div className="shape-board">
-        <Shape id="p1" className="s1" label="1" onPick={pick} />
-        <Shape id="p2" className="s2" label="2" onPick={pick} />
-        <Shape id="p3" className="s3" label="3" onPick={pick} />
-        <Shape id="p4" className="s4" label="4" onPick={pick} />
-        <Shape id="p5" className="s5" label="5" onPick={pick} />
-        <Shape id="p6" className="s6" label="6" onPick={pick} />
-        <Shape id="p7" className="s7" label="7" onPick={pick} />
-      </div>
+      <BookClip shot={shots.shapes} active={picked} onPick={pick} />
       <p className="bubble-text">{speech}</p>
       <p className="step-count">Найдено способов: {found.length}. Нужно хотя бы 3.</p>
       {found.length >= 3 && (
         <button type="button" className="btn" onClick={onDone}>
-          Способы найдены
+          К проверочному заданию
         </button>
       )}
     </div>
@@ -642,62 +696,78 @@ export function ShapesTask({ onDone }: { onDone: () => void }) {
   function pick(id: string) {
     setPicked(id)
     const shape = shapes.find((s) => s.id === id)
-    if (shape?.valid) setFound((prev) => (prev.includes(id) ? prev : [...prev, id]))
+    if (shape?.valid && !found.includes(id)) {
+      praiseNow()
+      setFound((prev) => (prev.includes(id) ? prev : [...prev, id]))
+    }
   }
-}
-
-function Shape({ id, className, label, onPick }: { id: string; className: string; label: string; onPick: (id: string) => void }) {
-  return (
-    <button type="button" className={`shape ${className}`} onClick={() => onPick(id)}>
-      <i />
-      <span>{label}</span>
-    </button>
-  )
 }
 
 export function KiteTask({ onDone }: { onDone: () => void }) {
   return (
-    <div className="stage">
-      <div className="kite">
-        {[1, 6, 12, 19, 27, 36].map((n, i) => (
-          <span key={n} style={{ animationDelay: `${i * 90}ms` }}>
-            {n}
-          </span>
-        ))}
-        <span className="ask">?</span>
-        <span className="ask">?</span>
-      </div>
+    <TaskGate
+      help={helpBeats.kite}
+      helpRender={helpOf('kite')}
+      practice={practices.kite}
+      practicePicture={<PracticePicture topic="kite" />}
+      plate={<BookClip shot={shots.kite} />}
+      onDone={onDone}
+    >
+      {(finish) => (
       <Stepper
         steps={kiteBeats}
+        render={(step) => (
+          <>
+          <BookClip
+            shot={shots.kite}
+            active={step >= 2 ? ['q1', 'q2'] : ['1', '6', '12', '19', '27', '36']}
+          />
+          {step === 1 && <div className="badge spot">прибавляем 5, 6, 7, 8, 9</div>}
+          {step >= 2 && <div className="badge spot">36 + 10 = 46, затем 46 + 11 = 57</div>}
+          </>
+        )}
         after={
           <AnswerBox
             fields={[
               { label: 'следующее число', answer: '46' },
               { label: 'число после него', answer: '57' },
             ]}
-            onCorrect={onDone}
+            onCorrect={finish}
           />
         }
       />
-    </div>
+      )}
+    </TaskGate>
   )
 }
 
 export function RebusTask({ onDone }: { onDone: () => void }) {
   return (
+    <TaskGate
+      help={helpBeats.rebus}
+      helpRender={helpOf('rebus')}
+      practice={practices.rebus}
+      practicePicture={<PracticePicture topic="rebus" />}
+      plate={<BookClip shot={shots.rebus} active="house" />}
+      onDone={onDone}
+    >
+      {(finish) => (
     <Stepper
       steps={rebusBeats}
-      render={() => (
+      render={(step) => (
+        <>
+        <BookClip shot={shots.rebus} active={step === 0 ? 'house' : step === 1 ? 'top' : 'bot'} />
         <div className="rebuses">
-          <pre>{`  * *
+          <pre className={step === 2 ? 'dim' : 'spot'}>{`  * *
 + 3 7
 ─────
   8 3`}</pre>
-          <pre>{`  * 5
+          <pre className={step === 1 ? 'dim' : 'spot'}>{`  * 5
 − 2 *
 ─────
   3 6`}</pre>
         </div>
+        </>
       )}
       after={
         <AnswerBox
@@ -706,10 +776,12 @@ export function RebusTask({ onDone }: { onDone: () => void }) {
             { label: 'число, из которого отнимали', answer: '65' },
             { label: 'какое число отняли', answer: '29' },
           ]}
-          onCorrect={onDone}
+          onCorrect={finish}
         />
       }
     />
+      )}
+    </TaskGate>
   )
 }
 
