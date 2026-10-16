@@ -21,7 +21,9 @@ import {
 } from '../content'
 import { exprTwin, helpBeats, practices, ruleTwin } from '../extra'
 import { exprAltBeats, exprFinal, exprIntro, parse, practiceSpeech, resultOf, solve } from '../lib/expr'
+import { shots } from '../clips'
 import { AnswerBox, MarkSpeech, PracticeView, Stepper, TaskGate, Tokens, WithHelp } from './Bits'
+import { BookClip } from './BookClip'
 import { GeoMeasure, GeoVisual } from './GeoAnim'
 import { ExprAltPicture, HelpPicture, PracticePicture, type HelpTopic } from './HelpVisuals'
 import { useNarration, useVoice } from './voice'
@@ -34,9 +36,10 @@ export function RuleTask({ onDone }: { onDone: () => void }) {
   const [showExample, setShowExample] = useState(false)
   if (!showExample) {
     return (
-      <WithHelp beats={helpBeats.order} render={helpOf('order')}>
+      <WithHelp beats={helpBeats.order} render={helpOf('order')} plate={<BookClip shot={shots.rule} active="banner" />}>
         <Stepper
           steps={ruleBeats}
+          plate={<BookClip shot={shots.rule} active="banner" />}
           render={(index) => <RuleVisual step={index} />}
           doneLabel="Разобрать пример"
           onDone={() => setShowExample(true)}
@@ -46,6 +49,7 @@ export function RuleTask({ onDone }: { onDone: () => void }) {
   }
   return (
     <div className="stage">
+      <BookClip shot={shots.expr24} active={ruleExample} />
       <ExpressionLesson expr={ruleExample} twin={ruleTwin} intro={exprIntro(ruleExample)} onSolved={onDone} />
     </div>
   )
@@ -82,12 +86,14 @@ export function ExpressionSet({
   solved,
   onSolve,
   onDone,
+  shot,
 }: {
   exprs: string[]
   intro: string
   solved: string[]
   onSolve: (expr: string) => void
   onDone: () => void
+  shot: (typeof shots)['expr24']
 }) {
   const [current, setCurrent] = useState<string | null>(null)
   const { speak } = useVoice()
@@ -95,6 +101,7 @@ export function ExpressionSet({
 
   return (
     <div className="stage">
+      <BookClip shot={shot} active={current} />
       <div className="chip-grid">
         {exprs.map((expr) => (
           <button
@@ -231,12 +238,18 @@ export function CubeTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('cubes')}
       practice={practices.cubes}
       practicePicture={<PracticePicture topic="cubes" />}
+      plate={<BookClip shot={shots.cubes} />}
       onDone={onDone}
     >
       {(finishBook) => (
         <Stepper
           steps={cubeBeats}
-          render={(i) => <Cubes phase={i} />}
+          render={(i) => (
+            <>
+              <BookClip shot={shots.cubes} active={[['0', '1', '2'], ['0', '1'], ['1'], ['2']][i]} />
+              <Cubes phase={i} />
+            </>
+          )}
           after={<AnswerBox fields={[{ label: 'кубиков в коробке', answer: '32' }]} onCorrect={finishBook} />}
         />
       )}
@@ -277,12 +290,18 @@ export function ChairTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('chairs')}
       practice={practices.chairs}
       practicePicture={<PracticePicture topic="chairs" />}
+      plate={<BookClip shot={shots.chairs} />}
       onDone={onDone}
     >
       {(finish) => (
         <Stepper
           steps={chairBeats}
-          render={(i) => <Chairs phase={i} />}
+          render={(i) => (
+            <>
+              <BookClip shot={shots.chairs} active={[['0'], ['0', '1'], ['1'], ['2']][i]} />
+              <Chairs phase={i} />
+            </>
+          )}
           after={
             <AnswerBox
               fields={[
@@ -326,12 +345,18 @@ export function TreeTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('trees')}
       practice={practices.trees}
       practicePicture={<PracticePicture topic="trees" />}
+      plate={<BookClip shot={shots.trees} />}
       onDone={onDone}
     >
       {(finish) => (
         <Stepper
           steps={treeBeats}
-          render={(i) => <Trees phase={i} />}
+          render={(i) => (
+            <>
+              <BookClip shot={shots.trees} active={[['0'], ['0', '1'], ['1', '2']][i]} />
+              <Trees phase={i} />
+            </>
+          )}
           after={
             <AnswerBox
               fields={[
@@ -375,12 +400,18 @@ export function AppleTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('apples')}
       practice={practices.apples}
       practicePicture={<PracticePicture topic="apples" />}
+      plate={<BookClip shot={shots.apples} />}
       onDone={onDone}
     >
       {(finish) => (
         <Stepper
           steps={appleBeats}
-          render={(i) => <Apples phase={i} />}
+          render={(i) => (
+            <>
+              <BookClip shot={shots.apples} active={[['0', '1', '2', '3'], ['0', '1'], ['2'], ['3'], ['0', '1', '2', '3']][i]} />
+              <Apples phase={i} />
+            </>
+          )}
           after={
             <AnswerBox
               fields={[
@@ -436,21 +467,25 @@ export function CloakTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('cloaks')}
       practice={practices.cloaks}
       practicePicture={<PracticePicture topic="cloaks" />}
+      plate={<BookClip shot={shots.cloaks} />}
       onDone={onDone}
     >
       {(finish) => (
         <Stepper
           steps={cloakBeats}
           render={(i) => (
-            <div className="scene cloaks">
-              {Array.from({ length: 4 }, (_, n) => (
-            <span key={n} className={`cloak ${i >= 1 ? 'on' : ''} ${i === 1 ? 'spot' : ''}`} style={{ animationDelay: `${n * 80}ms` }}>
-              3 м
-            </span>
-          ))}
-          {i >= 1 && <div className={`badge ${i === 1 ? 'spot' : ''}`}>ушло 12 м</div>}
-          {i >= 2 && <div className="badge mint spot">осталось 38 м → было 50 м</div>}
-            </div>
+            <>
+              <BookClip shot={shots.cloaks} active={[['0', '1', '2', '3'], ['0', '1'], ['2', '3']][i]} />
+              <div className="scene cloaks">
+                {Array.from({ length: 4 }, (_, n) => (
+                  <span key={n} className={`cloak ${i >= 1 ? 'on' : ''} ${i === 1 ? 'spot' : ''}`} style={{ animationDelay: `${n * 80}ms` }}>
+                    3 м
+                  </span>
+                ))}
+                {i >= 1 && <div className={`badge ${i === 1 ? 'spot' : ''}`}>ушло 12 м</div>}
+                {i >= 2 && <div className="badge mint spot">осталось 38 м → было 50 м</div>}
+              </div>
+            </>
           )}
           after={<AnswerBox fields={[{ label: 'метров сначала', answer: '50' }]} onCorrect={finish} />}
         />
@@ -468,6 +503,7 @@ export function MultiplyTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('multiply')}
       practice={practices.multiply}
       practicePicture={<PracticePicture topic="multiply" />}
+      plate={<BookClip shot={shots.multiply} />}
       onDone={onDone}
     >
       {(finish) => <MultiplyWork onDone={finish} />}
@@ -486,6 +522,7 @@ function MultiplyWork({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="stage">
+      <BookClip shot={shots.multiply} active={finished ? null : String(col)} />
       <table className="mult">
         <tbody>
           <tr>
@@ -554,6 +591,7 @@ export function FabricTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('fabric')}
       practice={practices.fabric}
       practicePicture={<PracticePicture topic="fabric" />}
+      plate={<BookClip shot={shots.fabric} active="table" />}
       onDone={onDone}
     >
       {(finish) => <FabricWork onDone={finish} />}
@@ -568,6 +606,16 @@ function FabricWork({ onDone }: { onDone: () => void }) {
   const all = doneRows.length === fabricRows.length
   return (
     <div className="stage">
+      <BookClip
+        shot={shots.fabric}
+        active={row === null ? 'table' : String(row)}
+        onPick={(id) => {
+          if (id === 'table') return
+          const next = Number(id)
+          speak(fabricRows[next].speech)
+          setRow(next)
+        }}
+      />
       <p className="bubble-text">{row === null ? fabricIntro : fabricRows[row].speech}</p>
       <Say text={row === null ? fabricIntro : fabricRows[row].speech} />
       <div className="chip-grid">
@@ -627,6 +675,7 @@ export function SchemeTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('schemes')}
       practice={practices.schemes}
       practicePicture={<PracticePicture topic="schemes" />}
+      plate={<BookClip shot={shots.schemes} />}
       onDone={onDone}
     >
       {(finish) => <SchemeWork onDone={finish} />}
@@ -642,6 +691,16 @@ function SchemeWork({ onDone }: { onDone: () => void }) {
   const ready = cleared.length >= 3
   return (
     <div className="stage">
+      <BookClip
+        shot={shots.schemes}
+        active={id}
+        onPick={(next) => {
+          const picked = schemes.find((item) => item.id === next)
+          if (!picked) return
+          speak(picked.speech)
+          setId(picked.id)
+        }}
+      />
       {!scheme && (
         <>
           <p className="bubble-text">{schemeIntro}</p>
@@ -693,6 +752,7 @@ export function GeometryTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('geometry')}
       practice={practices.geometry}
       practicePicture={<PracticePicture topic="geometry" />}
+      plate={<BookClip shot={shots.geometry} active={['square', 'tri', 'rect']} />}
       onDone={onDone}
     >
       {(finish) => (
@@ -713,6 +773,7 @@ export function ShapesTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('shapes')}
       practice={practices.shapes}
       practicePicture={<PracticePicture topic="shapes" />}
+      plate={<BookClip shot={shots.shapes} />}
       onDone={onDone}
     >
       {(finish) => <ShapesWork onDone={finish} />}
@@ -728,6 +789,7 @@ function ShapesWork({ onDone }: { onDone: () => void }) {
   useNarration(speech, picked ?? 'intro')
   return (
     <div className="stage">
+      <BookClip shot={shots.shapes} active={picked} onPick={pick} />
       <div className="shape-board">
         <Shape id="p1" className={`s1 ${picked === 'p1' ? 'spot' : ''}`} label="1" onPick={pick} />
         <Shape id="p2" className={`s2 ${picked === 'p2' ? 'spot' : ''}`} label="2" onPick={pick} />
@@ -773,12 +835,18 @@ export function KiteTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('kite')}
       practice={practices.kite}
       practicePicture={<PracticePicture topic="kite" />}
+      plate={<BookClip shot={shots.kite} />}
       onDone={onDone}
     >
       {(finish) => (
       <Stepper
         steps={kiteBeats}
         render={(step) => (
+          <>
+          <BookClip
+            shot={shots.kite}
+            active={step >= 2 ? ['q1', 'q2'] : ['1', '6', '12', '19', '27', '36']}
+          />
           <div className="kite">
             {[1, 6, 12, 19, 27, 36].map((n, i) => (
               <span key={n} className={step === 0 ? 'spot' : ''} style={{ animationDelay: `${i * 90}ms` }}>
@@ -788,6 +856,7 @@ export function KiteTask({ onDone }: { onDone: () => void }) {
             <span className={`ask ${step >= 1 ? 'spot' : ''}`}>?</span>
             <span className={`ask ${step >= 2 ? 'spot' : ''}`}>?</span>
           </div>
+          </>
         )}
         after={
           <AnswerBox
@@ -811,12 +880,15 @@ export function RebusTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('rebus')}
       practice={practices.rebus}
       practicePicture={<PracticePicture topic="rebus" />}
+      plate={<BookClip shot={shots.rebus} active="house" />}
       onDone={onDone}
     >
       {(finish) => (
     <Stepper
       steps={rebusBeats}
       render={(step) => (
+        <>
+        <BookClip shot={shots.rebus} active={step === 0 ? 'house' : step === 1 ? 'top' : 'bot'} />
         <div className="rebuses">
           <pre className={step === 2 ? 'dim' : 'spot'}>{`  * *
 + 3 7
@@ -827,6 +899,7 @@ export function RebusTask({ onDone }: { onDone: () => void }) {
 ─────
   3 6`}</pre>
         </div>
+        </>
       )}
       after={
         <AnswerBox

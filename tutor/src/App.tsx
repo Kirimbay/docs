@@ -30,6 +30,7 @@ import {
   ShapesTask,
   TreeTask,
 } from './ui/screens'
+import { shots } from './clips'
 import { useVoice, VoiceProvider } from './ui/voice'
 
 type Screen = { name: 'home' } | { name: 'map' } | { name: 'task'; id: string }
@@ -251,6 +252,7 @@ function TaskBody({
   if (id === 'expr24') {
     return (
       <ExpressionSet
+        shot={shots.expr24}
         exprs={expr24}
         intro={expr24Intro}
         solved={progress.exprs}
@@ -262,6 +264,7 @@ function TaskBody({
   if (id === 'expr24bottom') {
     return (
       <ExpressionSet
+        shot={shots.expr24bottom}
         exprs={expr24Bottom}
         intro={expr24BottomIntro}
         solved={progress.exprs}
@@ -273,6 +276,7 @@ function TaskBody({
   if (id === 'expr25') {
     return (
       <ExpressionSet
+        shot={shots.expr25}
         exprs={expr25}
         intro={expr25Intro}
         solved={progress.exprs}
@@ -284,6 +288,7 @@ function TaskBody({
   if (id === 'expr25bottom') {
     return (
       <ExpressionSet
+        shot={shots.expr25bottom}
         exprs={expr25Bottom}
         intro={expr25BottomIntro}
         solved={progress.exprs}

@@ -16,12 +16,12 @@ type Figure = {
 
 const CORAL = '#e86a45'
 const LEAF = '#2f9e6b'
-const PHOTO = { w: 1420, h: 440, src: '/figures/task6.png' }
+const PHOTO = { w: 890, h: 308, src: '/figures/geometry.jpg' }
 const ZOOM: Record<Kind | 'all', string> = {
-  all: '0 0 1420 440',
-  square: '40 0 460 440',
-  tri: '450 0 530 440',
-  rect: '960 0 460 440',
+  all: '0 0 890 308',
+  square: '50 50 300 258',
+  tri: '300 40 360 268',
+  rect: '600 80 280 228',
 }
 
 function mid(a: Pt, b: Pt): Pt {
@@ -52,10 +52,10 @@ function smooth(t: number): number {
 }
 
 function square(): Figure {
-  const A = { x: 130, y: 358 }
-  const B = { x: 130, y: 97 }
-  const C = { x: 389, y: 97 }
-  const D = { x: 389, y: 358 }
+  const A = { x: 128, y: 272 }
+  const B = { x: 128, y: 118 }
+  const C = { x: 278, y: 118 }
+  const D = { x: 278, y: 272 }
   const top = mid(B, C)
   const bottom = mid(A, D)
   const left = mid(A, B)
@@ -80,9 +80,9 @@ function square(): Figure {
 }
 
 function triangle(): Figure {
-  const K = { x: 512, y: 358 }
-  const L = { x: 706, y: 90 }
-  const M = { x: 900, y: 358 }
+  const K = { x: 354, y: 276 }
+  const L = { x: 478, y: 113 }
+  const M = { x: 600, y: 276 }
   const km = mid(K, M)
   const lm = mid(L, M)
   const kl = mid(K, L)
@@ -104,10 +104,10 @@ function triangle(): Figure {
 }
 
 function rectangle(): Figure {
-  const N = { x: 1031, y: 354 }
-  const O = { x: 1031, y: 143 }
-  const P = { x: 1343, y: 143 }
-  const T = { x: 1343, y: 354 }
+  const N = { x: 664, y: 276 }
+  const O = { x: 664, y: 154 }
+  const P = { x: 830, y: 154 }
+  const T = { x: 830, y: 276 }
   const top = mid(O, P)
   const bottom = mid(N, T)
   const left = mid(N, O)
@@ -206,8 +206,8 @@ function AnimatedFigure({ kind, mode }: { kind: Kind; mode: Mode }) {
     <div className="geo-card">
       <BookPhoto box={ZOOM[kind]}>
         <defs>
-          <marker id="geo-arrow" markerUnits="userSpaceOnUse" markerWidth="36" markerHeight="36" refX="30" refY="18" orient="auto">
-            <path d="M2,6 L32,18 L2,30 Z" fill={CORAL} />
+          <marker id="geo-arrow" markerUnits="userSpaceOnUse" markerWidth="22" markerHeight="22" refX="18" refY="11" orient="auto">
+            <path d="M1,3 L20,11 L1,19 Z" fill={CORAL} />
           </marker>
         </defs>
         {mode === 'peri' && <PerimeterDraw fig={fig} frame={frame} />}
@@ -296,13 +296,13 @@ function PerimeterDraw({ fig, frame }: { fig: Figure; frame: Frame }) {
             x2={end.x}
             y2={end.y}
             stroke={CORAL}
-            strokeWidth={tip ? 12 : 10}
+            strokeWidth={tip ? 8 : 6}
             strokeLinecap="round"
             markerEnd={tip ? 'url(#geo-arrow)' : undefined}
           />
         )
       })}
-      {moving && <circle cx={walker.x} cy={walker.y} r="8" fill="#fff" stroke={CORAL} strokeWidth="4" />}
+      {moving && <circle cx={walker.x} cy={walker.y} r="5" fill="#fff" stroke={CORAL} strokeWidth="3" />}
     </g>
   )
 }
@@ -322,8 +322,8 @@ function AxesDraw({ fig, frame }: { fig: Figure; frame: Frame }) {
               x2={line.b.x}
               y2={line.b.y}
               stroke={LEAF}
-              strokeWidth="8"
-              strokeDasharray="16 12"
+              strokeWidth="5"
+              strokeDasharray="10 8"
             />
           ))}
       </g>
@@ -341,8 +341,8 @@ function AxesDraw({ fig, frame }: { fig: Figure; frame: Frame }) {
         x2={axis.b.x}
         y2={axis.b.y}
         stroke={axis.ok ? LEAF : CORAL}
-        strokeWidth="8"
-        strokeDasharray="16 12"
+        strokeWidth="5"
+        strokeDasharray="10 8"
       />
     </g>
   )

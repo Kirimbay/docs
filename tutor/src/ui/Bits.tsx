@@ -239,6 +239,7 @@ export function Stepper({
   onDone,
   doneLabel = 'Я понял',
   eyebrow,
+  plate,
 }: {
   steps: { speech: string; caption: string }[]
   render?: (index: number) => ReactNode
@@ -246,6 +247,7 @@ export function Stepper({
   onDone?: () => void
   doneLabel?: string
   eyebrow?: string
+  plate?: ReactNode
 }) {
   const [index, setIndex] = useState(0)
   const [nonce, setNonce] = useState(0)
@@ -264,6 +266,7 @@ export function Stepper({
   return (
     <div className="stage">
       {eyebrow && <p className="help-kicker">{eyebrow}</p>}
+      {plate}
       <div className="why">{step.caption}</div>
       {render?.(index)}
       <p className="bubble-text">
@@ -298,10 +301,12 @@ export function Stepper({
 export function WithHelp({
   beats,
   render,
+  plate,
   children,
 }: {
   beats: Beat[]
   render?: (index: number) => ReactNode
+  plate?: ReactNode
   children: ReactNode
 }) {
   const [open, setOpen] = useState(false)
@@ -314,6 +319,7 @@ export function WithHelp({
         <Stepper
           steps={beats}
           render={render}
+          plate={plate}
           eyebrow="Другое объяснение"
           doneLabel="Вернуться к заданию"
           onDone={() => setOpen(false)}
@@ -357,6 +363,7 @@ export function TaskGate({
   helpRender,
   practice,
   practicePicture,
+  plate,
   onDone,
   children,
 }: {
@@ -364,12 +371,13 @@ export function TaskGate({
   helpRender?: (index: number) => ReactNode
   practice: Practice
   practicePicture?: ReactNode
+  plate?: ReactNode
   onDone: () => void
   children: (finishBook: () => void) => ReactNode
 }) {
   const [phase, setPhase] = useState<'book' | 'check'>('book')
   return (
-    <WithHelp beats={help} render={helpRender}>
+    <WithHelp beats={help} render={helpRender} plate={plate}>
       {phase === 'book' ? (
         children(() => setPhase('check'))
       ) : (
