@@ -52,10 +52,10 @@ function smooth(t: number): number {
 }
 
 function square(): Figure {
-  const A = { x: 128, y: 272 }
-  const B = { x: 128, y: 118 }
-  const C = { x: 278, y: 118 }
-  const D = { x: 278, y: 272 }
+  const A = { x: 117, y: 277 }
+  const B = { x: 117, y: 122 }
+  const C = { x: 273, y: 122 }
+  const D = { x: 273, y: 277 }
   const top = mid(B, C)
   const bottom = mid(A, D)
   const left = mid(A, B)
@@ -74,15 +74,15 @@ function square(): Figure {
       { a: A, b: C, half: [A, B, C], rest: [A, D, C], ok: true, name: 'из угла в угол' },
       { a: B, b: D, half: [B, C, D], rest: [B, A, D], ok: true, name: 'из другого угла в угол' },
     ],
-    rule: '4 равные стороны. Периметр = сторона · 4',
+    rule: 'Четыре равные стороны. Периметр: сторону берём 4 раза.',
     axesCount: 'Осей симметрии: 4',
   }
 }
 
 function triangle(): Figure {
-  const K = { x: 354, y: 276 }
-  const L = { x: 478, y: 113 }
-  const M = { x: 600, y: 276 }
+  const K = { x: 372, y: 276 }
+  const L = { x: 464, y: 116 }
+  const M = { x: 556, y: 276 }
   const km = mid(K, M)
   const lm = mid(L, M)
   const kl = mid(K, L)
@@ -98,16 +98,16 @@ function triangle(): Figure {
       { a: K, b: lm, half: [K, L, lm], rest: [K, M, lm], ok: true, name: 'из левого угла' },
       { a: M, b: kl, half: [M, L, kl], rest: [M, K, kl], ok: true, name: 'из правого угла' },
     ],
-    rule: '3 равные стороны. Периметр = сторона · 3',
+    rule: 'Три равные стороны. Периметр: сторону берём 3 раза.',
     axesCount: 'Осей симметрии: 3',
   }
 }
 
 function rectangle(): Figure {
-  const N = { x: 664, y: 276 }
-  const O = { x: 664, y: 154 }
-  const P = { x: 830, y: 154 }
-  const T = { x: 830, y: 276 }
+  const N = { x: 660, y: 276 }
+  const O = { x: 660, y: 153 }
+  const P = { x: 843, y: 153 }
+  const T = { x: 843, y: 276 }
   const top = mid(O, P)
   const bottom = mid(N, T)
   const left = mid(N, O)
@@ -125,7 +125,7 @@ function rectangle(): Figure {
       { a: left, b: right, half: [O, P, right, left], rest: [left, right, T, N], ok: true, name: 'слева направо' },
       { a: N, b: P, half: [N, O, P], rest: [N, T, P], ok: false, name: 'из угла в угол' },
     ],
-    rule: '(длина + ширина) · 2',
+    rule: 'Сложи длину и ширину, потом возьми эту сумму 2 раза.',
     axesCount: 'Осей симметрии: 2',
   }
 }
@@ -247,7 +247,7 @@ function periFrame(fig: Figure, now: number, reduce: boolean): Frame {
     done: false,
     axis: 0,
     fold: 0,
-    status: `Сторона ${index + 1} из ${n}. Полоска идёт по рисунку из учебника.`,
+    status: `Сторона ${fig.sides[index].name}. Полоска едет по ней: эту длину мы и берём.`,
     tone: '',
   }
 }
@@ -296,7 +296,7 @@ function PerimeterDraw({ fig, frame }: { fig: Figure; frame: Frame }) {
             x2={end.x}
             y2={end.y}
             stroke={CORAL}
-            strokeWidth={tip ? 8 : 6}
+            strokeWidth={tip ? 5 : 4}
             strokeLinecap="round"
             markerEnd={tip ? 'url(#geo-arrow)' : undefined}
           />

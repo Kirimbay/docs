@@ -240,7 +240,7 @@ body {
 .book.slim { max-width: 260px; }
 .book img { display: block; width: 100%; height: auto; }
 .book svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.book-dim { fill: rgba(28, 36, 58, 0.42); }
+.book-dim { fill: rgba(28, 36, 58, 0.55); }
 .book-ring {
   fill: rgba(255, 214, 80, 0.28);
   stroke: #e86a45;

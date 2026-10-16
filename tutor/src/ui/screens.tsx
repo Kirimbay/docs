@@ -246,40 +246,16 @@ export function CubeTask({ onDone }: { onDone: () => void }) {
           steps={cubeBeats}
           render={(i) => (
             <>
-              <BookClip shot={shots.cubes} active={[['0', '1', '2'], ['0', '1'], ['1'], ['2']][i]} />
-              <Cubes phase={i} />
+              <BookClip shot={shots.cubes} active={[['rows', 'eight', 'red'], ['rows', 'eight'], ['red'], ['ask']][i]} />
+              {i === 1 && <div className="badge spot">8 · 2 = 16 жёлтых</div>}
+              {i === 2 && <div className="badge spot">красных уже 16</div>}
+              {i === 3 && <div className="badge spot">16 + 16 = 32</div>}
             </>
           )}
           after={<AnswerBox fields={[{ label: 'кубиков в коробке', answer: '32' }]} onCorrect={finishBook} />}
         />
       )}
     </TaskGate>
-  )
-}
-
-function Cubes({ phase }: { phase: number }) {
-  const yellow = phase >= 1 ? 8 : 0
-  const red = phase >= 2 ? 16 : 0
-  return (
-    <div className="scene">
-      <div className={`box ${phase === 0 ? 'spot' : ''}`}>
-        <Row count={yellow} color="y" spot={phase === 1} dim={phase > 1} />
-        <Row count={yellow} color="y" spot={phase === 1} dim={phase > 1} />
-        <Row count={Math.min(red, 8)} color="r" spot={phase === 2} />
-        {red > 8 && <Row count={red - 8} color="r" spot={phase === 2} />}
-      </div>
-      {phase >= 3 && <div className="badge spot">16 + 16 = 32</div>}
-    </div>
-  )
-}
-
-function Row({ count, color, spot, dim }: { count: number; color: 'y' | 'r'; spot?: boolean; dim?: boolean }) {
-  return (
-    <div className={`cube-row ${spot ? 'spot' : ''} ${dim ? 'dim' : ''}`}>
-      {Array.from({ length: count }, (_, i) => (
-        <i key={i} className={`cube ${color}`} style={{ animationDelay: `${i * 40}ms` }} />
-      ))}
-    </div>
   )
 }
 
@@ -298,8 +274,10 @@ export function ChairTask({ onDone }: { onDone: () => void }) {
           steps={chairBeats}
           render={(i) => (
             <>
-              <BookClip shot={shots.chairs} active={[['0'], ['0', '1'], ['1'], ['2']][i]} />
-              <Chairs phase={i} />
+              <BookClip shot={shots.chairs} active={[['rows', 'total'], ['q1a', 'q1b'], ['q2a', 'q2b'], ['q3']][i]} />
+              {i === 1 && <div className="badge spot">24 : 3 = 8 в ряду</div>}
+              {i === 2 && <div className="badge spot">8 · 2 = 16</div>}
+              {i === 3 && <div className="badge spot">8 · 10 = 80</div>}
             </>
           )}
           after={
@@ -318,26 +296,6 @@ export function ChairTask({ onDone }: { onDone: () => void }) {
   )
 }
 
-function Chairs({ phase }: { phase: number }) {
-  const rows = phase === 2 ? 2 : phase >= 1 ? 1 : 3
-  const shown = phase === 0 ? 0 : 8
-  return (
-    <div className="scene">
-      <div className={`chair-rows ${phase === 1 || phase === 2 ? 'spot' : ''} ${phase === 3 ? 'dim' : ''}`}>
-        {Array.from({ length: phase === 0 ? 3 : rows }, (_, r) => (
-          <div key={r} className="chair-row">
-            {Array.from({ length: shown }, (_, i) => (
-              <span key={i} className="chair" style={{ animationDelay: `${(r * 8 + i) * 25}ms` }} />
-            ))}
-          </div>
-        ))}
-      </div>
-      {phase === 2 && <div className="badge spot">два ряда — 16</div>}
-      {phase === 3 && <div className="badge spot">десять рядов по 8 — 80</div>}
-    </div>
-  )
-}
-
 export function TreeTask({ onDone }: { onDone: () => void }) {
   return (
     <TaskGate
@@ -353,8 +311,9 @@ export function TreeTask({ onDone }: { onDone: () => void }) {
           steps={treeBeats}
           render={(i) => (
             <>
-              <BookClip shot={shots.trees} active={[['0'], ['0', '1'], ['1', '2']][i]} />
-              <Trees phase={i} />
+              <BookClip shot={shots.trees} active={[['birch', 'rowan'], ['q1a', 'q1b'], ['q2a', 'q2b']][i]} />
+              {i === 1 && <div className="badge spot">15 − 3 = 12 метров</div>}
+              {i === 2 && <div className="badge spot">15 : 3 = 5 раз</div>}
             </>
           )}
           after={
@@ -369,27 +328,6 @@ export function TreeTask({ onDone }: { onDone: () => void }) {
         />
       )}
     </TaskGate>
-  )
-}
-
-function Trees({ phase }: { phase: number }) {
-  return (
-    <div className="trees">
-      <div className={`tree birch ${phase <= 1 ? 'spot' : ''}`}>
-        <div className="crown" />
-        <div className="trunk" />
-        <b>15 м</b>
-      </div>
-      <div className="gap">
-        {phase >= 1 && <em className={phase === 1 ? 'spot' : ''}>на 12 м</em>}
-        {phase >= 2 && <em className="spot">в 5 раз</em>}
-      </div>
-      <div className={`tree rowan ${phase === 0 || phase === 2 ? 'spot' : ''}`}>
-        <div className="crown" />
-        <div className="trunk" />
-        <b>3 м</b>
-      </div>
-    </div>
   )
 }
 
@@ -408,8 +346,14 @@ export function AppleTask({ onDone }: { onDone: () => void }) {
           steps={appleBeats}
           render={(i) => (
             <>
-              <BookClip shot={shots.apples} active={[['0', '1', '2', '3'], ['0', '1'], ['2'], ['3'], ['0', '1', '2', '3']][i]} />
-              <Apples phase={i} />
+              <BookClip
+                shot={shots.apples}
+                active={[['was', 'took', 'adda', 'addb', 'equal'], ['took', 'adda', 'addb'], ['equal'], ['aska', 'askb'], ['was']][i]}
+              />
+              {i === 1 && <div className="badge spot">13 − 2 + 3 = 14</div>}
+              {i === 2 && <div className="badge spot">14 : 2 = 7</div>}
+              {i === 3 && <div className="badge spot">7 − 3 = 4 и 7 + 2 = 9</div>}
+              {i === 4 && <div className="badge spot">9 + 4 = 13</div>}
             </>
           )}
           after={
@@ -424,39 +368,6 @@ export function AppleTask({ onDone }: { onDone: () => void }) {
         />
       )}
     </TaskGate>
-  )
-}
-
-function Apples({ phase }: { phase: number }) {
-  const start = phase >= 4
-  const equal = phase >= 2 && !start
-  const leftCount = start ? 9 : equal ? 7 : phase >= 1 ? 6 : 5
-  const rightCount = start ? 4 : equal ? 7 : phase >= 1 ? 7 : 5
-  const leftLabel = start ? 'сначала 9' : equal ? 'стало 7' : '?'
-  const rightLabel = start ? 'сначала 4' : equal ? 'стало 7' : '?'
-  return (
-    <div className="vases">
-      <Vase count={leftCount} label={leftLabel} spot={phase === 0 || phase >= 2} />
-      <div className="gap">
-        {phase === 1 && <em className="spot">13 − 2 + 3 = 14</em>}
-        {equal && <em className="spot">по 7</em>}
-        {start && <em className="spot">9 и 4</em>}
-      </div>
-      <Vase count={rightCount} label={rightLabel} spot={phase === 0 || phase >= 2} />
-    </div>
-  )
-}
-
-function Vase({ count, label, fly, spot }: { count: number; label: string; fly?: 'out' | 'in'; spot?: boolean }) {
-  return (
-    <div className={`vase ${fly ?? ''} ${spot ? 'spot' : ''}`}>
-      <div className="apples">
-        {Array.from({ length: count }, (_, i) => (
-          <i key={i} />
-        ))}
-      </div>
-      <b>{label}</b>
-    </div>
   )
 }
 
@@ -475,16 +386,9 @@ export function CloakTask({ onDone }: { onDone: () => void }) {
           steps={cloakBeats}
           render={(i) => (
             <>
-              <BookClip shot={shots.cloaks} active={[['0', '1', '2', '3'], ['0', '1'], ['2', '3']][i]} />
-              <div className="scene cloaks">
-                {Array.from({ length: 4 }, (_, n) => (
-                  <span key={n} className={`cloak ${i >= 1 ? 'on' : ''} ${i === 1 ? 'spot' : ''}`} style={{ animationDelay: `${n * 80}ms` }}>
-                    3 м
-                  </span>
-                ))}
-                {i >= 1 && <div className={`badge ${i === 1 ? 'spot' : ''}`}>ушло 12 м</div>}
-                {i >= 2 && <div className="badge mint spot">осталось 38 м → было 50 м</div>}
-              </div>
+              <BookClip shot={shots.cloaks} active={[['n4', 'n3'], ['n4', 'n3'], ['n38', 'ask1', 'ask2']][i]} />
+              {i === 1 && <div className="badge spot">4 · 3 = 12 метров ушло</div>}
+              {i === 2 && <div className="badge spot">12 + 38 = 50 метров было</div>}
             </>
           )}
           after={<AnswerBox fields={[{ label: 'метров сначала', answer: '50' }]} onCorrect={finish} />}
@@ -591,7 +495,7 @@ export function FabricTask({ onDone }: { onDone: () => void }) {
       helpRender={helpOf('fabric')}
       practice={practices.fabric}
       practicePicture={<PracticePicture topic="fabric" />}
-      plate={<BookClip shot={shots.fabric} active="table" />}
+      plate={<BookClip shot={shots.fabric} />}
       onDone={onDone}
     >
       {(finish) => <FabricWork onDone={finish} />}
@@ -608,10 +512,10 @@ function FabricWork({ onDone }: { onDone: () => void }) {
     <div className="stage">
       <BookClip
         shot={shots.fabric}
-        active={row === null ? 'table' : String(row)}
+        active={row === null ? null : [['a0', 'b0', 'c0'], ['a1', 'b1', 'c1'], ['a2', 'b2', 'c2']][row]}
         onPick={(id) => {
-          if (id === 'table') return
-          const next = Number(id)
+          const next = Number(id.slice(1))
+          if (!fabricRows[next]) return
           speak(fabricRows[next].speech)
           setRow(next)
         }}
@@ -638,7 +542,7 @@ function FabricWork({ onDone }: { onDone: () => void }) {
       </div>
       {row !== null && (
         <div className="scene">
-          <Cloth meters={row === 0 ? 6 : 6} suits={row === 2 ? 2 : 2} />
+          <div className="badge spot">{['3 · 2 = 6', '6 : 2 = 3', '6 : 3 = 2'][row]}</div>
           <AnswerBox
             key={row}
             fields={[{ label: fabricRows[row].label, answer: fabricRows[row].answer }]}
@@ -653,17 +557,6 @@ function FabricWork({ onDone }: { onDone: () => void }) {
           К проверочному заданию
         </button>
       )}
-    </div>
-  )
-}
-
-function Cloth({ meters, suits }: { meters: number; suits: number }) {
-  return (
-    <div className="cloth">
-      {Array.from({ length: suits }, (_, i) => (
-        <span key={i} className="suit" />
-      ))}
-      <b>{meters} м ткани</b>
     </div>
   )
 }
@@ -790,15 +683,6 @@ function ShapesWork({ onDone }: { onDone: () => void }) {
   return (
     <div className="stage">
       <BookClip shot={shots.shapes} active={picked} onPick={pick} />
-      <div className="shape-board">
-        <Shape id="p1" className={`s1 ${picked === 'p1' ? 'spot' : ''}`} label="1" onPick={pick} />
-        <Shape id="p2" className={`s2 ${picked === 'p2' ? 'spot' : ''}`} label="2" onPick={pick} />
-        <Shape id="p3" className={`s3 ${picked === 'p3' ? 'spot' : ''}`} label="3" onPick={pick} />
-        <Shape id="p4" className={`s4 ${picked === 'p4' ? 'spot' : ''}`} label="4" onPick={pick} />
-        <Shape id="p5" className={`s5 ${picked === 'p5' ? 'spot' : ''}`} label="5" onPick={pick} />
-        <Shape id="p6" className={`s6 ${picked === 'p6' ? 'spot' : ''}`} label="6" onPick={pick} />
-        <Shape id="p7" className={`s7 ${picked === 'p7' ? 'spot' : ''}`} label="7" onPick={pick} />
-      </div>
       <p className="bubble-text">{speech}</p>
       <p className="step-count">Найдено способов: {found.length}. Нужно хотя бы 3.</p>
       {found.length >= 3 && (
@@ -817,15 +701,6 @@ function ShapesWork({ onDone }: { onDone: () => void }) {
       setFound((prev) => (prev.includes(id) ? prev : [...prev, id]))
     }
   }
-}
-
-function Shape({ id, className, label, onPick }: { id: string; className: string; label: string; onPick: (id: string) => void }) {
-  return (
-    <button type="button" className={`shape ${className}`} onClick={() => onPick(id)}>
-      <i />
-      <span>{label}</span>
-    </button>
-  )
 }
 
 export function KiteTask({ onDone }: { onDone: () => void }) {
@@ -847,15 +722,8 @@ export function KiteTask({ onDone }: { onDone: () => void }) {
             shot={shots.kite}
             active={step >= 2 ? ['q1', 'q2'] : ['1', '6', '12', '19', '27', '36']}
           />
-          <div className="kite">
-            {[1, 6, 12, 19, 27, 36].map((n, i) => (
-              <span key={n} className={step === 0 ? 'spot' : ''} style={{ animationDelay: `${i * 90}ms` }}>
-                {n}
-              </span>
-            ))}
-            <span className={`ask ${step >= 1 ? 'spot' : ''}`}>?</span>
-            <span className={`ask ${step >= 2 ? 'spot' : ''}`}>?</span>
-          </div>
+          {step === 1 && <div className="badge spot">прибавляем 5, 6, 7, 8, 9</div>}
+          {step >= 2 && <div className="badge spot">36 + 10 = 46, затем 46 + 11 = 57</div>}
           </>
         )}
         after={

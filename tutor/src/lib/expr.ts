@@ -235,7 +235,7 @@ export function readExpr(input: string): string {
 }
 
 export function exprIntro(input: string): string {
-  return `Сначала прочитаю пример: ${readExpr(input)}. Потом скажу, почему первое действие именно это, а не соседнее.`
+  return `Читаю пример: ${readExpr(input)}. Считать можно только по правилу. Сначала скобки, если они есть. Потом умножение и деление, слева направо. Потом сложение и вычитание, слева направо. Сейчас скажу, какое действие первое и почему.`
 }
 
 export function exprFinal(input: string): string {
