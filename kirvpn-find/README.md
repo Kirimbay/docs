@@ -68,10 +68,10 @@
 
 Рядом с кодом, не в git: `nodes.json`, `htpasswd`, `session.key`, `fleet.json`. Для трафика Hostup — `hostup.key`. Для скрытых машин — `excluded-ips.txt` (есть пример). `id_ed25519` нужен только если включены перезагрузка или `announce: ssh`.
 
-Проверка клиента API без живых серверов:
+Проверка клиента API без живых серверов, из каталога панели:
 
 ```bash
-python3 -m unittest test_hiddify_api.py
+cd /opt/kirvpn-find && python3 -m unittest test_hiddify_api.py
 ```
 
 Служба: `kirvpn-find.service`. После правки Python-файлов: `systemctl restart kirvpn-find`.
