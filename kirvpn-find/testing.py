@@ -13,8 +13,11 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import hiddify_api
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 FLEET_PATH = os.path.join(ROOT, "fleet.json")
+NODES_PATH = os.path.join(ROOT, "nodes.json")
 SSH_KEY = os.path.join(ROOT, "id_ed25519")
 
 
@@ -43,7 +46,6 @@ PATH_RU = {
 PROBE_CACHE_SEC = 45
 PROBE_MIN_SEC = 55
 UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
-PATH_RE = re.compile(r"^[A-Za-z0-9]{8,48}$")
 
 _lock = threading.Lock()
 _probe = {
@@ -229,28 +231,43 @@ def ru_pack_http(last: dict) -> dict:
     return {k: parse_http(last.get(n)) for k, n in NODES.items()}
 
 
-def sub_url_for(origin: str) -> str:
-    sql = (
-        "SELECT 'P', value FROM hiddifypanel.str_config WHERE `key`='proxy_path_client' LIMIT 1; "
-        "SELECT 'U', uuid FROM hiddifypanel.user WHERE enable=1 AND uuid IS NOT NULL AND "
-        "(IFNULL(package_days,0)=0 OR start_date IS NULL OR "
-        "TIMESTAMPDIFF(DAY,start_date,CURDATE()) < package_days) "
-        "ORDER BY last_online DESC LIMIT 1;"
-    )
-    remote = "mysql -N --default-character-set=utf8mb4 -e '" + sql.replace("'", "'\\''") + "'"
-    code, text = ssh_out(origin, remote, timeout=18)
-    if code != 0:
+def load_nodes() -> list:
+    try:
+        with open(NODES_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+def node_for(origin: str, label: str = "") -> dict | None:
+    nodes = load_nodes()
+    if label:
+        for node in nodes:
+            if str(node.get("label") or "") == str(label):
+                return node
+    if origin:
+        for node in nodes:
+            if str(node.get("ip") or "") == origin:
+                return node
+    return None
+
+
+def sub_url_for(origin: str, label: str = "") -> str:
+    """Subscription path from the Hiddify admin API. SSH is not used."""
+    node = node_for(origin, label)
+    if not node:
         return ""
-    path = uuid = ""
-    for line in text.splitlines():
-        parts = line.split("\t")
-        if len(parts) >= 2 and parts[0] == "P":
-            path = parts[1].strip()
-        if len(parts) >= 2 and parts[0] == "U":
-            uuid = parts[1].strip()
-    if PATH_RE.match(path) and UUID_RE.match(uuid):
-        return "/%s/%s/all.txt" % (path, uuid)
-    return ""
+    try:
+        return hiddify_api.subscription_path(node)
+    except hiddify_api.HiddifyError:
+        return ""
+    except Exception:
+        return ""
+
+
+def ssh_ready() -> bool:
+    return os.path.isfile(SSH_KEY)
 
 
 def path_label(p: str) -> str:
@@ -307,7 +324,7 @@ def run_probe_sync() -> dict:
     urls = {}
     url_err = {}
     with ThreadPoolExecutor(max_workers=8) as ex:
-        futs = {ex.submit(sub_url_for, s["origin"]): s for s in servers}
+        futs = {ex.submit(sub_url_for, s.get("origin") or "", s.get("label") or ""): s for s in servers}
         for fut in as_completed(futs):
             s = futs[fut]
             try:
@@ -578,6 +595,9 @@ def wait_tcp(ip: str, seconds: int = 90) -> bool:
 
 
 def reboot_one(name: str, ip: str, jump: bool = False) -> bool:
+    if not ssh_ready():
+        _rlog("%s — SSH-ключ не задан" % name)
+        return False
     _rlog("%s %s — reboot" % (name, ip))
     code, text = ssh_out(
         ip,
@@ -603,6 +623,8 @@ def unique_relays(fleet: dict) -> list:
     seen = set()
     out = []
     for s in fleet.get("servers") or []:
+        if s.get("ssh") is False:
+            continue
         ip = s.get("rf_ssh") or ""
         if not ip or ip in seen:
             continue
@@ -623,10 +645,14 @@ def _reboot_thread(scope: str):
         if scope == "all":
             seen = {t["ip"] for t in targets}
             for s in fleet.get("servers") or []:
+                if s.get("ssh") is False:
+                    continue
                 origin = s.get("origin") or ""
                 if origin and origin not in seen:
                     seen.add(origin)
                     targets.append({"name": "origin-%s" % s.get("label"), "ip": origin, "jump": False})
+        if not targets:
+            _rlog("SSH выключен или нет адресов — перезагружать нечего")
         _rlog("очередь %s, коробок %s (не find, не разом)" % (scope, len(targets)))
         for t in targets:
             good = reboot_one(t["name"], t["ip"], jump=bool(t.get("jump")))
@@ -658,6 +684,8 @@ def start_reboot(scope: str, confirm: str) -> dict:
         return {"ok": False, "error": "введи REBOOT"}
     if scope not in ("relays", "all"):
         return {"ok": False, "error": "scope relays|all"}
+    if not ssh_ready():
+        return {"ok": False, "error": "SSH-ключ не задан, перезагрузка выключена"}
     with _lock:
         if _reboot["running"]:
             return {"ok": False, "error": "уже идёт"}
