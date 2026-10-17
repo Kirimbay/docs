@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, quote, urlparse, unquote
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 import base64
+import hiddify_api
 import testing
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -269,86 +270,58 @@ def panel_url(domain, path, uuid):
     return ""
 
 
-def parse_user(parts, domain, path):
-    while len(parts) < 8:
-        parts.append("")
-    days = remaining_days(parts[5], parts[6])
+def _node_ip(node) -> str:
+    return str((node or {}).get("ip") or "")
+
+
+def _node_fail(node, exc) -> dict:
     return {
-        "id": parts[0],
-        "name": parts[1],
-        "enable": parts[2] == "1",
-        "days": fmt_days(days),
-        "traffic": fmt_traffic_left(parts[3], parts[4]),
-        "url": panel_url(domain, path, parts[7]),
+        "label": str((node or {}).get("label") or ""),
+        "ip": _node_ip(node),
+        "error": (str(exc) or "ошибка")[:80],
+        "users": [],
     }
 
 
-def search_node(node, needle):
-    ip = node["ip"]
-    label = node["label"]
-    sql = (
-        "SELECT 'P', value FROM hiddifypanel.str_config WHERE `key`='proxy_path_client' LIMIT 1; "
-        "SELECT 'A', value FROM hiddifypanel.str_config WHERE `key`='proxy_path_admin' LIMIT 1; "
-        "SELECT 'S', uuid FROM hiddifypanel.admin_user WHERE mode='super_admin' ORDER BY id LIMIT 1; "
-        "SELECT 'D', domain FROM hiddifypanel.domain WHERE domain LIKE '%.kirvpn.us' "
-        "ORDER BY (mode='direct') DESC, sub_link_only ASC LIMIT 1; "
-        "SELECT id, name, enable, IFNULL(usage_limit,0), IFNULL(current_usage,0), "
-        "IFNULL(package_days,0), IFNULL(start_date,''), uuid FROM hiddifypanel.user "
-        f"WHERE name LIKE '%{needle}%' ORDER BY name LIMIT 30;"
-    )
-    remote = "mysql -N -e '" + sql.replace("'", "'\\''") + "'"
-    cmd = [
-        "ssh",
-        "-i", SSH_KEY,
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "ConnectTimeout=8",
-        "-o", "BatchMode=yes",
-        "-o", "LogLevel=ERROR",
-        f"root@{ip}",
-        remote,
-    ]
-    try:
-        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=12)
-        text = out.decode("utf-8", "replace").strip()
-    except subprocess.CalledProcessError:
-        return {"label": label, "ip": ip, "error": "ssh/mysql fail", "users": []}
-    except subprocess.TimeoutExpired:
-        return {"label": label, "ip": ip, "error": "timeout", "users": []}
-    except Exception as e:
-        return {"label": label, "ip": ip, "error": str(e)[:80], "users": []}
-    path = ""
-    admin_path = ""
-    admin_uuid = ""
-    domain = ""
-    users = []
-    if text:
-        for line in text.splitlines():
-            parts = line.split("\t")
-            if not parts:
-                continue
-            if parts[0] == "P" and len(parts) >= 2:
-                path = parts[1]
-                continue
-            if parts[0] == "A" and len(parts) >= 2:
-                admin_path = parts[1]
-                continue
-            if parts[0] == "S" and len(parts) >= 2:
-                admin_uuid = parts[1]
-                continue
-            if parts[0] == "D" and len(parts) >= 2:
-                domain = parts[1]
-                continue
-            if len(parts) >= 3:
-                users.append(parse_user(parts, domain, path))
-    admin_url = panel_url(domain, admin_path, admin_uuid)
-    if admin_url:
-        admin_url += "admin/user/?search=" + quote(needle)
+def _load_hiddify(node):
+    users = hiddify_api.list_users(node)
+    ctx = hiddify_api.link_context(node)
+    return users, ctx
+
+
+def _simple_user(user, ctx):
+    days = remaining_days(user["package_days"], user["start_date"])
     return {
-        "label": label,
-        "ip": ip,
+        "id": user["id"],
+        "name": user["name"],
+        "enable": bool(user["enable"]),
+        "days": fmt_days(days),
+        "traffic": fmt_traffic_left(user["usage_limit"], user["current_usage"]),
+        "url": panel_url(ctx.get("domain") or "", ctx.get("client_path") or "", user["uuid"]),
+    }
+
+
+def _admin_search_url(ctx, needle: str) -> str:
+    admin_url = panel_url(ctx.get("domain") or "", ctx.get("admin_path") or "", ctx.get("admin_uuid") or "")
+    if admin_url and needle:
+        admin_url += "admin/user/?search=" + quote(needle)
+    return admin_url
+
+
+def search_node(node, needle):
+    try:
+        users, ctx = _load_hiddify(node)
+    except Exception as e:
+        return _node_fail(node, e)
+    needle_l = (needle or "").casefold()
+    matched = [u for u in users if needle_l and needle_l in (u.get("name") or "").casefold()]
+    matched.sort(key=lambda u: (u.get("name") or "").casefold())
+    return {
+        "label": str(node.get("label") or ""),
+        "ip": _node_ip(node),
         "error": None,
-        "admin_url": admin_url,
-        "users": users,
+        "admin_url": _admin_search_url(ctx, needle),
+        "users": [_simple_user(u, ctx) for u in matched[:30]],
     }
 
 
@@ -363,10 +336,6 @@ def search(needle):
     return hits
 
 
-def mysql_quote(s: str) -> str:
-    return "'" + (s or "").replace("\\", "\\\\").replace("'", "''") + "'"
-
-
 def pro_text_needle(raw: str) -> str:
     out = []
     for ch in raw or "":
@@ -375,12 +344,6 @@ def pro_text_needle(raw: str) -> str:
         if ch.isalnum() or ch in " ._-@+#":
             out.append(ch)
     return "".join(out).strip()[:80]
-
-
-def mysql_like(s: str) -> str:
-    s = (s or "").replace("$", "")
-    s = s.replace("%", "$%").replace("_", "$_")
-    return mysql_quote("%" + s + "%")
 
 
 def phone_keys(raw: str) -> list:
@@ -400,19 +363,6 @@ def phone_keys(raw: str) -> list:
     if any(len(k) >= 7 for k in out):
         out = [k for k in out if len(k) >= 7]
     return out[:6]
-
-
-def digits_sql(field_sql: str) -> str:
-    expr = field_sql
-    for ch in (" ", "-", "+", "(", ")", ".", "/", "\t"):
-        expr = "REPLACE(%s, %s, '')" % (expr, mysql_quote(ch))
-    return expr
-
-
-PHONE_BLOB_SQL = digits_sql(
-    "CONCAT(IFNULL(comment,''), IFNULL(name,''), IFNULL(username,''), "
-    "IFNULL(CAST(telegram_id AS CHAR),''))"
-)
 
 
 def parse_pro_query(raw: str) -> dict:
@@ -494,54 +444,59 @@ def pro_match_tags(name, comment, username, uuid, needle, uuid_q, phones=None, t
     return tags
 
 
-def parse_pro_user(parts, domain, admin_path, admin_uuid, needle, uuid_q, phones=None):
-    while len(parts) < 11:
-        parts.append("")
-    days = remaining_days(parts[5], parts[6])
-    name = parts[1]
-    uuid = parts[7]
-    comment = parts[8]
-    username = parts[9]
-    telegram_id = parts[10]
+def _pro_user(user, ctx, needle, uuid_q, phones):
+    days = remaining_days(user["package_days"], user["start_date"])
+    name = user["name"]
+    uuid = user["uuid"]
+    comment = user["comment"]
+    username = user["username"]
+    telegram_id = user["telegram_id"]
     tags = pro_match_tags(name, comment, username, uuid, needle, uuid_q, phones, telegram_id)
     note = comment or ""
     if (not note) and telegram_id:
         note = telegram_id
     return {
-        "id": parts[0],
+        "id": user["id"],
         "name": name,
-        "enable": parts[2] == "1",
+        "enable": bool(user["enable"]),
         "days": fmt_days(days),
-        "traffic": fmt_traffic_left(parts[3], parts[4]),
+        "traffic": fmt_traffic_left(user["usage_limit"], user["current_usage"]),
         "uuid": uuid,
         "comment": note[:180],
         "username": username,
         "match": tags,
-        "url": admin_edit_url(domain, admin_path, admin_uuid, parts[0]),
+        "url": admin_edit_url(ctx.get("domain") or "", ctx.get("admin_path") or "", ctx.get("admin_uuid") or "", user["id"]),
     }
 
 
-def _ssh_mysql(ip, sql):
-    remote = "mysql -N -e '" + sql.replace("'", "'\\''") + "'"
-    cmd = [
-        "ssh",
-        "-i", SSH_KEY,
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "ConnectTimeout=8",
-        "-o", "BatchMode=yes",
-        "-o", "LogLevel=ERROR",
-        f"root@{ip}",
-        remote,
-    ]
-    try:
-        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=12)
-        return out.decode("utf-8", "replace").strip(), None
-    except subprocess.CalledProcessError:
-        return "", "ssh/mysql fail"
-    except subprocess.TimeoutExpired:
-        return "", "timeout"
-    except Exception as e:
-        return "", str(e)[:80]
+def _pro_matches(user, uuid_q, needle, phones) -> bool:
+    if uuid_q:
+        return UUID_OK.match(uuid_q) and (user.get("uuid") or "").lower() == uuid_q.lower()
+    ok = False
+    if needle:
+        n = needle.casefold()
+        fields = (
+            user.get("name") or "",
+            user.get("comment") or "",
+            user.get("username") or "",
+            user.get("uuid") or "",
+            str(user.get("telegram_id") or ""),
+        )
+        ok = any(n in field.casefold() for field in fields)
+    if phones:
+        blob = re.sub(
+            r"\D",
+            "",
+            "".join([
+                user.get("name") or "",
+                user.get("comment") or "",
+                user.get("username") or "",
+                str(user.get("telegram_id") or ""),
+            ]),
+        )
+        if any(p in blob for p in phones if p.isdigit() and len(p) >= 4):
+            ok = True
+    return ok
 
 
 def common_name_fragment(names):
@@ -575,75 +530,24 @@ def hiddify_name_search(users, needle, uuid_q):
 
 
 def search_pro_node(node, parsed):
-    ip = node["ip"]
-    label = node["label"]
+    label = str(node.get("label") or "")
+    ip = _node_ip(node)
     uuid_q = parsed.get("uuid") or ""
     needle = parsed.get("needle") or parsed.get("name_hint") or ""
     phones = parsed.get("phones") or []
-    clauses = []
-    if uuid_q and UUID_OK.match(uuid_q):
-        clauses.append("uuid = " + mysql_quote(uuid_q))
-    if needle and not uuid_q:
-        like = mysql_like(needle)
-        clauses.append(
-            "(name LIKE {like} ESCAPE '$' OR IFNULL(comment,'') LIKE {like} ESCAPE '$' "
-            "OR IFNULL(username,'') LIKE {like} ESCAPE '$' OR uuid LIKE {like} ESCAPE '$' "
-            "OR CAST(telegram_id AS CHAR) LIKE {like} ESCAPE '$')"
-            .format(like=like)
-        )
-    if phones and not uuid_q:
-        phone_ors = []
-        for p in phones:
-            if not p.isdigit() or len(p) < 4:
-                continue
-            phone_ors.append(PHONE_BLOB_SQL + " LIKE " + mysql_quote("%" + p + "%"))
-        if phone_ors:
-            clauses.append("(" + " OR ".join(phone_ors) + ")")
-    if not clauses:
+    if uuid_q and not UUID_OK.match(uuid_q):
+        uuid_q = ""
+    if not uuid_q and not needle and not phones:
         return {"label": label, "ip": ip, "error": None, "admin_url": "", "users": []}
-    where = " OR ".join(clauses)
-    sql = (
-        "SELECT 'P', value FROM hiddifypanel.str_config WHERE `key`='proxy_path_client' LIMIT 1; "
-        "SELECT 'A', value FROM hiddifypanel.str_config WHERE `key`='proxy_path_admin' LIMIT 1; "
-        "SELECT 'S', uuid FROM hiddifypanel.admin_user WHERE mode='super_admin' ORDER BY id LIMIT 1; "
-        "SELECT 'D', domain FROM hiddifypanel.domain WHERE domain LIKE '%.kirvpn.us' "
-        "ORDER BY (mode='direct') DESC, sub_link_only ASC LIMIT 1; "
-        "SELECT id, name, enable, IFNULL(usage_limit,0), IFNULL(current_usage,0), "
-        "IFNULL(package_days,0), IFNULL(start_date,''), uuid, "
-        "IFNULL(comment,''), IFNULL(username,''), IFNULL(telegram_id,'') FROM hiddifypanel.user "
-        "WHERE {where} ORDER BY name LIMIT 30;"
-    ).format(where=where)
-    text, err = _ssh_mysql(ip, sql)
-    if err:
-        return {"label": label, "ip": ip, "error": err, "users": []}
-    path = ""
-    admin_path = ""
-    admin_uuid = ""
-    domain = ""
-    users = []
-    if text:
-        for line in text.splitlines():
-            parts = line.split("\t")
-            if not parts:
-                continue
-            if parts[0] == "P" and len(parts) >= 2:
-                path = parts[1]
-                continue
-            if parts[0] == "A" and len(parts) >= 2:
-                admin_path = parts[1]
-                continue
-            if parts[0] == "S" and len(parts) >= 2:
-                admin_uuid = parts[1]
-                continue
-            if parts[0] == "D" and len(parts) >= 2:
-                domain = parts[1]
-                continue
-            if len(parts) >= 3:
-                users.append(
-                    parse_pro_user(parts, domain, admin_path, admin_uuid, needle, uuid_q, phones)
-                )
-    search_q = hiddify_name_search(users, needle, uuid_q)
-    admin_url = panel_url(domain, admin_path, admin_uuid)
+    try:
+        users, ctx = _load_hiddify(node)
+    except Exception as e:
+        return _node_fail(node, e)
+    matched = [u for u in users if _pro_matches(u, uuid_q, needle, phones)]
+    matched.sort(key=lambda u: (u.get("name") or "").casefold())
+    out = [_pro_user(u, ctx, needle, uuid_q, phones) for u in matched[:30]]
+    search_q = hiddify_name_search(out, needle, uuid_q)
+    admin_url = panel_url(ctx.get("domain") or "", ctx.get("admin_path") or "", ctx.get("admin_uuid") or "")
     if admin_url and search_q:
         admin_url += "admin/user/?search=" + quote(search_q)
     return {
@@ -651,7 +555,7 @@ def search_pro_node(node, parsed):
         "ip": ip,
         "error": None,
         "admin_url": admin_url,
-        "users": users,
+        "users": out,
     }
 
 
@@ -930,20 +834,52 @@ def ssh_cmd(ip, remote, timeout=20):
     ]
 
 
-def push_one(node, b64):
-    label, ip = node["label"], node["ip"]
+def _announce_mode(node) -> str:
+    raw = str((node or {}).get("announce") or "api").strip().lower()
+    return raw if raw in ("api", "ssh") else "api"
+
+
+def _push_ssh(node, text: str):
+    label = str(node.get("label") or "")
+    ip = _node_ip(node)
+    if not ip:
+        return {"label": label, "ok": False, "error": "нет ip для ssh", "via": "ssh"}
+    if not os.path.isfile(SSH_KEY):
+        return {"label": label, "ok": False, "error": "SSH-ключ не задан", "via": "ssh"}
+    b64 = base64.b64encode((text or "").encode("utf-8")).decode("ascii")
     remote = "python3 /opt/kirvpn/set_announce.py " + (b64 or "''")
     try:
         out = subprocess.check_output(ssh_cmd(ip, remote), stderr=subprocess.STDOUT, timeout=25)
-        text = out.decode("utf-8", "replace")
-        ok = "ok" in text
-        return {"label": label, "ok": ok, "error": None if ok else text[-120:]}
+        got = out.decode("utf-8", "replace")
+        ok = "ok" in got
+        return {"label": label, "ok": ok, "error": None if ok else got[-120:], "via": "ssh"}
     except subprocess.TimeoutExpired:
-        return {"label": label, "ok": False, "error": "timeout"}
+        return {"label": label, "ok": False, "error": "timeout", "via": "ssh"}
     except subprocess.CalledProcessError as e:
-        return {"label": label, "ok": False, "error": (e.output or b"").decode("utf-8", "replace")[-120:] or "ssh fail"}
+        return {
+            "label": label,
+            "ok": False,
+            "error": (e.output or b"").decode("utf-8", "replace")[-120:] or "ssh fail",
+            "via": "ssh",
+        }
     except Exception as e:
-        return {"label": label, "ok": False, "error": str(e)[:80]}
+        return {"label": label, "ok": False, "error": str(e)[:80], "via": "ssh"}
+
+
+def push_one(node, text):
+    label = str(node.get("label") or "")
+    if _announce_mode(node) == "ssh":
+        return _push_ssh(node, text)
+    try:
+        hiddify_api.set_branding_text(node, text or "")
+        return {"label": label, "ok": True, "error": None, "via": "api"}
+    except hiddify_api.HiddifyError as e:
+        msg = str(e)
+        if getattr(e, "status", None) == 404:
+            msg = "в этой версии Hiddify нет API настроек; для плашки в приложении укажите announce=ssh"
+        return {"label": label, "ok": False, "error": msg[:120], "via": "api"}
+    except Exception as e:
+        return {"label": label, "ok": False, "error": str(e)[:80], "via": "api"}
 
 
 _push_lock = threading.Lock()
@@ -961,7 +897,7 @@ def _run_push(seq: int, jobs: list):
     try:
         results = []
         with ThreadPoolExecutor(max_workers=8) as ex:
-            futs = [ex.submit(push_one, j["node"], j["b64"]) for j in jobs]
+            futs = [ex.submit(push_one, j["node"], j["text"]) for j in jobs]
             for fut in as_completed(futs):
                 results.append(fut.result())
         results.sort(key=lambda x: _node_sort(x["label"]))
@@ -1042,7 +978,6 @@ def push_announce(data: dict):
             f.write(shared)
     for j in jobs:
         save_announce_file(j["label"], j["text"])
-        j["b64"] = base64.b64encode(j["text"].encode("utf-8")).decode("ascii")
     with _push_lock:
         _push["seq"] += 1
         seq = _push["seq"]
@@ -1286,56 +1221,29 @@ def _int_count(v) -> int:
 
 
 def users_node(node):
-    ip = node["ip"]
-    label = node["label"]
-    sql = (
-        "SELECT 'A', value FROM hiddifypanel.str_config WHERE `key`='proxy_path_admin' LIMIT 1; "
-        "SELECT 'S', uuid FROM hiddifypanel.admin_user WHERE mode='super_admin' ORDER BY id LIMIT 1; "
-        "SELECT 'D', domain FROM hiddifypanel.domain WHERE domain LIKE '%.kirvpn.us' "
-        "ORDER BY (mode='direct') DESC, sub_link_only ASC LIMIT 1; "
-        "SELECT 'C', COUNT(*), "
-        "IFNULL(SUM(enable=1 AND (IFNULL(package_days,0)=0 OR start_date IS NULL "
-        "OR TIMESTAMPDIFF(DAY,start_date,CURDATE()) < package_days)),0), "
-        "IFNULL(SUM(enable=1 AND IFNULL(package_days,0)>0 AND start_date IS NOT NULL "
-        "AND TIMESTAMPDIFF(DAY,start_date,CURDATE()) >= package_days),0), "
-        "IFNULL(SUM(enable=0),0) FROM hiddifypanel.user;"
-    )
-    text, err = _ssh_mysql(ip, sql)
+    label = str(node.get("label") or "")
+    ip = _node_ip(node)
     row = {
         "label": label,
         "ip": ip,
-        "error": err,
+        "error": None,
         "admin_url": "",
         "total": 0,
         "active": 0,
         "expired": 0,
         "disabled": 0,
     }
-    if err:
+    try:
+        users, ctx = _load_hiddify(node)
+    except Exception as e:
+        row["error"] = (str(e) or "ошибка")[:80]
         return row
-    admin_path = ""
-    admin_uuid = ""
-    domain = ""
-    if text:
-        for line in text.splitlines():
-            parts = line.split("\t")
-            if not parts:
-                continue
-            if parts[0] == "A" and len(parts) >= 2:
-                admin_path = parts[1]
-                continue
-            if parts[0] == "S" and len(parts) >= 2:
-                admin_uuid = parts[1]
-                continue
-            if parts[0] == "D" and len(parts) >= 2:
-                domain = parts[1]
-                continue
-            if parts[0] == "C" and len(parts) >= 5:
-                row["total"] = _int_count(parts[1])
-                row["active"] = _int_count(parts[2])
-                row["expired"] = _int_count(parts[3])
-                row["disabled"] = _int_count(parts[4])
-    admin_url = panel_url(domain, admin_path, admin_uuid)
+    for user in users:
+        bucket = hiddify_api.account_bucket(user)
+        row["total"] += 1
+        if bucket in ("active", "expired", "disabled"):
+            row[bucket] += 1
+    admin_url = panel_url(ctx.get("domain") or "", ctx.get("admin_path") or "", ctx.get("admin_uuid") or "")
     if admin_url:
         row["admin_url"] = admin_url + "admin/user/"
     return row
@@ -1343,6 +1251,8 @@ def users_node(node):
 
 def load_users(force: bool = False) -> dict:
     now = time.time()
+    if force:
+        hiddify_api.clear_cache()
     with _users_lock:
         cached = _users_cache["payload"]
         if cached and not force and (now - _users_cache["at"]) < USERS_CACHE_SEC:
