@@ -79,7 +79,7 @@
       <a class="out" href="/logout">Выйти</a>
     </nav>
     <h1>Оповещение</h1>
-    <p class="lead">Только плашка в Happ и Incy после обновления подписки. Сайт info.sarafan.uk не меняет. Пустое поле — плашки нет.</p>
+    <p class="lead">По умолчанию текст пишется в брендинг панели Hiddify (страница пользователя в браузере). Плашка в Happ и Incy по-прежнему только если у сервера в nodes.json стоит <b>announce: ssh</b>. Сайт info.sarafan.uk не меняет. Пустое поле текст убирает.</p>
     <div class="card">
       <form id="ann-form">
         <label class="check">
@@ -139,7 +139,13 @@
       if (bad.length) setSt("err", "частично: не дошло на " + bad.map(n => n.label).join(", "));
       else if (d.done && (d.nodes || []).length) {
         const any = allCb.checked ? (ann.value || "").trim() : collectServers().some(s => (s.text || "").trim());
-        setSt("ok", any ? "сохранено, клиенты увидят после обновления подписки" : "плашку убрал");
+        const vias = (d.nodes || []).filter(n => n.ok).map(n => n.via || "");
+        const via = vias.length && vias.every(v => v === "ssh") ? "ssh"
+          : vias.length && vias.every(v => v === "api") ? "api" : "";
+        if (!any) setSt("ok", via === "ssh" ? "плашку убрал" : "текст убрал");
+        else if (via === "ssh") setSt("ok", "сохранено, клиенты увидят после обновления подписки");
+        else if (via === "api") setSt("ok", "сохранено в тексте панели Hiddify");
+        else setSt("ok", "сохранено");
       }
     }
     function busy(on) {

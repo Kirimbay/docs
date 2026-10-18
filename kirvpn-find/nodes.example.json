@@ -1,3 +1,10 @@
 [
-  {"label": "12", "ip": "203.0.113.30"}
+  {
+    "label": "12",
+    "panel_url": "https://12.kirvpn.us",
+    "admin_proxy_path": "AdminProxyPath",
+    "api_key": "00000000-0000-4000-8000-000000000000",
+    "ip": "203.0.113.30",
+    "announce": "api"
+  }
 ]

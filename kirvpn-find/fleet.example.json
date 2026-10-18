@@ -9,7 +9,8 @@
       "rf_ips": ["203.0.113.40"],
       "sub_host": "12.example.com",
       "path": "rf_direct",
-      "rf_ssh": "203.0.113.40"
+      "rf_ssh": "203.0.113.40",
+      "ssh": true
     }
   ]
 }

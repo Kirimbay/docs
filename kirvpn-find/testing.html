@@ -132,6 +132,7 @@
         <li><b>1.</b> В поле ниже впиши слово <b>REBOOT</b> английскими буквами — это защита, чтобы не нажать случайно.</li>
         <li><b>2.</b> Нажми одну кнопку: что перезагрузить. Идёт <b>по одной машине</b>, следующая только когда предыдущая поднялась. Если кто-то не встал — дальше не идём.</li>
       </ol>
+      <p class="hint">Перезагрузка идёт по SSH: нужен файл id_ed25519. Без ключа кнопка ответит, что перезагрузка выключена. В fleet.json поле ssh: false убирает машину из очереди. Проверка подписки читает Hiddify по API и SSH не использует.</p>
       <label class="hint" for="confirm" style="display:block;margin:0 0 6px">Поле подтверждения</label>
       <input type="text" id="confirm" placeholder="впиши сюда: REBOOT" autocomplete="off" spellcheck="false" autocapitalize="off">
       <div class="choice">
