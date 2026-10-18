@@ -71,10 +71,22 @@ def link_for(app: str, text: str) -> str:
         data = fetch(url)
         if len(data) < 1000:
             raise RuntimeError(f"short {kind} file from {url}")
-        atomic_write(GEO_DIR / f"{kind}.dat", data)
-        # Incy and Happ ask for this before the dat file. A 404 stops the download halfway.
-        digest = hashlib.sha256(data).hexdigest().encode("ascii") + b"\n"
-        atomic_write(GEO_DIR / f"{kind}.dat.sha256", digest)
+        expect = ""
+        try:
+            expect = fetch(url + ".sha256").decode("ascii", "replace").split()[0].strip()
+        except Exception:
+            expect = ""
+        digest = hashlib.sha256(data).hexdigest()
+        if len(expect) == 64 and digest != expect:
+            raise RuntimeError(f"hash mismatch for {kind}")
+        dest = GEO_DIR / f"{kind}.dat"
+        # Leave an unchanged file in place so a phone mid-download is not cut off.
+        if not dest.exists() or hashlib.sha256(dest.read_bytes()).hexdigest() != digest:
+            atomic_write(dest, data)
+        side = GEO_DIR / f"{kind}.dat.sha256"
+        side_body = (digest + "\n").encode("ascii")
+        if not side.exists() or side.read_bytes() != side_body:
+            atomic_write(side, side_body)
     rewritten = GEO_RE["geoip"].sub(GEOIP_URL, text)
     rewritten = GEO_RE["geosite"].sub(GEOSITE_URL, rewritten)
     encoded = base64.b64encode(rewritten.encode("utf-8")).decode("ascii")
