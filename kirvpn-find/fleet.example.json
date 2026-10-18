@@ -1,0 +1,15 @@
+{
+  "hub": {"ip": "203.0.113.10", "name": "hub"},
+  "find": {"ip": "203.0.113.20", "name": "find"},
+  "servers": [
+    {
+      "label": "12",
+      "origin": "203.0.113.30",
+      "relay": "relay-12",
+      "rf_ips": ["203.0.113.40"],
+      "sub_host": "12.example.com",
+      "path": "rf_direct",
+      "rf_ssh": "203.0.113.40"
+    }
+  ]
+}
