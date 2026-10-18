@@ -5,6 +5,7 @@ A failed refresh keeps the previous buttons. The key buttons do not use this.
 """
 
 import base64
+import hashlib
 import os
 import re
 import tempfile
@@ -67,7 +68,13 @@ def link_for(app: str, text: str) -> str:
             raise RuntimeError(f"no {kind} url in {app}")
         found[kind] = match.group(0)
     for kind, url in found.items():
-        atomic_write(GEO_DIR / f"{kind}.dat", fetch(url))
+        data = fetch(url)
+        if len(data) < 1000:
+            raise RuntimeError(f"short {kind} file from {url}")
+        atomic_write(GEO_DIR / f"{kind}.dat", data)
+        # Incy and Happ ask for this before the dat file. A 404 stops the download halfway.
+        digest = hashlib.sha256(data).hexdigest().encode("ascii") + b"\n"
+        atomic_write(GEO_DIR / f"{kind}.dat.sha256", digest)
     rewritten = GEO_RE["geoip"].sub(GEOIP_URL, text)
     rewritten = GEO_RE["geosite"].sub(GEOSITE_URL, rewritten)
     encoded = base64.b64encode(rewritten.encode("utf-8")).decode("ascii")
