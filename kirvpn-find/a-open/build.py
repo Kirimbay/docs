@@ -74,12 +74,23 @@ server {{
     location / {{ return 301 https://$host$request_uri; }}
 }}
 server {{
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen 443 ssl;
+    listen [::]:443 ssl;
     server_name {names};
 
     ssl_certificate     /etc/letsencrypt/live/a-open/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/a-open/privkey.pem;
+
+    # Phones reuse one connection. Gzip makes the reply chunked, and iOS
+    # stops reading it after a few page changes. Small TLS records avoid
+    # the same stall when a packet is lost.
+    ssl_buffer_size 4k;
+    sendfile off;
+    tcp_nopush off;
+    tcp_nodelay on;
+    gzip off;
+    keepalive_timeout 15s;
+    reset_timedout_connection on;
 
     root /var/www/a-open;
     charset utf-8;
