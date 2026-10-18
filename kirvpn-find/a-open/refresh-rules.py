@@ -13,6 +13,7 @@ from pathlib import Path
 
 STATE = Path("/var/lib/a-open")
 SNIPPET = Path("/var/www/a-open/rules-snippet.html")
+INFO_RULES = Path("/var/www/info.sarafan.uk/rules")
 GEO_DIR = Path("/var/www/info.sarafan.uk/geo")
 GEOIP_URL = "https://info.sarafan.uk/geo/geoip.dat"
 GEOSITE_URL = "https://info.sarafan.uk/geo/geosite.dat"
@@ -102,7 +103,10 @@ def main() -> None:
     links = {}
     for app, url in SOURCES.items():
         links[app] = link_for(app, fetch(url).decode("utf-8"))
-        atomic_write(STATE / f"{app}.link", (links[app] + "\n").encode("utf-8"))
+        payload = (links[app] + "\n").encode("utf-8")
+        atomic_write(STATE / f"{app}.link", payload)
+        # The info site reads these. They must stay on this host, not Cloudflare.
+        atomic_write(INFO_RULES / f"{app}.link", payload)
     atomic_write(SNIPPET, snippet(links["happ"], links["incy"]).encode("utf-8"))
     print("rules refreshed", len(links["happ"]), len(links["incy"]))
 

@@ -139,10 +139,12 @@
   <script>
     function arm(id, url, scheme) {
       var link = document.getElementById(id);
+      var stop = new AbortController();
+      var killer = setTimeout(function () { stop.abort(); }, 8000);
       link.addEventListener("click", function (event) {
         if ((link.getAttribute("href") || "").indexOf(scheme) !== 0) event.preventDefault();
       });
-      fetch(url, { cache: "no-store" }).then(function (r) {
+      fetch(url, { cache: "no-store", signal: stop.signal }).then(function (r) {
         if (!r.ok) throw new Error("bad");
         return r.text();
       }).then(function (text) {
@@ -153,10 +155,12 @@
         var st = document.getElementById("st");
         st.className = "hint err";
         st.textContent = "Не получилось загрузить правила. Обнови страницу.";
+      }).then(function () {
+        clearTimeout(killer);
       });
     }
-    arm("happ-rules", "https://routing.sarafan.uk/happ/default.link", "happ://routing/onadd/");
-    arm("incy-rules", "https://routing.sarafan.uk/incy/default.link", "incy://routing/onadd/");
+    arm("happ-rules", "/rules/happ.link", "happ://routing/onadd/");
+    arm("incy-rules", "/rules/incy.link", "incy://routing/onadd/");
   </script>
 </body>
 </html>
