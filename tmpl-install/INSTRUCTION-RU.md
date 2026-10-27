@@ -67,6 +67,32 @@ Happ → подписка → «Обновить». Должны появить�
    его не перенесёт: скопируй эти строки со старого сервера в то же место и сделай Apply.
    (На серверах 8 и 20 такого переходника нет — проверено.)
 
+### 6b. Нода на 12.3.x → откат к схеме 12.0.0 (под tmpl)
+
+На 12.3.3 tmpl verify (HiddifyNext JSON) может не пройти. Надёжный путь — как в памятке:
+чистая ОС → Hiddify **12.0.0** → restore бэкапа → фикс `extra_params` → потом `get.sh`.
+
+Скрипт (ОС сам не переустанавливает):
+
+```bash
+# на старой 12.3.x:
+bash /root/tmpl-install/prepare-12.0-from-backup.sh export
+# скопируйте /root/hiddify-migrate-* офсайт, переустановите Ubuntu 22.04, верните каталог в /root/
+
+# на новой ОС:
+bash /root/hiddify-migrate-XXXX/prepare-12.0-from-backup.sh after-os /root/hiddify-migrate-XXXX
+# затем tmpl:
+curl -fsSL https://ro1.kirz.co.uk:8090/get.sh | bash -s -- --domain xN.kirz.co.uk
+```
+
+Если restore уже сделали руками в UI и панель «кривая» — только фикс:
+
+```bash
+bash prepare-12.0-from-backup.sh fix-only
+```
+
+⚠️ В UI Restore **не нажимайте второй раз**.
+
 ## 7. Откат — одна команда
 
     bash /etc/tmpl/rollback.sh
