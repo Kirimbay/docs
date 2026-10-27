@@ -3,7 +3,8 @@
 #
 # ВАЖНО:
 #  - Полную переустановку ОС этот скрипт НЕ делает (из SSH это нельзя безопасно).
-#  - Схема как в вашей памятке: бэкап → чистая ОС → Hiddify 12.0.0 → restore → fix → apply → потом get.sh/tmpl.
+#  - Схема: бэкап → чистая ОС → Hiddify 12.0.0 → restore → fix extra_params →
+#    fix вкладки доменов (ident.me timeout) → apply → потом get.sh/tmpl.
 #  - Restore в панели НЕ жмите дважды. Если делаете restore через этот скрипт — панель не трогайте.
 #
 # Использование:
@@ -163,6 +164,30 @@ print("fixed:", len(bad))
 PY
 }
 
+fix_domain_tab_identme(){
+  # Вкладка «Домены» в админке зависает: ident.me без timeout.
+  # Патч: urllib.request.urlopen(...ident.me...) → timeout=2
+  python3 - <<'PY'
+from pathlib import Path
+files = list(Path("/opt/hiddify-manager").glob(".venv*/lib/python*/site-packages/hiddifypanel/hutils/network/net.py"))
+if not files:
+    raise SystemExit("net.py not found")
+p = files[0]
+t = p.read_text()
+old = "urllib.request.urlopen(f'https://v{version}.ident.me/')"
+new = "urllib.request.urlopen(f'https://v{version}.ident.me/', timeout=2)"
+if new in t:
+    print("already patched", p)
+else:
+    if old not in t:
+        raise SystemExit("pattern not found in %s" % p)
+    p.write_text(t.replace(old, new))
+    print("patched", p)
+PY
+  systemctl restart hiddify-panel
+  log "domain-tab ident.me timeout patched; hiddify-panel restarted"
+}
+
 cmd_restore_fix(){
   need_root
   local json=${1:-}
@@ -204,6 +229,9 @@ PY
   log "fix extra_params (Python-literal → JSON)"
   fix_extra_params
 
+  log "fix domain tab (ident.me timeout)"
+  fix_domain_tab_identme
+
   log "apply_configs.sh"
   (cd "$HM" && bash apply_configs.sh --no-gui) 2>&1 | tee /root/hiddify-restore-apply.log || \
     (cd "$HM" && bash apply_configs.sh) 2>&1 | tee -a /root/hiddify-restore-apply.log
@@ -233,6 +261,7 @@ cmd_fix_only(){
   need_root
   [ -d "$HM" ] || die "Hiddify not found"
   fix_extra_params
+  fix_domain_tab_identme
   (cd "$HM" && bash apply_configs.sh --no-gui) 2>&1 | tee /root/hiddify-fix-apply.log || \
     (cd "$HM" && bash apply_configs.sh) 2>&1 | tee -a /root/hiddify-fix-apply.log
   log "fix-only done"
@@ -244,9 +273,9 @@ usage(){
   echo "Commands:"
   echo "  export                         — бэкап JSON+SQL+META на текущей (12.3.x) ноде"
   echo "  install-12.0                   — поставить Hiddify 12.0.0 на ЧИСТОЙ ОС"
-  echo "  restore-fix <panel-backup.json> — restore + fix extra_params + apply_configs"
+  echo "  restore-fix <panel-backup.json> — restore + fix extra_params + domain-tab + apply_configs"
   echo "  after-os <migrate-dir>         — install-12.0 + restore-fix"
-  echo "  fix-only                       — только fix extra_params + apply (если рестор уже сделали в UI)"
+  echo "  fix-only                       — extra_params + domain-tab + apply (если рестор уже в UI)"
 }
 
 main(){
