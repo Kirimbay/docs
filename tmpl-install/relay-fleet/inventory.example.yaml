@@ -1,0 +1,93 @@
+# Скопируйте в inventory.yaml и заполните. Не коммитьте боевой файл.
+#
+# ssh: ключ контроллера должен пускать BatchMode на relay_host (и при необходимости exit).
+# Проба всегда с relay_host (там, где висит front IP), не с ноутбука.
+
+cf_token_file: /tmp/cf.token   # или env CF_TOKEN
+ssh_key: /home/ubuntu/.ssh/tmpl-audit-temp
+state_file: /var/lib/relay-fleet/state.json
+probe_tries: 5
+probe_timeout_sec: 2
+ok_threshold: 3          # минимум успешных TCP из probe_tries чтобы считать путь живым
+ports: [443]             # можно добавить 2053
+telegram:
+  # bot_token_env: TELEGRAM_BOT_TOKEN
+  # chat_id_env: TELEGRAM_CHAT_ID
+  enabled: false
+
+# failback: false = после flip на backup сам на primary не возвращаем
+auto_failback: false
+
+zones:
+  kirz.co.uk: 7c6f3dbf4fb19fe193083c223c175be2
+  kirvpn.ru: ee3e566259a309a471fb5f08c1f1de53
+  kirvpn.us: 3f862e2dd8e45f25edcd3a32ebd34185
+  sarafan.uk: 6ff05330e071d50f1de75e9429a102d9
+
+exits:
+  "8":
+    exit_ip: 136.148.220.239
+    domains:
+      - x8.kirz.co.uk
+      - hid8.kirvpn.ru
+      - hid8.kirvpn.us
+      - hid8.sarafan.uk
+    fronts:
+      - id: primary
+        ip: 144.31.107.31
+        relay_host: 144.31.107.31   # SSH target (= машина фронта)
+        note: "karaforum2 — путь до Hostup нестабилен; сейчас WG-hop"
+      - id: backup1
+        ip: REPLACE_WITH_NEW_IP
+        relay_host: REPLACE_WITH_HOST
+        note: "КУПИТЬ: SERV.HOST IP на другой машине, probe 5/5 до exit8"
+
+  "57":
+    exit_ip: 136.148.211.77
+    domains:
+      - x57.kirz.co.uk
+      - 57.kirz.co.uk
+      - 57.kirvpn.ru
+      - 57.kirvpn.us
+      - 57.sarafan.uk
+    fronts:
+      - id: primary
+        ip: 80.66.89.19
+        relay_host: 80.66.89.19
+        note: "karaforum12 — 0/5 direct; WG-hop"
+      - id: backup1
+        ip: REPLACE_WITH_NEW_IP
+        relay_host: REPLACE_WITH_HOST
+        note: "КУПИТЬ"
+
+  "60":
+    exit_ip: 136.148.220.250
+    domains:
+      - x60.kirz.co.uk
+      - 60.kirvpn.ru
+      - 60.kirvpn.us
+      - 60.sarafan.uk
+      - bs1.kirvpn.ru
+      - bs1.kirvpn.us
+    fronts:
+      - id: primary
+        ip: 144.31.50.159
+        relay_host: 2.26.8.81
+        note: "shared IP on karaforum17 (relay 20) — emergency"
+      - id: backup1
+        ip: REPLACE_WITH_NEW_IP
+        relay_host: REPLACE_WITH_HOST
+        note: "КУПИТЬ; затем освободить 144.31.50.159"
+
+  "20":
+    exit_ip: 136.148.220.240
+    domains:
+      - x20.kirz.co.uk
+      - 20.kirvpn.ru
+      - 20.kirvpn.us
+    fronts:
+      - id: primary
+        ip: 2.26.8.81
+        relay_host: 2.26.8.81
+        note: "karaforum17 OK"
+      # backup1: добавить позже

@@ -1,0 +1,12 @@
+[Unit]
+Description=Relay fleet path probe + DNS failover
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Adjust paths for the controller host
+Environment=CF_TOKEN_FILE=/etc/relay-fleet/cf.token
+EnvironmentFile=-/etc/relay-fleet/env
+ExecStart=/usr/bin/python3 /opt/relay-fleet/scripts/probe_and_failover.py --inventory /etc/relay-fleet/inventory.yaml --apply
+Nice=5
