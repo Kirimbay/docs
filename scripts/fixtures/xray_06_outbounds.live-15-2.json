@@ -1,0 +1,34 @@
+{
+  "outbounds": [
+    {
+      "tag": "freedom",
+      "protocol": "freedom",
+      "settings": {}
+    },
+    {
+      "tag": "WARP",
+      "protocol": "freedom",
+      "streamSettings": {
+        "sockopt": {
+          "tcpFastOpen": true,
+          "interface": "warp"
+        }
+      }
+    },
+    {
+      "protocol": "blackhole",
+      "tag": "blackhole"
+    },
+    {
+      "tag": "forbidden_sites",
+      "protocol": "freedom"
+    },
+    {
+      "tag": "DNS-Internal",
+      "protocol": "dns",
+      "settings": {
+        "port": 53
+      }
+    }
+  ]
+}
