@@ -1,0 +1,12 @@
+# Paste into Hiddify HAProxy frontend (HTTP/HTTPS) BEFORE decoy/default backends.
+# Match Host and send to local nginx that fronts Komnata.
+
+# --- frontend https / http ---
+# acl is_komnata hdr(host) -i __CHAT_DOMAIN__
+# use_backend komnata_back if is_komnata
+
+# --- backend ---
+# backend komnata_back
+#     mode http
+#     option forwardfor
+#     server komnata 127.0.0.1:__PROXY_PORT__ ssl verify none

@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily Сарафан chat backup
+
+[Service]
+Type=oneshot
+Environment=DATA_DIR=/var/lib/komnata
+Environment=APP_DIR=/opt/komnata
+ExecStart=/bin/bash -c 'mkdir -p /root/sarafan-backups && /bin/bash /opt/komnata/deploy/backup.sh /root/sarafan-backups/sarafan-backup-$(date +%%Y%%m%%d-%%H%%M%%S).tar.gz'
+ExecStartPost=/bin/bash -c 'ls -1t /root/sarafan-backups/sarafan-backup-*.tar.gz 2>/dev/null | tail -n +15 | xargs -r rm -f'

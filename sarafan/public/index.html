@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <title>Сарафан — чат</title>
+    <meta name="description" content="Сарафан — чат по нику и пину: текст и фото." />
+    <meta name="theme-color" content="#151618" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Сарафан" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css?v=1" />
+  </head>
+  <body>
+    <section id="gate" class="gate">
+      <div class="gate-card">
+        <button type="button" id="brand-btn" class="brand" title="Сарафан">Сарафан</button>
+        <h1>Вход по нику и пину</h1>
+        <p class="lede">Четыре цифры — ваш аккаунт. Комнаты по номеру. Текст и фото.</p>
+        <label class="field">
+          <span>Имя</span>
+          <div class="row">
+            <input id="name-input" type="text" maxlength="24" autocomplete="nickname" placeholder="Например: Барс" />
+            <button type="button" id="random-btn" class="ghost">Случайное</button>
+          </div>
+        </label>
+        <label class="field">
+          <span>Пин · 4 цифры</span>
+          <input id="pin-input" type="text" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="4821" />
+        </label>
+        <button type="button" id="join-btn" class="primary">Войти</button>
+        <p id="gate-error" class="error" hidden></p>
+      </div>
+    </section>
+
+    <dialog id="admin-dialog" class="sheet">
+      <form method="dialog" class="sheet-body" id="admin-form">
+        <h2>Супер-админ</h2>
+        <p class="muted">Зажмите «Сарафан» на входе · введите пароль</p>
+        <label class="field">
+          <span>Пароль</span>
+          <input id="admin-password" type="password" autocomplete="current-password" />
+        </label>
+        <p id="admin-error" class="error" hidden></p>
+        <div class="sheet-actions">
+          <button type="submit" value="cancel" class="ghost">Отмена</button>
+          <button type="button" id="admin-submit" class="primary">Войти</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="app" class="app" hidden>
+      <header class="topbar">
+        <div class="topbar-brand">
+          <span class="topbar-title">Сарафан</span>
+          <button type="button" id="presence-btn" class="chip" title="Кто онлайн">онлайн —</button>
+        </div>
+        <div class="topbar-actions">
+          <button type="button" id="notify-btn" class="ghost icon-btn" title="Уведомления" aria-pressed="false">🔔</button>
+          <button type="button" id="hub-btn" class="ghost">Комнаты</button>
+          <button type="button" id="me-btn" class="ghost me-btn">…</button>
+        </div>
+      </header>
+
+      <div id="room-bar" class="room-bar" hidden>
+        <div class="room-bar-main">
+          <strong id="room-code-label">—</strong>
+          <span id="room-meta" class="muted"></span>
+        </div>
+        <div class="room-bar-actions">
+          <button type="button" id="room-settings-btn" class="ghost compact" hidden>Настройки</button>
+          <button type="button" id="leave-room-btn" class="ghost compact">Выйти</button>
+        </div>
+      </div>
+
+      <div id="pins" class="pins" hidden></div>
+      <main id="feed" class="feed" aria-live="polite"></main>
+
+      <footer class="composer">
+        <div id="reply-bar" class="reply-bar" hidden>
+          <div id="reply-preview" class="reply-preview"></div>
+          <button type="button" id="reply-cancel" class="ghost compact">×</button>
+        </div>
+        <div class="composer-row">
+          <label class="attach" title="Фото">
+            <input id="file-input" type="file" accept="image/*" hidden />
+            <span>＋</span>
+          </label>
+          <textarea id="message-input" rows="1" placeholder="Сообщение" maxlength="2000"></textarea>
+          <button type="button" id="send-btn" class="primary compact">➤</button>
+        </div>
+        <div id="pending-image" class="pending-image" hidden></div>
+      </footer>
+    </div>
+
+    <dialog id="hub-dialog" class="hub">
+      <div class="hub-inner">
+        <header class="hub-head">
+          <h2>Комнаты</h2>
+          <button type="button" id="hub-close" class="ghost">Готово</button>
+        </header>
+        <p id="hub-error" class="error" hidden></p>
+
+        <div class="hub-actions">
+          <section class="hub-box">
+            <h3>Создать</h3>
+            <label class="field">
+              <span>Номер · 6 цифр (необязательно)</span>
+              <input id="create-code" type="text" inputmode="numeric" maxlength="6" placeholder="авто" />
+            </label>
+            <label class="field">
+              <span>Ключ для других · 4 цифры (пусто = открытая)</span>
+              <input id="create-key" type="text" inputmode="numeric" maxlength="4" placeholder="открытая" />
+            </label>
+            <button type="button" id="create-btn" class="primary">Создать</button>
+          </section>
+          <section class="hub-box">
+            <h3>Войти</h3>
+            <label class="field">
+              <span>Номер комнаты</span>
+              <input id="join-code" type="text" inputmode="numeric" maxlength="6" placeholder="000543" />
+            </label>
+            <label class="field">
+              <span>Ключ (если закрытая)</span>
+              <input id="join-key" type="text" inputmode="numeric" maxlength="4" placeholder="····" />
+            </label>
+            <button type="button" id="join-room-btn" class="primary">Войти</button>
+          </section>
+        </div>
+
+        <div class="hub-list-wrap">
+          <h3 id="hub-list-title">Ваши комнаты</h3>
+          <div id="hub-list" class="hub-list" role="list"></div>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="settings-dialog" class="sheet">
+      <div class="sheet-body">
+        <h2>Комната</h2>
+        <p id="settings-lead" class="muted"></p>
+        <label class="field">
+          <span>Пин аккаунта (подтверждение)</span>
+          <input id="settings-pin" type="text" inputmode="numeric" maxlength="4" />
+        </label>
+        <label class="field" id="settings-key-field">
+          <span>Ключ комнаты</span>
+          <input id="settings-key" type="text" inputmode="numeric" maxlength="4" />
+        </label>
+        <div class="sheet-actions wrap">
+          <button type="button" id="make-open-btn" class="ghost">Сделать открытой</button>
+          <button type="button" id="make-keyed-btn" class="ghost">Закрыть ключом</button>
+          <button type="button" id="toggle-close-btn" class="ghost">Закрыть вход</button>
+        </div>
+        <hr />
+        <label class="field">
+          <span>Удалить навсегда · номер комнаты</span>
+          <input id="delete-code" type="text" inputmode="numeric" maxlength="6" />
+        </label>
+        <button type="button" id="delete-room-btn" class="danger">Удалить комнату</button>
+        <p id="settings-error" class="error" hidden></p>
+        <div class="sheet-actions">
+          <button type="button" id="settings-close" class="ghost">Закрыть</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="rename-dialog" class="sheet">
+      <div class="sheet-body">
+        <h2>Сменить имя</h2>
+        <label class="field">
+          <span>Новое имя</span>
+          <input id="rename-input" type="text" maxlength="24" />
+        </label>
+        <p id="rename-error" class="error" hidden></p>
+        <div class="sheet-actions">
+          <button type="button" id="rename-cancel" class="ghost">Отмена</button>
+          <button type="button" id="rename-submit" class="primary">Сохранить</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="presence-dialog" class="sheet">
+      <div class="sheet-body">
+        <h2>Онлайн</h2>
+        <ul id="presence-list" class="presence-list"></ul>
+        <div class="sheet-actions">
+          <button type="button" id="presence-close" class="ghost">Закрыть</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="/js/app.js?v=1"></script>
+  </body>
+</html>
