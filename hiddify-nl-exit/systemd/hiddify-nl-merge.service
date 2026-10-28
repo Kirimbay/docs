@@ -1,0 +1,13 @@
+[Unit]
+Description=Hiddify subscription merge proxy (inject NL exit)
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/hiddify-nl-exit
+ExecStart=/opt/hiddify-nl-exit/.venv/bin/python -m hiddify_nl_exit --config /opt/hiddify-nl-exit/config.yaml merge
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
