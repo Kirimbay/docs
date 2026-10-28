@@ -1,0 +1,54 @@
+hub:
+  admin_password: change-me-strong-password
+  listen_host: 0.0.0.0
+  listen_port: 8080
+  public_url: https://hub.example.com
+  health_check_interval: 120
+  auto_apply_users: true
+nodes:
+- id: se-1
+  name: 'Sweden #1'
+  country: SE
+  enabled: true
+  base_url: https://se1.example.com
+  admin_proxy_path: your-admin-proxy-path
+  api_key: admin-uuid-from-panel
+  user_proxy_path: your-user-proxy-path
+  ssh:
+    host: 1.2.3.4
+    user: root
+    port: 22
+    key_path: ~/.ssh/id_rsa
+    password: null
+- id: nl-1
+  name: 'Netherlands #1'
+  country: NL
+  enabled: true
+  base_url: https://nl1.example.com
+  admin_proxy_path: your-admin-proxy-path
+  api_key: admin-uuid-from-panel
+  user_proxy_path: your-user-proxy-path
+  ssh: null
+- id: tr-1
+  name: 'Turkey #1'
+  country: TR
+  enabled: true
+  base_url: https://tr1.example.com
+  admin_proxy_path: your-admin-proxy-path
+  api_key: admin-uuid-from-panel
+  user_proxy_path: your-user-proxy-path
+  ssh: null
+- id: us-1
+  name: 'USA #1'
+  country: US
+  enabled: true
+  base_url: https://us1.example.com
+  admin_proxy_path: your-admin-proxy-path
+  api_key: admin-uuid-from-panel
+  user_proxy_path: your-user-proxy-path
+  ssh: null
+defaults:
+  package_days: 30
+  usage_limit_gb: 100.0
+  mode: no_reset
+  enable: true

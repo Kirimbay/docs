@@ -1,0 +1,14 @@
+services:
+  hiddify-hub:
+    build: .
+    container_name: hiddify-hub
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config/servers.yaml:/app/config/servers.yaml:ro
+      - ./data:/app/data
+    environment:
+      HIDDIFY_HUB_CONFIG: /app/config/servers.yaml
+      HIDDIFY_HUB_DB: /app/data/hub.db
+    command: ["hiddify-hub", "serve"]
