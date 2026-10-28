@@ -1,0 +1,9 @@
+services:
+  uno-mas-monitor:
+    build: .
+    container_name: uno-mas-monitor
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
