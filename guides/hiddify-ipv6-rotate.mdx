@@ -1,0 +1,50 @@
+---
+title: "Ротация IPv6 для Hiddify Manager"
+description: "Суточная смена дополнительного IPv6 в 03:00 без перезапуска панели"
+---
+
+Hiddify Manager не переписывается и не перезапускается. Крутится только дополнительный IPv6 на Ubuntu, основной адрес сервера остаётся на месте.
+
+Полный комплект: каталог [`ipv6-rotate/`](https://github.com/Kirimbay/docs/tree/main/ipv6-rotate) в этом репозитории.
+
+## Что меняется
+
+Каждую ночь в 03:00 (локальное время сервера):
+
+1. Из пула хостера берётся новый IPv6.
+2. Он добавляется на тот же интерфейс, что и основной адрес.
+3. Исходящий IPv6-трафик (в том числе от xray/sing-box) уходит с нового адреса.
+4. Старый ротационный адрес снимается после успешного ping.
+
+Не меняются IPv4, основной IPv6, `fe80::`, SSH и домен панели.
+
+## Установка на сервер
+
+```bash
+sudo bash ipv6-rotate/install.sh
+sudo nano /etc/ipv6-rotate/ipv6-rotate.conf
+sudo rotate-ipv6.sh --dry-run
+sudo rotate-ipv6.sh
+sudo rotate-ipv6.sh --status
+sudo rotate-ipv6.sh --log
+```
+
+Откат и ручная смена:
+
+```bash
+sudo rotate-ipv6.sh              # сменить сейчас
+sudo rotate-ipv6.sh --set 2a03:...::abcd
+sudo rotate-ipv6.sh --rollback   # предыдущий extra-IPv6
+sudo rotate-ipv6.sh --off        # только основной IPv6
+```
+
+Если хостер дал не `/64`, а список адресов — заполните `/etc/ipv6-rotate/pool.txt` и поставьте `MODE=pool`.
+
+Часовой пояс для 03:00:
+
+```bash
+sudo timedatectl set-timezone Europe/Moscow
+systemctl list-timers ipv6-rotate.timer
+```
+
+Подробности, откат и опциональное обновление AAAA — в `ipv6-rotate/README.md`.
