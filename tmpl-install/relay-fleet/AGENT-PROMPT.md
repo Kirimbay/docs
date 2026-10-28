@@ -34,12 +34,14 @@ DNAT уже прописан: `.92→60`, `.94→8`, `.95→57`. Путь до H
 
 **Важно:** IP в панели SERV.HOST ≠ адрес в ОС. Если «no route», зайди на машину и `ip addr add IP/32 dev ens3` + запись в `/etc/network/interfaces`.
 
-Домены по exit (все A на текущий primary):
+Домены по exit (все A на текущий primary) — **только kirz / kirvpn**:
 
-- 8: `x8.kirz.co.uk`, `hid8.kirvpn.ru`, `hid8.kirvpn.us`, `hid8.sarafan.uk`
-- 57: `x57.kirz.co.uk`, `57.kirz.co.uk`, `57.kirvpn.ru`, `57.kirvpn.us`, `57.sarafan.uk`
-- 60: `x60.kirz.co.uk`, `60.kirvpn.ru`, `60.kirvpn.us`, `60.sarafan.uk`, `bs1.kirvpn.ru`, `bs1.kirvpn.us`
+- 8: `x8.kirz.co.uk`, `hid8.kirvpn.ru`, `hid8.kirvpn.us`
+- 57: `x57.kirz.co.uk`, `57.kirz.co.uk`, `57.kirvpn.ru`, `57.kirvpn.us`
+- 60: `x60.kirz.co.uk`, `60.kirvpn.ru`, `60.kirvpn.us`, `bs1.kirvpn.ru`, `bs1.kirvpn.us`
 - 20: `x20.kirz.co.uk`, `20.kirvpn.ru`, `20.kirvpn.us`
+
+**`*.sarafan.uk` — забыть.** Не чинить, не включать в failover/DNS flip, не требовать IP под sarafan. Записи в CF можно позже снести пачкой; в работе парка не участвуют.
 
 ---
 
@@ -144,7 +146,8 @@ Happ получает **быстрый отказ** → сразу перехо�
 
 ## Cloudflare
 
-Зоны: `kirz.co.uk`, `kirvpn.ru`, `kirvpn.us`, `sarafan.uk`.  
+Зоны в работе: `kirz.co.uk`, `kirvpn.ru`, `kirvpn.us`.  
+Зона `sarafan.uk` — **игнор** (оператор: можно забыть).  
 Только A, `proxied: false` для proxy-фронтов, TTL 60.
 
 ---

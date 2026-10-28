@@ -22,7 +22,8 @@ zones:
   kirz.co.uk: 7c6f3dbf4fb19fe193083c223c175be2
   kirvpn.ru: ee3e566259a309a471fb5f08c1f1de53
   kirvpn.us: 3f862e2dd8e45f25edcd3a32ebd34185
-  sarafan.uk: 6ff05330e071d50f1de75e9429a102d9
+  # sarafan.uk: IGNORE (do not use)
+  # sarafan.uk: 6ff05330e071d50f1de75e9429a102d9
 
 exits:
   "8":
