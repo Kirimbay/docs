@@ -1,0 +1,5 @@
+sing-box 1.12.12 built from github.com/SagerNet/sing-box tag v1.12.12 (rev 54ed58499d70) with v2ray_api (official builds lack it):
+CGO_ENABLED=0 GOARCH=<amd64|arm64> go build -trimpath -tags "with_quic,with_utls,with_v2ray_api,with_gvisor" \
+  -ldflags "-s -w -buildid= -X github.com/sagernet/sing-box/constant.Version=1.12.12" -o sing-box ./cmd/sing-box
+sha256 amd64 91e646d2f8e16eb8535e4145d77999b5cdc1a5dd017ff1b29e6faf960493ca62
+sha256 arm64 b4ce9cdf6ebffbb164d5b7a7c2791da7cadc48209c552bf32372556254826bc7
