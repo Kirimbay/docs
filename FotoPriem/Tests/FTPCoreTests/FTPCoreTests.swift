@@ -1,0 +1,149 @@
+import XCTest
+@testable import FTPCore
+
+final class AddressPickerTests: XCTestCase {
+    func testCameraModePrefersNonHotspotWiFi() {
+        let interfaces = [
+            InterfaceIPv4(name: "bridge100", ip: "172.20.10.1"),
+            InterfaceIPv4(name: "en0", ip: "192.168.0.14")
+        ]
+        XCTAssertEqual(
+            AddressPicker.advertisedIP(interfaces: interfaces, scenario: .cameraAccessPoint),
+            "192.168.0.14"
+        )
+    }
+
+    func testHotspotModePrefersBridge() {
+        let interfaces = [
+            InterfaceIPv4(name: "en0", ip: "192.168.0.14"),
+            InterfaceIPv4(name: "bridge100", ip: "172.20.10.1")
+        ]
+        XCTAssertEqual(
+            AddressPicker.advertisedIP(interfaces: interfaces, scenario: .phoneHotspot),
+            "172.20.10.1"
+        )
+    }
+
+    func testCameraModeIgnoresCellular() {
+        let interfaces = [
+            InterfaceIPv4(name: "pdp_ip0", ip: "10.59.61.123"),
+            InterfaceIPv4(name: "en0", ip: "192.168.1.10")
+        ]
+        XCTAssertEqual(
+            AddressPicker.advertisedIP(interfaces: interfaces, scenario: .cameraAccessPoint),
+            "192.168.1.10"
+        )
+    }
+
+    func testCameraModeWithoutWiFiShowsNothing() {
+        let interfaces = [
+            InterfaceIPv4(name: "pdp_ip0", ip: "10.59.61.123")
+        ]
+        XCTAssertNil(
+            AddressPicker.advertisedIP(interfaces: interfaces, scenario: .cameraAccessPoint)
+        )
+    }
+
+    func testYandexOnlyOnPhoneHotspot() {
+        XCTAssertFalse(ConnectionScenario.cameraAccessPoint.yandexUploadAvailable)
+        XCTAssertTrue(ConnectionScenario.phoneHotspot.yandexUploadAvailable)
+    }
+
+    func testPlannedCameraFTPTarget() {
+        XCTAssertEqual(PlannedPhoneAddress.ftpTarget(for: .cameraAccessPoint), "192.168.1.20")
+        XCTAssertTrue(PlannedPhoneAddress.currentMatchesPlan("192.168.1.20", scenario: .cameraAccessPoint))
+        XCTAssertFalse(PlannedPhoneAddress.currentMatchesPlan("192.168.1.7", scenario: .cameraAccessPoint))
+    }
+}
+
+final class IncomingStoreTests: XCTestCase {
+    func testSanitizeAndUniqueNames() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = try IncomingStore(rootDirectory: dir)
+        let first = try store.save(originalPath: "/DCIM/100CANON/IMG_0001.JPG", data: Data("a".utf8))
+        let second = try store.save(originalPath: "/DCIM/100CANON/IMG_0001.JPG", data: Data("b".utf8))
+        XCTAssertEqual(first.kind, .jpeg)
+        XCTAssertEqual(first.originalName, "DCIM_100CANON_IMG_0001.JPG")
+        XCTAssertNotEqual(first.storedURL.lastPathComponent, second.storedURL.lastPathComponent)
+        XCTAssertEqual(store.allFiles().count, 2)
+    }
+
+    func testMediaKinds() {
+        XCTAssertEqual(MediaKind.detect(fileName: "a.CR3"), .raw)
+        XCTAssertEqual(MediaKind.detect(fileName: "b.NEF"), .raw)
+        XCTAssertEqual(MediaKind.detect(fileName: "c.ARW"), .raw)
+        XCTAssertEqual(MediaKind.detect(fileName: "d.DNG"), .raw)
+        XCTAssertEqual(MediaKind.detect(fileName: "e.MP4"), .video)
+        XCTAssertEqual(MediaKind.detect(fileName: "f.MOV"), .video)
+        XCTAssertEqual(MediaKind.detect(fileName: "g.JPG"), .jpeg)
+    }
+}
+
+final class FTPReceiveTests: XCTestCase {
+    func testPassiveStorRoundTrip() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = try IncomingStore(rootDirectory: dir)
+        let port = UInt16.random(in: 21000...21999)
+        let server = FTPServer(
+            credentials: FTPCredentials(username: "foto", password: "priem", port: port),
+            store: store
+        )
+        try server.start()
+        defer { server.stop() }
+        Thread.sleep(forTimeInterval: 0.2)
+
+        let payload = Data("hello-from-camera".utf8)
+        try FakeCameraFTP.upload(
+            host: "127.0.0.1",
+            port: port,
+            user: "foto",
+            password: "priem",
+            fileName: "DSC_0001.JPG",
+            payload: payload
+        )
+
+        let files = store.allFiles()
+        XCTAssertEqual(files.count, 1)
+        XCTAssertEqual(files[0].kind, .jpeg)
+        XCTAssertEqual(try Data(contentsOf: files[0].storedURL), payload)
+    }
+}
+
+final class StorageLocatorTests: XCTestCase {
+    func testWritableRootIsNotInboxAndAcceptsFiles() throws {
+        let url = try StorageLocator.writableRoot(named: "FotoPriemTestReceived")
+        XCTAssertNotEqual(url.lastPathComponent, "Inbox")
+        let store = try IncomingStore(rootDirectory: url)
+        let file = try store.save(originalPath: "shot.JPG", data: Data("ok".utf8))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.storedURL.path))
+    }
+
+    func testPermissionErrorIsRussian() {
+        let error = NSError(domain: NSCocoaErrorDomain, code: 513)
+        let message = StorageLocator.userFacingMessage(for: error)
+        XCTAssertFalse(message.contains("Inbox"))
+        XCTAssertTrue(message.contains("папку"))
+    }
+}
+
+final class YandexOAuthTests: XCTestCase {
+    func testParsesTokenFromFragment() {
+        let url = URL(string: "https://oauth.yandex.ru/verification_code#access_token=abc123&token_type=bearer")!
+        XCTAssertEqual(YandexOAuth.accessToken(from: url), "abc123")
+    }
+
+    func testAuthorizeURLContainsClientAndDiskScope() {
+        let url = YandexOAuth.authorizeURL(clientID: "my-client")
+        XCTAssertTrue(url.absoluteString.contains("client_id=my-client"))
+        XCTAssertTrue(url.absoluteString.contains("cloud_api"))
+        XCTAssertTrue(url.absoluteString.contains("verification_code"))
+    }
+}
+
+final class YandexDiskClientTests: XCTestCase {
+    func testUnauthorizedMessageAsksToLoginAgain() {
+        let message = YandexDiskClient.userFacingMessage(for: YandexDiskError.http(401))
+        XCTAssertFalse(message.lowercased().contains("пароль приложения"))
+        XCTAssertTrue(message.contains("Яндекс"))
+    }
+}

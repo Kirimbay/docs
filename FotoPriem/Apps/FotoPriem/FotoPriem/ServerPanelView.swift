@@ -1,0 +1,73 @@
+import SwiftUI
+
+struct ServerPanelView: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("FTP для камеры")
+                .font(.headline)
+                .foregroundStyle(.white.opacity(0.9))
+
+            infoRow("В FTP камеры пиши", model.ftpTargetForCamera)
+            infoRow("Сейчас у телефона", model.advertisedIP)
+            infoRow("IP камеры", model.cameraOwnIPHint)
+            infoRow("Порт", String(model.credentials.port))
+            infoRow("Логин", model.credentials.username)
+            infoRow("Пароль", model.credentials.password)
+            infoRow("Статус", model.statusMessage)
+
+            if model.scenario == .cameraAccessPoint {
+                Text(model.phoneHasPlannedIP ? "Постоянный IP стоит, можно снимать." : "Сначала задай на iPhone постоянный IP — см. текст ниже.")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(model.phoneHasPlannedIP ? Color.green : Color.accentColor)
+            }
+
+            Text(model.sameNetworkHint)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.75))
+
+            if let error = model.lastError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            Toggle("Не гасить экран во время приёма", isOn: $model.keepScreenOn)
+                .tint(Color.accentColor)
+                .foregroundStyle(.white)
+                .onChange(of: model.keepScreenOn) { _ in
+                    model.applyIdleTimer()
+                }
+
+            Button(action: model.toggleServer) {
+                Text(model.isRunning ? "Остановить приём" : "Запустить приём")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(model.isRunning ? Color.red.opacity(0.85) : Color.accentColor)
+                    .foregroundStyle(.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+
+            Text("В настройках сети камеры выключи «Частный адрес Wi‑Fi», иначе IP может смениться.")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.45))
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(0.05)))
+    }
+
+    private func infoRow(_ title: String, _ value: String) -> some View {
+        HStack {
+            Text(title)
+                .foregroundStyle(.white.opacity(0.55))
+            Spacer()
+            Text(value)
+                .font(.body.monospaced())
+                .foregroundStyle(.white)
+                .textSelection(.enabled)
+        }
+        .font(.subheadline)
+    }
+}

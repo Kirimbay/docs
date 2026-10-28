@@ -1,0 +1,4 @@
+50-file camera FTP stand: PASS
+  35 JPEG, 8 RAW (CR3/NEF/ARW/DNG), 7 video (MP4/MOV)
+Large 2MB STOR: PASS
+Unit tests: PASS (address picker, unique names, PASV STOR)
