@@ -1,0 +1,15 @@
+[Unit]
+Description=КвитQR — квитанция в банковский QR
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_DIR__
+Environment=PATH=__APP_DIR__/.venv/bin:/usr/local/bin:/usr/bin
+ExecStart=__APP_DIR__/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port __APP_PORT__ --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
