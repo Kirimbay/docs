@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Юзеры</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #0b1220; color: #e8eefc;
+      display: flex; justify-content: center; padding: 32px 16px;
+    }
+    main { width: min(760px, 100%); }
+    nav.tabs {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px;
+    }
+    nav.tabs a {
+      text-decoration: none; color: #9bb0d0; font-weight: 700; font-size: .92rem;
+      padding: 8px 14px; border-radius: 10px; border: 1px solid #24324d;
+      background: #121b2e;
+    }
+    nav.tabs a.on {
+      color: #fff; background: #3b82f6; border-color: #3b82f6;
+    }
+    nav.tabs a.out {
+      margin-left: auto; color: #8aa0c2; background: transparent; font-weight: 600;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    p.lead { color: #9bb0d0; margin: 0 0 18px; line-height: 1.45; }
+    button {
+      font: inherit; border-radius: 12px; border: 0;
+      padding: 10px 14px; background: #3b82f6; color: #fff;
+      font-weight: 700; cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: default; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 14px; }
+    .card {
+      display: block;
+      background: #121b2e; border: 1px solid #24324d; border-radius: 14px;
+      padding: 14px 16px; margin: 0 0 10px;
+      color: inherit; text-decoration: none;
+    }
+    a.card { cursor: pointer; }
+    a.card:hover, a.card:focus-visible { border-color: #3b82f6; }
+    a.card:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+    .head {
+      display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    }
+    .head h2 { margin: 0; font-size: 1.05rem; color: #93c5fd; }
+    .ip { color: #9bb0d0; font-size: .88rem; }
+    .total {
+      margin-left: auto; font-variant-numeric: tabular-nums;
+      font-weight: 800; font-size: 1.05rem;
+    }
+    .nums {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      margin-top: 10px;
+      color: #9bb0d0; font-size: .9rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .nums b { color: #e8eefc; font-weight: 700; }
+    .nums .active b { color: #86efac; }
+    .nums .expired b { color: #fdba74; }
+    .nums .disabled b { color: #fca5a5; }
+    .hint { margin-top: 8px; color: #6b82a8; font-size: .78rem; }
+    .muted { color: #9bb0d0; font-size: .9rem; }
+    .okt { color: #86efac; font-size: .9rem; }
+    .err { color: #fca5a5; }
+    .sum { margin: 0 0 12px; }
+    .sum .card { margin: 0; }
+    .fail { border-color: #7f1d1d; }
+  </style>
+</head>
+<body>
+  <main>
+    <nav class="tabs">
+      <a href="/">Поиск</a>
+      <a href="/pro">Pro поиск</a>
+      <a class="on" href="/users">Юзеры</a>
+      <a href="/testing">Тестирование</a>
+      <a href="/announce">Оповещение</a>
+      <a href="/info">Сайт</a>
+      <a href="/traffic">Трафик</a>
+      <a class="out" href="/logout">Выйти</a>
+    </nav>
+    <h1>Юзеры</h1>
+    <p class="lead">Сколько человек на каждом сервере: всего, с живой подпиской, с истекшей и выключенных. Нажми карточку — откроется список в панели.</p>
+    <div class="row">
+      <button type="button" id="reload">Обновить</button>
+      <span id="st" class="muted"></span>
+    </div>
+    <div id="sum" class="sum"></div>
+    <div id="out"></div>
+  </main>
+  <script>
+    const out = document.getElementById("out");
+    const st = document.getElementById("st");
+    const sum = document.getElementById("sum");
+    const btn = document.getElementById("reload");
+    const esc = (s) => String(s).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+    function setSt(cls, msg) { st.className = cls; st.textContent = msg || ""; }
+    function when(ts) {
+      if (!ts) return "";
+      const d = new Date(ts * 1000);
+      const pad = n => String(n).padStart(2, "0");
+      return pad(d.getHours()) + ":" + pad(d.getMinutes());
+    }
+    function nums(s) {
+      return '<div class="nums">' +
+        '<span>всего <b>' + esc(s.total) + "</b></span>" +
+        '<span class="active">активных <b>' + esc(s.active) + "</b></span>" +
+        '<span class="expired">истекла <b>' + esc(s.expired) + "</b></span>" +
+        '<span class="disabled">отключены <b>' + esc(s.disabled) + "</b></span>" +
+        "</div>";
+    }
+    function render(d) {
+      const servers = d.servers || [];
+      const t = d.totals || {};
+      if (d.error && !servers.length) {
+        sum.innerHTML = "";
+        out.innerHTML = '<p class="err">' + esc(d.error) + "</p>";
+        return;
+      }
+      const fails = servers.filter(s => s.error);
+      sum.innerHTML = '<div class="card"><div class="head"><h2>Все сервера</h2>' +
+        '<span class="total">' + esc(t.total || 0) + "</span></div>" +
+        nums({
+          total: t.total || 0,
+          active: t.active || 0,
+          expired: t.expired || 0,
+          disabled: t.disabled || 0
+        }) + "</div>";
+      out.innerHTML = servers.map(s => {
+        if (s.error) {
+          return '<div class="card fail"><div class="head"><h2>Сервер ' + esc(s.label) + "</h2>" +
+            '<span class="ip">' + esc(s.ip || "") + "</span></div>" +
+            '<p class="err" style="margin:10px 0 0">' + esc(s.error) + "</p></div>";
+        }
+        const href = /^https:\/\/[A-Za-z0-9.-]+\.kirvpn\.us\//.test(s.admin_url || "")
+          ? s.admin_url : "";
+        const tag = href ? "a" : "div";
+        const linkAttr = href
+          ? ' href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"'
+          : "";
+        const hint = href ? '<div class="hint">открыть пользователей в панели</div>' : "";
+        return "<" + tag + ' class="card"' + linkAttr + '><div class="head">' +
+          "<h2>Сервер " + esc(s.label) + "</h2>" +
+          '<span class="ip">' + esc(s.ip || "") + "</span>" +
+          '<span class="total">' + esc(s.total) + "</span></div>" +
+          nums(s) + hint + "</" + tag + ">";
+      }).join("");
+      if (fails.length) setSt("err", "не ответили: " + fails.map(s => s.label).join(", "));
+      else if (d.error) setSt("err", "данные старые: " + d.error);
+      else setSt("muted", "обновлено " + when(d.updated) + (d.stale ? ", кэш" : ""));
+    }
+    async function load(force) {
+      btn.disabled = true;
+      setSt("muted", "считаю по серверам…");
+      try {
+        const r = await fetch("/api/users" + (force ? "?refresh=1" : ""), { credentials: "same-origin" });
+        if (r.status === 401) { location.href = "/login?next=/users"; return; }
+        const d = await r.json();
+        if (!d.ok && !(d.servers || []).length) {
+          setSt("err", d.error || "ошибка");
+          out.innerHTML = '<p class="err">' + esc(d.error || "не удалось посчитать") + "</p>";
+          sum.innerHTML = "";
+          return;
+        }
+        render(d);
+      } catch (e) {
+        setSt("err", "не удалось запросить");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    btn.addEventListener("click", () => load(true));
+    load(false);
+  </script>
+</body>
+</html>

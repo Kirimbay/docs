@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+  <title>Тестирование</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #0b1220; color: #e8eefc;
+      display: flex; justify-content: center; padding: 16px 10px;
+      -webkit-text-size-adjust: 100%;
+    }
+    a[x-apple-data-detectors], a[href^="x-apple-data-detectors"] {
+      color: inherit !important; text-decoration: none !important; pointer-events: none !important;
+    }
+    main { width: min(720px, 100%); }
+    nav.tabs {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px;
+    }
+    nav.tabs a {
+      text-decoration: none; color: #9bb0d0; font-weight: 700; font-size: .92rem;
+      padding: 8px 14px; border-radius: 10px; border: 1px solid #24324d;
+      background: #121b2e;
+    }
+    nav.tabs a.on {
+      color: #fff; background: #3b82f6; border-color: #3b82f6;
+    }
+    nav.tabs a.out {
+      margin-left: auto; color: #8aa0c2; background: transparent; font-weight: 600;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    h2 { font-size: 1.05rem; margin: 22px 0 10px; color: #93c5fd; }
+    p.lead { color: #9bb0d0; margin: 0 0 18px; line-height: 1.45; }
+    button {
+      font: inherit; border-radius: 12px; border: 0;
+      padding: 10px 14px; background: #3b82f6; color: #fff;
+      font-weight: 700; cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: default; }
+    button.warn { background: #b45309; }
+    button.hot { background: #dc2626; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 14px; }
+    input[type="text"] {
+      font: inherit; border-radius: 12px; border: 1px solid #24324d;
+      background: #0b1220; color: #e8eefc; padding: 10px 12px; min-width: 140px; width: 100%;
+    }
+    .steps { margin: 0 0 12px; padding: 0; list-style: none; color: #9bb0d0; font-size: .9rem; line-height: 1.45; }
+    .steps li { margin: 0 0 10px; }
+    .steps b { color: #e8eefc; }
+    .choice { display: flex; flex-direction: column; gap: 10px; margin: 12px 0 0; }
+    .choice button { width: 100%; text-align: center; }
+    .choice .hint { margin: 4px 0 0; }
+    .list { border: 1px solid #24324d; border-radius: 14px; background: #121b2e; overflow: hidden; }
+    .line {
+      display: grid; grid-template-columns: 2.4rem minmax(0, 1fr); gap: 2px 8px;
+      padding: 8px 10px; border-bottom: 1px solid #1c2942; font-size: .78rem;
+    }
+    .line:last-child { border-bottom: 0; }
+    .line.bad { background: rgba(127, 29, 29, .28); }
+    .who b { font-size: .95rem; }
+    .who .hint { display: block; }
+    .ips { min-width: 0; }
+    .host { word-break: break-all; color: #c7d2fe; }
+    .mono { font-variant-numeric: tabular-nums; color: #c7d2fe; }
+    .muted { color: #9bb0d0; font-size: .9rem; }
+    .hint { color: #6b82a8; font-size: .78rem; line-height: 1.4; }
+    .err { color: #fca5a5; }
+    .okt { color: #86efac; }
+    .badge {
+      display: inline-block; font-size: .7rem; font-weight: 800; letter-spacing: .04em;
+      text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
+      background: #1e3a5f; color: #93c5fd; margin-left: 6px;
+    }
+    .badge.sub { background: #14532d; color: #86efac; }
+    .badge.warn { background: #7c2d12; color: #fed7aa; }
+    .dots { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .dot {
+      display: inline-flex; align-items: center; gap: 4px;
+      color: #9bb0d0; font-size: .78rem; font-variant-numeric: tabular-nums;
+    }
+    .dot i {
+      width: 12px; height: 12px; border-radius: 50%; background: #475569; display: inline-block; flex: none;
+    }
+    .rowst { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+    .rowst .k { width: 4.6rem; flex: none; color: #6b82a8; font-size: .72rem; }
+    .dot.ok i { background: #22c55e; }
+    .dot.fail i { background: #ef4444; }
+    .dot.na i { background: #475569; }
+    .ip-line { margin: 0 0 4px; }
+    .card {
+      background: #121b2e; border: 1px solid #24324d; border-radius: 14px;
+      padding: 14px 16px; margin: 0 0 12px;
+    }
+    .log {
+      max-height: 180px; overflow: auto; font-size: .8rem; color: #9bb0d0;
+      white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .danger { border-color: #7f1d1d; }
+  </style>
+</head>
+<body>
+  <main>
+    <nav class="tabs">
+      <a href="/">Поиск</a>
+      <a href="/pro">Pro поиск</a>
+      <a href="/users">Юзеры</a>
+      <a class="on" href="/testing">Тестирование</a>
+      <a href="/announce">Оповещение</a>
+      <a href="/info">Сайт</a>
+      <a href="/traffic">Трафик</a>
+      <a class="out" href="/logout">Выйти</a>
+    </nav>
+    <h1>Тестирование</h1>
+    <p class="lead">Кто с какого РФ-релея берёт подписку, и отвечают ли релей и шведский IP из Москвы и СПб. Ребут по одной машине. Find не трогаем.</p>
+    <div class="row">
+      <button type="button" id="probe">Проверить из РФ</button>
+      <span id="st" class="muted"></span>
+    </div>
+    <div id="meta" class="hint" style="margin:0 0 8px"></div>
+    <div id="plog" class="log" style="margin:0 0 12px;max-height:72px"></div>
+    <div class="list" id="tb"></div>
+    <div id="extra"></div>
+    <h2 id="reboot">Перезагрузка</h2>
+    <div class="card danger">
+      <ol class="steps">
+        <li><b>1.</b> В поле ниже впиши слово <b>REBOOT</b> английскими буквами — это защита, чтобы не нажать случайно.</li>
+        <li><b>2.</b> Нажми одну кнопку: что перезагрузить. Идёт <b>по одной машине</b>, следующая только когда предыдущая поднялась. Если кто-то не встал — дальше не идём.</li>
+      </ol>
+      <label class="hint" for="confirm" style="display:block;margin:0 0 6px">Поле подтверждения</label>
+      <input type="text" id="confirm" placeholder="впиши сюда: REBOOT" autocomplete="off" spellcheck="false" autocapitalize="off">
+      <div class="choice">
+        <div>
+          <button type="button" class="warn" id="rb-relays" disabled>Только релея</button>
+          <div class="hint">Все РФ-релеи, включая 37. Швецию не трогает.</div>
+        </div>
+        <div>
+          <button type="button" class="hot" id="rb-all" disabled>Релея и Швеция</button>
+          <div class="hint">Сначала релея, потом origin. Find не перезагружается. На 70 только reboot, без apply_configs.</div>
+        </div>
+      </div>
+      <p id="rst" class="muted" style="margin:12px 0 0"></p>
+      <div id="rlog" class="log"></div>
+    </div>
+  </main>
+  <script>
+    const tb = document.getElementById("tb");
+    const st = document.getElementById("st");
+    const extra = document.getElementById("extra");
+    const meta = document.getElementById("meta");
+    const probeBtn = document.getElementById("probe");
+    const rst = document.getElementById("rst");
+    const rlog = document.getElementById("rlog");
+    const confirmEl = document.getElementById("confirm");
+    const NODES = [
+      ["ru1", "Мск1"],
+      ["ru2", "Мск2"],
+      ["ru3", "СПб"]
+    ];
+    let pollTimer = null;
+    const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+    function show(s) {
+      return esc(s).replace(/[.:]/g, ch => ch + "\u200b");
+    }
+    function setHtml(el, html) {
+      if (!el || el.innerHTML === html) return;
+      el.innerHTML = html;
+    }
+    function pathShort(p) {
+      if (p === "rf_direct" || p === "hub") return "релей";
+      if (p === "rf_hub") return "через хаб";
+      if (p === "origin") return "origin";
+      return p || "";
+    }
+    function setSt(cls, msg) { st.className = cls; st.textContent = msg || ""; }
+    function when(ts) {
+      if (!ts) return "";
+      const d = new Date(ts * 1000);
+      const pad = n => String(n).padStart(2, "0");
+      return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+    }
+    function tcpDot(ru, key, label) {
+      const v = (ru && ru[key]) || "";
+      const cls = v === "ok" ? "ok" : (v === "fail" ? "fail" : "na");
+      return '<span class="dot ' + cls + '"><i></i>' + esc(label) + "</span>";
+    }
+    function tcpDots(ru) {
+      const err = ru && ru.error ? '<div class="err">' + esc(ru.error) + "</div>" : "";
+      return '<div class="dots">' + NODES.map(([k, l]) => tcpDot(ru, k, l)).join("") + "</div>" + err;
+    }
+    function httpCell(h) {
+      const bits = NODES.map(([k, l]) => {
+        const n = (h && h[k]) || {};
+        const code = n.code || 0;
+        const cls = n.ok ? "ok" : (code || n.ms != null ? "fail" : "na");
+        return '<span class="dot ' + cls + '"><i></i>' + esc(l) + "</span>";
+      }).join("");
+      const err = h && h.error ? '<div class="err">' + esc(h.error) + "</div>" : "";
+      return '<div class="dots">' + bits + "</div>" + err;
+    }
+    function rfLines(s, probe) {
+      const ips = s.rf_ips || [];
+      if (!ips.length) return '<span class="hint">нет релея · ' + show(s.origin) + "</span>";
+      const probed = ((probe || {}).rf_ips) || [];
+      const byIp = {};
+      probed.forEach(x => { byIp[x.ip] = x; });
+      return ips.map(ip => {
+        const p = byIp[ip] || {};
+        const used = p.used || ip === s.dns_ip;
+        const mark = used ? ' <span class="badge sub">подписка</span>' : "";
+        return '<div class="ip-line"><span class="host">' + show(ip) + "</span>" + mark + "</div>";
+      }).join("");
+    }
+    function ruForDns(s, probe) {
+      if (probe && probe.dns_ru && (probe.dns_ru.ru1 || probe.dns_ru.ru2 || probe.dns_ru.ru3)) {
+        return probe.dns_ru;
+      }
+      const used = ((probe || {}).rf_ips || []).find(x => x.used);
+      if (used && used.ru) return used.ru;
+      return probe && probe.origin_ru;
+    }
+    function rowClass(s, probe) {
+      const keys = ["ru1", "ru2", "ru3"];
+      const http = probe && probe.http;
+      if (http && keys.some(k => http[k]) && keys.some(k => http[k] && http[k].ok === false)) return "bad";
+      const oru = probe && probe.origin_ru;
+      if (oru && keys.some(k => oru[k] === "fail")) return "bad";
+      return "";
+    }
+    function renderMap(d) {
+      const probe = ((d.probe || {}).payload) || null;
+      const byLabel = {};
+      (probe && probe.servers || []).forEach(s => { byLabel[s.label] = s; });
+      const servers = d.servers || [];
+      setHtml(tb, servers.map(s => {
+        const p = byLabel[s.label];
+        const live = s.live ? "" : ' <span class="badge warn">dns</span>';
+        return '<div class="line ' + rowClass(s, p) + '">' +
+          '<div class="who"><b>' + esc(s.label) + '</b><span class="hint">' + esc(pathShort(s.path)) + "</span></div>" +
+          '<div class="ips">' + rfLines(s, p) +
+          '<div class="hint">' + show(s.sub_host) + live + " · origin " + show(s.origin) + "</div>" +
+          '<div class="rowst"><span class="k">TCP</span>' + tcpDots(ruForDns(s, p)) + "</div>" +
+          '<div class="rowst"><span class="k">HTTPS</span>' + httpCell(p && p.http) + "</div>" +
+          '<div class="rowst"><span class="k">Пинг</span>' + tcpDots((p && p.ping) || {}) + "</div>" +
+          '<div class="rowst"><span class="k">Швеция</span>' + tcpDots((p && p.origin_ru) || {}) + "</div>" +
+          '<div class="rowst"><span class="k">Пинг SE</span>' + tcpDots((p && p.origin_ping) || {}) + "</div>" +
+          "</div></div>";
+      }).join(""));
+      const find = (probe && probe.find) || d.find || {};
+      setHtml(extra,
+        '<div class="card"><b>Find</b> <span class="host">' + show(find.ip || "") +
+        "</span> — панель, в ребут не входит" + tcpDots(find.ru) + "</div>");
+      const pr = d.probe || {};
+      if (pr.running) setSt("muted", "проверка из РФ идёт…");
+      else if (pr.error) setSt("err", pr.error);
+      else if (pr.at) setSt("okt", "проверка " + when(pr.at));
+      else setSt("muted", "карта загружена, проверка ещё не запускалась");
+      meta.textContent = "кружки только из России: Мск1, Мск2, СПб. TCP и пинг — IP подписки. Швеция и пинг SE — сам origin.";
+      const plog = document.getElementById("plog");
+      const plines = ((d.probe || {}).log || []).map(x => when(x.t) + "  " + x.msg);
+      const ptext = plines.join("\n");
+      if (plog.textContent !== ptext) {
+        const stick = plog.scrollHeight - plog.scrollTop - plog.clientHeight < 24;
+        plog.textContent = ptext;
+        if (stick) plog.scrollTop = plog.scrollHeight;
+      }
+      renderReboot(d.reboot || {});
+    }
+    function renderReboot(rb) {
+      if (rb.running) rst.className = "muted";
+      else if (rb.error) rst.className = "err";
+      else rst.className = "okt";
+      rst.textContent = rb.running
+        ? ("идёт ребут: " + (rb.scope === "all" ? "релея и Швеция" : "только релея") + "… лог ниже")
+        : (rb.done && (rb.ok || rb.fail)
+          ? ("готово: поднялись " + rb.ok + ", не встали " + rb.fail)
+          : "");
+      if (rb.running) {
+        document.getElementById("rb-relays").disabled = true;
+        document.getElementById("rb-all").disabled = true;
+      } else {
+        syncRebootBtns();
+      }
+      const lines = (rb.log || []).map(x => when(x.t) + "  " + x.msg);
+      const rtext = lines.join("\n");
+      if (rlog.textContent !== rtext) {
+        const stick = rlog.scrollHeight - rlog.scrollTop - rlog.clientHeight < 24;
+        rlog.textContent = rtext;
+        if (stick) rlog.scrollTop = rlog.scrollHeight;
+      }
+    }
+    async function api(path, opt) {
+      const r = await fetch(path, Object.assign({ credentials: "same-origin" }, opt || {}));
+      if (r.status === 401) { location.href = "/login?next=/testing"; throw new Error("login"); }
+      return r.json();
+    }
+    async function loadMap() {
+      const d = await api("/api/test/map");
+      renderMap(d);
+      return d;
+    }
+    async function tick() {
+      try {
+        const d = await loadMap();
+        const run = (d.probe && d.probe.running) || (d.reboot && d.reboot.running);
+        probeBtn.disabled = !!(d.probe && d.probe.running);
+        if (!run && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      } catch (e) {
+        if (e.message !== "login") setSt("err", "не удалось запросить");
+      }
+    }
+    function ensurePoll() {
+      if (pollTimer) return;
+      pollTimer = setInterval(tick, 2000);
+    }
+    probeBtn.addEventListener("click", async () => {
+      probeBtn.disabled = true;
+      setSt("muted", "запускаю проверку из РФ…");
+      try {
+        const d = await api("/api/test/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ force: true })
+        });
+        if (!d.ok) { setSt("err", d.error || "ошибка"); probeBtn.disabled = false; return; }
+        ensurePoll();
+        tick();
+      } catch (e) {
+        if (e.message !== "login") setSt("err", "не удалось запустить");
+        probeBtn.disabled = false;
+      }
+    });
+    async function reboot(scope) {
+      const confirm = (confirmEl.value || "").trim();
+      rst.className = "muted";
+      rst.textContent = "запускаю…";
+      try {
+        const d = await api("/api/test/reboot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scope, confirm })
+        });
+        if (!d.ok) { rst.className = "err"; rst.textContent = d.error || "ошибка"; return; }
+        ensurePoll();
+        tick();
+      } catch (e) {
+        if (e.message !== "login") { rst.className = "err"; rst.textContent = "не удалось"; }
+      }
+    }
+    function syncRebootBtns() {
+      const ok = (confirmEl.value || "").trim() === "REBOOT";
+      document.getElementById("rb-relays").disabled = !ok;
+      document.getElementById("rb-all").disabled = !ok;
+    }
+    confirmEl.addEventListener("input", syncRebootBtns);
+    document.getElementById("rb-relays").addEventListener("click", () => reboot("relays"));
+    document.getElementById("rb-all").addEventListener("click", () => reboot("all"));
+    syncRebootBtns();
+    loadMap().then(d => {
+      if ((d.probe && d.probe.running) || (d.reboot && d.reboot.running)) ensurePoll();
+    }).catch(e => {
+      if (e.message !== "login") setSt("err", "не удалось загрузить карту");
+    });
+  </script>
+</body>
+</html>
