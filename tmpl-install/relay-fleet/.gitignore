@@ -1,0 +1,6 @@
+inventory.yaml
+*.yaml.bak
+state.json
+.env
+cf.token
+secrets/
