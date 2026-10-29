@@ -1,21 +1,18 @@
 # Скопируйте в inventory.yaml и заполните. Не коммитьте боевой файл.
 #
-# ssh: ключ контроллера должен пускать BatchMode на relay_host (и при необходимости exit).
+# Полный парк: 8,12,14,15,20,36,37,51,54,57,58,60,61
+# ssh: ключ контроллера должен пускать BatchMode на relay_host.
 # Проба всегда с relay_host (там, где висит front IP), не с ноутбука.
 
-cf_token_file: /tmp/cf.token   # или env CF_TOKEN
+cf_token_file: /tmp/cf.token
 ssh_key: /home/ubuntu/.ssh/tmpl-audit-temp
 state_file: /var/lib/relay-fleet/state.json
 probe_tries: 5
 probe_timeout_sec: 2
-ok_threshold: 3          # минимум успешных TCP из probe_tries чтобы считать путь живым
-ports: [443]             # можно добавить 2053
+ok_threshold: 3
+ports: [443]
 telegram:
-  # bot_token_env: TELEGRAM_BOT_TOKEN
-  # chat_id_env: TELEGRAM_CHAT_ID
   enabled: false
-
-# failback: false = после flip на backup сам на primary не возвращаем
 auto_failback: false
 
 zones:
@@ -23,76 +20,86 @@ zones:
   kirvpn.ru: ee3e566259a309a471fb5f08c1f1de53
   kirvpn.us: 3f862e2dd8e45f25edcd3a32ebd34185
   vele.uk: cd81dffb9538f956de43d5f6e511a62c
-  # sarafan.uk: IGNORE (do not use)
+  # sarafan.uk: IGNORE
 
 exits:
   "8":
     exit_ip: 136.148.220.239
-    domains:
-      - x8.kirz.co.uk
-      - hid8.kirvpn.ru
-      - hid8.kirvpn.us
+    domains: [x8.kirz.co.uk, hid8.kirvpn.ru, hid8.kirvpn.us]
     fronts:
-      - id: primary
-        ip: 179.254.132.91
-        relay_host: 144.31.107.31
-      - id: backup1
-        ip: 179.254.132.94
-        relay_host: 179.254.132.92
+      - {id: primary, ip: 179.254.132.91, relay_host: 144.31.107.31}
+      - {id: backup1, ip: 179.254.132.94, relay_host: 179.254.132.92}
 
   "12":
     exit_ip: 136.148.219.217
-    domains:
-      - x12.kirz.co.uk
-      - 1212.kirvpn.ru
-      - 1212.kirvpn.us
-      - 1212.vele.uk
+    domains: [x12.kirz.co.uk, 1212.kirvpn.ru, 1212.kirvpn.us, 1212.vele.uk]
     fronts:
-      - id: primary
-        ip: 179.254.132.92
-        relay_host: 179.254.132.92
-        note: "не 13.143 — ТСПУ"
+      - {id: primary, ip: 179.254.132.92, relay_host: 179.254.132.92}
 
-  "57":
-    exit_ip: 136.148.211.77
-    domains:
-      - x57.kirz.co.uk
-      - 57.kirz.co.uk
-      - 57.kirvpn.ru
-      - 57.kirvpn.us
+  "14":
+    exit_ip: 136.148.211.88
+    domains: [x14.kirz.co.uk, 14.kirvpn.ru, 14.kirvpn.us]
     fronts:
-      - id: primary
-        ip: 179.254.132.90
-        relay_host: 80.66.89.19
-      - id: backup1
-        ip: 179.254.132.95
-        relay_host: 179.254.132.92
+      - {id: primary, ip: 2.26.10.197, relay_host: 2.26.10.197}
 
-  "60":
-    exit_ip: 136.148.220.250
-    domains:
-      - x60.kirz.co.uk
-      - 60.kirvpn.ru
-      - 60.kirvpn.us
-      - bs1.kirvpn.ru
-      - bs1.kirvpn.us
+  "15":
+    exit_ip: 136.148.219.149
+    domains: [x15.kirz.co.uk, 15.kirvpn.ru, 15.kirvpn.us]
     fronts:
-      - id: primary
-        ip: 179.254.132.93
-        relay_host: 2.26.10.27
-      - id: backup2
-        ip: 144.31.50.159
-        relay_host: 2.26.8.81
+      - {id: primary, ip: 13.143.137.92, relay_host: 13.143.137.92, note: "ТСПУ риск"}
 
   "20":
     exit_ip: 136.148.220.240
-    domains:
-      - x20.kirz.co.uk
-      - 20.kirz.co.uk
-      - 20.kirvpn.ru
-      - 20.kirvpn.us
-      - f20.kirvpn.ru
+    domains: [x20.kirz.co.uk, 20.kirz.co.uk, 20.kirvpn.ru, 20.kirvpn.us, f20.kirvpn.ru]
     fronts:
-      - id: primary
-        ip: 2.26.8.81
-        relay_host: 2.26.8.81
+      - {id: primary, ip: 2.26.8.81, relay_host: 2.26.8.81}
+
+  "36":
+    exit_ip: 136.148.222.86
+    domains: [x36.kirz.co.uk, 36.kirvpn.ru, 36.kirvpn.us]
+    fronts:
+      - {id: primary, ip: 2.26.89.101, relay_host: 2.26.89.101}
+
+  "37":
+    exit_ip: 136.148.220.248
+    domains: [x37.kirz.co.uk, 37.kirvpn.ru, 37.kirvpn.us]
+    fronts:
+      - {id: primary, ip: 31.76.71.236, relay_host: 31.76.71.236}
+
+  "51":
+    exit_ip: 136.148.212.77
+    domains: [x51.kirz.co.uk, 51.kirvpn.ru, 51.kirvpn.us]
+    fronts:
+      - {id: primary, ip: 2.26.10.183, relay_host: 2.26.10.183}
+
+  "54":
+    exit_ip: 136.148.223.248
+    domains: [x54.kirz.co.uk, 54.kirvpn.ru, 54.kirvpn.us]
+    fronts:
+      - {id: primary, ip: 144.31.49.147, relay_host: 144.31.49.147}
+
+  "57":
+    exit_ip: 136.148.211.77
+    domains: [x57.kirz.co.uk, 57.kirz.co.uk, 57.kirvpn.ru, 57.kirvpn.us]
+    fronts:
+      - {id: primary, ip: 179.254.132.90, relay_host: 80.66.89.19}
+      - {id: backup1, ip: 179.254.132.95, relay_host: 179.254.132.92}
+
+  "58":
+    exit_ip: 136.148.211.101
+    domains: [x58.kirz.co.uk, 58.kirvpn.ru, 58.kirvpn.us]
+    fronts:
+      - {id: primary, ip: 2.26.89.168, relay_host: 2.26.89.168}
+
+  "60":
+    exit_ip: 136.148.220.250
+    domains: [x60.kirz.co.uk, 60.kirvpn.ru, 60.kirvpn.us, bs1.kirvpn.ru, bs1.kirvpn.us]
+    fronts:
+      - {id: primary, ip: 179.254.132.93, relay_host: 2.26.10.27}
+      - {id: backup2, ip: 144.31.50.159, relay_host: 2.26.8.81}
+
+  "61":
+    exit_ip: 136.148.221.77
+    domains: [x61.kirz.co.uk, 61.kirvpn.ru, 61.kirvpn.us]
+    fronts:
+      - {id: primary, ip: 144.31.49.87, relay_host: 144.31.49.87}
