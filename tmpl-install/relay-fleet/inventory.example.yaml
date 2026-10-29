@@ -46,7 +46,7 @@ exits:
     exit_ip: 136.148.219.149
     domains: [x15.kirz.co.uk, 15.kirvpn.ru, 15.kirvpn.us]
     fronts:
-      - {id: primary, ip: 13.143.137.92, relay_host: 13.143.137.92, note: "ТСПУ риск"}
+      - {id: primary, ip: 13.143.137.92, relay_host: 13.143.137.92, note: "чистый; ТСПУ не блочит"}
 
   "20":
     exit_ip: 136.148.220.240
