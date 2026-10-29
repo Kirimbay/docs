@@ -1,55 +1,49 @@
 # Промпт для агента / другой нейросети
 
-Скопируйте блок ниже целиком в новый чат (плюс при необходимости `PLAN.md`).
+Скопируйте этот файл целиком в новый чат (плюс при необходимости `PLAN.md`).
 
-Актуально на: **2026-10-29 ~12:35 Europe/Moscow**.  
-Полный парк exit (оператор): **8, 12, 14, 15, 20, 36, 37, 51, 54, 57, 58, 60, 61**.
-
----
-
-## Контекст
-
-Ты ведёшь **весь** парк VPN ниже, не только «проблемные» ноды.
-
-- **Exit** = Hostup `136.148.*` (Hiddify 12 + tmpl animals: sova/tigr/utka/ryba).
-- **Фронт (релей)** = обычно SERV.HOST, `iptables` DNAT + MASQUERADE (`tmpl-install/relay.sh` / multi-IP DNAT).
-- Клиентские subscription URL **не переиздавать** — только DNS A на фронт (TTL 60, proxied=false).
-- Клиент = **Happ**. Протоколы (животные) и обновление подписки — разные пути: animals = не-443 порты через DNAT; sub = **HTTPS TCP/443** на фронт.
-
-Канон в репо: `tmpl-install/relay-fleet/` (`PLAN.md`, скрипты). Боевой `inventory.yaml` и ключи — у оператора / agent store, **не в git**.
-
-SSH ключ парка (если уже стоит): `~/.ssh/tmpl-audit-temp`. CF: env `CF_TOKEN` или `/tmp/cf.token`.
+Актуально на: **2026-10-29 ~12:45 Europe/Moscow**.  
+Полный парк exit: **8, 12, 14, 15, 20, 36, 37, 51, 54, 57, 58, 60, 61**.
 
 ---
 
-## Полная карта парка (все exit)
+## Контекст и канон архитектуры
 
-DNS сверено dig @1.1.1.1 на дату актуальности. Primary DNS → = куда смотрят клиентские A.
+Ты ведёшь **весь** парк ниже.
+
+- **Exit** = Hostup `136.148.*` (Hiddify + tmpl animals: sova/tigr/utka/ryba).
+- **Фронт (релей)** = обычно SERV.HOST. На реле: `iptables` DNAT + MASQUERADE (`tmpl-install/relay.sh` / multi-IP DNAT).
+- **Модель оператора (обязательно):** каждому exit — **свой релей и свой купленный IP** как primary. Не «несколько exit на одном primary-IP».
+- Клиентские subscription URL **не переиздавать** — только DNS A на фронт (TTL 60, `proxied: false`).
+- Клиент = **Happ**. Animals = не-443 порты через DNAT; обновление sub = **HTTPS TCP/443** на фронт.
+
+Канон в репо: `tmpl-install/relay-fleet/`. Боевой `inventory.yaml` и ключи — у оператора / agent store (`/cursor/stores/self/relay-fleet/`), **не в git**.
+
+SSH: `~/.ssh/tmpl-audit-temp`. CF: `CF_TOKEN` или `/tmp/cf.token`.
+
+---
+
+## Полная карта парка
+
+Primary DNS → = клиентские A (dig @1.1.1.1). **Сейчас все 13 на своём primary.**
 
 | Exit | Exit IP | Primary DNS → | Primary host | Примечание |
 |------|---------|---------------|--------------|------------|
-| **8** | `136.148.220.239` | `179.254.132.91` | karaforum2 (`144.31.107.31`) | backup `179.254.132.94` на karaforum3; путь часто через WG-хоп |
-| **12** | `136.148.219.217` | `179.254.132.92` | karaforum3 | снят с бывшего `13.143.137.112` (тот IP ловил ТСПУ); аварийный `.92` раньше был backup 60 |
-| **14** | `136.148.211.88` | `2.26.10.197` | karaforum6 | свой релей; без аварийного IP |
-| **15** | `136.148.219.149` | `13.143.137.92` | karaforum13 | фронт на `13.143.137.92` — **чистый, ТСПУ не блочит** (оператор); не переносить «из принципа» |
-| **20** | `136.148.220.240` | `2.26.8.81` | karaforum17 | без аварийного IP; на exit нужен `tmpl-sub` с `do_HEAD` |
-| **36** | `136.148.222.86` | `2.26.89.101` | karaforum9 | свой релей; без аварийного IP |
-| **37** | `136.148.220.248` | `31.76.71.236` | karaforum.serv.host | фронт не из пула `2.26`/`144.31`/`179.254` |
-| **51** | `136.148.212.77` | `2.26.10.183` | karaforum5 | свой релей; без аварийного IP |
-| **54** | `136.148.223.248` | `144.31.49.147` | karaforum8 | свой релей; без аварийного IP |
-| **57** | `136.148.211.77` | `179.254.132.90` | karaforum12 (`80.66.89.19`) | backup `179.254.132.95` на karaforum3; WG-хоп возможен |
-| **58** | `136.148.211.101` | `2.26.89.168` | karaforum10 | свой релей; без аварийного IP |
-| **60** | `136.148.220.250` | `179.254.132.93` | karaforum4 (`2.26.10.27`) | холодный backup `144.31.50.159` (karaforum17); OS-IP `2.26.10.27` в DNS клиентам **не светить** |
-| **61** | `136.148.221.77` | `144.31.49.87` | karaforum7 | свой релей; без аварийного IP |
+| **8** | `136.148.220.239` | `179.254.132.91` | karaforum2 (`144.31.107.31`) | свой IP; backup DNAT `.94` на karaforum3; **релей→exit через WG** (см. ниже) |
+| **12** | `136.148.219.217` | `13.143.137.112` | karaforum11 | свой релей |
+| **14** | `136.148.211.88` | `2.26.10.197` | karaforum6 | свой |
+| **15** | `136.148.219.149` | `13.143.137.92` | karaforum13 | `13.143.137.92` **чистый, ТСПУ не блочит** (оператор) |
+| **20** | `136.148.220.240` | `2.26.8.81` | karaforum17 | свой; на exit `tmpl-sub` с `do_HEAD` |
+| **36** | `136.148.222.86` | `2.26.89.101` | karaforum9 | свой |
+| **37** | `136.148.220.248` | `31.76.71.236` | karaforum.serv.host | свой (не пул `2.26`/`144.31`/`179.254`) |
+| **51** | `136.148.212.77` | `2.26.10.183` | karaforum5 | свой |
+| **54** | `136.148.223.248` | `144.31.49.147` | karaforum8 | свой |
+| **57** | `136.148.211.77` | `179.254.132.90` | karaforum12 (`80.66.89.19`) | свой IP; backup DNAT `.95` на karaforum3; **релей→exit через WG** |
+| **58** | `136.148.211.101` | `2.26.89.168` | karaforum10 | свой |
+| **60** | `136.148.220.250` | `179.254.132.93` | karaforum4 (`2.26.10.27`) | свой `.93`; холодный backup `144.31.50.159` на karaforum17; OS-IP `2.26.10.27` клиентам **не светить** |
+| **61** | `136.148.221.77` | `144.31.49.87` | karaforum7 | свой |
 
-**Авто-failover (probe timer / inventory)** сейчас в бою обычно только для exit с запасным IP: **8, 12, 20, 57, 60**. Остальные — в полной карте; чинить/DNS flip по запросу оператора; в inventory их тоже держать, чтобы агент не «забывал» парк.
-
-**Аварийный пул karaforum3:** SSH `179.254.132.92`, доп. IP `.94 .95`.  
-DNAT: `.92→12`, `.94→8`, `.95→57`.
-
-**Важно:** IP в панели SERV.HOST ≠ адрес в ОС. Если «no route» → `ip addr add IP/32 dev ens3` + `/etc/network/interfaces`.
-
-### Домены по exit (все A → primary фронт, не на `136.148.*`)
+### Домены (все A → primary фронт, никогда на `136.148.*`)
 
 - **8:** `x8.kirz.co.uk`, `hid8.kirvpn.ru`, `hid8.kirvpn.us`
 - **12:** `x12.kirz.co.uk`, `1212.kirvpn.ru`, `1212.kirvpn.us`, `1212.vele.uk`
@@ -65,49 +59,95 @@ DNAT: `.92→12`, `.94→8`, `.95→57`.
 - **60:** `x60.kirz.co.uk`, `60.kirvpn.ru`, `60.kirvpn.us`, `bs1.kirvpn.ru`, `bs1.kirvpn.us`
 - **61:** `x61.kirz.co.uk`, `61.kirvpn.ru`, `61.kirvpn.us`
 
-**`*.sarafan.uk` — забыть.** Не чинить, не failover, не DNS flip.
+**`*.sarafan.uk` — забыть.**  
+**Альты `aN`/`zN` → `188.127.240.127`** — чужой nginx, не tmpl; не трогать без просьбы.
 
-**Чужие/старые альты (не tmpl):** `a1212`/`z1212`/`a20`/`z20` → `188.127.240.127` (чужой nginx HTML). **Не трогать** без явной просьбы оператора.
+---
+
+## Временный / аварийный пул (karaforum3)
+
+SSH: `179.254.132.92`. Доп. IP на той же машине: `.94`, `.95`.
+
+| IP | Назначение сейчас |
+|----|-------------------|
+| **`.92`** | **Пустой временный.** Нет клиентского DNS. Нет DNAT на exit. Только local RETURN (ssh / udp443). |
+| **`.94`** | Заранее DNAT → exit **8** (backup). DNS сам не переключать. |
+| **`.95`** | Заранее DNAT → exit **57** (backup). DNS сам не переключать. |
+
+### Правила временного (оператор жёстко)
+
+1. **Primary у каждого exit — свой релей.** Временный не заменяет «навсегда».
+2. Команда **«на временный»** = на время аварии перенести DNS exit’а на свободный аварийный IP (обычно `.92`, с DNAT на нужный exit).
+3. После аварии — **вернуть DNS на свой релей**, освободить временный (убрать клиентский DNS + DNAT с `.92`, если он был занят).
+4. **Без явной команды** не вешать exit primary на `.92` и не оставлять его там после фикса.
+5. Ошибка прошлого агента: exit 12 после аварии sub оставили на `.92`; оператор вернул правило «временный пустой». Сейчас 12 снова на karaforum11.
+
+На karaforum3 путь до Hostup **прямой 5/5** (без WG) — поэтому он удобен как аварийный фронт.
+
+---
+
+## WG-хоп у 8 и 57 (это не «чужой релей»)
+
+Оператор докупил front-IP **`.91` (8)** и **`.90` (57)** на **своих** машинах — клиентский DNS смотрит туда. Это сделано правильно.
+
+**WG (`wg8hop` → karaforum17 `2.26.8.81`) — другой слой:** туннель **релей → Hostup**, не клиентский фронт.
+
+Почему остался (проверено 2026-10-29):
+
+- с karaforum2 без WG-маршрута до exit 8 (`136.148.220.239`) → **0/5** TCP 443;
+- с karaforum12 без WG до exit 57 (`136.148.211.77`) → **0/5**;
+- с маршрутом через `wg8hop` — живой трафик (сотни GiB).
+
+Новый front-IP **не чинит** доступ машины до Hostup. Пока прямой путь 0/5 — WG нужен, иначе DNAT на exit мёртвый.
+
+**Не снимать WG** «потому что купили IP», пока `ip route del … dev wg8hop` + probe 443 не даст стабильные ≥3/5 (лучше 5/5). Потом можно убрать хоп и оставить чистый DNAT.
+
+Проверка:
+
+```bash
+# на karaforum2 / karaforum12
+wg show
+ip route get EXIT_IP          # сейчас часто: dev wg8hop
+# краткий тест «настоящего» прямого (осторожно, мигает путь):
+ip route del EXIT_IP dev wg8hop
+# probe TCP 443×5 к EXIT_IP
+ip route replace EXIT_IP dev wg8hop   # вернуть сразу, если 0/5
+```
 
 ---
 
 ## Золотое правило DNS
 
-**Никогда не оставлять клиентские A на прямой Hostup `136.148.*`.**
+**Клиентские A никогда на прямой Hostup `136.148.*`.**
 
-С части RU-путей (и с части SERV.HOST машин) TCP/443 до Hostup **таймаутит**, а animal-порты через фронт ещё живут → симптом: **«протоколы работают, подписка не обновляется»**.
+Иначе с части RU: HTTPS/sub таймаут, а animals через фронт ещё живут → «протоколы ок, подписка нет».
 
-Проверка: `dig +short A <domain> @1.1.1.1` — ответ = фронт из таблицы, не exit IP.
+`dig +short A <domain> @1.1.1.1` = фронт из таблицы.
 
-Исключение: админские/внутренние проверки с `--resolve` на exit — ок. В CF для клиентов — нет.
+Префикс `13.143.*` **не** = автоматически ТСПУ. `13.143.137.92` (15) — ок. Конкретный плохой IP не использовать; не обобщать на весь префикс.
 
 ---
 
-## Как работает автоматика failover
+## Авто-failover
 
-1. Скрипт `probe_and_failover.py` (раз в ~2 мин с контроллера): по SSH с **машины фронта** делает TCP 443×N до exit.
-2. Primary `< ok_threshold`, backup жив → Cloudflare A всех доменов exit’а → IP backup.
-3. Failback на старый primary **по умолчанию выключен** (антифлап); только `--failback` / `auto_failback: true`.
-4. Оператор докупает IP и говорит агенту; скрипт IP у хостера не покупает.
+Скрипт `probe_and_failover.py`: SSH с машины фронта, TCP 443×N до exit; primary мёртв + backup жив → CF A всех доменов exit → backup.  
+Failback **выкл** по умолчанию (`auto_failback: false`).
 
-Боевой inventory: `/cursor/stores/self/relay-fleet/inventory.yaml` (пример в репо: `inventory.example.yaml`).
+Имеет смысл там, где есть backup IP: **8, 57, 60** (+20 пока без backup). Весь парк всё равно держать в inventory/карте.
 
 ```bash
 python3 tmpl-install/relay-fleet/scripts/probe_and_failover.py \
   --inventory /cursor/stores/self/relay-fleet/inventory.yaml --dry-run
-# бой:
-python3 ... --apply
+# бой: ... --apply
 ```
 
-При ручном flip DNS — обновляй **все** домены exit’а из списка выше (включая `*.vele.uk` / `20.kirz.co.uk` / `f20.*`), не только `xN`.
+Ручной flip — **все** домены exit’а из списка, не только `xN`.
 
 ---
 
 ## Диагностика: «не обновляется подписка» (Happ)
 
-Симптом часто: протоколы (сова/тигр/утка/рыба) ок, кнопка обновления sub крутится / ошибка. LTE и Wi‑Fi могут вести себя по-разному (кэш DNS, DPI, Alt-Svc).
-
-### Шаг 0 — снять параметры с exit
+### 0) Параметры с exit
 
 ```bash
 ssh -i ~/.ssh/tmpl-audit-temp root@EXIT_IP '
@@ -116,195 +156,122 @@ ssh -i ~/.ssh/tmpl-audit-temp root@EXIT_IP '
 '
 ```
 
-Sub URL: `https://<domain>/<client_path>/<uuid>/`  
-UA для smoke: `-A Happ/3.0`. Для HEAD добавить `-X HEAD -H "Connection: close" --max-time 12`.
+URL: `https://<domain>/<client_path>/<uuid>/`  
+Smoke: `-A Happ/3.0`. HEAD: `-X HEAD -H "Connection: close" --max-time 12`.
 
-### Шаг 1 — DNS всех доменов exit
+### 1) DNS всех доменов exit
 
-```bash
-for h in DOMAINS...; do echo -n "$h: "; dig +short A "$h" @1.1.1.1; done
-```
+Любой A на `136.148.*` / мёртвый IP → CF на живой **свой** фронт (или временный — только по команде).
 
-Если хоть один смотрит на `136.148.*` (прямой Hostup) / мёртвый IP / **конкретно заблокированный** фронт → **CF A → живой фронт**, ttl 60, proxied false. Зоны: `kirz.co.uk`, `kirvpn.ru`, `kirvpn.us`, **`vele.uk`** (id в inventory).  
-Не путать: `13.143.137.92` (exit 15) — ок; старый `13.143.137.112` (был у 12) — ТСПУ. Префикс `13.143.*` сам по себе не = «сносить».
+### 2) Smoke с RU-релея (обязательно)
 
-### Шаг 2 — smoke снаружи и с RU-релея
-
-С контроллера (зарубежье) мало: с части путей Hostup «жив», а у абонента нет.
-
-Обязательно прогнать **с SERV.HOST** (karaforum2/12/17), где путь до Hostup часто мёртв:
+С контроллера за рубежом Hostup часто «жив», у абонента нет. Гонять с SERV.HOST (karaforum2/12/17):
 
 ```bash
-ssh -i ~/.ssh/tmpl-audit-temp root@80.66.89.19 '
-  curl -sk -o /dev/null -w "%{http_code}|%{remote_ip}|%{time_total}\n" \
-    -A Happ/3.0 --max-time 12 -H "Connection: close" \
-    "https://DOMAIN/CLIENT_PATH/UUID/"
-  curl -sk -o /dev/null -w "HEAD %{http_code}\n" \
-    -A Happ/3.0 --max-time 12 -H "Connection: close" -X HEAD \
-    "https://DOMAIN/CLIENT_PATH/UUID/"
-'
+curl -sk -o /dev/null -w "%{http_code}|%{remote_ip}|%{time_total}\n" \
+  -A Happ/3.0 --max-time 12 -H "Connection: close" "https://DOMAIN/CP/UUID/"
+curl -sk -o /dev/null -w "HEAD %{http_code}\n" \
+  -A Happ/3.0 --max-time 12 -H "Connection: close" -X HEAD "https://DOMAIN/CP/UUID/"
 ```
 
-Ожидание: **GET 200** и **HEAD 200**, `remote_ip` = фронт.
+Ждём GET **200** + HEAD **200**, `remote_ip` = фронт.
 
-Если GET 000/timeout и dig = Hostup → чини DNS.  
-Если dig = фронт, а timeout → DNAT/REJECT/haproxy на реле или exit.
+### 3) REJECT UDP/443 на реле («эджект»)
 
-### Шаг 3 — REJECT UDP/443 на реле фронта
+LTE: Happ → HTTP/3 UDP/443 → МТС часто silent drop → кружок; TCP живой.
 
-Симптом особенно на **LTE**: Happ лезет в HTTP/3 (UDP/443); МТС часто **молча дропает** UDP → вечный кружок. TCP/443 при этом живой → протоколы ок.
+На каждом реле фронта:
 
-На **каждом** реле фронта:
+- nat: `-p udp --dport 443 -j RETURN`
+- INPUT: `-p udp --dport 443 -j REJECT --reject-with icmp-port-unreachable`
 
-```text
-nat PREROUTING: -p udp --dport 443 -j RETURN   # не DNAT на exit
-INPUT:          -p udp --dport 443 -j REJECT --reject-with icmp-port-unreachable
-```
+Остальной UDP (hy2 и т.д.) DNAT. Persist через `relay.sh` / `fix-all.sh --relay`.
 
-Остальной UDP (hy2 `36099` и т.д.) **DNAT** на exit. Режем только UDP **443**.
+### 4) h3 на exit
 
-Проверка:
+`alt-svc: clear`; bind `quic4@:443` лучше закомментировать (`# tmpl-no-h3`).  
+Не снимать REJECT «ради h3».
+
+### 5) tmpl-sub и HEAD
+
+Нужен `do_HEAD` → `do_GET(head=True)`, ответ 200 (не 501).  
+Если 501 — актуальный `sub.py` с рабочего exit, `systemctl restart tmpl-sub`.
+
+### 6) DNAT + путь релей→exit (+ WG для 8/57)
 
 ```bash
-iptables -S INPUT | grep 443
-iptables -t nat -S PREROUTING | head
-# или цепочка TMPL-RELAY
 iptables -t nat -S TMPL-RELAY
+# probe 443×5 до EXIT; для 8/57 смотреть wg show / ip route get
 ```
 
-Ставить через `relay.sh` / `fix-all.sh --relay` / `apply_relay_dnat.sh`, не одноразовый ручной rule без persist.
+### 7) Отчёт
 
-### Шаг 4 — h3 / quic на exit
-
-На haproxy exit:
-
-- желательно ответ `alt-svc: clear` на sub;
-- bind `quic4@:443` лучше **закомментировать** (`# tmpl-no-h3`), иначе клиент снова цепляется к h3.
-
-Не снимать REJECT на реле «чтобы заработал h3» — вернёт кружок на LTE.
-
-### Шаг 5 — tmpl-sub понимает HEAD
-
-Happ иногда шлёт **HEAD** перед/вместо GET.
-
-```bash
-# на exit
-grep -n do_HEAD /etc/tmpl/sub.py
-# снаружи
-curl -sk -o /dev/null -w "%{http_code}\n" -X HEAD -A Happ/3.0 \
-  -H "Connection: close" --max-time 12 "https://xN.../path/uuid/"
-```
-
-Нужно: `do_HEAD` → `do_GET(head=True)` и ответ **200** (не 501).  
-Если 501 — взять актуальный `/etc/tmpl/sub.py` с рабочего exit (12/60) или из dist, `systemctl restart tmpl-sub`, снова HEAD+GET.
-
-Локальный curl к `:2099` без `-H "Connection: close"` на HEAD может «висеть» из‑за Content-Length — для проверки всегда `Connection: close` и `--max-time`.
-
-### Шаг 6 — DNAT и путь релей→exit
-
-```bash
-# на реле фронта
-iptables -t nat -S | grep -E "DNAT|443|TMPL"
-# с релея: TCP 443×5 до EXIT_IP
-```
-
-Primary мёртв, backup жив → flip DNS на backup (скрипт или руками). Failback сам не делать.
-
-### Шаг 7 — отчёт оператору
-
-Кратко: какие домены dig’ом куда; GET/HEAD с какого релея; REJECT на месте; что поменял в CF / sub.py. Попросить перепроверить Happ на Wi‑Fi и LTE (DNS TTL 60 — подождать минуту при кэше).
+DNS куда; GET/HEAD с какого релея; REJECT; WG затронут?; что в CF. Времена — Europe/Moscow.
 
 ---
 
-## REJECT UDP/443 — шпаргалка «эджект»
-
-Оператор говорит «эджект» = **REJECT UDP/443 на реле**, не параметр панели и не DNS-failover.
-
-1. Клиент помнит HTTP/3.  
-2. Happ при update sub часто сначала UDP/443.  
-3. LTE UDP drop без ICMP → кружок.  
-4. REJECT icmp-port-unreachable → Happ сразу на TCP/443 → sub ок.
-
----
-
-## Роли
-
-| Кто | Делает |
-|-----|--------|
-| Оператор | Покупает IP; пишет `exit: N`, `new_ip`, `host`; пароли только в чат |
-| Агент | DNAT, `ip addr` если IP только в панели, probe, DNS всех доменов, inventory, tmpl-sub/REJECT |
-| Скрипт | DNS flip primary→backup при мёртвом пути |
-
-## Пароли и доступ
-
-- **В md / git пароли не писать.**
-- Оператор даёт root-пароль **только в чат** → агент ставит ключ `tmpl-audit-temp.pub` → дальше BatchMode.
-- Боевые секреты: оператор / `/cursor/stores/self/…`, не PR.
-
----
-
-## Типовые команды оператора → действия
+## Типовые команды оператора
 
 | Фраза | Действие |
 |-------|----------|
-| «новый IP для N: x.x.x.x на host» | `ip addr` → DNAT → REJECT → probe 5/5 → DNS **всех** доменов N → inventory |
-| «N не обновляется» / «протоколы ок» | Чеклист диагностики выше (DNS Hostup? HEAD 501? REJECT? RU-smoke?) |
-| «откатили / верни на старый» | CF A на указанный IP |
-| «на временный» | DNS на `.92`/`.94`/`.95` по таблице exit |
-| «делай reject» | UDP/443 REJECT+RETURN на указанном реле + persist |
+| «новый IP для N: x.x.x.x на host» | `ip addr` → DNAT → REJECT → probe → DNS всех доменов N на **этот** IP → inventory. Primary остаётся 1:1. |
+| «N не обновляется» / «протоколы ок» | Чеклист диагностики |
+| «на временный» | Поднять DNAT на свободном аварийном IP (обычно `.92`) → DNS exit’а туда. **После фикса — вернуть на свой релей, `.92` снова пустой.** |
+| «верни на свой» / «временный пустой» | DNS на primary из таблицы; с `.92` снять клиентский DNS и DNAT на exit |
+| «откатили» | CF A на указанный IP |
+| «делай reject» | UDP/443 REJECT+RETURN + persist |
+| «убери WG у 8/57» | Только после доказанного прямого ≥3/5; иначе не трогать |
 
 ---
 
 ## Чеклист: новый IP для exit N
 
-1. SSH на host; нет IP в `ip -4 addr` → `ip addr add …/32` + `/etc/network/interfaces`.
-2. Multi-IP DNAT: `-d NEW_IP` → exit (SSH и udp/443 local RETURN). Или `apply_relay_dnat.sh`.
-3. REJECT UDP/443 на этом реле.
-4. С релея: TCP 443×5 до exit ≥3/5 (лучше 5/5).
-5. Inventory: primary/backup + полный список domains.
-6. CF A **всех** доменов exit → новый primary (ttl 60, proxied false). Зона `vele.uk` если есть `*.vele.uk`.
-7. Smoke GET+HEAD `-A Happ/3.0` с RU-релея → 200, remote_ip = новый фронт.
-8. Короткий отчёт.
+1. SSH на **свой** host exit’а; IP в ОС (`ip addr add …/32` + interfaces при необходимости).
+2. DNAT `-d NEW_IP` → exit (ssh/udp443 local). `apply_relay_dnat.sh` ок.
+3. REJECT UDP/443.
+4. С релея: TCP 443×5 до exit. Если 0/5 напрямую — не врать оператору; для 8/57 возможен WG; аварийный karaforum3 обычно прямой 5/5.
+5. Inventory + CF A **всех** доменов → новый primary (ttl 60, proxied false). `vele.uk` для доменов 12.
+6. Smoke GET+HEAD с RU-релея.
+7. Короткий отчёт. Временный `.92` не занимать этим IP.
 
 ---
 
 ## Cloudflare
 
-Зоны в работе: `kirz.co.uk`, `kirvpn.ru`, `kirvpn.us`, `vele.uk` (для 12).  
-`sarafan.uk` — **игнор**.  
-Только A, `proxied: false`, TTL 60 для клиентских фронтов.
-
-Zone id — в боевом inventory / example.
+Зоны: `kirz.co.uk`, `kirvpn.ru`, `kirvpn.us`, `vele.uk`.  
+`sarafan.uk` — игнор.  
+A, `proxied: false`, TTL 60. Zone id — в inventory.
 
 ---
 
 ## Запрещено без явной просьбы
 
-- Оранжевый CF на Reality / `x*` доменах.
+- Оранжевый CF на Reality / `x*`.
 - Менять `client_path` / UUID / переиздавать ссылки.
-- DNAT/SSH на чужие exit не из задачи.
-- Коммитить боевой inventory, `CF_TOKEN`, пароли.
+- Коммитить боевой inventory, токены, пароли.
 - Failback DNS без `--failback`.
-- SmartApe → Hostup; возвращать клиентский DNS на **заведомо плохой** фронт (пример: бывший `13.143.137.112` у 12). Живой `13.143.137.92` (15) не трогать без просьбы.
-- Сносить REJECT UDP/443 «ради h3».
-- Трогать `aN`/`zN` альты на `188.127.*` без просьбы.
-- Чинить `*.sarafan.uk`.
+- Вешать primary на временный `.92` или **оставлять** его там после аварии.
+- Снимать WG 8/57 без проверки прямого пути.
+- Сносить REJECT «ради h3».
+- Трогать `aN`/`zN` / `*.sarafan.uk`.
+- SmartApe → Hostup; светить `2.26.10.27` клиентам вместо `.93`.
+
+Пароли: только в чат → ключ `tmpl-audit-temp.pub` → BatchMode. В md/git не писать.
 
 ---
 
-## Известный долг / нюансы
+## Известный долг
 
-- 8 и 57: primary на своих машинах, путь до Hostup может идти через **WG-хоп** (`wg8hop` → karaforum17). Аварийные IP на karaforum3 — прямой DNAT, предпочтительнее при аварии.
-- `2.26.10.27` (OS-IP karaforum4) в DNS клиентам **не светить** — из РФ для sub уже не заходил; светить `.93`.
-- Не удалять без нужды: `144.31.50.159` (cold 60), karaforum17 как релей 20.
-- Можно снести: SmartApe `109.238.93.201`; лишний `13.143.137.35`; мусор `179.254.132.0` на karaforum2.
-- Exit 20 раньше отдавал HEAD **501** (старый `sub.py` без `do_HEAD`) — после копирования с 12/60 → 200. При новых установках проверять HEAD.
-- Wi‑Fi vs LTE: если один канал ок, а другой нет — сначала dig/кэш TTL и REJECT; не ломать то, что работает на втором канале.
+- 8/57: клиентский фронт свой; до Hostup пока WG. Прямой путь 0/5 (на дату актуальности).
+- Холодный `144.31.50.159` — backup 60 на karaforum17; не удалять без нужды.
+- Мусор/кандидаты на снос: SmartApe `109.238.93.201`; `13.143.137.35`; `179.254.132.0` на karaforum2 — только с согласия.
+- Exit 20: раньше HEAD 501 (старый sub.py) — уже чинили; на новых нодах проверять HEAD.
+- Wi‑Fi vs LTE: разный канал → dig/кэш/REJECT; не ломать рабочий канал вслепую.
 
 ---
 
 ## Стиль ответа оператору
 
-Кратко: что сделано, DNS куда смотрит, smoke GET/HEAD 200/нет (с какого релея), REJECT на месте ли. Без лекций, если не просят. Времена — Europe/Moscow.
+Кратко: что сделано, DNS куда, smoke GET/HEAD, REJECT, WG если затронут, временный пустой ли. Без лекций. Europe/Moscow.
 
 ---
