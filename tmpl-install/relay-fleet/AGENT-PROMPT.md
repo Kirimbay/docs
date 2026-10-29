@@ -133,7 +133,9 @@ ip route replace EXIT_IP dev wg8hop   # вернуть сразу, если 0/5
 Скрипт `probe_and_failover.py`: SSH с машины фронта, TCP 443×N до exit; primary мёртв + backup жив → CF A всех доменов exit → backup.  
 Failback **выкл** по умолчанию (`auto_failback: false`).
 
-Имеет смысл там, где есть backup IP: **8, 57, 60** (+20 пока без backup). Весь парк всё равно держать в inventory/карте.
+**Backup front-IP сейчас только у 8, 57, 60.** У **20 backup нет** (и это риск: 20 сидит на karaforum17 вместе с WG-хопом 8/57 и cold-IP 60).  
+У остальных exit (12,14,15,36,37,51,54,58,61) backup нет — только свой primary; «на временный» руками.  
+Весь парк всё равно держать в inventory/карте.
 
 ```bash
 python3 tmpl-install/relay-fleet/scripts/probe_and_failover.py \
