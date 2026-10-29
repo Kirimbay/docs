@@ -34,7 +34,8 @@ exits:
     exit_ip: 136.148.219.217
     domains: [x12.kirz.co.uk, 1212.kirvpn.ru, 1212.kirvpn.us, 1212.vele.uk]
     fronts:
-      - {id: primary, ip: 179.254.132.92, relay_host: 179.254.132.92}
+      - {id: primary, ip: 13.143.137.112, relay_host: 13.143.137.112}
+      # временный .92 на karaforum3 — пустой; не primary без команды оператора
 
   "14":
     exit_ip: 136.148.211.88
