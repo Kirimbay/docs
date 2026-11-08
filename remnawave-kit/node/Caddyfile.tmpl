@@ -1,0 +1,33 @@
+{
+	https_port 9443
+	default_bind 127.0.0.1
+	auto_https disable_redirects
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+http://__NODE_DOMAIN__ {
+	bind 0.0.0.0
+	redir https://__NODE_DOMAIN__{uri} permanent
+}
+
+https://__NODE_DOMAIN__ {
+	root * /var/www/html
+	encode zstd gzip
+	file_server
+	handle_errors {
+		rewrite * /404.html
+		file_server
+	}
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Cache-Control "public, max-age=3600"
+	}
+}
+
+:9443 {
+	tls internal
+	respond 204
+}

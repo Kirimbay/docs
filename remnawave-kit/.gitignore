@@ -1,0 +1,4 @@
+out/
+*.toml
+wgcf-profile.conf
+host-values.txt
