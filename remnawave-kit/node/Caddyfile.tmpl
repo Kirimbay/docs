@@ -3,7 +3,7 @@
 	default_bind 127.0.0.1
 	auto_https disable_redirects
 	servers {
-		trusted_proxies static private_ranges
+		protocols h1 h2
 	}
 }
 

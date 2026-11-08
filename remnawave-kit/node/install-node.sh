@@ -26,6 +26,7 @@ command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh
 
 mkdir -p /opt/remnanode/site /var/log/remnanode
 cp -r "$HERE/site/." /opt/remnanode/site/
+find /opt/remnanode/site -type f \( -name "*.html" -o -name "*.xml" -o -name "*.txt" \) -exec sed -i "s/__NODE_DOMAIN__/$NODE_DOMAIN/g" {} +
 sed "s/__NODE_DOMAIN__/$NODE_DOMAIN/g" "$HERE/Caddyfile.tmpl" > /opt/remnanode/Caddyfile
 
 cat > /opt/remnanode/docker-compose.yml <<EOF
