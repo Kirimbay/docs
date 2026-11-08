@@ -28,7 +28,7 @@ if [ ! -f .secrets-generated ]; then
   touch .secrets-generated
 fi
 sed -i "s|^FRONT_END_DOMAIN=.*|FRONT_END_DOMAIN=$PANEL_DOMAIN|" .env
-sed -i "s|^SUB_PUBLIC_DOMAIN=.*|SUB_PUBLIC_DOMAIN=$SUB_DOMAIN|" .env
+sed -i "s|^SUB_PUBLIC_DOMAIN=.*|SUB_PUBLIC_DOMAIN=$SUB_DOMAIN/api/sub|" .env
 
 docker compose up -d
 

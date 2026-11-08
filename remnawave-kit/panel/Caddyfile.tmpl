@@ -5,8 +5,12 @@ https://__PANEL_DOMAIN__ {
 
 https://__SUB_DOMAIN__ {
 	encode
-	reverse_proxy /api/sub/* http://remnawave:3000
-	respond 404
+	handle /api/sub/* {
+		reverse_proxy http://remnawave:3000
+	}
+	handle {
+		respond 404
+	}
 }
 
 :443 {
