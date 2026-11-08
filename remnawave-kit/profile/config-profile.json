@@ -31,7 +31,7 @@
         "security": "reality",
         "xhttpSettings": {
           "path": "/__XHTTP_PATH__",
-          "mode": "stream-one",
+          "mode": "auto",
           "extra": {
             "xPaddingBytes": "100-1000"
           }
