@@ -1,0 +1,19 @@
+https://__PANEL_DOMAIN__ {
+	encode
+	reverse_proxy * http://remnawave:3000
+}
+
+https://__SUB_DOMAIN__ {
+	encode
+	handle /api/sub/* {
+		reverse_proxy http://remnawave:3000
+	}
+	handle {
+		respond 404
+	}
+}
+
+:443 {
+	tls internal
+	respond 204
+}

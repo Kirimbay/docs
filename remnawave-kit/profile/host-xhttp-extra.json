@@ -1,0 +1,12 @@
+{
+  "xPaddingBytes": "100-1000",
+  "xmux": {
+    "maxConcurrency": 0,
+    "maxConnections": 2,
+    "cMaxReuseTimes": 0,
+    "cMaxLifetimeMs": 0,
+    "hMaxRequestTimes": "600-900",
+    "hMaxReusableSecs": "1800-3000",
+    "hKeepAlivePeriod": 0
+  }
+}
