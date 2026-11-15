@@ -11,17 +11,21 @@ iptables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/nu
   || iptables -I INPUT 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p tcp --dport 22 -j ACCEPT
 
+# remnanode :2222 — panel allow + deny everyone else, both near the top of INPUT
+# (before any broad ACCEPT that may already exist further down the chain).
 while iptables -D INPUT -p tcp --dport 2222 -j ACCEPT 2>/dev/null; do :; done
-iptables -C INPUT -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT 2>/dev/null \
-  || iptables -I INPUT 1 -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT
-iptables -C INPUT -p tcp --dport 2222 -j DROP 2>/dev/null \
-  || iptables -A INPUT -p tcp --dport 2222 -j DROP
+while iptables -D INPUT -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT 2>/dev/null; do :; done
+while iptables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
+# Insert deny first at position 1, then panel allow at position 1 (so allow is above deny).
+iptables -I INPUT 1 -p tcp --dport 2222 -j DROP
+iptables -I INPUT 1 -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT
 
+# WG UDP — front allow + deny everyone else, same top-of-chain pattern.
 while iptables -D INPUT -p udp --dport "$WG_PORT" -j ACCEPT 2>/dev/null; do :; done
-iptables -C INPUT -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null \
-  || iptables -I INPUT 1 -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT
-iptables -C INPUT -p udp --dport "$WG_PORT" -j DROP 2>/dev/null \
-  || iptables -A INPUT -p udp --dport "$WG_PORT" -j DROP
+while iptables -D INPUT -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null; do :; done
+while iptables -D INPUT -p udp --dport "$WG_PORT" -j DROP 2>/dev/null; do :; done
+iptables -I INPUT 1 -p udp --dport "$WG_PORT" -j DROP
+iptables -I INPUT 1 -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT
 
 for IF in eth0 eth1 ens3 ens18; do
   ip link show "$IF" >/dev/null 2>&1 || continue

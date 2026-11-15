@@ -8,8 +8,16 @@ EXIT_PUBLIC_IP="${EXIT_PUBLIC_IP:-136.148.220.250}"
 PORT="${PORT:-443}"
 FRONT_IP="${FRONT_IP:-48.103.140.6}"
 WG_PORT="${WG_PORT:-51814}"
+STATE_DIR="${STATE_DIR:-/var/lib/tiger-dnat}"
+FORWARD_STATE="$STATE_DIR/ip_forward.prev"
 
 apply() {
+  mkdir -p "$STATE_DIR"
+  # Remember pre-existing forward so rollback does not clobber other roles.
+  if [[ ! -f "$FORWARD_STATE" ]]; then
+    sysctl -n net.ipv4.ip_forward >"$FORWARD_STATE" || echo 0 >"$FORWARD_STATE"
+  fi
+
   sysctl -w net.ipv4.ip_forward=1 >/dev/null
   mkdir -p /etc/sysctl.d
   echo 'net.ipv4.ip_forward=1' >/etc/sysctl.d/99-tiger-forward.conf
@@ -61,8 +69,12 @@ rollback() {
   while iptables -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null; do :; done
   while iptables -t mangle -D OUTPUT -o wg-tiger -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null; do :; done
   rm -f /etc/sysctl.d/99-tiger-forward.conf
-  if ! ls /etc/sysctl.d/*forward* >/dev/null 2>&1; then
-    sysctl -w net.ipv4.ip_forward=0 >/dev/null || true
+  # Restore the value observed before apply; do not guess from sysctl.d filenames.
+  if [[ -f "$FORWARD_STATE" ]]; then
+    prev=$(tr -d '[:space:]' <"$FORWARD_STATE" || true)
+    [[ "$prev" == "0" || "$prev" == "1" ]] || prev=1
+    sysctl -w "net.ipv4.ip_forward=$prev" >/dev/null || true
+    rm -f "$FORWARD_STATE"
   fi
   echo "DNAT rolled back"
 }
