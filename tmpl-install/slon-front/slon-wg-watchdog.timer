@@ -1,0 +1,9 @@
+[Unit]
+Description=Slon WG watchdog every 20s
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=20s
+AccuracySec=5s
+Unit=slon-wg-watchdog.service
+[Install]
+WantedBy=timers.target

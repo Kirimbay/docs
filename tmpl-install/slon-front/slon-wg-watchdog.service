@@ -1,0 +1,6 @@
+[Unit]
+Description=Slon WG handshake watchdog
+After=wg-quick@wg-slon.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/slon-wg-watchdog.sh
