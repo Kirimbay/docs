@@ -80,13 +80,16 @@ fi
 
 hs=$(wg show "$IF" latest-handshakes 2>/dev/null | awk -v p="$PEER_PUB" '$1==p {print $2}')
 now=$(date +%s); age=9999
-[[ -n "${hs:-}" && "$hs" != "0" ]] && age=$((now - hs))
+had_hs=0
+[[ -n "${hs:-}" && "$hs" != "0" ]] && { age=$((now - hs)); had_hs=1; }
 wg set "$IF" peer "$PEER_PUB" endpoint "$ENDPOINT" persistent-keepalive 15
-if [[ "$age" -gt "$MAX_AGE" ]]; then
-  logger -t slon-wg-watchdog "stale age=${age}s role=$ROLE — poke"
+if [[ "$had_hs" -eq 0 || "$age" -gt "$MAX_AGE" ]]; then
+  logger -t slon-wg-watchdog "stale/missing age=${age}s had_hs=$had_hs role=$ROLE — poke"
   ping -c2 -W1 "$PEER_IP" >/dev/null 2>&1 || true
 fi
-if [[ "$age" -gt "$HARD_AGE" ]]; then
+# Hard bounce only after a previously established handshake went stale.
+# Missing/zero handshake leaves age=9999 and must not flap the tunnel every 20s.
+if [[ "$had_hs" -eq 1 && "$age" -gt "$HARD_AGE" ]]; then
   hs2=$(wg show "$IF" latest-handshakes 2>/dev/null | awk -v p="$PEER_PUB" '$1==p {print $2}')
   now2=$(date +%s); age2=9999
   [[ -n "${hs2:-}" && "$hs2" != "0" ]] && age2=$((now2 - hs2))
