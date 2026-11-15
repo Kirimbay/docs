@@ -47,6 +47,12 @@ rollback() {
     -j MASQUERADE 2>/dev/null; do :; done
   while iptables -D FORWARD -d "$EXIT_WG/32" -m conntrack --ctstate DNAT -j ACCEPT 2>/dev/null; do :; done
   while iptables -D FORWARD -s "$EXIT_WG/32" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; do :; done
+  while iptables -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null; do :; done
+  rm -f /etc/sysctl.d/99-tiger-forward.conf
+  # Only clear runtime forward if nothing else owns a persist file.
+  if ! ls /etc/sysctl.d/*forward* >/dev/null 2>&1; then
+    sysctl -w net.ipv4.ip_forward=0 >/dev/null || true
+  fi
   echo "DNAT rolled back"
 }
 
