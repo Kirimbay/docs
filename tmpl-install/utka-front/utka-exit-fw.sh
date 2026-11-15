@@ -15,15 +15,17 @@ while iptables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
 iptables -I INPUT 1 -p tcp --dport 2222 -j DROP
 iptables -I INPUT 1 -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT
 
-while ip6tables -D INPUT -p tcp --dport 2222 -j ACCEPT 2>/dev/null; do :; done
-while ip6tables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
-ip6tables -I INPUT 1 -p tcp --dport 2222 -j DROP
+# General IPv6 accepts first, then pin :2222 DROP at the top so tunnel/lo
+# ACCEPT cannot shadow the panel-port block (Codex P2).
 ip6tables -C INPUT -i lo -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -i lo -j ACCEPT
 ip6tables -C INPUT -i wg-utka -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -i wg-utka -j ACCEPT
 ip6tables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null \
   || ip6tables -I INPUT 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ip6tables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p tcp --dport 22 -j ACCEPT
 ip6tables -C INPUT -p ipv6-icmp -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p ipv6-icmp -j ACCEPT
+while ip6tables -D INPUT -p tcp --dport 2222 -j ACCEPT 2>/dev/null; do :; done
+while ip6tables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
+ip6tables -I INPUT 1 -p tcp --dport 2222 -j DROP
 
 while iptables -D INPUT -p udp --dport "$WG_PORT" -j ACCEPT 2>/dev/null; do :; done
 while iptables -D INPUT -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null; do :; done
