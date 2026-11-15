@@ -34,8 +34,10 @@ Bulkio-заглушка живёт на **фронте**.
 1. **Фиксированный UDP `51814` с обеих сторон** + `Endpoint` друг на друга.
 2. `PersistentKeepalive = 15` на front и exit.
 3. `MTU = 1280` + TCPMSS clamp на DNAT/WG path.
-4. `tiger-wg-watchdog.timer` (каждые 20 с) на **обоих** хостах:
-   - пере-пинит endpoint;
+4. `tiger-wg-watchdog.timer` (каждые 20 с) на **обоих** хостах
+   (`tiger-wg-watchdog.sh` сам определяет роль по адресу WG:
+   `10.77.14.1` = front, `10.77.14.2` = exit; при необходимости `ROLE=front|exit`):
+   - пере-пинит endpoint своего peer;
    - при handshake старше 120 с — ping-poke;
    - старше 180 с — soft `wg-quick` bounce + re-apply fw/dnat.
 5. WG UDP на exit принимается **только** с `48.103.140.6`.
