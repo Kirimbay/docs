@@ -34,6 +34,13 @@ if ! ip link show "$IF" >/dev/null 2>&1; then
   [[ -x "$RECOVERY_HOOK" ]] && "$RECOVERY_HOOK" || true
   exit 0
 fi
+
+# Always re-apply DNAT/lockdown (idempotent). Boot units also do this, but
+# a fresh handshake after reboot must not leave rules missing if units lagged.
+if [[ -x "$RECOVERY_HOOK" ]]; then
+  "$RECOVERY_HOOK" || true
+fi
+
 hs=$(wg show "$IF" latest-handshakes 2>/dev/null | awk -v p="$PEER_PUB" '$1==p {print $2}')
 now=$(date +%s); age=9999
 [[ -n "${hs:-}" && "$hs" != "0" ]] && age=$((now - hs))
@@ -53,3 +60,4 @@ if [[ "$age" -gt "$HARD_AGE" ]]; then
     [[ -x "$RECOVERY_HOOK" ]] && "$RECOVERY_HOOK" || true
   fi
 fi
+

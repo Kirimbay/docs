@@ -28,17 +28,32 @@ client → dataz.cc:443 → 185.113.11.52 (front 051)
 
 - Fixed ListenPort `51857` both sides + mutual `Endpoint` + `PersistentKeepalive=15`.
 - `MTU=1280` + TCPMSS clamp on DNAT/WG path.
-- `utka-wg-watchdog.timer` every 20s on **both** hosts (role by `10.77.57.1`/`.2`).
-- Exit lockdown: public 80/443/… DROP; remnanode `:2222` panel IPv4 only; IPv6 `:2222` DROP; nginx masked.
+- `utka-wg-watchdog.timer` every 20s on **both** hosts (role by `10.77.57.1`/`.2`); each tick re-applies DNAT/lockdown.
+- Boot persistence via oneshot units (`utka-dnat.service` / `utka-exit-fw.service`), not iptables-save alone.
+- Exit lockdown: public 80/443/… DROP by dest IP (iface-agnostic) + known NIC names; remnanode `:2222` panel IPv4 only; IPv6 `:2222` DROP; nginx masked.
 
-### Watchdog install (both hosts)
+### Front install
 
 ```bash
+install -m 0755 utka-dnat.sh /usr/local/sbin/utka-dnat.sh
 install -m 0755 utka-wg-watchdog.sh /usr/local/sbin/utka-wg-watchdog.sh
+install -m 0644 utka-dnat.service /etc/systemd/system/utka-dnat.service
 install -m 0644 utka-wg-watchdog.service /etc/systemd/system/utka-wg-watchdog.service
 install -m 0644 utka-wg-watchdog.timer   /etc/systemd/system/utka-wg-watchdog.timer
 systemctl daemon-reload
-systemctl enable --now utka-wg-watchdog.timer
+systemctl enable --now utka-dnat.service utka-wg-watchdog.timer
+```
+
+### Exit install
+
+```bash
+install -m 0755 utka-exit-fw.sh /usr/local/sbin/utka-exit-fw.sh
+install -m 0755 utka-wg-watchdog.sh /usr/local/sbin/utka-wg-watchdog.sh
+install -m 0644 utka-exit-fw.service /etc/systemd/system/utka-exit-fw.service
+install -m 0644 utka-wg-watchdog.service /etc/systemd/system/utka-wg-watchdog.service
+install -m 0644 utka-wg-watchdog.timer   /etc/systemd/system/utka-wg-watchdog.timer
+systemctl daemon-reload
+systemctl enable --now utka-exit-fw.service utka-wg-watchdog.timer
 ```
 
 ## Panel
