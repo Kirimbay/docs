@@ -25,10 +25,11 @@ apply() {
     || iptables -I FORWARD 1 -d "$EXIT_WG/32" -m conntrack --ctstate DNAT -j ACCEPT
   iptables -C FORWARD -s "$EXIT_WG/32" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null \
     || iptables -I FORWARD 2 -s "$EXIT_WG/32" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  # Append-only on INPUT so we never jump ahead of unrelated pins.
   iptables -C INPUT -i wg-utka -p tcp --dport 8446 -j ACCEPT 2>/dev/null \
-    || iptables -I INPUT 1 -i wg-utka -p tcp --dport 8446 -j ACCEPT
+    || iptables -A INPUT -i wg-utka -p tcp --dport 8446 -j ACCEPT
   iptables -C INPUT -p udp -s "$EXIT_PUBLIC_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null \
-    || iptables -I INPUT 1 -p udp -s "$EXIT_PUBLIC_IP" --dport "$WG_PORT" -j ACCEPT
+    || iptables -A INPUT -p udp -s "$EXIT_PUBLIC_IP" --dport "$WG_PORT" -j ACCEPT
   iptables -t mangle -C FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null \
     || iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
   iptables -t mangle -C OUTPUT -o wg-utka -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null \

@@ -3,6 +3,12 @@ set -euo pipefail
 IF=wg-utka
 MAX_AGE="${MAX_AGE:-120}"
 HARD_AGE="${HARD_AGE:-180}"
+FRONT_IP="${FRONT_IP:-185.113.11.52}"
+EXIT_WG="${EXIT_WG:-10.77.57.2}"
+PANEL_IP="${PANEL_IP:-136.148.212.221}"
+WG_PORT="${WG_PORT:-51857}"
+EXIT_PUBLIC_IP="${EXIT_PUBLIC_IP:-185.113.11.79}"
+
 detect_role() {
   if [[ -n "${ROLE:-}" ]]; then echo "$ROLE"; return; fi
   local addr; addr=$(ip -4 -o addr show dev "$IF" 2>/dev/null | awk '{print $4}' | head -1 || true)
@@ -35,22 +41,40 @@ if ! ip link show "$IF" >/dev/null 2>&1; then
   exit 0
 fi
 
-# Re-apply DNAT/lockdown only if critical rules are missing — never flap
-# delete/reinsert every 20s (that briefly blackholes panel/WG).
-FRONT_IP="${FRONT_IP:-185.113.11.52}"
-PANEL_IP="${PANEL_IP:-136.148.212.221}"
-WG_PORT="${WG_PORT:-51857}"
+# Recover only when canaries fail — never flap healthy rules every 20s.
 need_hook=0
 if [[ "$ROLE" == "front" ]]; then
   iptables -t nat -C PREROUTING -p tcp -d "$FRONT_IP" --dport 443 \
-    -j DNAT --to-destination 10.77.57.2:443 2>/dev/null || need_hook=1
+    -j DNAT --to-destination "${EXIT_WG}:443" 2>/dev/null || need_hook=1
+  iptables -t nat -C PREROUTING -p udp -d "$FRONT_IP" --dport 443 \
+    -j DNAT --to-destination "${EXIT_WG}:443" 2>/dev/null || need_hook=1
+  iptables -t nat -C POSTROUTING -d "${EXIT_WG}/32" -m conntrack --ctstate DNAT \
+    -j MASQUERADE 2>/dev/null || need_hook=1
+  iptables -C FORWARD -d "${EXIT_WG}/32" -m conntrack --ctstate DNAT -j ACCEPT 2>/dev/null || need_hook=1
+  iptables -C FORWARD -s "${EXIT_WG}/32" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || need_hook=1
+  iptables -C INPUT -i wg-utka -p tcp --dport 8446 -j ACCEPT 2>/dev/null || need_hook=1
 else
   iptables -C INPUT -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT 2>/dev/null || need_hook=1
   iptables -C INPUT -p tcp --dport 2222 -j DROP 2>/dev/null || need_hook=1
   iptables -C INPUT -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null || need_hook=1
+  iptables -C INPUT -p udp --dport "$WG_PORT" -j DROP 2>/dev/null || need_hook=1
+  ip6tables -C INPUT -p tcp --dport 2222 -j DROP 2>/dev/null || need_hook=1
+  # Panel/WG pins must sit above broad lo/wg ACCEPT.
+  rules=$(iptables -S INPUT)
+  pos_drop=$(printf '%s\n' "$rules" | grep -n -- '--dport 2222 -j DROP' | head -1 | cut -d: -f1 || true)
+  pos_broad=$(printf '%s\n' "$rules" | grep -nE -- '-i (lo|wg-utka) -j ACCEPT' | head -1 | cut -d: -f1 || true)
+  if [[ -z "${pos_drop:-}" || ( -n "${pos_broad:-}" && "$pos_drop" -gt "$pos_broad" ) ]]; then
+    need_hook=1
+  fi
+  rules6=$(ip6tables -S INPUT)
+  pos_drop6=$(printf '%s\n' "$rules6" | grep -n -- '--dport 2222 -j DROP' | head -1 | cut -d: -f1 || true)
+  pos_broad6=$(printf '%s\n' "$rules6" | grep -nE -- '-i (lo|wg-utka) -j ACCEPT' | head -1 | cut -d: -f1 || true)
+  if [[ -z "${pos_drop6:-}" || ( -n "${pos_broad6:-}" && "$pos_drop6" -gt "$pos_broad6" ) ]]; then
+    need_hook=1
+  fi
 fi
 if [[ "$need_hook" -eq 1 && -x "$RECOVERY_HOOK" ]]; then
-  logger -t utka-wg-watchdog "critical rules missing role=$ROLE — recover"
+  logger -t utka-wg-watchdog "critical rules missing/misordered role=$ROLE — recover"
   "$RECOVERY_HOOK" || true
 fi
 
@@ -73,4 +97,3 @@ if [[ "$age" -gt "$HARD_AGE" ]]; then
     [[ -x "$RECOVERY_HOOK" ]] && "$RECOVERY_HOOK" || true
   fi
 fi
-

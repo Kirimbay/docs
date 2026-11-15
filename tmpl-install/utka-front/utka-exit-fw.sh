@@ -7,44 +7,74 @@ EXIT_PUBLIC_IP="${EXIT_PUBLIC_IP:-185.113.11.79}"
 # Optional public IPv6 of this exit (empty = skip dest-based ip6 drops).
 EXIT_PUBLIC_IP6="${EXIT_PUBLIC_IP6:-}"
 
-iptables -C INPUT -i lo -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -i lo -j ACCEPT
-iptables -C INPUT -i wg-utka -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -i wg-utka -j ACCEPT
+# Broad accepts must APPEND. Inserting them at INPUT 1 would shadow panel/WG pins.
+iptables -C INPUT -i lo -j ACCEPT 2>/dev/null || iptables -A INPUT -i lo -j ACCEPT
+iptables -C INPUT -i wg-utka -j ACCEPT 2>/dev/null || iptables -A INPUT -i wg-utka -j ACCEPT
 iptables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null \
-  || iptables -I INPUT 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p tcp --dport 22 -j ACCEPT
+  || iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 
-# Panel :2222 — recreate only when missing (avoid delete/reinsert flaps).
-if ! iptables -C INPUT -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT 2>/dev/null \
-  || ! iptables -C INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; then
+ip6tables -C INPUT -i lo -j ACCEPT 2>/dev/null || ip6tables -A INPUT -i lo -j ACCEPT
+ip6tables -C INPUT -i wg-utka -j ACCEPT 2>/dev/null || ip6tables -A INPUT -i wg-utka -j ACCEPT
+ip6tables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null \
+  || ip6tables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ip6tables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || ip6tables -A INPUT -p tcp --dport 22 -j ACCEPT
+ip6tables -C INPUT -p ipv6-icmp -j ACCEPT 2>/dev/null || ip6tables -A INPUT -p ipv6-icmp -j ACCEPT
+
+# True when panel DROP appears before any broad iface ACCEPT (so pins win).
+v4_pin_order_ok() {
+  local rules pos_drop pos_broad
+  rules=$(iptables -S INPUT)
+  pos_drop=$(printf '%s\n' "$rules" | grep -n -- '--dport 2222 -j DROP' | head -1 | cut -d: -f1 || true)
+  [[ -n "${pos_drop:-}" ]] || return 1
+  pos_broad=$(printf '%s\n' "$rules" | grep -nE -- '-i (lo|wg-utka) -j ACCEPT' | head -1 | cut -d: -f1 || true)
+  [[ -z "${pos_broad:-}" || "$pos_drop" -lt "$pos_broad" ]]
+}
+
+v6_pin_order_ok() {
+  local rules pos_drop pos_broad
+  rules=$(ip6tables -S INPUT)
+  pos_drop=$(printf '%s\n' "$rules" | grep -n -- '--dport 2222 -j DROP' | head -1 | cut -d: -f1 || true)
+  [[ -n "${pos_drop:-}" ]] || return 1
+  pos_broad=$(printf '%s\n' "$rules" | grep -nE -- '-i (lo|wg-utka) -j ACCEPT' | head -1 | cut -d: -f1 || true)
+  [[ -z "${pos_broad:-}" || "$pos_drop" -lt "$pos_broad" ]]
+}
+
+pin_v4_2222() {
   while iptables -D INPUT -p tcp --dport 2222 -j ACCEPT 2>/dev/null; do :; done
   while iptables -D INPUT -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT 2>/dev/null; do :; done
   while iptables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
   iptables -I INPUT 1 -p tcp --dport 2222 -j DROP
   iptables -I INPUT 1 -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT
-fi
+}
 
-# General IPv6 accepts first, then pin :2222 DROP at the top so tunnel/lo
-# ACCEPT cannot shadow the panel-port block.
-ip6tables -C INPUT -i lo -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -i lo -j ACCEPT
-ip6tables -C INPUT -i wg-utka -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -i wg-utka -j ACCEPT
-ip6tables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null \
-  || ip6tables -I INPUT 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-ip6tables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p tcp --dport 22 -j ACCEPT
-ip6tables -C INPUT -p ipv6-icmp -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p ipv6-icmp -j ACCEPT
-if ! ip6tables -C INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; then
+pin_v6_2222() {
   while ip6tables -D INPUT -p tcp --dport 2222 -j ACCEPT 2>/dev/null; do :; done
   while ip6tables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
   ip6tables -I INPUT 1 -p tcp --dport 2222 -j DROP
-fi
+}
 
-# WG UDP — recreate only when missing.
-if ! iptables -C INPUT -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null \
-  || ! iptables -C INPUT -p udp --dport "$WG_PORT" -j DROP 2>/dev/null; then
+pin_v4_wg() {
   while iptables -D INPUT -p udp --dport "$WG_PORT" -j ACCEPT 2>/dev/null; do :; done
   while iptables -D INPUT -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null; do :; done
   while iptables -D INPUT -p udp --dport "$WG_PORT" -j DROP 2>/dev/null; do :; done
   iptables -I INPUT 1 -p udp --dport "$WG_PORT" -j DROP
   iptables -I INPUT 1 -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT
+}
+
+if ! iptables -C INPUT -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT 2>/dev/null \
+  || ! iptables -C INPUT -p tcp --dport 2222 -j DROP 2>/dev/null \
+  || ! v4_pin_order_ok; then
+  pin_v4_2222
+fi
+
+if ! ip6tables -C INPUT -p tcp --dport 2222 -j DROP 2>/dev/null || ! v6_pin_order_ok; then
+  pin_v6_2222
+fi
+
+if ! iptables -C INPUT -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null \
+  || ! iptables -C INPUT -p udp --dport "$WG_PORT" -j DROP 2>/dev/null; then
+  pin_v4_wg
 fi
 
 LOCK_TCP_PORTS=(80 443 8443 8446 47157 47764 10857)
