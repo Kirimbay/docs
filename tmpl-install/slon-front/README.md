@@ -42,8 +42,8 @@ install -m 0644 slon-dnat.service /etc/systemd/system/slon-dnat.service
 install -m 0644 slon-wg-watchdog.service /etc/systemd/system/slon-wg-watchdog.service
 install -m 0644 slon-wg-watchdog.timer   /etc/systemd/system/slon-wg-watchdog.timer
 systemctl daemon-reload
+# Overwrites the old HostUp oneshot of the same name; keep enabled at boot.
 systemctl enable --now wg-quick@wg-slon.service slon-dnat.service slon-wg-watchdog.timer
-systemctl disable --now slon-dnat.service 2>/dev/null || true  # if old HostUp unit name conflicts — re-enable after overwrite
 ```
 
 ### Exit install
