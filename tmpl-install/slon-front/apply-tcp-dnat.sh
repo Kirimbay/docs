@@ -174,15 +174,17 @@ PY
   if command -v haproxy >/dev/null; then
     if ! haproxy -c -f "$tmp"; then
       rm -f "$tmp"
-      # die() bypasses ERR trap — restore explicitly
-      restore_haproxy || true
-      die "haproxy -c failed on edited cfg — live file untouched, backup restore attempted"
+      # Live cfg was never replaced — do NOT restore original (would undo cutover).
+      die "haproxy -c failed on draft cfg — live file untouched"
     fi
   fi
   cp -a "$tmp" "$HAPROXY_CFG"
   rm -f "$tmp"
   if command -v haproxy >/dev/null; then
-    systemctl reload haproxy 2>/dev/null || systemctl restart haproxy
+    if ! systemctl reload haproxy 2>/dev/null && ! systemctl restart haproxy; then
+      restore_haproxy || true
+      die "HAProxy reload/restart failed after replacing cfg — restored original"
+    fi
   fi
   if ss -lnt | awk '{print $4}' | grep -E '(:|::):?443$' >/dev/null 2>&1; then
     log "WARNING: something still listens on :443 — check ss -lntp"
@@ -258,11 +260,6 @@ verify(){
   iptables -t nat -S | grep -E "$FRONT_PUB|$EXIT_LAN" || true
 }
 
-fail_restore(){
-  log "APPLY FAILED — restoring HAProxy and leaving DNAT if already installed"
-  restore_haproxy || true
-}
-
 do_apply(){
   need_root
   ip -4 addr | grep -q "inet $FRONT_LAN/" || die "LAN $FRONT_LAN not on this host"
@@ -278,10 +275,10 @@ do_apply(){
   hijack_udp_helper
   persist_rules
 
-  # 3) Only then drop HAProxy :443; on failure restore listener
-  trap fail_restore ERR
+  # 3) Only then drop HAProxy :443.
+  # strip_haproxy_443 edits via temp+validate first; restore only if live cfg was replaced
+  # and reload failed (handled inside). Do not ERR-trap restore on validate-only failures.
   strip_haproxy_443
-  trap - ERR
 
   verify
   log "DONE: $FRONT_PUB:$PORT → $EXIT_LAN:$PORT via LAN (SNAT $FRONT_LAN), no TLS inspect"
