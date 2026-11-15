@@ -19,11 +19,20 @@ SCRIPT=/usr/local/sbin/slon-dnat.sh
 STAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP_DIR=/root/slon-dnat-backup-$STAMP
 STATE=/var/lib/slon-dnat
+ORIG_BACKUP_PTR=$STATE/original-backup
 
 log(){ printf '[slon-dnat] %s\n' "$*"; }
 die(){ printf '[slon-dnat] ERROR: %s\n' "$*" >&2; exit 1; }
 
 need_root(){ [ "$(id -u)" -eq 0 ] || die "run as root on the front"; }
+
+persist_rules(){
+  if command -v netfilter-persistent >/dev/null; then
+    netfilter-persistent save >/dev/null 2>&1 || true
+  elif [ -d /etc/iptables ]; then
+    iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+  fi
+}
 
 install_rules(){
   # TCP 443 — transparent passthrough (нарезка-safe)
@@ -66,6 +75,9 @@ remove_rules(){
     -j DNAT --to-destination "$EXIT_LAN:$PORT" 2>/dev/null; do :; done
   while iptables -t nat -D POSTROUTING -d "$EXIT_LAN/32" -p udp --dport "$PORT" \
     -j SNAT --to-source "$FRONT_LAN" 2>/dev/null; do :; done
+  while iptables -D FORWARD -d "$EXIT_LAN/32" -m conntrack --ctstate DNAT -j ACCEPT 2>/dev/null; do :; done
+  while iptables -D FORWARD -s "$EXIT_LAN/32" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; do :; done
+  # MSS clamp is shared/harmless; leave it. Do not strip unrelated mangle rules.
 }
 
 write_persistent(){
@@ -103,17 +115,24 @@ EOF
 
 strip_haproxy_443(){
   [ -f "$HAPROXY_CFG" ] || { log "no $HAPROXY_CFG — skip HAProxy edit"; return 0; }
-  mkdir -p "$BACKUP_DIR"
-  cp -a "$HAPROXY_CFG" "$BACKUP_DIR/haproxy.cfg"
-  echo "$BACKUP_DIR" >"$STATE/last-backup"
+  mkdir -p "$BACKUP_DIR" "$STATE"
+
+  # Keep the FIRST pre-cutover HAProxy cfg for rollback across re-applies.
+  if [ ! -f "$ORIG_BACKUP_PTR" ] || [ ! -f "$(cat "$ORIG_BACKUP_PTR" 2>/dev/null)/haproxy.cfg" ]; then
+    cp -a "$HAPROXY_CFG" "$BACKUP_DIR/haproxy.cfg"
+    echo "$BACKUP_DIR" >"$ORIG_BACKUP_PTR"
+    echo "$BACKUP_DIR" >"$STATE/last-backup"
+    log "saved original HAProxy backup → $BACKUP_DIR"
+  else
+    cp -a "$HAPROXY_CFG" "$BACKUP_DIR/haproxy.cfg.pre-reapply"
+    log "keeping original backup $(cat "$ORIG_BACKUP_PTR"); this run snapshot → $BACKUP_DIR"
+  fi
 
   python3 - "$HAPROXY_CFG" <<'PY'
 import re, sys
 path = sys.argv[1]
 text = open(path).read()
 # Drop frontend that binds :443 / :::443 (tcp443 or tls443), keep the rest.
-# Also drop orphan backend b_slon_reality only if frontend tcp443 is removed
-# and nothing else references it — keep backend for easy rollback copy in backup.
 blocks = re.split(r'(?=^(?:frontend|backend|listen|global|defaults)\b)', text, flags=re.M)
 out = []
 removed = []
@@ -123,7 +142,6 @@ for b in blocks:
         removed.append(head)
         continue
     if re.match(r'^frontend\s+', head) and re.search(r'(?m)^\s*bind\s+\S*:443\b', b):
-        # any other frontend binding :443 / :::443
         removed.append(head + ' (bind :443)')
         continue
     out.append(b)
@@ -139,7 +157,6 @@ PY
     haproxy -c -f "$HAPROXY_CFG" || die "haproxy -c failed after edit — restore from $BACKUP_DIR"
     systemctl reload haproxy 2>/dev/null || systemctl restart haproxy
   fi
-  # Ensure nothing local owns 443 (DNAT does not need a listener)
   if ss -lnt | awk '{print $4}' | grep -E '(:|::):?443$' >/dev/null 2>&1; then
     log "WARNING: something still listens on :443 — check ss -lntp"
     ss -lntp | grep -E ':443\b' || true
@@ -150,7 +167,7 @@ PY
 
 restore_haproxy(){
   local b
-  b=$(cat "$STATE/last-backup" 2>/dev/null || true)
+  b=$(cat "$ORIG_BACKUP_PTR" 2>/dev/null || cat "$STATE/last-backup" 2>/dev/null || true)
   if [ -n "$b" ] && [ -f "$b/haproxy.cfg" ]; then
     cp -a "$b/haproxy.cfg" "$HAPROXY_CFG"
     haproxy -c -f "$HAPROXY_CFG"
@@ -181,9 +198,8 @@ do_apply(){
   strip_haproxy_443
   install_rules
   write_persistent
-  # Prefer our script over legacy udp-only helper name
   if [ -f /usr/local/sbin/udp443-to-node20.sh ]; then
-    cp -a /usr/local/sbin/udp443-to-node20.sh "$BACKUP_DIR/"
+    cp -a /usr/local/sbin/udp443-to-node20.sh "$BACKUP_DIR/" 2>/dev/null || true
     cat >/usr/local/sbin/udp443-to-node20.sh <<EOF
 #!/bin/bash
 # Legacy name kept: now delegates to slon-dnat (TCP+UDP).
@@ -191,20 +207,21 @@ exec $SCRIPT
 EOF
     chmod 755 /usr/local/sbin/udp443-to-node20.sh
   fi
-  if command -v netfilter-persistent >/dev/null; then
-    netfilter-persistent save >/dev/null 2>&1 || true
-  fi
+  persist_rules
   verify
   log "DONE: $FRONT_PUB:$PORT → $EXIT_LAN:$PORT via LAN (SNAT $FRONT_LAN), no TLS inspect"
-  log "backup: $BACKUP_DIR"
+  log "backup: $BACKUP_DIR (original=$(cat "$ORIG_BACKUP_PTR" 2>/dev/null || echo none))"
 }
 
 do_rollback(){
   need_root
   systemctl disable --now slon-dnat.service 2>/dev/null || true
+  rm -f "$UNIT"
+  systemctl daemon-reload 2>/dev/null || true
   remove_rules
   restore_haproxy
-  log "rollback complete (TCP DNAT removed; HAProxy restore attempted)"
+  persist_rules
+  log "rollback complete (NAT+FORWARD DNAT rules removed; ruleset persisted; HAProxy restore attempted)"
   iptables -t nat -S | grep -E "$FRONT_PUB|$EXIT_LAN" || log "no remaining slon nat rules"
 }
 
