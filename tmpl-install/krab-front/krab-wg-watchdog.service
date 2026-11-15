@@ -1,0 +1,7 @@
+[Unit]
+Description=Krab WG IPv6 handshake watchdog
+After=wg-quick@wg-krab.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/krab-wg-watchdog.sh
