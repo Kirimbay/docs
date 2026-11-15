@@ -35,9 +35,22 @@ if ! ip link show "$IF" >/dev/null 2>&1; then
   exit 0
 fi
 
-# Always re-apply DNAT/lockdown (idempotent). Boot units also do this, but
-# a fresh handshake after reboot must not leave rules missing if units lagged.
-if [[ -x "$RECOVERY_HOOK" ]]; then
+# Re-apply DNAT/lockdown only if critical rules are missing — never flap
+# delete/reinsert every 20s (that briefly blackholes panel/WG).
+FRONT_IP="${FRONT_IP:-185.113.11.52}"
+PANEL_IP="${PANEL_IP:-136.148.212.221}"
+WG_PORT="${WG_PORT:-51857}"
+need_hook=0
+if [[ "$ROLE" == "front" ]]; then
+  iptables -t nat -C PREROUTING -p tcp -d "$FRONT_IP" --dport 443 \
+    -j DNAT --to-destination 10.77.57.2:443 2>/dev/null || need_hook=1
+else
+  iptables -C INPUT -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT 2>/dev/null || need_hook=1
+  iptables -C INPUT -p tcp --dport 2222 -j DROP 2>/dev/null || need_hook=1
+  iptables -C INPUT -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null || need_hook=1
+fi
+if [[ "$need_hook" -eq 1 && -x "$RECOVERY_HOOK" ]]; then
+  logger -t utka-wg-watchdog "critical rules missing role=$ROLE — recover"
   "$RECOVERY_HOOK" || true
 fi
 

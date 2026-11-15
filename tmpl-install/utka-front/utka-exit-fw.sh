@@ -13,11 +13,15 @@ iptables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/nu
   || iptables -I INPUT 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p tcp --dport 22 -j ACCEPT
 
-while iptables -D INPUT -p tcp --dport 2222 -j ACCEPT 2>/dev/null; do :; done
-while iptables -D INPUT -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT 2>/dev/null; do :; done
-while iptables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
-iptables -I INPUT 1 -p tcp --dport 2222 -j DROP
-iptables -I INPUT 1 -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT
+# Panel :2222 — recreate only when missing (avoid delete/reinsert flaps).
+if ! iptables -C INPUT -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT 2>/dev/null \
+  || ! iptables -C INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; then
+  while iptables -D INPUT -p tcp --dport 2222 -j ACCEPT 2>/dev/null; do :; done
+  while iptables -D INPUT -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT 2>/dev/null; do :; done
+  while iptables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
+  iptables -I INPUT 1 -p tcp --dport 2222 -j DROP
+  iptables -I INPUT 1 -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT
+fi
 
 # General IPv6 accepts first, then pin :2222 DROP at the top so tunnel/lo
 # ACCEPT cannot shadow the panel-port block.
@@ -27,15 +31,21 @@ ip6tables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/n
   || ip6tables -I INPUT 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ip6tables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p tcp --dport 22 -j ACCEPT
 ip6tables -C INPUT -p ipv6-icmp -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p ipv6-icmp -j ACCEPT
-while ip6tables -D INPUT -p tcp --dport 2222 -j ACCEPT 2>/dev/null; do :; done
-while ip6tables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
-ip6tables -I INPUT 1 -p tcp --dport 2222 -j DROP
+if ! ip6tables -C INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; then
+  while ip6tables -D INPUT -p tcp --dport 2222 -j ACCEPT 2>/dev/null; do :; done
+  while ip6tables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
+  ip6tables -I INPUT 1 -p tcp --dport 2222 -j DROP
+fi
 
-while iptables -D INPUT -p udp --dport "$WG_PORT" -j ACCEPT 2>/dev/null; do :; done
-while iptables -D INPUT -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null; do :; done
-while iptables -D INPUT -p udp --dport "$WG_PORT" -j DROP 2>/dev/null; do :; done
-iptables -I INPUT 1 -p udp --dport "$WG_PORT" -j DROP
-iptables -I INPUT 1 -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT
+# WG UDP — recreate only when missing.
+if ! iptables -C INPUT -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null \
+  || ! iptables -C INPUT -p udp --dport "$WG_PORT" -j DROP 2>/dev/null; then
+  while iptables -D INPUT -p udp --dport "$WG_PORT" -j ACCEPT 2>/dev/null; do :; done
+  while iptables -D INPUT -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT 2>/dev/null; do :; done
+  while iptables -D INPUT -p udp --dport "$WG_PORT" -j DROP 2>/dev/null; do :; done
+  iptables -I INPUT 1 -p udp --dport "$WG_PORT" -j DROP
+  iptables -I INPUT 1 -p udp -s "$FRONT_IP" --dport "$WG_PORT" -j ACCEPT
+fi
 
 LOCK_TCP_PORTS=(80 443 8443 8446 47157 47764 10857)
 

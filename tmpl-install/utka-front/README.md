@@ -28,7 +28,7 @@ client → dataz.cc:443 → 185.113.11.52 (front 051)
 
 - Fixed ListenPort `51857` both sides + mutual `Endpoint` + `PersistentKeepalive=15`.
 - `MTU=1280` + TCPMSS clamp on DNAT/WG path.
-- `utka-wg-watchdog.timer` every 20s on **both** hosts (role by `10.77.57.1`/`.2`); each tick re-applies DNAT/lockdown.
+- `utka-wg-watchdog.timer` every 20s on **both** hosts (role by `10.77.57.1`/`.2`); recovers DNAT/lockdown only if critical rules are missing (no delete/reinsert flaps).
 - Boot persistence via oneshot units (`utka-dnat.service` / `utka-exit-fw.service`), not iptables-save alone.
 - Exit lockdown: public 80/443/… DROP by dest IP (iface-agnostic) + known NIC names; remnanode `:2222` panel IPv4 only; IPv6 `:2222` DROP; nginx masked.
 
