@@ -114,28 +114,44 @@ EOF
   systemctl enable --now slon-dnat.service
 }
 
+haproxy_cfg_has_443(){
+  # True only if live cfg still has a :443 frontend worth restoring later.
+  [ -f "$1" ] || return 1
+  grep -qE '^(frontend\s+(tcp443|tls443)\b)' "$1" \
+    || grep -qE '^[[:space:]]*bind[[:space:]].*:443\b' "$1"
+}
+
 save_haproxy_original_backup(){
   [ -f "$HAPROXY_CFG" ] || return 0
   mkdir -p "$BACKUP_DIR" "$STATE"
-  if [ ! -f "$ORIG_BACKUP_PTR" ] || [ ! -f "$(cat "$ORIG_BACKUP_PTR" 2>/dev/null)/haproxy.cfg" ]; then
-    cp -a "$HAPROXY_CFG" "$BACKUP_DIR/haproxy.cfg"
-    echo "$BACKUP_DIR" >"$ORIG_BACKUP_PTR"
-    echo "$BACKUP_DIR" >"$STATE/last-backup"
-    log "saved original HAProxy backup → $BACKUP_DIR"
-  else
+  if [ -f "$ORIG_BACKUP_PTR" ] && [ -f "$(cat "$ORIG_BACKUP_PTR" 2>/dev/null)/haproxy.cfg" ]; then
     cp -a "$HAPROXY_CFG" "$BACKUP_DIR/haproxy.cfg.pre-reapply"
     log "keeping original backup $(cat "$ORIG_BACKUP_PTR"); this run snapshot → $BACKUP_DIR"
+    return 0
   fi
+  # Never promote an already-stripped cfg to "original" (would poison rollback).
+  if ! haproxy_cfg_has_443 "$HAPROXY_CFG"; then
+    log "WARNING: no original HAProxy backup and live cfg has no :443 — not overwriting pointer"
+    cp -a "$HAPROXY_CFG" "$BACKUP_DIR/haproxy.cfg.stripped-only"
+    return 0
+  fi
+  cp -a "$HAPROXY_CFG" "$BACKUP_DIR/haproxy.cfg"
+  echo "$BACKUP_DIR" >"$ORIG_BACKUP_PTR"
+  echo "$BACKUP_DIR" >"$STATE/last-backup"
+  log "saved original HAProxy backup → $BACKUP_DIR"
 }
 
 strip_haproxy_443(){
   [ -f "$HAPROXY_CFG" ] || { log "no $HAPROXY_CFG — skip HAProxy edit"; return 0; }
   save_haproxy_original_backup
 
-  python3 - "$HAPROXY_CFG" <<'PY'
+  # Edit to a temp file first; only replace live cfg after haproxy -c passes.
+  local tmp
+  tmp=$(mktemp)
+  python3 - "$HAPROXY_CFG" "$tmp" <<'PY'
 import re, sys
-path = sys.argv[1]
-text = open(path).read()
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src).read()
 blocks = re.split(r'(?=^(?:frontend|backend|listen|global|defaults)\b)', text, flags=re.M)
 out = []
 removed = []
@@ -148,16 +164,24 @@ for b in blocks:
         removed.append(head + ' (bind :443)')
         continue
     out.append(b)
-new = ''.join(out)
+open(dst, 'w').write(''.join(out))
 if not removed:
     print('HAProxy: no :443 frontend found (already clear)')
 else:
-    open(path, 'w').write(new)
-    print('HAProxy removed:', ', '.join(removed))
+    print('HAProxy will remove:', ', '.join(removed))
 PY
 
   if command -v haproxy >/dev/null; then
-    haproxy -c -f "$HAPROXY_CFG" || die "haproxy -c failed after edit — restore from backup"
+    if ! haproxy -c -f "$tmp"; then
+      rm -f "$tmp"
+      # die() bypasses ERR trap — restore explicitly
+      restore_haproxy || true
+      die "haproxy -c failed on edited cfg — live file untouched, backup restore attempted"
+    fi
+  fi
+  cp -a "$tmp" "$HAPROXY_CFG"
+  rm -f "$tmp"
+  if command -v haproxy >/dev/null; then
     systemctl reload haproxy 2>/dev/null || systemctl restart haproxy
   fi
   if ss -lnt | awk '{print $4}' | grep -E '(:|::):?443$' >/dev/null 2>&1; then
@@ -181,15 +205,22 @@ restore_haproxy(){
   fi
 }
 
+udp_helper_is_wrapper(){
+  [ -f "$1" ] || return 1
+  grep -q 'Legacy name kept: now delegates to slon-dnat' "$1" \
+    || grep -qE "^exec[[:space:]]+$SCRIPT\$" "$1"
+}
+
 hijack_udp_helper(){
   [ -f "$UDP_HELPER" ] || return 0
   mkdir -p "$BACKUP_DIR" "$STATE"
-  # Keep first original helper for rollback across re-applies.
-  if [ ! -f "$UDP_HELPER_BAK_PTR" ] || [ ! -f "$(cat "$UDP_HELPER_BAK_PTR" 2>/dev/null)" ]; then
+  if [ -f "$UDP_HELPER_BAK_PTR" ] && [ -f "$(cat "$UDP_HELPER_BAK_PTR" 2>/dev/null)" ]; then
+    cp -a "$UDP_HELPER" "$BACKUP_DIR/udp443-to-node20.sh.pre-reapply" 2>/dev/null || true
+  elif udp_helper_is_wrapper "$UDP_HELPER"; then
+    log "WARNING: udp helper already wrapped and no original backup — not poisoning pointer"
+  else
     cp -a "$UDP_HELPER" "$BACKUP_DIR/udp443-to-node20.sh.orig"
     echo "$BACKUP_DIR/udp443-to-node20.sh.orig" >"$UDP_HELPER_BAK_PTR"
-  else
-    cp -a "$UDP_HELPER" "$BACKUP_DIR/udp443-to-node20.sh.pre-reapply" 2>/dev/null || true
   fi
   cat >"$UDP_HELPER" <<EOF
 #!/bin/bash
