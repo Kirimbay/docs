@@ -1,0 +1,6 @@
+[Unit]
+Description=Utka WG handshake watchdog
+After=wg-quick@wg-utka.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/utka-wg-watchdog.sh
