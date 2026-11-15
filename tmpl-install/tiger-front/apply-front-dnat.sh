@@ -5,7 +5,7 @@ set -euo pipefail
 
 EXIT_WG="${EXIT_WG:-10.77.14.2}"
 PORT="${PORT:-443}"
-FRONT_IP="${FRONT_IP:-103.102.229.156}"
+FRONT_IP="${FRONT_IP:-48.103.140.6}"
 
 apply() {
   sysctl -w net.ipv4.ip_forward=1 >/dev/null
