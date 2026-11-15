@@ -17,12 +17,17 @@ ip6tables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/n
 ip6tables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p tcp --dport 22 -j ACCEPT
 ip6tables -C INPUT -p ipv6-icmp -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p ipv6-icmp -j ACCEPT
 
-# remnanode :2222 panel only (v4)
+# remnanode :2222 — panel allow (IPv4) + deny everyone else (v4 + v6).
+# Panel has no IPv6 path, so drop all IPv6 :2222.
 while iptables -D INPUT -p tcp --dport 2222 -j ACCEPT 2>/dev/null; do :; done
 while iptables -D INPUT -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT 2>/dev/null; do :; done
 while iptables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
 iptables -I INPUT 1 -p tcp --dport 2222 -j DROP
 iptables -I INPUT 1 -p tcp -s "$PANEL_IP" --dport 2222 -j ACCEPT
+
+while ip6tables -D INPUT -p tcp --dport 2222 -j ACCEPT 2>/dev/null; do :; done
+while ip6tables -D INPUT -p tcp --dport 2222 -j DROP 2>/dev/null; do :; done
+ip6tables -I INPUT 1 -p tcp --dport 2222 -j DROP
 
 # WG UDP over IPv6 — only from front v6
 while ip6tables -D INPUT -p udp --dport "$WG_PORT" -j ACCEPT 2>/dev/null; do :; done

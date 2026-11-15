@@ -25,8 +25,19 @@ client → datatransfer.cc:443 → 144.31.13.79 (front)
 
 - WG **Endpoint** uses IPv6 only (`[addr]:51837`) both ways.
 - Fixed ListenPort `51837`, `PersistentKeepalive=15`, `MTU=1280`, TCPMSS clamp (v4+v6).
-- `krab-wg-watchdog.timer` every 20s on both hosts (auto role by `10.77.37.1`/`.2`).
-- Exit: WG UDP accepted only from front IPv6; remnanode `:2222` only from panel; public 80/443/… dropped; nginx stopped.
+- Exit: WG UDP accepted only from front IPv6; remnanode `:2222` only from panel **IPv4** (IPv6 `:2222` dropped); public 80/443/… dropped; nginx stopped.
+
+### Watchdog install (both hosts)
+
+```bash
+install -m 0755 krab-wg-watchdog.sh /usr/local/sbin/krab-wg-watchdog.sh
+install -m 0644 krab-wg-watchdog.service /etc/systemd/system/krab-wg-watchdog.service
+install -m 0644 krab-wg-watchdog.timer   /etc/systemd/system/krab-wg-watchdog.timer
+systemctl daemon-reload
+systemctl enable --now krab-wg-watchdog.timer
+```
+
+Timer every 20s; script auto-detects role by WG address (`10.77.37.1` = front, `.2` = exit).
 
 ## Panel
 
